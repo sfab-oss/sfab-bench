@@ -64,6 +64,37 @@ Tolerances are 2% on volume and area: tessellation is a chord
 approximation so the numbers never match exactly, but a real defect misses
 by tens of percent, never by tenths.
 
+**Tier 4a — `cad/scene.selfcheck.ts`.** Everything after the package is
+`buildScene` in `cad/loadStepPackage.ts`, which was split out of
+`loadStepPackage` so it could be run without a browser: the fetching stayed
+behind, the assembling is pure. It builds every fixture, decodes the `.tess`
+files with the web decoder, and assembles the scene the viewer renders —
+three.js in plain Node, no GPU, no canvas, no jsdom.
+
+What it pins:
+
+- **metres and up-axis.** `inch_block` has to come out 0.0508 x 0.0127 x 0.0254 m, with the 12.7mm CAD Z as the model's *height*. Get the rotation wrong and every number is still present, just on the wrong axis — which reads as the model lying down, or in VR as a wall.
+- **the floor.** `sitHeight` must never leave a model sunk into the ground, and must leave one already clear of it alone. `curved_solids` and `bare_solids` dip below Z=0 and so exercise the lift; `deep_nest` sits above it and exercises the restraint.
+- **refs.** Every part's `cadRef` is unique and names something the package contains.
+- **faces.** A box has six faces, so six rays return six *different* ordinals drawn from exactly 1..6, and four points on one face all return the same one. A ref that means "wherever the mouse was" cannot be handed to an assistant.
+- **the same file twice.** Rebuild and re-assemble, and the same ray returns the same ref. Package determinism is checked server-side; this is the other half.
+- **winding, without pixels.** three derives `hit.face.normal` from the triangle's winding, not from the normal attribute, so a picked face whose normal points *away* from the ray is an inside-out solid. Dropping the `REVERSED` flip in `occt/mesh.ts` fails here as well as in the corpus check.
+
+**Tier 5a — `scene/placement.selfcheck.ts`.** `placeAtGaze` and `faceToward`
+are the whole of VR spawn placement and are pure functions of a camera pose,
+so they need no headset. Both failure modes are invisible on a monitor: a
+model that creeps closer as the wearer looks down (projecting the gaze
+instead of flattening it), and a model that inherits the head's roll. The
+second is the one that makes people take the headset off — the horizon of
+the thing you are looking at is the only fixed reference the inner ear has.
+
+Writing it turned up a real one. Looking straight up or down leaves the gaze
+with no floor direction at all, and the old guard fell back to world north,
+so a wearer facing any other way had the model jump behind them on the last
+degree of head tilt. It now falls back to the head's own up vector — where
+the forehead points — which is continuous with the gaze as it goes vertical,
+and the check asserts that continuity rather than either branch's output.
+
 ## The corpus
 
 `apps/server/fixtures/*.step`, written by
@@ -116,32 +147,27 @@ because it is also a claim.
 
 Roughly in the order worth doing.
 
-**Tier 4a — scene graph.** three.js assembles a scene and raycasts against
-it in plain Node, with no GPU and no jsdom, so this is cheap and
-deterministic. Worth asserting: the loaded root's world bbox **in metres**;
-CAD Z mapping to three Y;
-`sitHeight` putting the model on the floor; and above all that a ray from a
-fixed direction returns the **expected `#o1.2.f7`**. That ref is what
-`get_viewer` hands an assistant, which then acts on it, so a ref that
-quietly shifts is a product bug, not a viewer detail.
-
-**Tier 5a — placement.** `placeAtGaze` and `faceToward` in
-`scene/SpawnInFront.tsx` are already exported and pure. Feed them a
-synthetic camera pose and assert the result. No headset needed.
+**Tier 3 — metamorphic.** Build at two deflections and check the coarser
+mesh stays inside the finer one's bounds and keeps the same face ordinals.
+Cheap, and it would catch a mesher change that silently renumbers faces.
 
 **Tier 4b — pixels.** Not image diffs; GPU and driver variation makes exact
 comparison worthless. Structural metrics from a few canonical views:
 coverage fraction, screen-space centroid, and the pixel colour at each
-part's projected centroid. Plus one reference-free normals test: render
-once forcing `FrontSide` and once `DoubleSide` — for a closed solid the
-coverage must match. Note that CAD materials ship as `DoubleSide`, so the
-product currently **hides** winding errors; that config has to be forced.
+part's projected centroid. The reference-free normals test this was also
+meant to carry — `FrontSide` against `DoubleSide` coverage — is now covered
+more cheaply by the ray-normal check in Tier 4a, so what is left here is
+colour and layout, which nothing else can see.
 
 **Tier 5b — stereo and budget.** Render from both eye matrices and check a
 part appears in both with horizontal disparity of the right sign for its
 depth; inverted eyes are nauseating and completely invisible on a monitor.
 Assert draw calls and triangle counts in CI (deterministic); record real
 frame times on-device as a tracked number rather than a pass/fail.
+
+**Still unpinned.** `loadStepPackage`'s flat fallback for a package with no
+`assembly.root` is never exercised — nothing the loader writes today omits
+it. `group.userData.cadRef` is written and read by nothing.
 
 ## On external models
 

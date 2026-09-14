@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./app": "./src/app.ts",
-    "./config": "./src/config.ts"
+    "./config": "./src/config.ts",
+    "./occt": "./src/occt/build.ts"
   },
   "scripts": {
     "serve": "tsx src/cli.ts serve",

@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 import { apiFetch } from "@/lib/api";
 import { buildBoundsTrees } from "@/cad/bvh";
-import { decodeTess } from "@/cad/decodeTess";
+import { decodeTess, type ComponentMesh } from "@/cad/decodeTess";
 import { cssColor, makeReview, type CadPart, type CadReview } from "@/cad/review";
 import type { StepAssemblyNode, StepPackage } from "@/cad/stepPackage";
 
@@ -38,7 +38,7 @@ function rgba(values: number[] | undefined): { color: THREE.Color; opacity: numb
   return { color: new THREE.Color(r, g, b), opacity: a };
 }
 
-function geometryFromMesh(mesh: ReturnType<typeof decodeTess>): THREE.BufferGeometry {
+function geometryFromMesh(mesh: ComponentMesh): THREE.BufferGeometry {
   const geom = new THREE.BufferGeometry();
   // mesh.positions/normals/indices are already private copies (decodeTess slices the
   // source bytes per-section), so no further .slice() is needed here.
@@ -91,26 +91,22 @@ async function fetchPkg(pkgRoot: URL, rel: string): Promise<Response> {
   throw new Error(text || `${res.status} ${url.pathname}`);
 }
 
-export async function loadStepPackage(
-  baseUrl: string,
-  onProgress?: (loaded: number, total: number) => void,
-): Promise<CadReview> {
-  const pkgRoot = new URL(baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`, window.location.origin);
-  const assembly = (await (await fetchPkg(pkgRoot, "assembly.json")).json()) as StepPackage;
+/**
+ * Assemble a decoded package into the scene the viewer renders.
+ *
+ * Split out from `loadStepPackage` so it can be checked without a browser: this
+ * half is pure, and everything the viewer's geometry claims — metres, up-axis,
+ * `sitHeight`, and the `#o1.2.f7` refs an agent is handed — is decided here.
+ */
+export function buildScene(assembly: StepPackage, meshes: Map<string, ComponentMesh>): CadReview {
   const occById = new Map(assembly.occurrences.map((occ) => [occ.id, occ]));
-  const unique = [...new Set(assembly.occurrences.map((occ) => occ.component))];
   const geoms = new Map<string, THREE.BufferGeometry>();
-  let done = 0;
-  await mapPooled(unique, 8, async (cid) => {
-    const buf = await (await fetchPkg(pkgRoot, `components/${cid}.tess`)).arrayBuffer();
-    geoms.set(cid, geometryFromMesh(decodeTess(new Uint8Array(buf))));
-    done += 1;
-    onProgress?.(done, unique.length);
-  });
+  for (const [cid, mesh] of meshes) geoms.set(cid, geometryFromMesh(mesh));
 
   const root = new THREE.Group();
   root.name = assembly.label || "model";
   root.userData.stepPackage = true;
+  // The package is CAD millimetres, Z-up; the scene is metres, Y-up.
   root.scale.setScalar(0.001);
   root.rotation.x = -Math.PI / 2;
 
@@ -160,8 +156,7 @@ export async function loadStepPackage(
   if (assembly.assembly?.root) {
     const doc = assembly.assembly.root;
     build(doc, root, doc.children.length === 0);
-  }
-  else {
+  } else {
     for (const occ of assembly.occurrences) {
       build(
         { id: occ.id, name: occ.name, nodeType: "part", children: [], leafPartIds: [occ.id] },
@@ -174,7 +169,23 @@ export async function loadStepPackage(
   // Geometries are shared across occurrences; buildBoundsTrees skips ones already built.
   buildBoundsTrees(root);
 
-  const box = new THREE.Box3().setFromObject(root);
+  return makeReview({ root, parts, bounds: new THREE.Box3().setFromObject(root) });
+}
 
-  return makeReview({ root, parts, bounds: box });
+export async function loadStepPackage(
+  baseUrl: string,
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<CadReview> {
+  const pkgRoot = new URL(baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`, window.location.origin);
+  const assembly = (await (await fetchPkg(pkgRoot, "assembly.json")).json()) as StepPackage;
+  const unique = [...new Set(assembly.occurrences.map((occ) => occ.component))];
+  const meshes = new Map<string, ComponentMesh>();
+  let done = 0;
+  await mapPooled(unique, 8, async (cid) => {
+    const buf = await (await fetchPkg(pkgRoot, `components/${cid}.tess`)).arrayBuffer();
+    meshes.set(cid, decodeTess(new Uint8Array(buf)));
+    done += 1;
+    onProgress?.(done, unique.length);
+  });
+  return buildScene(assembly, meshes);
 }
