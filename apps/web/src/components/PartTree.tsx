@@ -1,9 +1,10 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, ListTree, PanelLeftClose } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Object3D } from "three";
 import { useShallow } from "zustand/react/shallow";
 
 import { namedKids, treeTops } from "@/cad/tree";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useOpenOnSelect } from "@/hooks/useTreeNode";
 import { useStore } from "@/state/store";
@@ -38,15 +39,14 @@ function Node({ obj }: { obj: Object3D }) {
       <div
         className={cn(
           "flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[13px]",
-          selected && "bg-blue-400 text-zinc-900",
-          !selected && "hover:bg-zinc-100",
+          selected ? "bg-zinc-100 font-medium text-zinc-900" : "text-zinc-700 hover:bg-zinc-50",
         )}
         onClick={() => select(part.id)}
         onDoubleClick={() => isolate(part.id)}
       >
         <button
           type="button"
-          className="grid h-5 w-5 shrink-0 place-items-center text-zinc-500"
+          className="grid h-5 w-5 shrink-0 place-items-center text-zinc-400"
           onClick={(ev) => {
             ev.stopPropagation();
             if (kids.length) setOpen((v) => !v);
@@ -61,11 +61,11 @@ function Node({ obj }: { obj: Object3D }) {
           onClick={(ev) => ev.stopPropagation()}
           onChange={(ev) => setVisible(part.id, ev.target.checked)}
         />
-        <span className="size-2.5 shrink-0 rounded-[2px] border border-zinc-300" style={{ background: part.color }} />
+        <span className="size-2.5 shrink-0 rounded-[2px] border border-zinc-200" style={{ background: part.color }} />
         <span className="min-w-0 flex-1 truncate">{part.name}</span>
       </div>
       {open && kids.length > 0 && (
-        <div className="ml-3 border-l border-zinc-200 pl-1">
+        <div className="ml-3 border-l border-zinc-100 pl-1">
           {kids.map((child) => (
             <Node key={child.uuid} obj={child} />
           ))}
@@ -75,17 +75,15 @@ function Node({ obj }: { obj: Object3D }) {
   );
 }
 
-export function ModelTree() {
+function ModelTreeBody() {
   const { review } = useStore(useShallow((s) => ({ review: s.review })));
   const [filter, setFilter] = useState("");
   const [collapseKey, setCollapseKey] = useState(0);
   const tops = useMemo(() => (review ? treeTops(review) : []), [review]);
   const q = filter.trim().toLowerCase();
-  if (!review) {
-    return <div className="px-3 py-3 text-[13px] text-zinc-500">Open a STEP to see its parts.</div>;
-  }
+  if (!review) return null;
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <>
       <div className="flex items-center gap-2 px-3 pt-2">
         <Input
           className="h-7 flex-1 text-[13px]"
@@ -95,7 +93,7 @@ export function ModelTree() {
         />
         <button
           type="button"
-          className="shrink-0 text-[11px] text-zinc-500 hover:text-zinc-800"
+          className="shrink-0 text-[11px] text-zinc-400 hover:text-zinc-700"
           onClick={() => setCollapseKey((k) => k + 1)}
         >
           Collapse
@@ -114,6 +112,55 @@ export function ModelTree() {
             ))}
         </div>
       </div>
-    </div>
+    </>
+  );
+}
+
+export function PartTree() {
+  const { review, title, partsOpen, setPartsOpen } = useStore(
+    useShallow((s) => ({
+      review: s.review,
+      title: s.title,
+      partsOpen: s.partsOpen,
+      setPartsOpen: s.setPartsOpen,
+    })),
+  );
+  if (!review) return null;
+  if (!partsOpen) {
+    return (
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className="pointer-events-auto absolute top-16 left-3 z-10 h-9 gap-2 shadow-lg"
+        title="Show model tree"
+        onClick={() => setPartsOpen(true)}
+      >
+        <ListTree className="size-4" />
+        Model
+      </Button>
+    );
+  }
+  return (
+    <aside className="pointer-events-auto absolute top-16 left-3 z-10 flex w-[280px] max-h-[min(32rem,calc(100dvh-6rem))] flex-col overflow-hidden rounded-xl border border-zinc-200/80 bg-white/95 shadow-lg backdrop-blur-sm">
+      <header className="flex shrink-0 items-center gap-2 border-b border-zinc-100 px-3 py-2">
+        <ListTree className="size-4 shrink-0 text-zinc-400" />
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-medium text-zinc-900">Model</div>
+          <div className="truncate text-[11px] text-zinc-500">{title}</div>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 w-7 p-0"
+          title="Hide model tree"
+          onClick={() => setPartsOpen(false)}
+        >
+          <PanelLeftClose />
+        </Button>
+      </header>
+      <ModelTreeBody />
+    </aside>
   );
 }

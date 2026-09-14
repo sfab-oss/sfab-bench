@@ -1,10 +1,28 @@
-import { ChevronDown, ChevronRight, FileBox, Folder } from "lucide-react";
+import { ChevronRight, FileBox, Folder } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  SidebarGroup,
+  SidebarGroupAction,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+} from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
+import {
   catalogAncestors,
   catalogDirPaths,
-  catalogKindLabel,
   catalogLabel,
   catalogNodeCount,
   catalogSections,
@@ -13,102 +31,114 @@ import {
   type CatalogEntry,
   type CatalogNode,
 } from "@/lib/viewer-snapshot";
-import { cn } from "@/lib/utils";
 
-function DirRow({
+type KindFilter = "all" | CatalogEntry["kind"];
+
+function fileName(path: string) {
+  return path.split("/").filter(Boolean).pop() ?? path;
+}
+
+function FileButton({
+  node,
+  current,
+  onPick,
+  nested,
+}: {
+  node: Extract<CatalogNode, { type: "file" }>;
+  current: string;
+  onPick: (path: string) => void;
+  nested: boolean;
+}) {
+  const active = node.path === current;
+  const name = node.name || fileName(node.path);
+  const inner = (
+    <>
+      <FileBox className="text-sidebar-foreground" />
+      <span className="min-w-0 flex-1 truncate text-sidebar-foreground" title={name}>
+        {name}
+      </span>
+    </>
+  );
+  const shared = {
+    isActive: active,
+    title: `Open ${name}`,
+    onClick: () => onPick(node.path),
+    className: "text-sidebar-foreground [&>svg]:text-sidebar-foreground",
+  };
+  if (nested) {
+    return (
+      <SidebarMenuSubButton {...shared}>
+        {inner}
+      </SidebarMenuSubButton>
+    );
+  }
+  return (
+    <SidebarMenuButton {...shared}>
+      {inner}
+    </SidebarMenuButton>
+  );
+}
+
+function Tree({
   node,
   current,
   expanded,
   toggle,
   onPick,
-  depth,
+  nested,
 }: {
-  node: Extract<CatalogNode, { type: "dir" }>;
-  current: string;
-  expanded: Set<string>;
-  toggle: (path: string) => void;
-  onPick: (path: string) => void;
-  depth: number;
-}) {
-  const open = expanded.has(node.path);
-  const count = catalogNodeCount(node);
-  return (
-    <div>
-      <button
-        type="button"
-        className="flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left text-[13px] text-zinc-700 hover:bg-zinc-100"
-        style={{ paddingLeft: 4 + depth * 12 }}
-        onClick={() => toggle(node.path)}
-      >
-        {open ? (
-          <ChevronDown className="size-3.5 shrink-0 text-zinc-400" />
-        ) : (
-          <ChevronRight className="size-3.5 shrink-0 text-zinc-400" />
-        )}
-        <Folder className="size-3.5 shrink-0 text-zinc-400" />
-        <span className="min-w-0 flex-1 truncate">{node.name}</span>
-        <span className="shrink-0 text-[11px] tabular-nums text-zinc-400">{count}</span>
-      </button>
-      {open
-        ? node.children.map((child) => (
-            <TreeNode
-              key={child.type === "dir" ? `d:${child.path}` : child.path}
-              node={child}
-              current={current}
-              expanded={expanded}
-              toggle={toggle}
-              onPick={onPick}
-              depth={depth + 1}
-            />
-          ))
-        : null}
-    </div>
-  );
-}
-
-function FileRow({
-  node,
-  current,
-  onPick,
-  depth,
-}: {
-  node: Extract<CatalogNode, { type: "file" }>;
-  current: string;
-  onPick: (path: string) => void;
-  depth: number;
-}) {
-  const active = node.path === current;
-  return (
-    <button
-      type="button"
-      className={cn(
-        "flex w-full items-center gap-1 rounded-md py-0.5 pr-1 text-left text-[13px]",
-        active ? "bg-zinc-100 font-medium text-zinc-900" : "text-zinc-600 hover:bg-zinc-50",
-      )}
-      style={{ paddingLeft: 4 + depth * 12 }}
-      onClick={() => onPick(node.path)}
-    >
-      <span className="grid size-3.5 shrink-0 place-items-center">
-        <FileBox className="size-3.5 text-zinc-400" />
-      </span>
-      <span className="min-w-0 flex-1 truncate">{catalogLabel(node.path)}</span>
-      <span className="shrink-0 text-[10px] font-medium tracking-wide text-zinc-400 uppercase">
-        {catalogKindLabel(node.kind)}
-      </span>
-    </button>
-  );
-}
-
-function TreeNode(props: {
   node: CatalogNode;
   current: string;
   expanded: Set<string>;
-  toggle: (path: string) => void;
+  toggle: (path: string, next: boolean) => void;
   onPick: (path: string) => void;
-  depth: number;
+  nested: boolean;
 }) {
-  if (props.node.type === "dir") return <DirRow {...props} node={props.node} />;
-  return <FileRow node={props.node} current={props.current} onPick={props.onPick} depth={props.depth} />;
+  if (node.type === "file") {
+    const Item = nested ? SidebarMenuSubItem : SidebarMenuItem;
+    return (
+      <Item>
+        <FileButton node={node} current={current} onPick={onPick} nested={nested} />
+      </Item>
+    );
+  }
+
+  const open = expanded.has(node.path);
+  const count = catalogNodeCount(node);
+  const Item = nested ? SidebarMenuSubItem : SidebarMenuItem;
+  return (
+    <Item>
+      <Collapsible
+        className="group/collapsible [&[data-open]>button>svg:first-child]:rotate-90"
+        open={open}
+        onOpenChange={(next) => toggle(node.path, next)}
+      >
+        <CollapsibleTrigger
+          className="peer/menu-button flex h-8 w-full items-center gap-2 overflow-hidden rounded-md p-2 pr-9 text-left text-sm outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0"
+        >
+          <ChevronRight className="transition-transform" />
+          <Folder />
+          <span>{node.name}</span>
+        </CollapsibleTrigger>
+        <SidebarMenuBadge>{count}</SidebarMenuBadge>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {node.children.map((child) => (
+              <Tree
+                key={child.type === "dir" ? `d:${child.path}` : child.path}
+                node={child}
+                current={current}
+                expanded={expanded}
+                toggle={toggle}
+                onPick={onPick}
+                nested
+              />
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </Collapsible>
+    </Item>
+  );
 }
 
 export function FileTree({
@@ -128,10 +158,15 @@ export function FileTree({
   ready?: boolean;
   onPick: (path: string) => void;
 }) {
-  const tree = useMemo(() => filterCatalogTree(catalogTree(files), filter), [files, filter]);
+  const [kind, setKind] = useState<KindFilter>("all");
+  const listed = useMemo(
+    () => (kind === "all" ? files : files.filter((file) => file.kind === kind)),
+    [files, kind],
+  );
+  const tree = useMemo(() => filterCatalogTree(catalogTree(listed), filter), [listed, filter]);
   const recentRows = useMemo(
-    () => (filter.trim() ? [] : catalogSections(files, recents ?? []).recents),
-    [files, recents, filter],
+    () => (filter.trim() || kind !== "all" ? [] : catalogSections(files, recents ?? []).recents),
+    [files, recents, filter, kind],
   );
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const seeded = useRef(false);
@@ -163,10 +198,7 @@ export function FileTree({
       const q = filter.trim().toLowerCase();
       if (!q) return next;
       for (const file of filesRef.current) {
-        if (
-          catalogLabel(file.path).toLowerCase().includes(q) ||
-          file.path.toLowerCase().includes(q)
-        ) {
+        if (catalogLabel(file.path).toLowerCase().includes(q) || file.path.toLowerCase().includes(q)) {
           for (const path of catalogAncestors(file.path)) next.add(path);
         }
       }
@@ -174,74 +206,111 @@ export function FileTree({
     });
   }, [current, filter]);
 
-  const toggle = (path: string) => {
+  const setExpandedFromToggle = (path: string, next: boolean) => {
     setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
+      const copy = new Set(prev);
+      if (next) copy.add(path);
+      else copy.delete(path);
+      return copy;
     });
   };
 
   const dirs = catalogDirPaths(tree);
 
-  if (error) return <div className="px-2 py-2 text-xs text-red-600">{error}</div>;
-  if (!ready) return <div className="px-2 py-2 text-xs text-zinc-500">Loading files…</div>;
+  if (error) {
+    return <div className="px-4 py-2 text-xs text-red-600">{error}</div>;
+  }
+  if (!ready) {
+    return <div className="px-4 py-2 text-xs text-muted-foreground">Loading files…</div>;
+  }
   if (files.length === 0) {
-    return <div className="px-2 py-2 text-xs text-zinc-500">No STEP or GLB in this folder.</div>;
+    return <div className="px-4 py-2 text-xs text-muted-foreground">No STEP or GLB in this folder.</div>;
+  }
+  if (listed.length === 0) {
+    return (
+      <div className="px-4 py-2 text-xs text-muted-foreground">
+        {kind === "glb" ? "No GLB in this folder." : "No STEP in this folder."}
+      </div>
+    );
   }
   if (tree.length === 0) {
-    return <div className="px-2 py-2 text-xs text-zinc-500">No files match.</div>;
+    return <div className="px-4 py-2 text-xs text-muted-foreground">No files match.</div>;
   }
 
   return (
-    <div className="px-1 pb-2">
-      {dirs.length > 0 ? (
-        <div className="mb-1 flex gap-2 px-1 text-[11px] text-zinc-400">
-          <button type="button" className="hover:text-zinc-700" onClick={() => setExpanded(new Set(dirs))}>
-            Expand all
-          </button>
-          <button type="button" className="hover:text-zinc-700" onClick={() => setExpanded(new Set())}>
-            Collapse all
-          </button>
-        </div>
-      ) : null}
+    <>
       {recentRows.length > 0 ? (
-        <div className="mb-2">
-          <div className="px-1 pb-0.5 text-[11px] font-medium tracking-wide text-zinc-400 uppercase">
-            Recent
-          </div>
-          {recentRows.map((row) => (
-            <FileRow
-              key={`recent-${row.path}`}
-              node={{
-                type: "file",
-                name: catalogLabel(row.path),
-                path: row.path,
-                kind: row.kind,
-                entry: row,
-              }}
-              current={current}
-              onPick={onPick}
-              depth={0}
-            />
-          ))}
-          <div className="px-1 pt-1.5 pb-0.5 text-[11px] font-medium tracking-wide text-zinc-400 uppercase">
-            Folders
-          </div>
-        </div>
+        <SidebarGroup>
+          <SidebarGroupLabel>Recent</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {recentRows.map((row) => (
+                <SidebarMenuItem key={`recent-${row.path}`}>
+                  <FileButton
+                    node={{
+                      type: "file",
+                      name: fileName(row.path),
+                      path: row.path,
+                      kind: row.kind,
+                      entry: row,
+                    }}
+                    current={current}
+                    onPick={onPick}
+                    nested={false}
+                  />
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       ) : null}
-      {tree.map((node) => (
-        <TreeNode
-          key={node.type === "dir" ? `d:${node.path}` : node.path}
-          node={node}
-          current={current}
-          expanded={expanded}
-          toggle={toggle}
-          onPick={onPick}
-          depth={0}
-        />
-      ))}
-    </div>
+      <SidebarGroup>
+        <SidebarGroupLabel>Files</SidebarGroupLabel>
+        <div className="flex gap-1 px-2 pb-1">
+          {(
+            [
+              ["all", "All"],
+              ["step", "STEP"],
+              ["glb", "GLB"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={cn(
+                "rounded-md px-1.5 py-0.5 text-[11px] font-medium",
+                kind === id
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "text-sidebar-foreground/60 hover:text-sidebar-foreground",
+              )}
+              onClick={() => setKind(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {dirs.length > 0 ? (
+          <SidebarGroupAction title="Collapse all" onClick={() => setExpanded(new Set())}>
+            <ChevronRight className="rotate-90" />
+            <span className="sr-only">Collapse all</span>
+          </SidebarGroupAction>
+        ) : null}
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {tree.map((node) => (
+              <Tree
+                key={node.type === "dir" ? `d:${node.path}` : node.path}
+                node={node}
+                current={current}
+                expanded={expanded}
+                toggle={setExpandedFromToggle}
+                onPick={onPick}
+                nested={false}
+              />
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    </>
   );
 }

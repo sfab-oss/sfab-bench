@@ -16,9 +16,14 @@
   --color-card-foreground: #1a1d21;
   --color-destructive: #dc2626;
   --color-border: #e4e4e7;
-  --color-ring: #a1a1aa;
-  --color-input: #e4e4e7;
-  --radius: 0.5rem;
+  --color-sidebar: #fafafa;
+  --color-sidebar-foreground: #3f3f46;
+  --color-sidebar-primary: #18181b;
+  --color-sidebar-primary-foreground: #fafafa;
+  --color-sidebar-accent: #f4f4f5;
+  --color-sidebar-accent-foreground: #18181b;
+  --color-sidebar-border: #e4e4e7;
+  --color-sidebar-ring: #a1a1aa;
 }
 
 .sr-only {

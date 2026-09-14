@@ -28,6 +28,7 @@ export const DEFAULT_CHAT_MODEL = DEFAULT_HARNESS_MODEL.opencode;
 type DesktopPrefs = {
   chatOpen: boolean;
   treeOpen: boolean;
+  partsOpen: boolean;
   axesVisible: boolean;
   chatWidth: number;
   chatHarness: HarnessId;
@@ -87,6 +88,7 @@ type State = {
   selectedId: number | null;
   pickedRef: string | null;
   treeOpen: boolean;
+  partsOpen: boolean;
   chatOpen: boolean;
   chatWidth: number;
   chatHarness: HarnessId;
@@ -100,6 +102,7 @@ type State = {
   measure: { a: MeasurePoint | null; b: MeasurePoint | null };
   loadModel: (url: string) => Promise<void>;
   setTreeOpen: (open: Setter) => void;
+  setPartsOpen: (open: Setter) => void;
   setChatOpen: (open: Setter) => void;
   setChatWidth: (width: number) => void;
   setChatHarness: (harness: HarnessId) => void;
@@ -193,6 +196,7 @@ export const store = createStore<State>()(
   selectedId: null,
   pickedRef: null,
   treeOpen: prefs.treeOpen ?? true,
+  partsOpen: prefs.partsOpen ?? true,
   chatOpen: prefs.chatOpen ?? true,
   chatWidth: prefs.chatWidth != null ? clampChatWidth(prefs.chatWidth) : CHAT_DEFAULT_WIDTH,
   chatHarness: isHarnessId(prefs.chatHarness ?? "") ? prefs.chatHarness! : DEFAULT_HARNESS,
@@ -254,6 +258,7 @@ export const store = createStore<State>()(
     }
   },
   setTreeOpen: (open) => set((s) => ({ treeOpen: resolve(s.treeOpen, open) })),
+  setPartsOpen: (open) => set((s) => ({ partsOpen: resolve(s.partsOpen, open) })),
   setChatOpen: (open) => set((s) => ({ chatOpen: resolve(s.chatOpen, open) })),
   setChatWidth: (width) => {
     const chatWidth = clampChatWidth(width);
@@ -438,6 +443,7 @@ export const store = createStore<State>()(
       partialize: (s): DesktopPrefs => ({
         chatOpen: s.chatOpen,
         treeOpen: s.treeOpen,
+        partsOpen: s.partsOpen,
         axesVisible: s.axesVisible,
         chatWidth: s.chatWidth,
         chatHarness: s.chatHarness,
