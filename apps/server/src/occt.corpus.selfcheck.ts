@@ -80,14 +80,29 @@ async function compareToBrep(step: string, label: string): Promise<void> {
     if (!shapes.size) return note(`${label}: no leaf solids found`);
 
     for (const [entry, shape] of shapes) {
-      const exact = solidProps(oc, shape);
-      const drawn = meshProps(tessellate(oc, shape));
       const where = `${label} ${entry}`;
+      const mesh = tessellate(oc, shape);
+      // A product with no surfaces at all — a datum, a centreline, an annotation.
+      // There is nothing here to compare against; that such a thing does not reach
+      // the package at all is `checkPackage`'s business, not this loop's.
+      if (!mesh.indices.length) {
+        shape.delete();
+        continue;
+      }
+
+      const exact = solidProps(oc, shape);
+      const drawn = meshProps(mesh);
 
       // Negative means the triangles wind the other way: the solid is inside out,
       // which a DoubleSide material in the viewer would hide completely.
-      if (drawn.volume <= 0) {
+      if (drawn.volume < 0) {
         note(`${where}: mesh encloses ${drawn.volume.toFixed(2)}mm³ — winding is reversed`);
+        continue;
+      }
+      // Zero is a different failure: triangles that enclose nothing, which is an
+      // open shell rather than an inverted one.
+      if (drawn.volume === 0) {
+        note(`${where}: ${mesh.indices.length / 3} triangles enclose no volume — the surface is not closed`);
         continue;
       }
       if (relative(drawn.volume, exact.volume) > VOLUME_TOLERANCE) {

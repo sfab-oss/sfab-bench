@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -130,7 +130,12 @@ const AXES: [string, THREE.Vector3][] = [
 // The floor, every ref, and picking, across the whole corpus
 // ---------------------------------------------------------------------------
 
-const names = ["inch_block", "bracket_assembly", "curved_solids", "deep_nest", "bare_solids", "many_instances", "cut_solid"];
+// Swept, not listed: adding a STEP to fixtures/ adds a scene test, the same way it
+// adds a package test on the server side.
+const names = readdirSync(fixtures)
+  .filter((file) => /\.(step|stp)$/i.test(file))
+  .map((file) => file.replace(/\.(step|stp)$/i, ""))
+  .sort();
 const scenes = new Map<string, Loaded>();
 for (const name of names) scenes.set(name, await load(name));
 

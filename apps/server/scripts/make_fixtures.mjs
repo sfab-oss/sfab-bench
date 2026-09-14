@@ -14,6 +14,7 @@
  *   many_instances    one solid placed 120 times, so dedup has to hold
  *   cut_solid         a boolean result, whose inner faces are REVERSED
  *   inch_block        a file whose length unit is not millimetres
+ *   annotation_only   products that carry no surfaces: datums, notes, centrelines
  *
  * Regenerate with:  node apps/server/scripts/make_fixtures.mjs
  */
@@ -267,4 +268,49 @@ function reunitAsInches(file) {
     d.name(d.shapeTool.AddComponent_1(root, stud, d.at(col * 8, row * 8, 0)), `stud_${i + 1}`);
   }
   d.write("many_instances.step");
+}
+
+
+// Appended last on purpose. The OCCT STEP translator keeps a counter across
+// documents in one process, so inserting a fixture anywhere but the end renames
+// the auto-generated products in every file written after it.
+
+/**
+ * Products that carry no surfaces: a datum axis, a branch of pure annotation.
+ *
+ * Real CAD is full of these — construction geometry, datum features, PMI-only
+ * products — and every one of them arrives as a STEP product with a name and a
+ * placement and nothing to draw. 22 of the 35 NIST models have at least one.
+ *
+ * Four cases in one file, because the interesting part is which nodes survive:
+ * a bare leaf beside a real solid, a whole sub-assembly of nothing, a
+ * sub-assembly that mixes the two, and the real geometry that must be left alone.
+ */
+{
+  const d = doc();
+  const root = d.assembly("annotated_bracket");
+  const line = (length) =>
+    new oc.BRepBuilderAPI_MakeEdge_3(new oc.gp_Pnt_3(0, 0, 0), new oc.gp_Pnt_3(length, 0, 0)).Shape();
+
+  const body = d.add(new oc.BRepPrimAPI_MakeBox_1(20, 10, 5).Shape(), "body");
+  d.name(d.shapeTool.AddComponent_1(root, body, d.at(0, 0, 0)), "body_1");
+
+  // A leaf with no faces, sitting beside real geometry.
+  const datum = d.add(line(30), "datum_axis");
+  d.name(d.shapeTool.AddComponent_1(root, datum, d.at(0, 0, 20)), "datum_axis_1");
+
+  // A whole branch of nothing, which has to go with it.
+  const notes = d.assembly("notes");
+  d.name(d.shapeTool.AddComponent_1(notes, d.add(line(12), "note_a"), d.at(0, 0, 0)), "note_a_1");
+  d.name(d.shapeTool.AddComponent_1(notes, d.add(line(8), "note_b"), d.at(0, 4, 0)), "note_b_1");
+  d.name(d.shapeTool.AddComponent_1(root, notes, d.at(40, 0, 0)), "notes_1");
+
+  // And a branch that mixes them: the pad stays, the centreline does not.
+  const mixed = d.assembly("pad_and_centreline");
+  const pad = d.add(new oc.BRepPrimAPI_MakeBox_1(6, 6, 2).Shape(), "pad");
+  d.name(d.shapeTool.AddComponent_1(mixed, pad, d.at(0, 0, 0)), "pad_1");
+  d.name(d.shapeTool.AddComponent_1(mixed, d.add(line(6), "centreline"), d.at(0, 3, 1)), "centreline_1");
+  d.name(d.shapeTool.AddComponent_1(root, mixed, d.at(0, 20, 0)), "pad_and_centreline_1");
+
+  d.write("annotation_only.step");
 }

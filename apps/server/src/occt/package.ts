@@ -114,6 +114,32 @@ function walkLabel(
   return node;
 }
 
+/**
+ * Drop tree nodes with nothing to draw anywhere beneath them.
+ *
+ * A STEP product can carry no surfaces at all — a datum axis, a centreline, a
+ * branch of pure annotation — and real files are full of them: 22 of the 35 NIST
+ * conformance models have at least one. Whether a definition has any faces is only
+ * known after it has been tessellated, which is long after the tree was walked, so
+ * this runs at the end and takes the ids that actually produced geometry.
+ *
+ * The node used to be left in place, which put a row in the model tree that could
+ * not be picked, could not be coloured, and answered to a `#o1.2` an assistant
+ * could be handed and then act on, resolving to nothing. A tree of geometry should
+ * only contain geometry.
+ */
+function prune(node: StepAssemblyNode, drawn: Set<string>): StepAssemblyNode | null {
+  if (!node.children.length) {
+    return drawn.has(node.id) ? { ...node, leafPartIds: [node.id] } : null;
+  }
+  const children = node.children
+    .map((child) => prune(child, drawn))
+    .filter((child): child is StepAssemblyNode => child !== null);
+  // An assembly of nothing but annotation goes the same way its children did.
+  if (!children.length) return null;
+  return { ...node, children, leafPartIds: children.flatMap((child) => child.leafPartIds) };
+}
+
 function worldBounds(
   occurrences: StepOccurrence[],
   bounds: Map<string, { min: number[]; max: number[] }>,
@@ -219,18 +245,21 @@ export async function buildPackageHere(stepAbs: string, dest: string): Promise<v
     const occurrences: StepOccurrence[] = [];
     for (const occurrence of walk.occurrences) {
       const component = componentOf.get(occurrence.definition);
-      if (!component) continue; // definition had no faces; the tree node stays, empty
+      if (!component) continue; // no faces to draw: `prune` takes the tree node too
       const { definition: _definition, ...rest } = occurrence;
       occurrences.push({ ...rest, component });
     }
 
+    const shown = prune(root, new Set(occurrences.map((occurrence) => occurrence.id)));
+    if (!shown) throw new Error(`${basename(stepAbs)} has no surfaces to draw`);
+
     const pkg: StepPackage = {
       // One leaf is a part even when STEP wrapped it in a product structure.
-      entryKind: root.leafPartIds.length > 1 ? "assembly" : "part",
+      entryKind: shown.leafPartIds.length > 1 ? "assembly" : "part",
       units: "mm",
       label: stem,
       bbox: worldBounds(occurrences, bounds),
-      assembly: { root },
+      assembly: { root: shown },
       occurrences,
       components,
     };
