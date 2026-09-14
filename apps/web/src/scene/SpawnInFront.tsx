@@ -36,6 +36,14 @@ export function placeAtGaze(
   camera.getWorldPosition(pos);
   camera.getWorldQuaternion(quat);
   forward.set(0, 0, -1).applyQuaternion(quat);
+  // Straight up or down the gaze has no floor direction left in it, and flattening
+  // it would drop the model on the wearer's feet. The head still knows which way it
+  // is pointing: its own up vector is where the forehead goes, which is the bearing
+  // the wearer would walk in, so it takes over continuously as the gaze goes vertical.
+  if (Math.abs(forward.y) > 0.999) {
+    const sign = forward.y < 0 ? 1 : -1;
+    forward.set(0, 1, 0).applyQuaternion(quat).multiplyScalar(sign);
+  }
   forward.y = 0;
   if (forward.lengthSq() < 1e-6) forward.set(0, 0, -1);
   forward.normalize();
