@@ -66,6 +66,34 @@ XCAF hands back a graph, the viewer wants a tree plus flat occurrences:
   possible at all, and it gives hard edges between faces while normals averaged
   inside a face keep cylinders smooth.
 
+## Ownership, and why the heap still grows
+
+embind gives you C++ objects with no finaliser in this build: anything a binding
+returns **by value** is yours to `delete()`, and nothing does it for you. The
+expensive one is not the document — it is `gp_Pnt::Transformed` in the vertex
+loop, one allocation per vertex, about 67 MB per open on a 150k-triangle
+assembly. The process bricked on the thirty-eighth STEP.
+
+Three rules, learned the hard way:
+
+- **A Handle refcounts its object.** `TDocStd_Document` and the
+  `Handle_TDocStd_Document` wrapping it are not two things to free. Freeing both
+  is a double free, and the process dies with SIGKILL and no message at all.
+- **`TDF_ChildIterator` yields views, not copies.** Freeing a child label
+  corrupts the iterator, and `More()` stops terminating. Only the iterator is
+  yours.
+- **A wasm heap never shrinks.** Even with every `delete()` in place, six opens
+  of a 26 MB assembly settle at 860 MB: emscripten returns freed pages to its own
+  allocator, not the OS, and OCCT fragments what it gets. Deleting more objects
+  moves that number; it does not bound it.
+
+So the bound is elsewhere. Above a watermark (`RECYCLE_ABOVE_BYTES` in
+`runtime.ts`) the kernel is dropped and the next open instantiates a fresh one,
+which costs about 350 ms. That is what makes the 2 GB ceiling unreachable
+regardless of how complete the `delete()` audit is, and it is only safe because
+`buildStepPackage` serialises builds — every raw pointer in flight belongs to the
+one document it just closed.
+
 ## Still cadgen's
 
 `.surf` and `.brep` sidecars. The viewer never fetches them (the route only

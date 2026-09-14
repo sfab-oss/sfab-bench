@@ -59,7 +59,8 @@ function walkLabel(
   id: string,
   name: string,
   world: number[],
-  inheritedColor: number[] | null,
+  /** Already resolved for this node: see the call sites below. */
+  color: number[] | null,
 ): StepAssemblyNode {
   const shapeTool = oc.XCAFDoc_ShapeTool;
   const isAssembly = shapeTool.IsAssembly(definition);
@@ -85,7 +86,12 @@ function walkLabel(
         childId,
         labelName(oc, component) ?? labelName(oc, referred) ?? childId,
         multiply(world, componentMatrix(oc, component)),
-        labelColor(oc, colorTool, component) ?? inheritedColor,
+        // The nearest assignment along the occurrence path wins: this instance
+        // first, then the product it points at, then the enclosing assembly.
+        // A definition painted grey that is placed as a red instance is red.
+        labelColor(oc, colorTool, component) ??
+          labelColor(oc, colorTool, referred) ??
+          color,
       );
       node.children.push(child);
       node.leafPartIds.push(...child.leafPartIds);
@@ -98,7 +104,6 @@ function walkLabel(
     walk.definitions.set(entry, { shape: shapeTool.GetShape_2(definition) });
   }
   node.leafPartIds.push(id);
-  const color = labelColor(oc, colorTool, definition) ?? inheritedColor;
   walk.occurrences.push({
     id,
     name,
@@ -171,7 +176,10 @@ async function build(stepAbs: string, dest: string): Promise<void> {
 
     let root: StepAssemblyNode;
     if (frees.length === 1) {
-      root = walkLabel(oc, colorTool, walk, frees[0]!, "o1", stem, IDENTITY, null);
+      const free = frees[0]!;
+      root = walkLabel(
+        oc, colorTool, walk, free, "o1", stem, IDENTITY, labelColor(oc, colorTool, free),
+      );
       root.name = stem;
     } else {
       root = { id: "o1", name: stem, nodeType: "assembly", children: [], leafPartIds: [] };
@@ -184,7 +192,7 @@ async function build(stepAbs: string, dest: string): Promise<void> {
           `o1.${index + 1}`,
           labelName(oc, free) ?? `${stem}_${index + 1}`,
           IDENTITY,
-          null,
+          labelColor(oc, colorTool, free),
         );
         root.children.push(child);
         root.leafPartIds.push(...child.leafPartIds);

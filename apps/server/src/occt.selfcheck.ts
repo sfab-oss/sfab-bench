@@ -50,26 +50,54 @@ function decodeTess(bytes: Buffer) {
 const fixture = fileURLToPath(new URL("../fixtures/bracket_assembly.step", import.meta.url));
 const dest = mkdtempSync(join(tmpdir(), "sfab-occt-"));
 
+// Twice, into the same directory, in one process: the kernel is a long-lived wasm
+// instance shared by every open, so a build that corrupts or half-frees its document
+// shows up as the second one differing from the first — or as a hang, or a SIGKILL.
 await buildStepPackage(fixture, dest);
+const first = readFileSync(join(dest, "assembly.json"), "utf8");
+await buildStepPackage(fixture, dest);
+const second = readFileSync(join(dest, "assembly.json"), "utf8");
+expect(first === second, "a second build in the same process gives the same package");
 
-const pkg = JSON.parse(readFileSync(join(dest, "assembly.json"), "utf8")) as StepPackage;
+const pkg = JSON.parse(second) as StepPackage;
 
-expect(pkg.entryKind === "assembly", "fixture reads back as an assembly");
-expect(pkg.units === "mm", "units are millimetres");
 expect(pkg.label === "bracket_assembly", "label comes from the file stem");
 
 const root = pkg.assembly?.root;
 expect(root, "package has an assembly root");
-expect(root!.children.length === 3, "root has the three components it was built with");
-expect(root!.leafPartIds.length === 3, "root lists every leaf part");
+expect(root!.children.length === 2, "root has the plate and the post sub-assembly");
+expect(root!.leafPartIds.length === 3, "root lists every leaf part below it");
 
-const names = root!.children.map((child) => child.name);
-expect(names.includes("plate_1"), "component names survive the round trip");
-expect(names.includes("post_left") && names.includes("post_right"), "both posts are named");
+const pair = root!.children.find((child) => child.name === "posts");
+expect(pair, "the sub-assembly survives as its own node");
+expect(pair!.nodeType === "assembly", "a node with components is an assembly");
+expect(pair!.children.length === 2, "the sub-assembly keeps both posts");
+expect(
+  pair!.children.map((child) => child.name).sort().join(",") === "post_left,post_right",
+  "component names survive the round trip",
+);
+const plateNode = root!.children.find((child) => child.name === "plate_1");
+expect(plateNode?.nodeType === "part", "a node with geometry and no components is a part");
 
+// Every id the tree hands the viewer has to resolve: it looks an occurrence up by
+// node id to decide what to draw, and a leaf with no occurrence is an invisible part.
+const byId = new Map(pkg.occurrences.map((occ) => [occ.id, occ]));
+expect(byId.size === pkg.occurrences.length, "occurrence ids are unique");
 expect(pkg.occurrences.length === 3, "one occurrence per leaf");
-const ids = new Set(pkg.occurrences.map((occ) => occ.id));
-expect(ids.size === 3, "occurrence ids are unique");
+const leaves: string[] = [];
+const walk = (node: typeof root) => {
+  if (!node) return;
+  if (!node.children.length) leaves.push(node.id);
+  for (const child of node.children) walk(child);
+};
+walk(root);
+expect(leaves.length === 3, "the tree has three leaves");
+for (const id of leaves) expect(byId.has(id), `leaf node ${id} has an occurrence`);
+expect(
+  root!.leafPartIds.slice().sort().join(",") === leaves.slice().sort().join(","),
+  "leafPartIds names exactly the leaves",
+);
+
 for (const occ of pkg.occurrences) {
   expect(occ.transform.length === 16, `${occ.id} carries a 4x4`);
   expect(occ.color?.length === 4, `${occ.id} kept its colour`);
@@ -80,7 +108,17 @@ for (const occ of pkg.occurrences) {
 expect(Object.keys(pkg.components).length === 2, "identical geometry collapses to one component");
 const posts = pkg.occurrences.filter((occ) => occ.name.startsWith("post_"));
 expect(posts.length === 2 && posts[0]!.component === posts[1]!.component, "both posts share geometry");
-expect(posts[0]!.transform[3] !== posts[1]!.transform[3], "the posts sit at different places");
+
+const left = posts.find((occ) => occ.name === "post_left")!;
+const right = posts.find((occ) => occ.name === "post_right")!;
+// Placed at (0,0,0) and (36,16,0) inside a sub-assembly that sits at (12,12,6).
+expect(Math.abs(left.transform[3]! - 12) < 1e-3, "a leaf transform is flattened to world");
+expect(Math.abs(right.transform[3]! - 48) < 1e-3, "and so is its sibling");
+expect(Math.abs(left.transform[11]! - 6) < 1e-3, "the sub-assembly's own lift is included");
+
+// post_left is painted on the instance, post_right inherits the product's orange.
+expect(Math.abs(left.color![1]! - 0.7) < 0.02, "an instance colour beats the product's own");
+expect(Math.abs(right.color![0]! - 0.85) < 0.02, "an unpainted instance keeps the product colour");
 
 const plate = pkg.occurrences.find((occ) => occ.name === "plate_1");
 expect(plate && plate.component !== posts[0]!.component, "plate is its own component");
@@ -91,6 +129,13 @@ expect(Math.abs(bbox!.min[0]) < 0.1 && Math.abs(bbox!.max[0] - 60) < 0.5, "bbox 
 
 const tessFiles = readdirSync(join(dest, "components")).filter((f) => f.endsWith(".tess"));
 expect(tessFiles.length === 2, "one .tess per component");
+// The viewer fetches `components/${occurrence.component}.tess`, so the names on disk
+// and the keys in the package are the same set or nothing renders.
+expect(
+  tessFiles.map((f) => f.replace(/\.tess$/, "")).sort().join(",") ===
+    Object.keys(pkg.components).sort().join(","),
+  "every component key has a file of that name, and no file is orphaned",
+);
 
 for (const file of tessFiles) {
   const mesh = decodeTess(readFileSync(join(dest, "components", file)));

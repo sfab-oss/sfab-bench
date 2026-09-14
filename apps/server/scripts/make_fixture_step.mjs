@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Writes apps/server/fixtures/bracket_assembly.step: a tiny named, coloured assembly
- * with one geometry instanced twice, so the loader self-check has something with a
- * tree, colours, transforms and a shared component in it. Regenerate with:
+ * Writes apps/server/fixtures/bracket_assembly.step, the loader self-check's input:
+ * a named, coloured assembly two levels deep, with one geometry instanced twice and
+ * one of those instances painted over its product's own colour. Regenerate with:
  *
  *   node apps/server/scripts/make_fixture_step.mjs
  */
@@ -58,11 +58,20 @@ const post = shapeTool.AddShape(new oc.BRepPrimAPI_MakeCylinder_1(4, 18).Shape()
 name(post, "post");
 color(post, 0.85, 0.42, 0.2);
 
+// A sub-assembly, so the tree the loader rebuilds is two levels deep and the leaf
+// transforms it emits are the product of two placements rather than one.
+const pair = shapeTool.NewShape();
+name(pair, "post_pair");
+const left = shapeTool.AddComponent_1(pair, post, at(0, 0, 0));
+name(left, "post_left");
+// On the instance, not the product: this has to win over `post`'s own orange.
+color(left, 0.2, 0.7, 0.3);
+name(shapeTool.AddComponent_1(pair, post, at(36, 16, 0)), "post_right");
+
 const assembly = shapeTool.NewShape();
 name(assembly, "bracket_assembly");
 name(shapeTool.AddComponent_1(assembly, plate, at(0, 0, 0)), "plate_1");
-name(shapeTool.AddComponent_1(assembly, post, at(12, 12, 6)), "post_left");
-name(shapeTool.AddComponent_1(assembly, post, at(48, 28, 6)), "post_right");
+name(shapeTool.AddComponent_1(assembly, pair, at(12, 12, 6)), "posts");
 shapeTool.UpdateAssemblies();
 
 const writer = new oc.STEPCAFControl_Writer_1();
