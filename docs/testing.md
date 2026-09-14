@@ -85,6 +85,7 @@ Every fixture exists because some invariant would otherwise be untested:
 | `deep_nest` | five levels of placement multiplied together |
 | `bare_solids` | no names, no colours — every fallback path |
 | `many_instances` | one solid placed 120 times, so content-hash dedup has to hold |
+| `inch_block` | a file whose declared length unit is not millimetres |
 
 Adding a STEP to `fixtures/` adds a test: the corpus check sweeps the
 directory.
@@ -94,6 +95,18 @@ directory.
 which left the branch in `mesh.ts` that flips a `REVERSED` face's winding
 entirely untested — deleting it changed nothing. With a boolean cut in the
 corpus, deleting it fails by 19.2%.
+
+`inch_block` settles a question rather than guarding a known behaviour.
+`loadStepPackage.ts` scales by a hardcoded `0.001` and never reads the
+package's `units`, which is only correct if OCCT converts non-millimetre
+files on the way in. It does: a 2 x 1 x 0.5 **inch** block reads back as
+50.8 x 25.4 x 12.7 mm. That conversion is now load-bearing and asserted,
+because without it every inch-authored STEP would draw 25.4x too small.
+
+The fixture is written in millimetres and then has its unit declaration
+rewritten as text, because this OCCT build does not expose the
+`write.step.unit` static — `SetCVal` returns false and the writer emits
+millimetres regardless.
 
 **If you add a check, mutate the code it covers and confirm it fails.** A
 check that passes against a broken tessellator is worse than no check,
@@ -105,9 +118,8 @@ Roughly in the order worth doing.
 
 **Tier 4a — scene graph.** three.js assembles a scene and raycasts against
 it in plain Node, with no GPU and no jsdom, so this is cheap and
-deterministic. Worth asserting: the loaded root's world bbox **in metres**
-(`loadStepPackage.ts` hardcodes `scale 0.001` and never reads the
-package's `units` — an untested assumption); CAD Z mapping to three Y;
+deterministic. Worth asserting: the loaded root's world bbox **in metres**;
+CAD Z mapping to three Y;
 `sitHeight` putting the model on the floor; and above all that a ray from a
 fixed direction returns the **expected `#o1.2.f7`**. That ref is what
 `get_viewer` hands an assistant, which then acts on it, so a ref that

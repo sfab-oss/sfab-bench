@@ -13,6 +13,7 @@
  *   bare_solids       no names, no colours: every fallback path
  *   many_instances    one solid placed 120 times, so dedup has to hold
  *   cut_solid         a boolean result, whose inner faces are REVERSED
+ *   inch_block        a file whose length unit is not millimetres
  *
  * Regenerate with:  node apps/server/scripts/make_fixtures.mjs
  */
@@ -176,6 +177,42 @@ function doc() {
   d.shapeTool.AddComponent_1(root, a, d.at(0, 0, 0));
   d.shapeTool.AddComponent_1(root, b, d.at(30, 0, 0));
   d.write("bare_solids.step");
+}
+
+/**
+ * Rewrite a written file's length unit to inches, leaving every coordinate alone.
+ * The numbers then mean inches, so a reader that converts gives 25.4x what a
+ * reader that ignores the declaration does.
+ *
+ * Done as text because this build does not expose the `write.step.unit` static —
+ * `Interface_Static.SetCVal` returns false for it, and the writer emits
+ * `SI_UNIT(.MILLI.,.METRE.)` regardless.
+ */
+function reunitAsInches(file) {
+  const path = join(outDir, file);
+  const text = readFileSync(path, "utf8");
+  const top = Math.max(...[...text.matchAll(/^#(\d+) ?=/gm)].map((m) => Number(m[1])));
+  const millimetres = "#346 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );";
+  if (!text.includes(millimetres)) throw new Error(`${file}: no millimetre unit to replace`);
+  const inches = [
+    `#${top + 1} = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.) );`,
+    `#${top + 2} = DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);`,
+    `#${top + 3} = LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0254),#${top + 1});`,
+    `#346 = ( CONVERSION_BASED_UNIT('INCH',#${top + 3}) LENGTH_UNIT() NAMED_UNIT(#${top + 2}) );`,
+  ].join("\n");
+  writeFileSync(path, text.replace(millimetres, inches));
+  console.log(`  re-declared ${file} in inches`);
+}
+
+// A block that is 2 x 1 x 0.5 of whatever the file's length unit is — and the file
+// says inches. The loader has to hand back 50.8 x 25.4 x 12.7 millimetres, because
+// the viewer scales by a hardcoded 0.001 and would otherwise draw it 25.4x small.
+{
+  const d = doc();
+  const block = d.add(new oc.BRepPrimAPI_MakeBox_1(2, 1, 0.5).Shape(), "inch_block");
+  d.color(block, 0.7, 0.55, 0.3);
+  d.write("inch_block.step");
+  reunitAsInches("inch_block.step");
 }
 
 // A boolean result. Every fixture above is a BRepPrim primitive, and those come

@@ -1,7 +1,9 @@
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import type { StepPackage } from "@sfab-bench/contract";
 
 import { checkPackage } from "./occt/invariants";
 import { readStep, childLabels, labelEntry } from "./occt/document";
@@ -36,6 +38,18 @@ const note = (why: string) => {
 const VOLUME_TOLERANCE = 0.02; // 2% — a sphere at this deflection loses about 0.1%
 const AREA_TOLERANCE = 0.02;
 const BBOX_TOLERANCE = 0.05; // mm, absolute: the chord gap on a curved extreme
+
+/**
+ * Fixtures whose real-world size we know, in millimetres. This is the only place
+ * the corpus asserts an absolute number rather than a relation, and it exists for
+ * one reason: `inch_block` declares its length unit as inches, and OCCT's reader
+ * converts to millimetres on the way in. The viewer scales by a hardcoded 0.001
+ * and never reads the package's `units`, so that conversion is load-bearing — if
+ * it ever stopped happening, every inch-authored STEP would draw 25.4x too small.
+ */
+const EXPECTED_SIZE_MM: Record<string, [number, number, number]> = {
+  inch_block: [50.8, 25.4, 12.7],
+};
 
 const relative = (got: number, want: number) =>
   Math.abs(want) < 1e-9 ? Math.abs(got) : Math.abs(got - want) / Math.abs(want);
@@ -128,6 +142,20 @@ for (const file of steps) {
     await buildStepPackage(join(fixtures, file), dest);
     for (const why of checkPackage(dest)) note(`${label}: ${why}`);
     await compareToBrep(join(fixtures, file), label);
+
+    const expected = EXPECTED_SIZE_MM[label];
+    if (expected) {
+      const box = (JSON.parse(readFileSync(join(dest, "assembly.json"), "utf8")) as StepPackage).bbox;
+      if (!box) note(`${label}: no bbox to measure`);
+      else {
+        const size = box.max.map((hi, axis) => hi - box.min[axis]!);
+        for (let axis = 0; axis < 3; axis += 1) {
+          if (Math.abs(size[axis]! - expected[axis]!) > 0.05) {
+            note(`${label}: axis ${axis} is ${size[axis]!.toFixed(3)}mm, expected ${expected[axis]}mm`);
+          }
+        }
+      }
+    }
   } catch (err) {
     note(`${label}: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
