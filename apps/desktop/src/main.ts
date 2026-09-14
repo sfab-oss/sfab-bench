@@ -8,6 +8,23 @@ import { publicPort } from "@sfab-bench/server/config";
 
 const ORIGIN = `https://127.0.0.1:${publicPort()}`;
 const PRELOAD = join(__dirname, "preload.cjs");
+const API_TIMEOUT_MS = 5_000;
+
+/** Our own page, and nothing that merely starts like it: `startsWith(ORIGIN)` would
+ * happily accept `https://127.0.0.1:7322.example.com`. */
+function isOurs(url: string): boolean {
+  try {
+    return new URL(url).origin === ORIGIN;
+  } catch {
+    return false;
+  }
+}
+
+/** Hand a link to the user's browser. A dragged-in file is not a link, so it is
+ * simply refused rather than opened in whatever claims that extension. */
+function elsewhere(url: string): void {
+  if (url.startsWith("https:") || url.startsWith("http:")) void shell.openExternal(url);
+}
 
 /**
  * Packaged, everything sits next to main.cjs. From a checkout, the bundles stay
@@ -33,13 +50,21 @@ let window_: BrowserWindow | null = null;
  */
 function api(path: string, init?: { method?: string; body?: string }): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout>;
+    let settled = false;
+    const settle = (err: Error | null, value?: { status: number; body: string }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (err) reject(err);
+      else resolve(value!);
+    };
     const req = request(
       `${ORIGIN}${path}`,
       {
         method: init?.method ?? "GET",
         rejectUnauthorized: false,
         headers: init?.body ? { "content-type": "application/json" } : undefined,
-        timeout: 5_000,
       },
       (res) => {
         let body = "";
@@ -47,11 +72,21 @@ function api(path: string, init?: { method?: string; body?: string }): Promise<{
         res.on("data", (chunk: string) => {
           body += chunk;
         });
-        res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
+        res.on("end", () => settle(null, { status: res.statusCode ?? 0, body }));
+        // A socket dropped part-way through the body closes the response without
+        // ever ending it, and the request emits nothing at all. Without this the
+        // promise would sit unsettled forever, and so would `waitForServer`.
+        res.on("close", () => settle(new Error("the connection closed early")));
+        res.on("error", settle);
       },
     );
-    req.on("timeout", () => req.destroy(new Error("timed out")));
-    req.on("error", reject);
+    // Not the `timeout` option: that measures socket idleness, which a server
+    // trickling one byte at a time never trips. This is the wall clock.
+    timer = setTimeout(() => {
+      req.destroy();
+      settle(new Error(`no answer from ${path} in ${API_TIMEOUT_MS}ms`));
+    }, API_TIMEOUT_MS);
+    req.on("error", settle);
     req.end(init?.body);
   });
 }
@@ -130,19 +165,21 @@ async function pickFolder(parent?: BrowserWindow): Promise<string | null> {
 }
 
 async function pickAndOpen(): Promise<void> {
+  // On a Mac the menu bar outlives the window, so this runs with nothing open too.
   const win = window_;
-  if (!win) return;
-  const path = await pickFolder(win);
+  const path = await pickFolder(win ?? undefined);
   if (!path) return;
   try {
     await openProject(path);
-    win.webContents.send("sfab:project-changed");
+    if (win) win.webContents.send("sfab:project-changed");
+    else createWindow();
   } catch (err) {
-    await dialog.showMessageBox(win, {
-      type: "error",
+    const box = {
+      type: "error" as const,
       message: "Could not open that folder",
       detail: err instanceof Error ? err.message : String(err),
-    });
+    };
+    await (win ? dialog.showMessageBox(win, box) : dialog.showMessageBox(box));
   }
 }
 
@@ -162,9 +199,20 @@ function createWindow(): void {
   });
   // Anything that is not our own page belongs in the user's browser.
   window_.webContents.setWindowOpenHandler(({ url }) => {
-    if (!url.startsWith(ORIGIN)) void shell.openExternal(url);
+    if (!isOurs(url)) elsewhere(url);
     return { action: "deny" };
   });
+  // This window carries the preload, so whatever it shows can call the folder
+  // chooser. It therefore only ever shows our page: a stray link, or a file
+  // dropped on the viewport, would otherwise hand that to a document we did not
+  // write. `will-frame-navigate` is the same rule for iframes.
+  const stayHome = (event: Electron.Event, url: string) => {
+    if (isOurs(url)) return;
+    event.preventDefault();
+    elsewhere(url);
+  };
+  window_.webContents.on("will-navigate", stayHome);
+  window_.webContents.on("will-frame-navigate", (event) => stayHome(event, event.url));
   window_.webContents.on("did-fail-load", (_event, code, description, url) => {
     console.error(`[desktop] window could not load ${url}: ${description} (${code})`);
   });
@@ -227,7 +275,7 @@ if (!app.requestSingleInstanceLock()) {
     callback(ours ? 0 : -3); // 0 trusts it, -3 keeps Chromium's own answer
   };
   app.on("certificate-error", (event, _webContents, url, _error, _certificate, callback) => {
-    const trusted = url.startsWith(ORIGIN);
+    const trusted = isOurs(url);
     if (trusted) event.preventDefault();
     callback(trusted);
   });

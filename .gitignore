@@ -13,4 +13,6 @@ dist/
 **/__pycache__/
 *.py[cod]
 apps/desktop/app/
+apps/desktop/app.next/
+apps/desktop/app.prev/
 apps/desktop/release/

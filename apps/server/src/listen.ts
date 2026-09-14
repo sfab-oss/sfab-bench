@@ -23,6 +23,20 @@ function onError(err: unknown, res: { headersSent: boolean; statusCode: number; 
   res.end(err instanceof Error ? err.message : String(err));
 }
 
+/**
+ * A failed `listen` arrives as an unhandled `error` event, which takes the process
+ * down with a stack trace nobody can act on. EADDRINUSE is the one that actually
+ * happens — a second `pnpm dev`, or the desktop shell racing one — so say that.
+ */
+function onListenError(err: NodeJS.ErrnoException, host: string, port: number): void {
+  if (err.code === "EADDRINUSE") {
+    console.error(`[api] ${host}:${port} is already taken. Another sfab-bench is running.`);
+  } else {
+    console.error(`[api] could not listen on ${host}:${port}: ${err.message}`);
+  }
+  process.exit(1);
+}
+
 async function main() {
   subscribeProjectChange(() => {
     resetAgents();
@@ -40,6 +54,7 @@ async function main() {
       if (!tryUpgradeSession(req, socket, head)) socket.destroy();
     });
     server.requestTimeout = 0;
+    server.on("error", (err) => onListenError(err, DEV_API_HOST, port));
     server.listen(port, DEV_API_HOST, () => {
       console.log(`[api] http://${DEV_API_HOST}:${port} (dev, loopback only; Vite proxies /api)`);
     });
@@ -55,9 +70,10 @@ async function main() {
     if (!tryUpgradeSession(req, socket, head)) socket.destroy();
   });
   server.requestTimeout = 0;
-    server.listen(port, "0.0.0.0", () => {
-      printJoinBanner("serve");
-    });
+  server.on("error", (err) => onListenError(err, "0.0.0.0", port));
+  server.listen(port, "0.0.0.0", () => {
+    printJoinBanner("serve");
+  });
 }
 
 void main();
