@@ -177,9 +177,13 @@ export interface OpenCascade {
   Bnd_Box_1: Ctor<Box & Deletable>;
   BRepBndLib: { Add(shape: Shape, box: Box, useTriangulation: boolean): void };
   TopExp_Explorer_2: Ctor<Explorer>;
-  TopAbs_ShapeEnum: { TopAbs_FACE: Enum; TopAbs_SHAPE: Enum };
+  TopAbs_ShapeEnum: { TopAbs_FACE: Enum; TopAbs_SHELL: Enum; TopAbs_SHAPE: Enum };
   TopAbs_Orientation: { TopAbs_REVERSED: Enum };
   TopoDS: { Face_1(shape: Shape): Shape };
   TopLoc_Location_1: Ctor<Location>;
-  BRep_Tool: { Triangulation(face: Shape, loc: Location): Handle<Triangulation> };
+  BRep_Tool: {
+    Triangulation(face: Shape, loc: Location): Handle<Triangulation>;
+    /** False for a free-standing surface, which has no volume to measure. */
+    IsClosed_1(shape: Shape): boolean;
+  };
 }

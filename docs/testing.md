@@ -250,20 +250,51 @@ not enforced**: the divergence theorem needs a closed, consistently wound
 surface, and open shells, surface bodies and tessellated geometry are all
 legitimate STEP. Failing on those would train everyone to ignore the check.
 
-### What the first run found
+### What the first run found, and what came of it
 
-35 models, 26 failures, and none of them were the tessellator being wrong:
-32 of 32 closed solids matched their B-rep volume. The corpus was right about
-geometry and wrong about everything around it.
+35 models, 26 failures, and none of them the tessellator being wrong: every
+closed solid matched its B-rep volume. The corpus was right about geometry and
+wrong about everything around it. All 26 are now fixed or explained.
 
-- **22 × `leaf node oN has no occurrence`.** The loader emits assembly tree
-  leaves with nothing to draw for them. Real, and it is a Tier-1 invariant that
-  the generated corpus never triggers because generated assemblies are tidy.
-- **2 × a wasm abort** inside OCCT, one of them on the file that carries
-  tessellated surfaces instead of exact b-rep.
-- **1 × a kernel exception with no message**, arriving as a bare heap pointer.
-- **1 × a zero-length normal** in the tessellator's output.
-- **1 × a 23.1% volume gap**, reported not thrown, worth a look.
+**22 × a tree leaf with no occurrence.** One bug. A STEP product can carry no
+surfaces — a datum axis, a centreline, a branch of annotation — and the loader
+left every one in the tree with nothing behind it: a row that cannot be picked
+or coloured, answering to a `#o1.2` an assistant could be handed and act on.
+`prune` in `occt/package.ts` now drops them, and an assembly whose children all
+go, goes too. `annotation_only.step` reproduces all four cases.
 
-None are fixed yet. Each should become a *generated* fixture that reproduces
-it, so the failure is pinned without shipping anyone's geometry.
+**1 × a zero-length normal.** `mesh.ts` builds a vertex normal by summing the
+triangles around it, and `|| 1` turned a zero sum into `(0, 0, 0)` — not a
+normal, and black under any light. It really happens: NIST's ctc_05 has a vertex
+belonging to exactly one zero-area sliver, so there is no direction to be had
+from the triangles at all. It now falls back to the face's own average, which is
+exactly right for the planar faces where this is likeliest.
+
+No generated fixture reproduces this one. Cones with true apexes, tiny top radii,
+sphere poles, torus seams, knife-edge wedges, tangent holes, kissing holes and
+grazing slabs were all tried; none produce a sliver. It needs a real mesher
+artefact on a real face, so the NIST file is the reproduction and
+`pnpm corpus:external` is where it is pinned. Mutating the fallback back out
+fails there, which is the proof that would otherwise have come from a fixture.
+
+**3 × the kernel refusing the file.** opencascade.js 1.1.1 exports none of
+`wasmTable`, `__cxa_can_catch` or `__cxa_is_pointer_type`, so when OCCT raises a
+C++ exception emscripten's dispatch reaches for something that is not there and
+it surfaces as a TypeError about its own internals. Nothing here can fix that.
+What was fixed is the report: `briefError` now says the kernel rejected the file
+and cannot say why, instead of `wasmTable.get(...) is not a function`. The kernel
+survives it — the next file builds correctly, which was checked — so these are
+counted as unopenable rather than thrown, and the count is printed so it is
+visible if it grows.
+
+**1 × a 23.1% volume gap that was not a gap.** `VolumeProperties` is asked for
+closed shapes only, so a free-standing surface contributes nothing to it, while
+the mesh tessellates every face there is. stc_08 is one closed solid beside an
+open shell of 271 faces: both sides right, measuring different things. 9 of the
+35 models turn out to be like this, which is worth knowing about real CAD. The
+check now says "closed solid beside an open shell — not comparable" rather than
+printing a percentage that reads as a defect.
+
+This is the argument for the fetch corpus in one paragraph: eight fixtures
+written to be awkward found none of this, because they were written by someone
+who already knew what the loader did.

@@ -73,10 +73,34 @@ export function openCascade(): Promise<OpenCascade> {
  * So: never longer than a line, and say plainly when the kernel gave us nothing.
  */
 export function briefError(err: unknown): string {
-  if (err instanceof Error && err.message) return clamp(err.message);
+  if (err instanceof Error && err.message) {
+    if (UNCATCHABLE.test(err.message)) {
+      return "OpenCascade rejected this file and could not say why: the kernel raised a C++ exception, and this build ships without the glue that turns one into a message";
+    }
+    return clamp(err.message);
+  }
   if (typeof err === "number") return `the kernel threw at ${err} without a message`;
   if (typeof err === "string" && err) return clamp(err);
   return clamp(String((err as { message?: unknown } | null)?.message ?? err));
+}
+
+/**
+ * What a `Standard_Failure` looks like coming out of this build.
+ *
+ * None of `wasmTable`, `__cxa_can_catch` or `__cxa_is_pointer_type` are exported by
+ * opencascade.js 1.1.1, so when OCCT throws, emscripten's dispatch reaches for
+ * something that is not there and the throw surfaces as a JS TypeError about its
+ * own internals. Two of the 35 NIST models do this. The kernel survives it — the
+ * next file builds correctly — so there is nothing to recover, only something to
+ * say that is not `wasmTable.get(...) is not a function`.
+ */
+const UNCATCHABLE = /wasmTable|_{2,3}cxa_(can_catch|is_pointer_type|find_matching_catch)/;
+
+/** True when OCCT refused the file outright, rather than producing something wrong. */
+export function refusedByKernel(err: unknown): boolean {
+  if (typeof err === "number") return true;
+  const message = err instanceof Error ? err.message : String(err);
+  return UNCATCHABLE.test(message) || /without a message|could not say why/.test(message);
 }
 
 const LIMIT = 300;

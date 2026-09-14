@@ -71,6 +71,11 @@ export function tessellate(oc: OpenCascade, shape: Shape): ComponentMesh {
       face.Orientation_1().value === oc.TopAbs_Orientation.TopAbs_REVERSED.value;
     const indexStart = indices.length;
     const accumulated = new Float64Array(nodeCount * 3);
+    // Every triangle of this face, summed once, as a fallback for vertices whose
+    // own triangles tell us nothing. See the normalise loop below.
+    let fx = 0;
+    let fy = 0;
+    let fz = 0;
 
     for (let i = 1; i <= triangles.Length(); i += 1) {
       const triangle = triangles.Value(i);
@@ -96,13 +101,40 @@ export function tessellate(oc: OpenCascade, shape: Shape): ComponentMesh {
         accumulated[(node - 1) * 3 + 1] += ny;
         accumulated[(node - 1) * 3 + 2] += nz;
       }
+      fx += nx;
+      fy += ny;
+      fz += nz;
     }
+    const faceLength = Math.hypot(fx, fy, fz);
 
+    /**
+     * A vertex normal is the sum of the normals of the triangles around it — except
+     * when that sum is zero, which really happens: the mesher can leave a vertex
+     * belonging to exactly one zero-area sliver, and then there is no direction to
+     * be had from the triangles at all. NIST's ctc_05 does it on one face out of 80.
+     *
+     * Dividing by zero here used to emit (0, 0, 0). That is not a normal: it breaks
+     * the unit-length invariant, and a renderer lights it as black. The face's own
+     * average direction is a better answer than nothing, and it is exactly right for
+     * the planar faces where this is most likely.
+     */
     for (let i = 0; i < nodeCount; i += 1) {
-      const nx = accumulated[i * 3]!;
-      const ny = accumulated[i * 3 + 1]!;
-      const nz = accumulated[i * 3 + 2]!;
-      const length = Math.hypot(nx, ny, nz) || 1;
+      let nx = accumulated[i * 3]!;
+      let ny = accumulated[i * 3 + 1]!;
+      let nz = accumulated[i * 3 + 2]!;
+      let length = Math.hypot(nx, ny, nz);
+      if (length === 0 && faceLength > 0) {
+        nx = fx;
+        ny = fy;
+        nz = fz;
+        length = faceLength;
+      }
+      // A face with no direction anywhere on it has nothing left to fall back to;
+      // up is at least a unit vector, and the invariant stays true.
+      if (length === 0) {
+        normals.push(0, 0, 1);
+        continue;
+      }
       normals.push(nx / length, ny / length, nz / length);
     }
 
