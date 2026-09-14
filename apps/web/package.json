@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
-    "test": "tsx src/xr/ui/chrome.selfcheck.ts",
+    "test": "tsx src/xr/ui/chrome.selfcheck.ts && tsx src/components/ui/worked.selfcheck.ts",
     "test:chrome": "tsx src/xr/ui/chrome.selfcheck.ts"
   },
   "dependencies": {

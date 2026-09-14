@@ -30,6 +30,11 @@ export function isWorkedPart(part: WorkedPart): boolean {
   );
 }
 
+/** AI SDK step markers. Not user-visible; must not split a Working fold. */
+export function isStructuralPart(part: WorkedPart): boolean {
+  return part.type === "step-start" || part.type === "step-finish";
+}
+
 export function splitWorkedParts<T extends WorkedPart>(
   parts: readonly T[]
 ): WorkedSegment<T>[] {
@@ -54,7 +59,7 @@ export function splitWorkedParts<T extends WorkedPart>(
 
   for (let index = 0; index < parts.length; index++) {
     const part = parts[index];
-    if (!part) {
+    if (!part || isStructuralPart(part)) {
       continue;
     }
     const beforeTerminal = lastTextIndex === -1 || index < lastTextIndex;
