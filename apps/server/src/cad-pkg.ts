@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
 
 import { cacheDir } from "./config";
-import { buildStepPackage } from "./occt/package";
+import { buildStepPackage } from "./occt/build";
 import { insideRoot, posixRel, projectPath } from "./projects";
 import { rememberOpenedFile } from "./session";
 

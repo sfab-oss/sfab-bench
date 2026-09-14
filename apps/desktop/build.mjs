@@ -46,3 +46,14 @@ await build({
   format: "esm",
   external: runtimeDeps,
 });
+
+// The tessellation thread is its own entry point: `new Worker(path)` needs a real
+// file, and it must not be the server bundle, which starts listening on import.
+// `occt/build.ts` looks for it by this name beside itself.
+await build({
+  ...common,
+  entryPoints: ["../server/src/occt/worker.ts"],
+  outfile: "../server/dist/occt-worker.mjs",
+  format: "esm",
+  external: runtimeDeps,
+});

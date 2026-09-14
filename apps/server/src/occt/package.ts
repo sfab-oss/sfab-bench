@@ -19,7 +19,6 @@ import {
   referredLabel,
 } from "./document";
 import { tessellate } from "./mesh";
-import { recycleLargeKernel } from "./runtime";
 import { encodeTess } from "./tess";
 import type { Label, OpenCascade, Shape } from "./types";
 
@@ -145,24 +144,15 @@ function worldBounds(
   return Number.isFinite(min[0]) ? { min, max } : undefined;
 }
 
-let queue: Promise<unknown> = Promise.resolve();
-
 /**
- * Compile a STEP into the view package at `dest`.
+ * Compile a STEP into the view package at `dest`, on the thread that calls this.
  *
- * The kernel is one single-threaded wasm instance, so builds are serialised here
- * rather than at the call site.
+ * Reading and tessellating are both long synchronous runs inside wasm, so calling
+ * this on a thread that has anything else to do stops that thing for the duration
+ * — a 26MB assembly is 25 seconds. `occt/build.ts` is the entry point that gets
+ * that off the server's event loop; this is what it ends up running.
  */
-export function buildStepPackage(stepAbs: string, dest: string): Promise<void> {
-  const run = queue.then(
-    () => build(stepAbs, dest),
-    () => build(stepAbs, dest),
-  );
-  queue = run.catch(() => undefined);
-  return run;
-}
-
-async function build(stepAbs: string, dest: string): Promise<void> {
+export async function buildPackageHere(stepAbs: string, dest: string): Promise<void> {
   const started = Date.now();
   const document = await readStep(stepAbs);
   const { oc, shapeTool, colorTool } = document;
@@ -251,6 +241,5 @@ async function build(stepAbs: string, dest: string): Promise<void> {
     );
   } finally {
     document.close();
-    recycleLargeKernel();
   }
 }

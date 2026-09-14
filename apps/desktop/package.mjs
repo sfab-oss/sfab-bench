@@ -72,7 +72,9 @@ writeFileSync(
 for (const file of ["main.cjs", "preload.cjs"]) {
   cpSync(join(here, "dist", file), join(next, file));
 }
-cpSync(join(here, "..", "server", "dist", "api.mjs"), join(next, "api.mjs"));
+for (const file of ["api.mjs", "occt-worker.mjs"]) {
+  cpSync(join(here, "..", "server", "dist", file), join(next, file));
+}
 cpSync(join(root, "apps", "web", "dist"), join(next, "web"), { recursive: true });
 
 console.log("[package] installing runtime dependencies (npm, flat)");

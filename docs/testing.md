@@ -42,6 +42,11 @@ The `.tess` reader in `invariants.ts` is a deliberate second implementation
 of the one in `apps/web/src/cad/decodeTess.ts`. An encoder checked by its
 own inverse agrees with itself no matter what it writes.
 
+Tessellation runs on a worker thread, so these checks exercise the same
+path the server does, including the job timeout and the heap-watermark
+retirement. Both of those were mutation-tested by shrinking their
+constants until they fired.
+
 **Tier 2 — `occt/solid.ts`.** `solidProps` measures volume, area, centre of
 mass and bounding box from the exact B-rep; `meshProps` measures the same
 four from the triangles, by the divergence theorem. The corpus check

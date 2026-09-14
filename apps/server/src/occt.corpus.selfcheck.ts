@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { checkPackage } from "./occt/invariants";
 import { readStep, childLabels, labelEntry } from "./occt/document";
 import { tessellate } from "./occt/mesh";
-import { buildStepPackage } from "./occt/package";
+import { buildStepPackage } from "./occt/build";
 import { meshProps, solidProps } from "./occt/solid";
 import type { Label, OpenCascade, Shape } from "./occt/types";
 

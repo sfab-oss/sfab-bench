@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { StepPackage } from "@sfab-bench/contract";
 
 import { checkPackage } from "./occt/invariants";
-import { buildStepPackage } from "./occt/package";
+import { buildStepPackage } from "./occt/build";
 
 /**
  * What `bracket_assembly.step` in particular has to come back as.
@@ -24,9 +24,10 @@ function expect(cond: unknown, label: string) {
 const fixture = fileURLToPath(new URL("../fixtures/bracket_assembly.step", import.meta.url));
 const dest = mkdtempSync(join(tmpdir(), "sfab-occt-"));
 
-// Twice, into the same directory, in one process: the kernel is a long-lived wasm
-// instance shared by every open, so a build that corrupts or half-frees its document
-// shows up as the second one differing from the first — or as a hang, or a SIGKILL.
+// Twice, into the same directory, through the same worker: the kernel behind it is
+// a long-lived wasm instance shared by every open, so a build that corrupts or
+// half-frees its document shows up as the second one differing from the first — or
+// as a hang, or as the thread dying.
 await buildStepPackage(fixture, dest);
 const first = readFileSync(join(dest, "assembly.json"), "utf8");
 await buildStepPackage(fixture, dest);

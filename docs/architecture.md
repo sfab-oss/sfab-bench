@@ -37,13 +37,24 @@ a code workbench. Authoring is whatever produced the STEP.
 ## Loader
 
 STEP → view package is a **loader**, not a project adapter. It is
-OpenCascade compiled to WASM, running inside the API process:
-`apps/server/src/occt/` reads the STEP into an XCAF document, walks the
-assembly for names, placements and colours, tessellates each distinct
-solid once, and writes `assembly.json` + `components/<hash>.tess` into
-`~/.sfab-bench/cache/`. No Python, no subprocess
-([ADR 0002](decisions/0002-step-loader-occt.md),
+OpenCascade compiled to WASM: `apps/server/src/occt/` reads the STEP into
+an XCAF document, walks the assembly for names, placements and colours,
+tessellates each distinct solid once, and writes `assembly.json` +
+`components/<hash>.tess` into `~/.sfab-bench/cache/`. No Python, no
+subprocess ([ADR 0002](decisions/0002-step-loader-occt.md),
 [ADR 0004](decisions/0004-occt-via-opencascade-js.md)).
+
+It runs on a **worker thread**, not the API's. Reading and meshing are
+long synchronous runs inside wasm — 25 seconds for a 26 MB assembly — and
+on the server's own thread that is 25 seconds in which nothing else is
+answered, including a paired headset's websocket. `occt/build.ts` owns the
+worker and serialises jobs onto it; `occt/worker.ts` is the thread.
+
+Two things follow from the thread rather than being arranged separately.
+A file that sends the mesher into a pathological loop is killed on a
+timeout instead of wedging the process for good. And the wasm heap, which
+only ever grows, goes back to the OS when the thread ends — so recycling
+above a watermark is just "start a new worker".
 
 Components are keyed by **mesh content hash**, so the same solid placed
 forty times is downloaded and uploaded once. Occurrences carry world

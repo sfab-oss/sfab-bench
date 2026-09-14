@@ -89,12 +89,13 @@ Three rules, learned the hard way:
   allocator, not the OS, and OCCT fragments what it gets. Deleting more objects
   moves that number; it does not bound it.
 
-So the bound is elsewhere. Above a watermark (`RECYCLE_ABOVE_BYTES` in
-`runtime.ts`) the kernel is dropped and the next open instantiates a fresh one,
-which costs about 350 ms. That is what makes the 2 GB ceiling unreachable
-regardless of how complete the `delete()` audit is, and it is only safe because
-`buildStepPackage` serialises builds — every raw pointer in flight belongs to the
-one document it just closed.
+So the bound is elsewhere. The loader runs on a worker thread, and above a
+watermark (`RETIRE_ABOVE_BYTES` in `occt/build.ts`) that thread is retired, so the
+next job starts a new one for about 350 ms. Ending the thread is what actually
+gives the memory back to the OS — dropping the kernel in-process, which is what
+this did first, only left an orphaned `ArrayBuffer` for V8 to collect whenever it
+felt like it. Either way the 2 GB ceiling stops being reachable regardless of how
+complete the `delete()` audit is.
 
 ## Deliberately not written
 
