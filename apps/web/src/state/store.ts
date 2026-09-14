@@ -1,0 +1,455 @@
+import type { Group, Object3D, Vector3 } from "three";
+import { useStore as useZustandStore } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { createStore } from "zustand/vanilla";
+
+import { applyHighlights, clearHighlights } from "@/cad/highlights";
+import { fileLabel, loadCadReview, modelUrl, syncFileQuery } from "@/cad/loadCadReview";
+import { isAncestor, type CadReview } from "@/cad/review";
+import {
+  DEFAULT_CHAT_EFFORT,
+  DEFAULT_HARNESS,
+  DEFAULT_HARNESS_MODEL,
+  isChatEffort,
+  isHarnessId,
+  type ChatEffort,
+  type HarnessId,
+} from "@/lib/harness";
+
+export const CHAT_MIN_WIDTH = 280;
+export const CHAT_MAX_WIDTH = 720;
+export const CHAT_DEFAULT_WIDTH = 384;
+
+const DESKTOP_PREFS_KEY = "sfab-bench.desktop";
+const MAX_RECENTS = 5;
+
+export const DEFAULT_CHAT_MODEL = DEFAULT_HARNESS_MODEL.opencode;
+
+type DesktopPrefs = {
+  chatOpen: boolean;
+  treeOpen: boolean;
+  axesVisible: boolean;
+  chatWidth: number;
+  chatHarness: HarnessId;
+  chatModel: string;
+  chatEffort: ChatEffort;
+  recentFiles: string[];
+};
+
+function clampChatWidth(n: number) {
+  return Math.max(CHAT_MIN_WIDTH, Math.min(CHAT_MAX_WIDTH, Math.round(n)));
+}
+
+function readDesktopPrefs(): Partial<DesktopPrefs> {
+  if (typeof localStorage === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(DESKTOP_PREFS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as { state?: Partial<DesktopPrefs> };
+    return parsed.state ?? {};
+  } catch {
+    return {};
+  }
+}
+
+const prefs = readDesktopPrefs();
+
+export type Tool = "select" | "measure" | "hide";
+export type MeasurePoint = { cadRef: string; point: [number, number, number] };
+export type Page = "tree" | "settings" | "help";
+/** Where the left-hand card lives: on the wrist, or anchored in the world. */
+export type CardMode = "wrist" | "world";
+export type XrSwitchTo = "ar" | "vr" | null;
+type Setter = boolean | ((open: boolean) => boolean);
+
+/**
+ * Hover never lives in the store: it changes on every pointer move and only
+ * drives material tints, so keeping it here avoids a render per frame.
+ */
+let hoveredId: number | null = null;
+/** Guards against a stale `loadModel` resolving after a newer one started. */
+let loadToken = 0;
+
+const apply = (state: Pick<State, "review" | "selectedId">) => {
+  if (state.review) applyHighlights(state.review, state.selectedId, hoveredId);
+};
+
+const resolve = (cur: boolean, next: Setter) =>
+  typeof next === "function" ? next(cur) : next;
+
+type State = {
+  // viewer
+  url: string;
+  title: string;
+  review: CadReview | null;
+  progress: number | null;
+  error: string | null;
+  selectedId: number | null;
+  pickedRef: string | null;
+  treeOpen: boolean;
+  chatOpen: boolean;
+  chatWidth: number;
+  chatHarness: HarnessId;
+  chatModel: string;
+  chatEffort: ChatEffort;
+  recentFiles: string[];
+  axesVisible: boolean;
+  /** Source of truth for part visibility; the scene is updated from it. */
+  hiddenIds: Set<number>;
+  tool: Tool;
+  measure: { a: MeasurePoint | null; b: MeasurePoint | null };
+  loadModel: (url: string) => Promise<void>;
+  setTreeOpen: (open: Setter) => void;
+  setChatOpen: (open: Setter) => void;
+  setChatWidth: (width: number) => void;
+  setChatHarness: (harness: HarnessId) => void;
+  setChatModel: (model: string) => void;
+  setChatSelection: (harness: HarnessId, model: string) => void;
+  setChatEffort: (effort: ChatEffort) => void;
+  setAxesVisible: (open: Setter) => void;
+  select: (id: number | null, cadRef?: string) => void;
+  selectByRef: (ref: string | null) => void;
+  /**
+   * Click-on-model selection: a first click selects the leaf; clicking a part
+   * whose selection already covers it walks up one assembly, and from the
+   * top-level assembly cycles back to the leaf.
+   */
+  selectFromModel: (leafId: number, cadRef?: string) => void;
+  hover: (id: number | null) => void;
+  setVisible: (id: number, visible: boolean) => void;
+  isolate: (id: number) => void;
+  showAll: () => void;
+  setTool: (tool: Tool) => void;
+  measureClick: (point: MeasurePoint) => void;
+  /** Removes the most recent measure point. */
+  undoMeasure: () => void;
+  clearMeasure: () => void;
+
+  // xr ui
+  page: Page;
+  cardOpen: boolean;
+  cardMode: CardMode;
+  xrChatOpen: boolean;
+  xrChatPhase: "idle" | "submitted" | "streaming";
+  xrChatChars: number;
+  toolsOpen: boolean;
+  studioDark: boolean;
+  setPage: (page: Page) => void;
+  setCardOpen: (open: Setter) => void;
+  setCardMode: (mode: CardMode) => void;
+  setXrChatOpen: (open: Setter) => void;
+  setXrChatPhase: (phase: "idle" | "submitted" | "streaming") => void;
+  setXrChatChars: (n: number) => void;
+  /** Places the card in front of the wearer; used by the pin button. */
+  bringCard: (() => void) | null;
+  setBringCard: (fn: (() => void) | null) => void;
+  bringChat: (() => void) | null;
+  setBringChat: (fn: (() => void) | null) => void;
+  /** True while the tree-card handle is being dragged. */
+  cardDragging: boolean;
+  setCardDragging: (on: boolean) => void;
+  setToolsOpen: (open: Setter) => void;
+  setStudioDark: (dark: boolean) => void;
+
+  // hands
+  left: boolean;
+  right: boolean;
+  leftHold: boolean;
+  rightHold: boolean;
+  worldGrabbing: boolean;
+  setHandGrab: (side: "left" | "right", on: boolean) => void;
+  setHandHold: (side: "left" | "right", on: boolean) => void;
+  setWorldGrabbing: (on: boolean) => void;
+
+  // xr switch overlay
+  switching: XrSwitchTo;
+  setXrSwitch: (next: XrSwitchTo) => void;
+
+  // scene
+  placed: Group | null;
+  fit: ((obj: Object3D, dir?: Vector3) => void) | null;
+  setPlaced: (group: Group | null) => void;
+  setFit: (fit: ((obj: Object3D, dir?: Vector3) => void) | null) => void;
+  bumpScale: (factor: number) => void;
+  resetScale: () => void;
+  /** Uniform scale of `placed`, mirrored here so UI can show it. */
+  modelScale: number;
+  setModelScale: (scale: number) => void;
+  /** Re-places the model in front of the wearer at 1:1; registered by the scene. */
+  recenter: (() => void) | null;
+  setRecenter: (fn: (() => void) | null) => void;
+};
+
+const url = modelUrl();
+
+export const store = createStore<State>()(
+  persist(
+    (set, get) => ({
+  url,
+  title: fileLabel(url),
+  review: null,
+  progress: url ? 0 : null,
+  error: null,
+  selectedId: null,
+  pickedRef: null,
+  treeOpen: prefs.treeOpen ?? true,
+  chatOpen: prefs.chatOpen ?? false,
+  chatWidth: prefs.chatWidth != null ? clampChatWidth(prefs.chatWidth) : CHAT_DEFAULT_WIDTH,
+  chatHarness: isHarnessId(prefs.chatHarness ?? "") ? prefs.chatHarness! : DEFAULT_HARNESS,
+  chatModel:
+    typeof prefs.chatModel === "string" && prefs.chatModel.trim()
+      ? prefs.chatModel.trim()
+      : DEFAULT_HARNESS_MODEL[isHarnessId(prefs.chatHarness ?? "") ? prefs.chatHarness! : DEFAULT_HARNESS],
+  chatEffort: isChatEffort(prefs.chatEffort ?? "") ? prefs.chatEffort! : DEFAULT_CHAT_EFFORT,
+  recentFiles: Array.isArray(prefs.recentFiles)
+    ? prefs.recentFiles.filter((p): p is string => typeof p === "string" && p.length > 0).slice(0, MAX_RECENTS)
+    : [],
+  axesVisible: prefs.axesVisible ?? true,
+  hiddenIds: new Set<number>(),
+  tool: "select",
+  measure: { a: null, b: null },
+
+  loadModel: async (next) => {
+    const token = ++loadToken;
+    clearHighlights();
+    syncFileQuery(next);
+    if (!next) {
+      set({
+        url: "",
+        title: fileLabel(""),
+        progress: null,
+        error: null,
+        review: null,
+        selectedId: null,
+        pickedRef: null,
+        hiddenIds: new Set(),
+        measure: { a: null, b: null },
+      });
+      return;
+    }
+    set({
+      url: next,
+      title: fileLabel(next),
+      progress: 0,
+      error: null,
+      review: null,
+      selectedId: null,
+      pickedRef: null,
+      hiddenIds: new Set(),
+      measure: { a: null, b: null },
+    });
+    try {
+      const review = await loadCadReview(next, (loaded, total) => {
+        if (token === loadToken && total) {
+          set({ progress: Math.min(100, Math.round((loaded / total) * 100)) });
+        }
+      });
+      if (token !== loadToken) return;
+      const recents = [next, ...get().recentFiles.filter((p) => p !== next)].slice(0, MAX_RECENTS);
+      set({ review, progress: null, hiddenIds: new Set<number>(), recentFiles: recents });
+      apply(get());
+    } catch (err: unknown) {
+      if (token !== loadToken) return;
+      set({ error: err instanceof Error ? err.message : String(err), progress: null });
+    }
+  },
+  setTreeOpen: (open) => set((s) => ({ treeOpen: resolve(s.treeOpen, open) })),
+  setChatOpen: (open) => set((s) => ({ chatOpen: resolve(s.chatOpen, open) })),
+  setChatWidth: (width) => {
+    const chatWidth = clampChatWidth(width);
+    if (get().chatWidth !== chatWidth) set({ chatWidth });
+  },
+  setChatHarness: (harness) => {
+    if (get().chatHarness === harness) return;
+    set({ chatHarness: harness, chatModel: DEFAULT_HARNESS_MODEL[harness] });
+  },
+  setChatModel: (model) => {
+    const chatModel = model.trim();
+    if (chatModel && get().chatModel !== chatModel) set({ chatModel });
+  },
+  setChatSelection: (harness, model) => {
+    const chatModel = model.trim() || DEFAULT_HARNESS_MODEL[harness];
+    const cur = get();
+    if (cur.chatHarness === harness && cur.chatModel === chatModel) return;
+    set({ chatHarness: harness, chatModel });
+  },
+  setChatEffort: (effort) => {
+    if (get().chatEffort !== effort) set({ chatEffort: effort });
+  },
+  setAxesVisible: (open) => set((s) => ({ axesVisible: resolve(s.axesVisible, open) })),
+  select: (id, cadRef) => {
+    const { review } = get();
+    if (id === null) {
+      set({ selectedId: null, pickedRef: null });
+    } else {
+      set({
+        selectedId: id,
+        pickedRef: cadRef ?? review?.parts[id]?.cadRef ?? review?.parts[id]?.name ?? null,
+      });
+    }
+    apply(get());
+  },
+  selectByRef: (ref) => {
+    if (!ref) {
+      get().select(null);
+      return;
+    }
+    const { review } = get();
+    const part = review?.parts.find((p) => p.cadRef === ref);
+    if (part) get().select(part.id, ref);
+    else set({ selectedId: null, pickedRef: ref });
+  },
+  selectFromModel: (leafId, cadRef) => {
+    const { review, selectedId, select } = get();
+    const leaf = review?.parts[leafId]?.object;
+    const sel = selectedId !== null ? review?.parts[selectedId]?.object : undefined;
+    if (!review || !leaf || !sel || (sel !== leaf && !isAncestor(sel, leaf))) {
+      select(leafId, cadRef);
+      return;
+    }
+    let p = sel.parent;
+    while (p && p !== review.root) {
+      const part = review.partByObject.get(p);
+      if (part) {
+        select(part.id);
+        return;
+      }
+      p = p.parent;
+    }
+    select(leafId, cadRef);
+  },
+  hover: (id) => {
+    if (hoveredId === id) return;
+    hoveredId = id;
+    apply(get());
+  },
+  setVisible: (id, visible) => {
+    const { review, hiddenIds } = get();
+    review?.setPartVisible(id, visible);
+    const next = new Set(hiddenIds);
+    if (visible) next.delete(id);
+    else next.add(id);
+    set({ hiddenIds: next });
+  },
+  isolate: (id) => {
+    const { review } = get();
+    if (!review) return;
+    review.isolate(id);
+    set({
+      selectedId: id,
+      pickedRef: review.parts[id]?.cadRef ?? review.parts[id]?.name ?? null,
+      hiddenIds: new Set(
+        review.parts.filter((part) => !part.object.visible).map((part) => part.id),
+      ),
+    });
+    apply(get());
+  },
+  showAll: () => {
+    const { review } = get();
+    if (!review) return;
+    review.showAll();
+    set({ hiddenIds: new Set<number>() });
+  },
+  setTool: (tool) =>
+    set((s) => ({ tool, measure: tool === "measure" ? s.measure : { a: null, b: null } })),
+  measureClick: (point) =>
+    set((s) => ({
+      measure: !s.measure.a || s.measure.b ? { a: point, b: null } : { a: s.measure.a, b: point },
+    })),
+  undoMeasure: () =>
+    set((s) => ({ measure: s.measure.b ? { a: s.measure.a, b: null } : { a: null, b: null } })),
+  clearMeasure: () => set({ measure: { a: null, b: null } }),
+
+  page: "tree",
+  cardOpen: true,
+  cardMode: "world",
+  xrChatOpen: false,
+  xrChatPhase: "idle",
+  xrChatChars: 0,
+  toolsOpen: false,
+  studioDark: false,
+  setPage: (page) => set({ page }),
+  setCardOpen: (open) => set((s) => ({ cardOpen: resolve(s.cardOpen, open) })),
+  setCardMode: (cardMode) => set({ cardMode }),
+  setXrChatOpen: (open) => set((s) => ({ xrChatOpen: resolve(s.xrChatOpen, open) })),
+  setXrChatPhase: (phase) => {
+    if (get().xrChatPhase !== phase) set({ xrChatPhase: phase });
+  },
+  setXrChatChars: (n) => {
+    if (get().xrChatChars !== n) set({ xrChatChars: n });
+  },
+  bringCard: null,
+  setBringCard: (bringCard) => set({ bringCard }),
+  bringChat: null,
+  setBringChat: (bringChat) => set({ bringChat }),
+  cardDragging: false,
+  setCardDragging: (on) => {
+    if (get().cardDragging !== on) set({ cardDragging: on });
+  },
+  setToolsOpen: (open) => set((s) => ({ toolsOpen: resolve(s.toolsOpen, open) })),
+  setStudioDark: (studioDark) => set({ studioDark }),
+
+  left: false,
+  right: false,
+  leftHold: false,
+  rightHold: false,
+  worldGrabbing: false,
+  // XRGrab calls these every frame; skip unchanged values so listeners stay quiet.
+  setHandGrab: (side, on) => {
+    const key = side === "left" ? "left" : "right";
+    if (get()[key] !== on) set({ [key]: on });
+  },
+  setHandHold: (side, on) => {
+    const key = side === "left" ? "leftHold" : "rightHold";
+    if (get()[key] !== on) set({ [key]: on });
+  },
+  setWorldGrabbing: (on) => {
+    if (get().worldGrabbing !== on) set({ worldGrabbing: on });
+  },
+
+  switching: null,
+  setXrSwitch: (switching) => set({ switching }),
+
+  placed: null,
+  fit: null,
+  setPlaced: (placed) => set({ placed }),
+  setFit: (fit) => set({ fit }),
+  bumpScale: (factor) => {
+    const g = get().placed;
+    if (!g) return;
+    const next = Math.max(0.15, Math.min(8, g.scale.x * factor));
+    g.scale.setScalar(next);
+    set({ modelScale: next });
+  },
+  resetScale: () => {
+    get().placed?.scale.setScalar(1);
+    set({ modelScale: 1 });
+  },
+  modelScale: 1,
+  setModelScale: (scale) => {
+    if (get().modelScale !== scale) set({ modelScale: scale });
+  },
+  recenter: null,
+  setRecenter: (recenter) => set({ recenter }),
+    }),
+    {
+      name: DESKTOP_PREFS_KEY,
+      storage: createJSONStorage(() => localStorage),
+      partialize: (s): DesktopPrefs => ({
+        chatOpen: s.chatOpen,
+        treeOpen: s.treeOpen,
+        axesVisible: s.axesVisible,
+        chatWidth: s.chatWidth,
+        chatHarness: s.chatHarness,
+        chatModel: s.chatModel,
+        chatEffort: s.chatEffort,
+        recentFiles: s.recentFiles,
+      }),
+    },
+  ),
+);
+
+/** Always call with a selector: the whole state changes on every hand frame. */
+export function useStore<T>(selector: (state: State) => T): T {
+  return useZustandStore(store, selector);
+}

@@ -1,0 +1,144 @@
+import { Container, Text } from "@react-three/uikit";
+import { Eye, EyeOff, Focus, Undo2 } from "@react-three/uikit-lucide";
+import { useShallow } from "zustand/react/shallow";
+
+import { formatMm, measureDelta } from "@/lib/measure";
+import { useProjectSession } from "@/hooks/useProjectSession";
+import { useStore } from "@/state/store";
+import { ToolBtn } from "@/xr/ui/ToolBtn";
+
+export function DetailsCard() {
+  const {
+    review,
+    selectedId,
+    pickedRef,
+    isolate,
+    setVisible,
+    hiddenIds,
+    tool,
+    measure,
+    undoMeasure,
+    clearMeasure,
+  } = useStore(
+      useShallow((s) => ({
+        review: s.review,
+        selectedId: s.selectedId,
+        pickedRef: s.pickedRef,
+        isolate: s.isolate,
+        setVisible: s.setVisible,
+        hiddenIds: s.hiddenIds,
+        tool: s.tool,
+        measure: s.measure,
+        undoMeasure: s.undoMeasure,
+        clearMeasure: s.clearMeasure,
+      })),
+    );
+  const part = selectedId !== null ? review?.parts[selectedId] : undefined;
+
+  const session = useProjectSession();
+  const byline =
+    session.doc.selection && session.doc.selection.by !== session.you.id
+      ? `Selected on ${session.doc.selection.byLabel}`
+      : null;
+
+  if (tool === "measure") {
+    const a = measure.a;
+    const b = measure.b;
+    const delta = measureDelta(a, b);
+    return (
+      <Container
+        width={184}
+        padding={8}
+        gap={6}
+        flexDirection="column"
+        backgroundColor="#fafafa"
+        borderRadius={12}
+        borderWidth={1}
+        borderColor="#e4e4e7"
+        pixelSize={0.001}
+        pointerEvents="auto"
+      >
+        <Text fontSize={13} color="#18181b">
+          Measure
+        </Text>
+        <Text fontSize={12} color="#52525b">
+          {`1 ${a?.cadRef ?? "-"}`}
+        </Text>
+        <Text fontSize={12} color="#52525b">
+          {`2 ${b?.cadRef ?? "-"}`}
+        </Text>
+        {delta ? (
+          <>
+            <Text fontSize={16} color="#18181b">
+              {formatMm(delta.dist)}
+            </Text>
+            <Text fontSize={11} color="#52525b">
+              {`dX ${formatMm(delta.dx)}  dY ${formatMm(delta.dy)}  dZ ${formatMm(delta.dz)}`}
+            </Text>
+          </>
+        ) : (
+          <Text fontSize={12} color="#52525b">
+            Click two places
+          </Text>
+        )}
+        <Container flexDirection="row" gap={4} width="100%">
+          <ToolBtn id="m-undo" icon={Undo2} grow={false} onClick={() => undoMeasure()} />
+          <ToolBtn id="m-clear" label="Clear" onClick={() => clearMeasure()} />
+        </Container>
+      </Container>
+    );
+  }
+
+  if (!part && !pickedRef) return null;
+  const shown = part ? !hiddenIds.has(part.id) : true;
+  const ref = pickedRef ?? part?.cadRef ?? null;
+  return (
+    <Container
+      width={184}
+      padding={8}
+      gap={6}
+      flexDirection="column"
+      backgroundColor="#fafafa"
+      borderRadius={12}
+      borderWidth={1}
+      borderColor="#e4e4e7"
+      pixelSize={0.001}
+      pointerEvents="auto"
+    >
+      {part ? (
+        <Container flexDirection="row" alignItems="center" gap={6} width="100%">
+          <Container
+            width={10}
+            height={10}
+            flexShrink={0}
+            borderRadius={2}
+            backgroundColor={part.color}
+          />
+          <Text fontSize={13} color="#18181b">
+            {part.name.length > 16 ? `${part.name.slice(0, 15)}...` : part.name}
+          </Text>
+        </Container>
+      ) : null}
+      {ref && ref !== part?.name ? (
+        <Text fontSize={12} color="#18181b">
+          {ref.length > 24 ? `${ref.slice(0, 23)}...` : ref}
+        </Text>
+      ) : null}
+      {byline ? (
+        <Text fontSize={11} color="#71717a">
+          {byline}
+        </Text>
+      ) : null}
+      {part ? (
+        <Container flexDirection="row" gap={4} width="100%">
+          <ToolBtn
+            id="d-hide"
+            icon={shown ? Eye : EyeOff}
+            onClick={() => setVisible(part.id, !shown)}
+          />
+          <ToolBtn id="d-iso" icon={Focus} onClick={() => isolate(part.id)} />
+        </Container>
+      ) : null}
+    </Container>
+  );
+}

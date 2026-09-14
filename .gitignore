@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.DS_Store
+*.swp
+.idea/
+.vscode/
+.env
+.env.*
+!.env.example
+.harness-bootstrap/
+.ai-sdk-harness/
+.agent-runs/
+**/__pycache__/
+*.py[cod]

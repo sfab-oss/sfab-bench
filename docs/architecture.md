@@ -1,0 +1,39 @@
+# Architecture
+
+One Node process owns the open folder, the STEP loader, the harness
+agents, and the sqlite store under `~/.sfab-bench/`. The Mac browser tab
+and Quest Browser are both HTTPS clients of that process.
+
+## Model
+
+- **Server** is global. It does not live inside a CAD repo.
+- **Project** = a directory on the Mac (git or not). Recorded as
+  `{ path, lastFile, openedAt }`.
+- **Document** = a STEP or GLB inside that directory. Recursive walk,
+  skipping `node_modules`, `.git`, and cache dirs.
+- **Agent cwd** = the project directory. Skills and kernels belong to
+  the folder, not to this app.
+- **Session** is one per open project: loaded file, agent-facing
+  selection, active thread (including the live stream), harness / model /
+  effort. Camera, XR placement, and card layout stay per client.
+
+Auth: loopback is trusted. Anything else on `/api` needs a paired device
+token. Accounts and a public tunnel are later `principal.kind`s, not a
+rewrite.
+
+## Tree
+
+`apps/server` is the process. `apps/web` is the Vite + R3F client.
+`packages/contract` is the shared TypeScript for session, harness, and
+viewer snapshot types.
+
+Presence (the tessellated `assembly.json` + `.tess` package, the tree,
+selection, measure, Quest world) is the product's identity relative to
+a code workbench. Authoring is whatever produced the STEP.
+
+## Loader
+
+STEP → view package is a **loader**, not a project adapter. Today that
+is cadgen, managed under `~/.sfab-bench/tools/cadgen/`, with a project's
+`cad/.cad-venv` as a fast path. Destination: our own OpenCascade WASM in
+Node, same package contract. [ADR 0002](decisions/0002-step-loader-occt.md).

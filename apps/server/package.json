@@ -1,0 +1,42 @@
+{
+  "name": "@sfab-bench/server",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./app": "./src/app.ts",
+    "./config": "./src/config.ts"
+  },
+  "scripts": {
+    "dev": "tsx src/dev.ts",
+    "serve": "tsx src/listen.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx src/auth.selfcheck.ts && tsx src/project.selfcheck.ts && tsx src/session.selfcheck.ts",
+    "test:auth": "tsx src/auth.selfcheck.ts",
+    "test:project": "tsx src/project.selfcheck.ts",
+    "test:session": "tsx src/session.selfcheck.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^4.0.80",
+    "@ai-sdk/harness": "^1.0.109",
+    "@ai-sdk/harness-codex": "^1.0.111",
+    "@ai-sdk/harness-cursor": "^1.0.22",
+    "@ai-sdk/harness-grok-build": "^1.0.46",
+    "@ai-sdk/harness-opencode": "^1.0.111",
+    "@ai-sdk/provider-utils": "5.0.40",
+    "@hono/node-server": "^2.1.1",
+    "@hono/zod-validator": "^0.9.1",
+    "@sfab-bench/contract": "workspace:*",
+    "@vitejs/plugin-basic-ssl": "^2.1.0",
+    "ai": "^7.0.99",
+    "hono": "^4.13.7",
+    "ws": "^8.21.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.2"
+  }
+}
