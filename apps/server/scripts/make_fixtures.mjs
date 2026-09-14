@@ -9,7 +9,7 @@
  *
  *   bracket_assembly  a sub-assembly, shared geometry, a colour on an instance
  *   curved_solids     a sphere's poles, a torus's seam, a cone's apex
- *   deep_nest         five levels of placement multiplied together
+ *   deep_nest         five levels of placement, two of them rotations
  *   bare_solids       no names, no colours: every fallback path
  *   many_instances    one solid placed 120 times, so dedup has to hold
  *   cut_solid         a boolean result, whose inner faces are REVERSED
@@ -66,9 +66,22 @@ function doc() {
     throw new Error("no SetColor overload accepted a Quantity_Color");
   };
 
-  const at = (x, y, z) => {
+  /**
+   * A placement: translate by x,y,z, optionally after turning `spin` degrees about
+   * `axis`. The rotation matters more than it looks — translations commute with one
+   * another, so a tree built only from them cannot tell a correct composition from
+   * one done in the wrong order.
+   */
+  const at = (x, y, z, spin = 0, axis = "z") => {
     const trsf = new oc.gp_Trsf_1();
     trsf.SetTranslation_1(new oc.gp_Vec_4(x, y, z));
+    if (spin) {
+      const turn = new oc.gp_Trsf_1();
+      const dir =
+        axis === "x" ? new oc.gp_Dir_4(1, 0, 0) : axis === "y" ? new oc.gp_Dir_4(0, 1, 0) : new oc.gp_Dir_4(0, 0, 1);
+      turn.SetRotation_1(new oc.gp_Ax1_2(new oc.gp_Pnt_3(0, 0, 0), dir), (spin * Math.PI) / 180);
+      trsf.Multiply(turn);
+    }
     return new oc.TopLoc_Location_2(trsf);
   };
 
@@ -152,12 +165,15 @@ function doc() {
   const d = doc();
   const cube = d.add(new oc.BRepPrimAPI_MakeBox_1(4, 4, 4).Shape(), "cube");
   let inner = d.assembly("level_5");
-  d.name(d.shapeTool.AddComponent_1(inner, cube, d.at(1, 0, 0)), "cube_1");
+  d.name(d.shapeTool.AddComponent_1(inner, cube, d.at(1, 0, 0, 30, "x")), "cube_1");
+  // Two of the five turn as well as move. Without them every placement is a
+  // translation, they all commute, and composing the tree in the wrong order
+  // produces exactly the same answer as composing it in the right one.
   const steps = [
     [0, 2, 0],
-    [0, 0, 4],
+    [0, 0, 4, 90, "z"],
     [8, 0, 0],
-    [0, 16, 0],
+    [0, 16, 0, -45, "y"],
   ];
   steps.forEach((offset, i) => {
     const outer = d.assembly(`level_${4 - i}`);

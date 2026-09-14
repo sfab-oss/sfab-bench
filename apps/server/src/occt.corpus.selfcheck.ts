@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import type { StepPackage } from "@sfab-bench/contract";
 
-import { checkPackage } from "./occt/invariants";
+import { checkPackage, decodeTess, type Mesh } from "./occt/invariants";
 import { readStep, childLabels, labelEntry } from "./occt/document";
 import { tessellate } from "./occt/mesh";
 import { buildStepPackage } from "./occt/build";
@@ -132,6 +132,114 @@ async function compareToBrep(step: string, label: string): Promise<void> {
   }
 }
 
+/**
+ * Every occurrence's triangles, placed, as one mesh in world millimetres.
+ *
+ * `occ.transform` is row-major and already flattened to world, the same reading
+ * `apps/web/src/cad/loadStepPackage.ts` gives it.
+ */
+function placedMesh(dir: string, pkg: StepPackage): { positions: Float32Array; indices: Uint32Array } {
+  const meshes = new Map<string, Mesh>();
+  for (const key of Object.keys(pkg.components)) {
+    meshes.set(key, decodeTess(readFileSync(join(dir, "components", `${key}.tess`))));
+  }
+  const placed = pkg.occurrences.filter((occ) => meshes.has(occ.component));
+  let vertices = 0;
+  let indexCount = 0;
+  for (const occ of placed) {
+    const mesh = meshes.get(occ.component)!;
+    vertices += mesh.positions.length / 3;
+    indexCount += mesh.indices.length;
+  }
+
+  const positions = new Float32Array(vertices * 3);
+  const indices = new Uint32Array(indexCount);
+  let base = 0;
+  let at = 0;
+  for (const occ of placed) {
+    const mesh = meshes.get(occ.component)!;
+    const t = occ.transform;
+    for (let i = 0; i < mesh.positions.length; i += 3) {
+      const x = mesh.positions[i]!;
+      const y = mesh.positions[i + 1]!;
+      const z = mesh.positions[i + 2]!;
+      for (let row = 0; row < 3; row += 1) {
+        positions[base * 3 + i + row] =
+          t[row * 4]! * x + t[row * 4 + 1]! * y + t[row * 4 + 2]! * z + t[row * 4 + 3]!;
+      }
+    }
+    for (let i = 0; i < mesh.indices.length; i += 1) indices[at + i] = mesh.indices[i]! + base;
+    base += mesh.positions.length / 3;
+    at += mesh.indices.length;
+  }
+  return { positions, indices };
+}
+
+/**
+ * The document as a whole, placed, against OCCT's own answer for it.
+ *
+ * `compareToBrep` measures each leaf solid in its own frame, and `checkPackage`
+ * confirms the declared bbox holds the geometry — but that bbox is computed by the
+ * same code that did the placing, so it only ever agrees with itself. Nothing so
+ * far compares the *assembled* result to anything outside the loader.
+ *
+ * Which is the gap this closes. A placement multiplied in the wrong order, applied
+ * at the wrong level of the tree, or dropped entirely still produces a package that
+ * passes every other check in this file. `deep_nest` and `many_instances` exist for
+ * exactly that failure and until now were only ever checked against themselves.
+ */
+async function compareAssembly(step: string, dir: string, label: string): Promise<void> {
+  const pkg = JSON.parse(readFileSync(join(dir, "assembly.json"), "utf8")) as StepPackage;
+  const document = await readStep(step);
+  const { oc, shapeTool } = document;
+  try {
+    // A free label's shape carries its components' locations, so this is the whole
+    // document already placed — the thing the package claims to be a copy of.
+    const roots = [...childLabels(oc, shapeTool.BaseLabel(), (l) => oc.XCAFDoc_ShapeTool.IsFree(l))];
+    if (roots.length !== 1) return; // nothing in the corpus has two, and the maths below assumes one
+    const shape = oc.XCAFDoc_ShapeTool.GetShape_2(roots[0]!);
+    const exact = solidProps(oc, shape);
+    shape.delete();
+
+    const drawn = meshProps(placedMesh(dir, pkg));
+    if (!exact.bbox || !drawn.bbox) return note(`${label}: the assembled document has no bounding box`);
+
+    if (relative(drawn.volume, exact.volume) > VOLUME_TOLERANCE) {
+      note(
+        `${label} assembled: ${drawn.volume.toFixed(2)}mm³ across ${pkg.occurrences.length} ` +
+          `occurrence(s) vs B-rep ${exact.volume.toFixed(2)}mm³ ` +
+          `(${(relative(drawn.volume, exact.volume) * 100).toFixed(1)}% out)`,
+      );
+    }
+    for (let axis = 0; axis < 3; axis += 1) {
+      const gap = Math.max(
+        exact.bbox.min[axis]! - drawn.bbox.min[axis]!,
+        drawn.bbox.max[axis]! - exact.bbox.max[axis]!,
+      );
+      if (gap > BBOX_TOLERANCE) {
+        note(`${label} assembled: geometry escapes the B-rep box on axis ${axis} by ${gap.toFixed(3)}mm`);
+      }
+    }
+    // The sensitive one. A single instance in the wrong place barely changes a
+    // bounding box and does not change the volume at all, but it always moves this.
+    const drift = Math.hypot(
+      drawn.centroid[0] - exact.centroid[0],
+      drawn.centroid[1] - exact.centroid[1],
+      drawn.centroid[2] - exact.centroid[2],
+    );
+    const span = Math.hypot(
+      exact.bbox.max[0]! - exact.bbox.min[0]!,
+      exact.bbox.max[1]! - exact.bbox.min[1]!,
+      exact.bbox.max[2]! - exact.bbox.min[2]!,
+    );
+    if (drift > span * 0.01) {
+      note(`${label} assembled: centre of mass is ${drift.toFixed(3)}mm from the B-rep's`);
+    }
+  } finally {
+    document.close();
+  }
+}
+
 const steps = readdirSync(fixtures).filter((f) => /\.(step|stp)$/i.test(f)).sort();
 if (!steps.length) throw new Error(`no fixtures in ${fixtures}`);
 
@@ -142,6 +250,7 @@ for (const file of steps) {
     await buildStepPackage(join(fixtures, file), dest);
     for (const why of checkPackage(dest)) note(`${label}: ${why}`);
     await compareToBrep(join(fixtures, file), label);
+    await compareAssembly(join(fixtures, file), dest, label);
 
     const expected = EXPECTED_SIZE_MM[label];
     if (expected) {
