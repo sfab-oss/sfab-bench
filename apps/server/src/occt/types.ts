@@ -40,6 +40,18 @@ export interface Pnt extends Deletable {
   Transformed(trsf: Trsf): Pnt;
 }
 
+export interface GProps extends Deletable {
+  /** Volume for `VolumeProperties`, area for `SurfaceProperties`. */
+  Mass(): number;
+  CentreOfMass(): Pnt;
+}
+
+export interface Box extends Deletable {
+  IsVoid(): boolean;
+  CornerMin(): Pnt;
+  CornerMax(): Pnt;
+}
+
 export interface Shape extends Deletable {
   IsNull(): boolean;
   Orientation_1(): Enum;
@@ -150,6 +162,20 @@ export interface OpenCascade {
   Quantity_Color_1: Ctor<Color & Deletable>;
 
   BRepMesh_IncrementalMesh_2: Ctor<Deletable>;
+  GProp_GProps_1: Ctor<GProps & Deletable>;
+  BRepGProp: {
+    /** `(shape, out, onlyClosed, useSpan, cgFlag)` — this build takes exactly five. */
+    VolumeProperties_1(
+      shape: Shape,
+      out: GProps,
+      onlyClosed: boolean,
+      useSpan: boolean,
+      cgFlag: boolean,
+    ): void;
+    SurfaceProperties_1(shape: Shape, out: GProps, useSpan: boolean, cgFlag: boolean): void;
+  };
+  Bnd_Box_1: Ctor<Box & Deletable>;
+  BRepBndLib: { Add(shape: Shape, box: Box, useTriangulation: boolean): void };
   TopExp_Explorer_2: Ctor<Explorer>;
   TopAbs_ShapeEnum: { TopAbs_FACE: Enum; TopAbs_SHAPE: Enum };
   TopAbs_Orientation: { TopAbs_REVERSED: Enum };

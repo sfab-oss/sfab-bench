@@ -38,6 +38,7 @@ Mac tab: `https://127.0.0.1:7322`. Quest needs the LAN host, not loopback.
 - **User runbook** → [`docs/user/`](docs/user/)
 - **Product plan** → [`docs/product.md`](docs/product.md)
 - **Architecture** → [`docs/architecture.md`](docs/architecture.md)
+- **Testing criteria** → [`docs/testing.md`](docs/testing.md)
 - **ADRs** → [`docs/decisions/`](docs/decisions/)
 - **Working notes** → [`docs/notes/`](docs/notes/)
 - **Server** → `apps/server/src/`
