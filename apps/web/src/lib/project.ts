@@ -10,6 +10,7 @@ export type ProjectRow = {
 export type ProjectInfo = {
   project: ProjectRow | null;
   recents: ProjectRow[];
+  fileRecents?: string[];
   revision: number;
 };
 

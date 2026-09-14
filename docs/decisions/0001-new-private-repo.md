@@ -23,9 +23,8 @@ merge `sfab-oss/sfab-cad`. Do not reuse that name for this architecture.
 
 The first extract is this pnpm workspace (`apps/server`, `apps/web`,
 `packages/contract`) copied from the working `xr-viewer` tree, including
-pairing, the standalone Node server, the project model, and the shared
-Mac + Quest session. `sphere-robot/xr-viewer` stays until this repo
-actually runs; then that skill becomes a pointer.
+pairing, the standalone Node server, and the project model.
+`sphere-robot/xr-viewer` was the seed and is gone.
 
 The product name is **sfab-bench**. `npx` publish is later, not this
 commit. The repo stays private until we choose otherwise.
@@ -53,4 +52,5 @@ Home and tessellation cache are `~/.sfab-bench/`. Env vars are
 ## Related
 
 - [0002-step-loader-occt](0002-step-loader-occt.md)
-- sphere-robot `docs/analysis/cad-app-product.md` (source of the plan)
+- [0003-library-not-viewport](0003-library-not-viewport.md)
+- [`docs/product.md`](../product.md) — living plan

@@ -38,7 +38,15 @@ db.exec(`
     last_file TEXT,
     opened_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS file_recents (
+    project TEXT NOT NULL,
+    path TEXT NOT NULL,
+    opened_at INTEGER NOT NULL,
+    PRIMARY KEY (project, path)
+  );
 `);
+
+export const MAX_FILE_RECENTS = 12;
 
 let active: string | null = null;
 let revision = 0;
@@ -192,6 +200,28 @@ export function openProject(input: string): ProjectRow {
 export function setLastFile(rel: string | null) {
   if (!active) return;
   db.prepare("UPDATE projects SET last_file = ? WHERE path = ?").run(rel, active);
+}
+
+export function listFileRecents(limit = MAX_FILE_RECENTS): string[] {
+  if (!active) return [];
+  const root = active;
+  const rows = db
+    .prepare("SELECT path FROM file_recents WHERE project = ? ORDER BY opened_at DESC LIMIT ?")
+    .all(root, limit) as { path: string }[];
+  return rows.map((row) => row.path).filter((rel) => existsSync(join(root, rel)));
+}
+
+/** Record that someone opened a STEP/GLB. Does not change anyone's viewport. */
+export function touchFileRecent(rel: string) {
+  if (!active) return listFileRecents();
+  const path = rel.trim().replace(/^\/+/, "");
+  if (!path) return listFileRecents();
+  const now = Date.now();
+  db.prepare(
+    "INSERT INTO file_recents (project, path, opened_at) VALUES (?, ?, ?) ON CONFLICT(project, path) DO UPDATE SET opened_at = excluded.opened_at",
+  ).run(active, path, now);
+  setLastFile(path);
+  return listFileRecents();
 }
 
 export function listBrowse(input?: string) {

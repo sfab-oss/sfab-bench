@@ -2,9 +2,9 @@ import { useChat } from "@ai-sdk/react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
+import { useLiveShowArtifact } from "@/chat/useLiveShowArtifact";
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import { messagePlainText, persistThread, useViewerChat } from "@/components/chat/useViewerChat";
-import { useProjectSession } from "@/hooks/useProjectSession";
 import { jsonApi } from "@/lib/api";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { store, useStore } from "@/state/store";
@@ -51,8 +51,7 @@ function XrChatSessionRuntime({
   const busyRef = useRef(false);
   const sendRef = useRef<(text: string) => void>(() => {});
 
-  const session = useProjectSession();
-  const { messages, sendMessage, setMessages, status, error, stop } = useChat({
+  const { messages, sendMessage, status, error, stop } = useChat({
     id: threadId,
     throttle: 50,
     messages: initialMessages,
@@ -63,15 +62,8 @@ function XrChatSessionRuntime({
   });
 
   const busy = status === "submitted" || status === "streaming";
-  const remoteBusy = session.status !== "idle" && !busy;
-  const shown = busy ? messages : session.messages;
-  busyRef.current = busy || remoteBusy;
-
-  useEffect(() => {
-    if (status === "streaming" || status === "submitted") return;
-    if (session.threadId !== threadId) return;
-    setMessages(session.messages as GalleryChatMessage[]);
-  }, [session.messages, session.threadId, status, threadId, setMessages]);
+  useLiveShowArtifact(messages as GalleryChatMessage[], busy);
+  busyRef.current = busy;
 
   const send = useCallback(() => {
     const text = draft.trim();
@@ -95,19 +87,18 @@ function XrChatSessionRuntime({
   });
 
   useEffect(() => {
-    const phase =
-      busy || remoteBusy ? (session.status === "streaming" || status === "streaming" ? "streaming" : "submitted") : "idle";
+    const phase = busy ? (status === "streaming" ? "streaming" : "submitted") : "idle";
     store.getState().setXrChatPhase(phase);
     return () => store.getState().setXrChatPhase("idle");
-  }, [busy, remoteBusy, session.status, status]);
+  }, [busy, status]);
   useEffect(() => {
-    const last = [...shown].reverse().find((m) => m.role === "assistant");
+    const last = [...messages].reverse().find((m) => m.role === "assistant");
     store.getState().setXrChatChars(last ? messagePlainText(last as GalleryChatMessage).length : 0);
-  }, [shown]);
+  }, [messages]);
 
   const value: XrChatRuntime = {
-    messages: shown as GalleryChatMessage[],
-    busy: busy || remoteBusy,
+    messages: messages as GalleryChatMessage[],
+    busy,
     error,
     draft,
     setDraft,

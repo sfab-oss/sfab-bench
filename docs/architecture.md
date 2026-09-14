@@ -2,7 +2,8 @@
 
 One Node process owns the open folder, the STEP loader, the harness
 agents, and the sqlite store under `~/.sfab-bench/`. The Mac browser tab
-and Quest Browser are both HTTPS clients of that process.
+and Quest Browser are both HTTPS clients of that process. Product calls
+and ranked next: [`product.md`](product.md).
 
 ## Model
 
@@ -13,9 +14,11 @@ and Quest Browser are both HTTPS clients of that process.
   skipping `node_modules`, `.git`, and cache dirs.
 - **Agent cwd** = the project directory. Skills and kernels belong to
   the folder, not to this app.
-- **Session** is one per open project: loaded file, agent-facing
-  selection, active thread (including the live stream), harness / model /
-  effort. Camera, XR placement, and card layout stay per client.
+- **Library** is shared: open folder, file recents, folder recents,
+  thread list, messages at rest. [ADR 0003](decisions/0003-library-not-viewport.md).
+- **Viewport is per browser:** loaded file, selection, camera, XR, which
+  chat is open, live stream. `show_artifact` moves only the asking client
+  and appends recents.
 
 Auth: loopback is trusted. Anything else on `/api` needs a paired device
 token. Accounts and a public tunnel are later `principal.kind`s, not a
@@ -24,7 +27,7 @@ rewrite.
 ## Tree
 
 `apps/server` is the process. `apps/web` is the Vite + R3F client.
-`packages/contract` is the shared TypeScript for session, harness, and
+`packages/contract` is the shared TypeScript for library snapshot, harness, and
 viewer snapshot types.
 
 Presence (the tessellated `assembly.json` + `.tess` package, the tree,

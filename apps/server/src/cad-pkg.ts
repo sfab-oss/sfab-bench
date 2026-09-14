@@ -16,7 +16,8 @@ import { Readable } from "node:stream";
 
 import { cacheDir } from "./config";
 import { cadgenPython } from "./loader";
-import { insideRoot, posixRel, projectPath, setLastFile } from "./projects";
+import { insideRoot, posixRel, projectPath } from "./projects";
+import { rememberOpenedFile } from "./session";
 
 const STEP_RE = /\.(step|stp)$/i;
 const GLB_RE = /\.(glb|gltf)$/i;
@@ -183,7 +184,7 @@ export async function handleCadPkg(req: Request): Promise<Response> {
   if ("error" in resolved) return jsonResponse(404, { error: resolved.error });
   if (resolved.kind !== "step") return jsonResponse(400, { error: "cad-pkg only serves STEP" });
 
-  setLastFile(resolved.rel);
+  if (file === "assembly.json") rememberOpenedFile(resolved.rel);
 
   let dest: string;
   try {
@@ -216,6 +217,6 @@ export async function handleProjectFile(req: Request): Promise<Response> {
   const resolved = resolveArtifact(rel);
   if ("error" in resolved) return jsonResponse(404, { error: resolved.error });
   if (resolved.kind !== "glb") return jsonResponse(400, { error: "not a GLB" });
-  setLastFile(resolved.rel);
+  rememberOpenedFile(resolved.rel);
   return fileResponse(resolved.abs, mimeFor(resolved.abs), req.method === "HEAD");
 }

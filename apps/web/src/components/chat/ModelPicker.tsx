@@ -8,7 +8,6 @@ import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/compone
 import { Skeleton } from "@/components/ui/skeleton";
 import { type HarnessModel, useHarnesses } from "@/hooks/useHarnesses";
 import { HARNESS_IDS, HARNESS_LABEL, type HarnessId } from "@/lib/harness";
-import { useProjectSession } from "@/hooks/useProjectSession";
 import { useStore } from "@/state/store";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +31,7 @@ function ModelListSkeleton() {
 export function ModelPicker() {
   const chatHarness = useStore((s) => s.chatHarness);
   const chatModel = useStore((s) => s.chatModel);
-  const { setPrefs } = useProjectSession();
+  const setChatSelection = useStore((s) => s.setChatSelection);
   const { harnesses, ready, error } = useHarnesses();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -136,7 +135,7 @@ export function ModelPicker() {
             ) : error ? (
               <div className="px-2 py-1.5 text-xs text-zinc-500">Couldn’t load models</div>
             ) : notReady ? (
-              <div className="px-2 py-1.5 text-xs text-zinc-500">{active.detail ?? active.status}</div>
+              <div className="px-2 py-1.5 text-xs text-amber-800">{active.detail ?? active.status}</div>
             ) : groups.length === 0 ? (
               <div className="px-2 py-1.5 text-xs text-zinc-500">No matches</div>
             ) : (
@@ -157,7 +156,7 @@ export function ModelPicker() {
                             ? "bg-zinc-100 font-medium text-zinc-900"
                             : "text-zinc-600 hover:bg-zinc-50",
                         )}
-                        onClick={() => setPrefs({ harness: rail, model: m.slug })}
+                        onClick={() => setChatSelection(rail, m.slug)}
                       >
                         {m.name}
                       </PopoverClose>

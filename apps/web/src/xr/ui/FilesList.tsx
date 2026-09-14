@@ -1,61 +1,139 @@
+import { ChevronDown } from "@react-three/uikit-lucide";
 import { Container, Text } from "@react-three/uikit";
-import { useContext } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 
 import { useCatalog } from "@/hooks/useCatalog";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import {
-  catalogFolder,
-  catalogKindLabel,
-  catalogLabel,
+  catalogAncestors,
   catalogSections,
+  catalogTree,
   type CatalogEntry,
+  type CatalogNode,
 } from "@/lib/viewer-snapshot";
 import { useStore } from "@/state/store";
 import { asciiSafe } from "@/xr/ui/UikitMarkdown";
 import { FeedbackContext, PRESSED } from "@/xr/ui/ToolBtn";
 
 function FileRow({
-  entry,
+  name,
+  path,
   current,
+  depth,
   onPick,
 }: {
-  entry: CatalogEntry;
+  name: string;
+  path: string;
   current: string;
+  depth: number;
   onPick?: () => void;
 }) {
   const { setDoc } = useProjectSession();
   const feedback = useContext(FeedbackContext);
-  const active = entry.path === current;
-  const folder = catalogFolder(entry.path);
-  const kind = catalogKindLabel(entry.kind);
-  const sub = folder ? `${folder} · ${kind}` : kind;
+  const active = path === current;
   return (
     <Container
       width="100%"
       flexShrink={0}
       padding={6}
-      gap={2}
-      flexDirection="column"
+      paddingLeft={6 + depth * 12}
       borderRadius={8}
       backgroundColor={active ? "#dbeafe" : "#f4f4f5"}
       hover={{ backgroundColor: active ? "#dbeafe" : "#e4e4e7" }}
       active={PRESSED}
-      onHoverChange={(hovered: boolean) => feedback.hover(entry.path, hovered)}
+      onHoverChange={(hovered: boolean) => feedback.hover(path, hovered)}
       onClick={() => {
         feedback.click();
-        void setDoc(entry.path);
+        void setDoc(path);
         onPick?.();
       }}
     >
-      <Container flexDirection="row" width="100%" alignItems="center" gap={6}>
-        <Text fontSize={13} color="#18181b">
-          {asciiSafe(catalogLabel(entry.path))}
-        </Text>
-      </Container>
-      <Text fontSize={11} color="#a1a1aa">
-        {asciiSafe(sub)}
+      <Text fontSize={13} color="#18181b">
+        {asciiSafe(name)}
       </Text>
     </Container>
+  );
+}
+
+function DirNode({
+  node,
+  current,
+  depth,
+  expanded,
+  toggle,
+  onPick,
+}: {
+  node: Extract<CatalogNode, { type: "dir" }>;
+  current: string;
+  depth: number;
+  expanded: Set<string>;
+  toggle: (path: string) => void;
+  onPick?: () => void;
+}) {
+  const feedback = useContext(FeedbackContext);
+  const open = expanded.has(node.path);
+  return (
+    <Container width="100%" flexShrink={0} flexDirection="column" gap={2}>
+      <Container
+        flexDirection="row"
+        flexShrink={0}
+        alignItems="center"
+        gap={4}
+        width="100%"
+        padding={6}
+        paddingLeft={6 + depth * 12}
+        borderRadius={8}
+        backgroundColor="#f4f4f5"
+        hover={{ backgroundColor: "#e4e4e7" }}
+        active={PRESSED}
+        onHoverChange={(hovered: boolean) => feedback.hover(`dir-${node.path}`, hovered)}
+        onClick={() => {
+          feedback.click();
+          toggle(node.path);
+        }}
+      >
+        <ChevronDown width={12} height={12} color="#18181b" transformRotateZ={open ? 0 : 90} />
+        <Text fontSize={13} color="#18181b">
+          {asciiSafe(node.name)}
+        </Text>
+      </Container>
+      {open
+        ? node.children.map((child) => (
+            <TreeNode
+              key={child.type === "dir" ? `d:${child.path}` : child.path}
+              node={child}
+              current={current}
+              depth={depth + 1}
+              expanded={expanded}
+              toggle={toggle}
+              onPick={onPick}
+            />
+          ))
+        : null}
+    </Container>
+  );
+}
+
+function TreeNode({
+  node,
+  current,
+  depth,
+  expanded,
+  toggle,
+  onPick,
+}: {
+  node: CatalogNode;
+  current: string;
+  depth: number;
+  expanded: Set<string>;
+  toggle: (path: string) => void;
+  onPick?: () => void;
+}) {
+  if (node.type === "file") {
+    return <FileRow name={node.name} path={node.path} current={current} depth={depth} onPick={onPick} />;
+  }
+  return (
+    <DirNode node={node} current={current} depth={depth} expanded={expanded} toggle={toggle} onPick={onPick} />
   );
 }
 
@@ -63,7 +141,42 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
   const url = useStore((s) => s.url);
   const recents = useStore((s) => s.recentFiles);
   const { files, error, ready } = useCatalog(true);
-  const { recents: recentRows, rest } = catalogSections(files, recents);
+  const { recents: recentRows } = catalogSections(files, recents);
+  const tree = useMemo(() => catalogTree(files), [files]);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      if (prev.size === 0) {
+        for (const node of tree) {
+          if (node.type === "dir") {
+            next.add(node.path);
+            changed = true;
+          }
+        }
+      }
+      if (url) {
+        for (const path of catalogAncestors(url)) {
+          if (!next.has(path)) {
+            next.add(path);
+            changed = true;
+          }
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [tree, url]);
+
+  const toggle = (path: string) => {
+    setExpanded((prev) => {
+      const copy = new Set(prev);
+      if (copy.has(path)) copy.delete(path);
+      else copy.add(path);
+      return copy;
+    });
+  };
 
   if (error) {
     return (
@@ -94,23 +207,36 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
           <Text fontSize={11} color="#a1a1aa">
             Recent
           </Text>
-          {recentRows.map((row) => (
-            <FileRow key={`recent-${row.path}`} entry={row} current={url} onPick={onPick} />
+          {recentRows.map((row: CatalogEntry) => (
+            <FileRow
+              key={`recent-${row.path}`}
+              name={row.path.split("/").filter(Boolean).pop() ?? row.path}
+              path={row.path}
+              current={url}
+              depth={0}
+              onPick={onPick}
+            />
           ))}
         </Container>
       ) : null}
-      {rest.length > 0 ? (
-        <Container width="100%" flexShrink={0} flexDirection="column" gap={2}>
-          {recentRows.length > 0 ? (
-            <Text fontSize={11} color="#a1a1aa">
-              All
-            </Text>
-          ) : null}
-          {rest.map((row) => (
-            <FileRow key={row.path} entry={row} current={url} onPick={onPick} />
-          ))}
-        </Container>
-      ) : null}
+      <Container width="100%" flexShrink={0} flexDirection="column" gap={2}>
+        {recentRows.length > 0 ? (
+          <Text fontSize={11} color="#a1a1aa">
+            Folders
+          </Text>
+        ) : null}
+        {tree.map((node) => (
+          <TreeNode
+            key={node.type === "dir" ? `d:${node.path}` : node.path}
+            node={node}
+            current={url}
+            depth={0}
+            expanded={expanded}
+            toggle={toggle}
+            onPick={onPick}
+          />
+        ))}
+      </Container>
     </>
   );
 }

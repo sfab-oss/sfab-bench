@@ -13,6 +13,7 @@ import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { cn } from "@/lib/utils";
 import { EffortSelect } from "./EffortSelect";
 import { ModelPicker } from "./ModelPicker";
+import { ProviderStatus } from "./ProviderStatus";
 import { VoiceRecordBar } from "./VoiceRecordBar";
 
 export interface GalleryPromptMessage {
@@ -109,6 +110,7 @@ function ChatInputInner({
           </div>
         ) : null}
       </Composer>
+      <ProviderStatus />
       {voice.error && !voice.active ? (
         <p className="px-2 pt-1 text-xs text-red-600">{voice.error}</p>
       ) : null}

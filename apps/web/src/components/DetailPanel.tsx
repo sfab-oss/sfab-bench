@@ -2,15 +2,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
 import { formatMm, measureDelta } from "@/lib/measure";
-import { useProjectSession } from "@/hooks/useProjectSession";
 import { useStore } from "@/state/store";
-
-function SelectionByline() {
-  const session = useProjectSession();
-  const sel = session.doc.selection;
-  if (!sel || sel.by === session.you.id) return null;
-  return <div className="mb-2 text-[11px] text-zinc-500">Selected on {sel.byLabel}</div>;
-}
 
 function SelectionBody() {
   const { review, selectedId, pickedRef, select, isolate, setVisible, showAll, hiddenIds } =
@@ -63,7 +55,6 @@ function SelectionBody() {
           </Button>
         </div>
       ) : null}
-      <SelectionByline />
       {part ? (
         <div className="flex flex-wrap gap-1">
           <Button

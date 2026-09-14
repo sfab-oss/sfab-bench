@@ -7,7 +7,7 @@ import { GalleryChatInput, type GalleryPromptMessage } from "@/components/chat/c
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import { persistThread, useViewerChat } from "@/components/chat/useViewerChat";
 import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
-import { useProjectSession } from "@/hooks/useProjectSession";
+import { useLiveShowArtifact } from "@/chat/useLiveShowArtifact";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -208,8 +208,7 @@ function ChatSession({
   messagesRef: RefObject<GalleryChatMessage[]>;
   onPersist: () => void;
 }) {
-  const session = useProjectSession();
-  const { messages, sendMessage, setMessages, status, error, stop } = useChat({
+  const { messages, sendMessage, status, error, stop } = useChat({
     id: threadId,
     throttle: 50,
     messages: initialMessages,
@@ -218,19 +217,10 @@ function ChatSession({
       void persistThread(threadId, next as GalleryChatMessage[]).then(onPersist);
     },
   });
-
-  useEffect(() => {
-    if (status === "streaming" || status === "submitted") return;
-    if (session.threadId !== threadId) return;
-    setMessages(session.messages as GalleryChatMessage[]);
-  }, [session.messages, session.threadId, status, threadId, setMessages]);
-
   const busy = status === "submitted" || status === "streaming";
-  const remoteBusy = session.status !== "idle" && !busy;
-  const shown = busy ? messages : (session.messages as GalleryChatMessage[]);
-  messagesRef.current = shown;
-  const streamingMessageId =
-    (busy || remoteBusy) && shown.at(-1)?.role === "assistant" ? (shown.at(-1)?.id ?? null) : null;
+  useLiveShowArtifact(messages as GalleryChatMessage[], busy);
+  messagesRef.current = messages as GalleryChatMessage[];
+  const streamingMessageId = busy && messages.at(-1)?.role === "assistant" ? (messages.at(-1)?.id ?? null) : null;
 
   const onSubmit = (payload: GalleryPromptMessage) => {
     const text = payload.text.trim();
@@ -245,7 +235,7 @@ function ChatSession({
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport>
             <MessageScrollerContent className="px-3 py-3">
-              {shown.length === 0 ? (
+              {messages.length === 0 ? (
                 <Empty className="h-full border-0">
                   <EmptyHeader>
                     <EmptyMedia variant="icon">
@@ -258,7 +248,7 @@ function ChatSession({
                   </EmptyHeader>
                 </Empty>
               ) : (
-                shown.map((message) => (
+                messages.map((message) => (
                   <MessageScrollerItem key={message.id}>
                     <ChatMessageRow
                       isStreaming={streamingMessageId === message.id}
@@ -279,8 +269,8 @@ function ChatSession({
           void jsonApi["chat"].stop.$post();
         }}
         placeholder="Ask for a change…"
-        status={busy ? status : remoteBusy ? "submitted" : status}
-        disabled={busy || remoteBusy}
+        status={status}
+        disabled={busy}
       />
     </>
   );

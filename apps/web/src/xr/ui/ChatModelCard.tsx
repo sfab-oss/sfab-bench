@@ -2,7 +2,6 @@ import { Container, Input, Text } from "@react-three/uikit";
 import { useContext, useEffect, useMemo, useState } from "react";
 
 import { type HarnessModel, harnessModelName, useHarnesses } from "@/hooks/useHarnesses";
-import { useProjectSession } from "@/hooks/useProjectSession";
 import {
   CHAT_EFFORTS,
   CHAT_EFFORT_LABEL,
@@ -20,7 +19,8 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
   const chatHarness = useStore((s) => s.chatHarness);
   const chatModel = useStore((s) => s.chatModel);
   const chatEffort = useStore((s) => s.chatEffort);
-  const { setPrefs } = useProjectSession();
+  const setChatSelection = useStore((s) => s.setChatSelection);
+  const setChatEffort = useStore((s) => s.setChatEffort);
   const { harnesses, ready, error } = useHarnesses();
   const [rail, setRail] = useState<HarnessId>(chatHarness);
   const [query, setQuery] = useState("");
@@ -118,7 +118,7 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
                 onHoverChange={(hovered: boolean) => feedback.hover(`effort-${value}`, hovered)}
                 onClick={() => {
                   feedback.click();
-                  setPrefs({ effort: value as ChatEffort });
+                  setChatEffort(value as ChatEffort);
                 }}
               >
                 <Text fontSize={11} color="#18181b">
@@ -182,7 +182,7 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
                     onHoverChange={(hovered: boolean) => feedback.hover(`model-${m.slug}`, hovered)}
                     onClick={() => {
                       feedback.click();
-                      setPrefs({ harness: rail, model: m.slug });
+                      setChatSelection(rail, m.slug);
                       onClose();
                     }}
                   >

@@ -2,7 +2,8 @@
 
 Same Wi-Fi as the Mac. Quest Browser, not an APK.
 
-1. On the Mac tab at `https://127.0.0.1:7322`, click **Enter Quest**.
+1. On the Mac tab at `https://127.0.0.1:7322`, click **Enter Quest**,
+   or read the QR / code printed by `pnpm dev` / `pnpm serve`.
 2. That panel shows a LAN URL, a QR, and a 6-character code (about five
    minutes, single use).
 3. On the headset, open `https://<mac-ip>:7322/pair`, accept the cert
@@ -15,9 +16,10 @@ Join URLs always use port **7322**, never the dev API port. After pairing,
 the headset stores a device token (`sfab-bench.deviceToken` in
 localStorage) and can open the viewer without typing the code again.
 
-Mac and Quest share the loaded STEP, the agent-facing selection, the
-active thread (including the live reply), and harness/model/effort.
-Camera, XR placement, and card layout stay per client.
+Mac and Quest share the open folder, file recents, the thread list, and
+messages at rest. Each headset or tab keeps its own loaded STEP, selection,
+camera, XR layout, and live chat. Opening a file on the Mac does not change
+what the Quest is looking at.
 
 Opening `https://<lan-ip>:7322` on the Mac is treated as a guest: it
 must pair.

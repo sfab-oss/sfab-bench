@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { UIMessage } from "ai";
 
-import { handleCadPkg, handleProjectFile } from "./cad-pkg";
+import { handleCadPkg, handleProjectFile, resolveArtifact, shownUrl } from "./cad-pkg";
 import { handleChat } from "./chat";
 import { listHarnesses } from "./harnesses";
 import { listOpenCodeModels } from "./models";
@@ -15,22 +15,22 @@ import {
   currentProject,
   hasProject,
   listBrowse,
+  listFileRecents,
   listProjectFiles,
   listRecents,
   openProject,
   projectPath,
 } from "./projects";
-import { createThread, getThread, listThreads, saveMessages } from "./threads-db";
+import { createThread, getThread, listThreads, saveMessages, saveThreadPrefs } from "./threads-db";
 import { handleTranscribe } from "./transcribe";
+import { rememberOpenedFile, snapshotFor, stopSessionRun } from "./session";
 import {
-  ensureSessionThread,
-  snapshotFor,
-  setSessionDoc,
-  setSessionPrefs,
-  setSessionSelection,
-  setSessionThread,
-  stopSessionRun,
-} from "./session";
+  DEFAULT_CHAT_EFFORT,
+  DEFAULT_HARNESS,
+  DEFAULT_HARNESS_MODEL,
+  isChatEffort,
+  isHarnessId,
+} from "@sfab-bench/contract";
 
 export type AppEnv = {
   Bindings: HttpBindings;
@@ -54,19 +54,8 @@ const openProjectSchema = z.object({
   path: z.string().min(1),
 });
 
-const sessionDocSchema = z.object({
-  file: z.string().nullable(),
-  reload: z.boolean().optional(),
-});
-
-const sessionSelectionSchema = z.object({
-  ref: z.string().nullable(),
-  name: z.string().optional(),
-});
-
-const sessionThreadSchema = z.object({
-  id: z.string().optional(),
-  create: z.boolean().optional(),
+const recentFileSchema = z.object({
+  path: z.string().min(1),
 });
 
 const sessionPrefsSchema = z.object({
@@ -99,8 +88,19 @@ function projectPayload() {
   return {
     project: currentProject(),
     recents: listRecents(),
+    fileRecents: listFileRecents(),
     revision: catalogRevision(),
   };
+}
+
+function prefsFromBody(body: { harness?: string; model?: string; effort?: string }) {
+  const harness = body.harness && isHarnessId(body.harness) ? body.harness : DEFAULT_HARNESS;
+  const model =
+    typeof body.model === "string" && body.model.trim()
+      ? body.model.trim()
+      : DEFAULT_HARNESS_MODEL[harness];
+  const effort = body.effort && isChatEffort(body.effort) ? body.effort : DEFAULT_CHAT_EFFORT;
+  return { harness, model, effort };
 }
 
 export const api = new Hono<AppEnv>()
@@ -167,59 +167,29 @@ export const api = new Hono<AppEnv>()
   .get("/catalog", (c) => {
     const denied = denyScope(c, "view");
     if (denied) return denied;
-    if (!hasProject()) return c.json({ files: [], revision: catalogRevision() });
-    return c.json({ files: listProjectFiles(projectPath()), revision: catalogRevision() });
+    if (!hasProject()) return c.json({ files: [], recents: [], revision: catalogRevision() });
+    return c.json({
+      files: listProjectFiles(projectPath()),
+      recents: listFileRecents(),
+      revision: catalogRevision(),
+    });
   })
   .get("/session", (c) => {
     const denied = denyScope(c, "view");
     if (denied) return denied;
     return c.json(snapshotFor(c.get("principal")));
   })
-  .post("/session/doc", zValidator("json", sessionDocSchema), (c) => {
-    const denied = denyScope(c, "view");
+  .post("/recents", zValidator("json", recentFileSchema), (c) => {
+    const denied = denyScope(c, "view") ?? denyNoProject(c);
     if (denied) return denied;
     try {
-      const body = c.req.valid("json");
-      return c.json({ doc: setSessionDoc(body.file, { reload: body.reload }) });
+      const resolved = resolveArtifact(c.req.valid("json").path);
+      if ("error" in resolved) return c.json({ error: resolved.error }, 400);
+      return c.json({ recents: rememberOpenedFile(shownUrl(resolved)) });
     } catch (err) {
       const status = (err as { status?: number }).status ?? 400;
       return c.json({ error: err instanceof Error ? err.message : String(err) }, status as 400);
     }
-  })
-  .post("/session/selection", zValidator("json", sessionSelectionSchema), (c) => {
-    const denied = denyScope(c, "view");
-    if (denied) return denied;
-    const body = c.req.valid("json");
-    return c.json({ doc: setSessionSelection(body.ref, body.name, c.get("principal")) });
-  })
-  .post("/session/thread", zValidator("json", sessionThreadSchema), (c) => {
-    const denied = denyScope(c, "chat") ?? denyNoProject(c);
-    if (denied) return denied;
-    try {
-      const body = c.req.valid("json");
-      if (body.create) {
-        const row = createThread(projectPath(), snapshotFor(c.get("principal")).thread);
-        return c.json(setSessionThread(row.id), 201);
-      }
-      if (body.id) return c.json(setSessionThread(body.id));
-      const ensured = ensureSessionThread();
-      return c.json({ id: ensured.id, created: ensured.created });
-    } catch (err) {
-      const status = (err as { status?: number }).status ?? 400;
-      return c.json({ error: err instanceof Error ? err.message : String(err) }, status as 400);
-    }
-  })
-  .post("/session/prefs", zValidator("json", sessionPrefsSchema), (c) => {
-    const denied = denyScope(c, "chat");
-    if (denied) return denied;
-    const body = c.req.valid("json");
-    return c.json({
-      thread: setSessionPrefs({
-        harness: body.harness as never,
-        model: body.model,
-        effort: body.effort as never,
-      }),
-    });
   })
   .post("/chat/stop", (c) => {
     const denied = denyScope(c, "chat");
@@ -253,6 +223,15 @@ export const api = new Hono<AppEnv>()
     const row = getThread(c.req.param("id"), projectPath());
     if (!row) return c.json({ error: "not found" }, 404);
     return c.json(row);
+  })
+  .put("/threads/:id/prefs", zValidator("json", sessionPrefsSchema), (c) => {
+    const denied = denyScope(c, "chat") ?? denyNoProject(c);
+    if (denied) return denied;
+    const prefs = prefsFromBody(c.req.valid("json"));
+    if (!saveThreadPrefs(c.req.param("id"), projectPath(), prefs)) {
+      return c.json({ error: "not found" }, 404);
+    }
+    return c.json({ thread: prefs });
   })
   .put("/threads/:id", zValidator("json", saveMessagesSchema), (c) => {
     const denied = denyScope(c, "chat") ?? denyNoProject(c);

@@ -75,7 +75,7 @@ async function probeOpenCode(): Promise<HarnessInfo> {
       id: "opencode",
       label: HARNESS_LABEL.opencode,
       status: "missing-cli",
-      detail: "OpenCode bootstrap missing or models unavailable.",
+      detail: "OpenCode is not connected. Install the CLI or add .harness-bootstrap in the project.",
       defaultModel: DEFAULT_HARNESS_MODEL.opencode,
       models,
     };
@@ -98,7 +98,7 @@ function probeCodex(): HarnessInfo {
     id: "codex",
     label: HARNESS_LABEL.codex,
     status: authed ? "ready" : "needs-auth",
-    detail: authed ? undefined : "Needs OPENAI_API_KEY, CODEX_API_KEY, or a Codex login.",
+    detail: authed ? undefined : "Run `codex login` on the Mac, or set OPENAI_API_KEY.",
     defaultModel: DEFAULT_HARNESS_MODEL.codex,
     models: staticModels("codex"),
   };
@@ -110,7 +110,7 @@ function probeCursor(): HarnessInfo {
     id: "cursor",
     label: HARNESS_LABEL.cursor,
     status: authed ? "ready" : "needs-auth",
-    detail: authed ? undefined : "Sign in with Cursor CLI, or set CURSOR_API_KEY.",
+    detail: authed ? undefined : "Run `agent login` on the Mac, or set CURSOR_API_KEY.",
     defaultModel: DEFAULT_HARNESS_MODEL.cursor,
     models: staticModels("cursor"),
   };
@@ -122,7 +122,7 @@ function probeGrok(): HarnessInfo {
     id: "grok-build",
     label: HARNESS_LABEL["grok-build"],
     status: authed ? "ready" : "needs-auth",
-    detail: authed ? undefined : "Sign in with the Grok CLI, or set XAI_API_KEY.",
+    detail: authed ? undefined : "Run `grok login` on the Mac, or set XAI_API_KEY.",
     defaultModel: DEFAULT_HARNESS_MODEL["grok-build"],
     models: staticModels("grok-build"),
   };

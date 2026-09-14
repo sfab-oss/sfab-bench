@@ -22,14 +22,11 @@ import { getAgent } from "./agent";
 import { projectPath } from "./projects";
 import {
   endSessionRun,
-  persistSessionThread,
-  publishSessionThread,
-  sessionState,
-  setSessionDoc,
+  rememberOpenedFile,
   setSessionRunStatus,
   startSessionRun,
-  viewerStamp,
 } from "./session";
+import { saveMessages } from "./threads-db";
 import { runViewerContext } from "./viewer-context";
 
 const sessions = new Map<string, Promise<HarnessAgentSession>>();
@@ -81,9 +78,17 @@ function stampUser(last: UIMessage, snapshot: ViewerSnapshot): UIMessage {
     parts: parts.map((p) => {
       if (p.type !== "text" || used) return p;
       used = true;
-      return { ...p, text: `${p.text}\n\n${stamp}` };
+      return { ...p, type: "text" as const, text: `${p.text}\n\n${stamp}` };
     }),
   };
+}
+
+function persistChat(chatId: string, next: UIMessage[]) {
+  try {
+    saveMessages(chatId, projectPath(), next);
+  } catch {
+    /* tests / missing thread */
+  }
 }
 
 export async function handleChat(req: Request): Promise<Response> {
@@ -93,11 +98,13 @@ export async function handleChat(req: Request): Promise<Response> {
   } catch {
     return new Response("invalid json", { status: 400 });
   }
-  const chatId = body.id ?? sessionState().threadId ?? "sphere-chat";
-  const prefs = sessionState().thread;
-  const requestedHarness = body.harness || prefs.harness;
+  const chatId = body.id?.trim();
+  if (!chatId) {
+    return new Response("missing thread id", { status: 400 });
+  }
+  const requestedHarness = body.harness || DEFAULT_HARNESS;
   const harness: HarnessId = isHarnessId(requestedHarness) ? requestedHarness : DEFAULT_HARNESS;
-  const requestedEffort = body.effort || prefs.effort;
+  const requestedEffort = body.effort || DEFAULT_CHAT_EFFORT;
   const effort: ChatEffort = isChatEffort(requestedEffort) ? requestedEffort : DEFAULT_CHAT_EFFORT;
   const last = body.messages?.at(-1);
   if (!last) {
@@ -110,18 +117,10 @@ export async function handleChat(req: Request): Promise<Response> {
   }
   req.signal.addEventListener("abort", () => run.abort());
 
-  const stamp = viewerStamp();
-  const snapshot: ViewerSnapshot = {
-    ...(body.viewer ?? emptySnapshot(stamp.file)),
-    file: stamp.file,
-    empty: stamp.empty,
-    selected: stamp.selected,
-    selectedName: stamp.selectedName,
-  };
+  const snapshot: ViewerSnapshot = body.viewer ?? emptySnapshot(body.viewerFile ?? "");
   const stamped = stampUser(last, snapshot);
   const history = body.messages.slice(0, -1);
   const live = [...history, last];
-  publishSessionThread(live, "submitted", true);
 
   return createUIMessageStreamResponse({
     stream: createUIMessageStream({
@@ -129,10 +128,11 @@ export async function handleChat(req: Request): Promise<Response> {
         try {
           await runViewerContext(
             {
-              file: stamp.file,
+              file: snapshot.file,
               snapshot,
               show: (file) => {
-                setSessionDoc(file, { reload: true, skipResolve: true });
+                rememberOpenedFile(file);
+                writer.write({ type: "data-viewer", data: { file } });
               },
             },
             async () => {
@@ -143,7 +143,7 @@ export async function handleChat(req: Request): Promise<Response> {
               const model =
                 typeof body.model === "string" && body.model.trim()
                   ? body.model.trim()
-                  : prefs.model || DEFAULT_HARNESS_MODEL[harness];
+                  : DEFAULT_HARNESS_MODEL[harness];
               const prior = isNew ? [...history, stamped] : [stamped];
               const result = await agent.stream({
                 session,
@@ -155,24 +155,21 @@ export async function handleChat(req: Request): Promise<Response> {
                 stream: result.stream as never,
                 onError: getHarnessErrorMessage,
               });
-              const [toClient, toFan] = ui.tee();
-              const fan = (async () => {
+              const [toClient, toPersist] = ui.tee();
+              const persist = (async () => {
                 let assistant: UIMessage | undefined;
                 try {
-                  for await (const msg of readUIMessageStream({ stream: toFan })) {
+                  for await (const msg of readUIMessageStream({ stream: toPersist })) {
                     assistant = msg;
                     setSessionRunStatus("streaming");
-                    publishSessionThread([...live, msg], "streaming");
                   }
                 } catch {
                   /* abort or stream error — persist what we have */
                 }
-                const next = assistant ? [...live, assistant] : live;
-                persistSessionThread(next);
-                publishSessionThread(next, "idle", true);
+                persistChat(chatId, assistant ? [...live, assistant] : live);
               })();
               writer.merge(toClient);
-              await fan;
+              await persist;
             },
           );
         } finally {

@@ -22,3 +22,5 @@ State directory: `~/.sfab-bench/` (sqlite, cache, certs, managed tools).
 | `SFAB_BENCH_PUBLIC_PORT` | `7322` | Vite / serve HTTPS port |
 
 After `pnpm build`, `pnpm serve` is one HTTPS process on `:7322`.
+`pnpm cli open <dir>` opens that folder and serves. `pnpm cli open <dir> --dev`
+is the same with Vite. Both print Mac URL, Quest pair URL, pairing code, and QR.

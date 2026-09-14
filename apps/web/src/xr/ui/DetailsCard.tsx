@@ -3,7 +3,6 @@ import { Eye, EyeOff, Focus, Undo2 } from "@react-three/uikit-lucide";
 import { useShallow } from "zustand/react/shallow";
 
 import { formatMm, measureDelta } from "@/lib/measure";
-import { useProjectSession } from "@/hooks/useProjectSession";
 import { useStore } from "@/state/store";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
 
@@ -34,12 +33,6 @@ export function DetailsCard() {
       })),
     );
   const part = selectedId !== null ? review?.parts[selectedId] : undefined;
-
-  const session = useProjectSession();
-  const byline =
-    session.doc.selection && session.doc.selection.by !== session.you.id
-      ? `Selected on ${session.doc.selection.byLabel}`
-      : null;
 
   if (tool === "measure") {
     const a = measure.a;
@@ -122,11 +115,6 @@ export function DetailsCard() {
       {ref && ref !== part?.name ? (
         <Text fontSize={12} color="#18181b">
           {ref.length > 24 ? `${ref.slice(0, 23)}...` : ref}
-        </Text>
-      ) : null}
-      {byline ? (
-        <Text fontSize={11} color="#71717a">
-          {byline}
         </Text>
       ) : null}
       {part ? (

@@ -2,7 +2,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createConnection } from "node:net";
 import { fileURLToPath } from "node:url";
 
-import { apiPort, DEV_API_HOST, publicPort } from "./config";
+import { apiPort, DEV_API_HOST } from "./config";
+import { printJoinBanner } from "./join-banner";
 
 const serverRoot = fileURLToPath(new URL("..", import.meta.url));
 const webRoot = fileURLToPath(new URL("../../web", import.meta.url));
@@ -64,6 +65,4 @@ run("pnpm", ["exec", "tsx", "--watch", "src/listen.ts"], serverRoot, {
 const port = apiPort();
 await waitForPort(port, DEV_API_HOST, 15_000);
 run("pnpm", ["exec", "vite", "--host"], webRoot);
-console.log(
-  `[dev] API http://${DEV_API_HOST}:${port}  Vite https://127.0.0.1:${publicPort()}`,
-);
+printJoinBanner("dev");

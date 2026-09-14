@@ -17,4 +17,7 @@ export type AIDataPart = {
       status?: "completed" | "pending";
     }>;
   };
+  viewer: {
+    file: string;
+  };
 };

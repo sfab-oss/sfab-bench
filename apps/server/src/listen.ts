@@ -9,6 +9,7 @@ import { apiPort, certDir, DEV_API_HOST, publicPort } from "./config";
 import { handleRequest } from "./http";
 import { bootProject, subscribeProjectChange } from "./projects";
 import { hydrateSession } from "./session";
+import { printJoinBanner } from "./join-banner";
 import { tryUpgradeSession } from "./ws";
 
 const isDev = process.env.SFAB_BENCH_DEV === "1";
@@ -28,6 +29,7 @@ async function main() {
     hydrateSession();
   });
   bootProject();
+  hydrateSession();
   if (isDev) {
     const port = apiPort();
     const server = createHttpServer((req, res) => {
@@ -52,9 +54,9 @@ async function main() {
     if (!tryUpgradeSession(req, socket, head)) socket.destroy();
   });
   server.requestTimeout = 0;
-  server.listen(port, "0.0.0.0", () => {
-    console.log(`[serve] https://0.0.0.0:${port} (dist + /api)`);
-  });
+    server.listen(port, "0.0.0.0", () => {
+      printJoinBanner("serve");
+    });
 }
 
 void main();

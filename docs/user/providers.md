@@ -3,8 +3,10 @@
 sfab-bench does not hold provider credentials. It drives CLIs already
 logged in on the Mac: OpenCode, Codex, Cursor, Grok.
 
-Pick harness, model, and effort in the chat header. Those prefs live on
-the shared thread, not in the browser.
+Pick harness, model, and effort in the composer. Those prefs live on
+the shared thread, not in the browser. If the selected harness is not
+signed in, the composer shows the CLI to run on the Mac (`agent login`,
+`codex login`, `grok login`, or OpenCode install).
 
 OpenCode model lists come from the `opencode` binary (PATH, or
 `.harness-bootstrap` inside the open project). If nothing is connected,

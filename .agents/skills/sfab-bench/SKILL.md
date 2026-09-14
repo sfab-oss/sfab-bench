@@ -10,8 +10,7 @@ description: >
 # sfab-bench
 
 This is the app in this repo. It is not Jake's cadgen viewer.
-
-Human runbook: `docs/user/`. Commands below are the agent contract.
+Living plan: `docs/product.md`. Human runbook: `docs/user/`.
 
 ## Start
 
@@ -25,13 +24,16 @@ URL (self-signed). Quest needs that LAN host, not `127.0.0.1`. Confirm
 with `curl -k https://127.0.0.1:7322/api/me` (loopback principal).
 Production: `pnpm build && pnpm serve`.
 
-Open a folder from the Mac tab (**Open folder**) or
-`SFAB_BENCH_PROJECT=/abs/path pnpm dev`. This repo has no STEP files;
+Open a folder from the Mac tab (**Open folder**), `pnpm cli open /abs/path --dev`,
+or `SFAB_BENCH_PROJECT=/abs/path pnpm dev`. This repo has no STEP files;
 point it at a CAD directory (for example sphere-robot).
+
+`pnpm dev` / `pnpm serve` print the Mac URL, Quest pair URL, pairing code, and QR.
 
 ## Load an artifact
 
-No `?file=` → last file in the open project, or an empty scene.
+No `?file=` → empty scene. Recents on the server list files anyone opened
+in this folder (Quest can pick one; it is not yanked onto Mac's view).
 
 Query string, relative to the **open project folder**:
 
@@ -41,7 +43,9 @@ Query string, relative to the **open project folder**:
 In the in-app assistant (cwd is the open project):
 
 - `get_viewer` — `{ file, empty, selected, selectedName, tree, partCount }`. Paths are project-relative.
-- `show_artifact` — pass a STEP or GLB in the project. Writes the shared session document so Mac and Quest both load it. Re-call after rebuilding the same STEP so every client reloads.
+- `show_artifact` — pass a STEP or GLB in the project. Loads it on **this
+  client only** and adds it to shared recents. Re-call after rebuilding
+  the same STEP so this client reloads.
 
 OpenCode already loads `AGENTS.md` and `.agents/skills` from the **open
 folder**. The harness `instructions` are only the workbench identity

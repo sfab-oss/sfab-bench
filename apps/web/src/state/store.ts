@@ -21,7 +21,7 @@ export const CHAT_MAX_WIDTH = 720;
 export const CHAT_DEFAULT_WIDTH = 384;
 
 const DESKTOP_PREFS_KEY = "sfab-bench.desktop";
-const MAX_RECENTS = 5;
+const MAX_RECENTS = 12;
 
 export const DEFAULT_CHAT_MODEL = DEFAULT_HARNESS_MODEL.opencode;
 
@@ -101,6 +101,7 @@ type State = {
   tool: Tool;
   measure: { a: MeasurePoint | null; b: MeasurePoint | null };
   loadModel: (url: string) => Promise<void>;
+  setRecentFiles: (paths: string[]) => void;
   setTreeOpen: (open: Setter) => void;
   setPartsOpen: (open: Setter) => void;
   setChatOpen: (open: Setter) => void;
@@ -256,6 +257,12 @@ export const store = createStore<State>()(
       if (token !== loadToken) return;
       set({ error: err instanceof Error ? err.message : String(err), progress: null });
     }
+  },
+  setRecentFiles: (paths) => {
+    const recentFiles = paths.filter((p): p is string => typeof p === "string" && p.length > 0).slice(0, MAX_RECENTS);
+    const cur = get().recentFiles;
+    if (cur.length === recentFiles.length && cur.every((p, i) => p === recentFiles[i])) return;
+    set({ recentFiles });
   },
   setTreeOpen: (open) => set((s) => ({ treeOpen: resolve(s.treeOpen, open) })),
   setPartsOpen: (open) => set((s) => ({ partsOpen: resolve(s.partsOpen, open) })),
