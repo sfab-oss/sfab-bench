@@ -8,11 +8,13 @@ import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarInput,
   SidebarRail,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { WorkbenchSettings } from "@/components/WorkbenchSettings";
 import { useCatalog } from "@/hooks/useCatalog";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { useStore } from "@/state/store";
@@ -66,6 +68,9 @@ export function DesktopSidebar({ host, folder }: { host: boolean; folder: OpenFo
           <EmptyFolderRail folder={folder} />
         )}
       </SidebarContent>
+      <SidebarFooter>
+        <WorkbenchSettings host={host} />
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );

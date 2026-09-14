@@ -1,10 +1,9 @@
-import { Box, MessageSquare, Scan } from "lucide-react";
+import { Box, PanelRight, Scan } from "lucide-react";
 import { useEffect, useState, type CSSProperties } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { LiveDot } from "@/components/brand/LiveDot";
 import { Lockup } from "@/components/brand/Lockup";
-import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ViewerChatProvider } from "@/components/chat/useViewerChat";
 import { BrowseFolderDialog, WelcomeFiles, WelcomeFolders, useOpenFolder } from "@/components/OpenFolder";
@@ -12,7 +11,6 @@ import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { DetailPanel } from "@/components/DetailPanel";
 import { PairPage } from "@/components/PairPage";
 import { PartTree } from "@/components/PartTree";
-import { QuestJoinPanel } from "@/components/QuestJoinPanel";
 import { Toolbar } from "@/components/Toolbar";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -27,19 +25,19 @@ import { useStore } from "@/state/store";
 import { enterAR, enterVR } from "@/xrStore";
 
 function ChatToggle() {
-  const chatOpen = useStore((s) => s.chatOpen);
   const setChatOpen = useStore((s) => s.setChatOpen);
   return (
-    <div className="pointer-events-auto rounded-xl border border-border bg-card/95 p-1 shadow-lg">
+    <div className="pointer-events-auto rounded-xl border border-border bg-card/95 shadow-lg">
       <Button
         type="button"
-        variant="secondary"
-        size="sm"
-        className={chatOpen ? "h-9 w-9 bg-accent p-0" : "h-9 w-9 p-0"}
-        title={chatOpen ? "Close chat" : "Open chat"}
-        onClick={() => setChatOpen((open) => !open)}
+        variant="ghost"
+        size="icon-sm"
+        className="h-9 w-9"
+        title="Show chat"
+        onClick={() => setChatOpen(true)}
       >
-        <MessageSquare />
+        <PanelRight />
+        <span className="sr-only">Show chat</span>
       </Button>
     </div>
   );
@@ -50,14 +48,16 @@ function EnterXr() {
   if (!ready || (!ar && !vr)) return null;
   const studio = vr;
   return (
-    <Button type="button" size="sm" className="pointer-events-auto shadow-lg" onClick={() => void (studio ? enterVR() : enterAR())}>
-      {studio ? <Box /> : <Scan />}
-      {studio ? "Enter Studio" : "Enter AR"}
-    </Button>
+    <div className="pointer-events-auto rounded-xl border border-border bg-card/95 p-1 shadow-lg">
+      <Button type="button" variant="ghost" size="sm" className="h-9" onClick={() => void (studio ? enterVR() : enterAR())}>
+        {studio ? <Box /> : <Scan />}
+        {studio ? "Enter Studio" : "Enter AR"}
+      </Button>
+    </div>
   );
 }
 
-function Overlay({ host, folder }: { host: boolean; folder: ReturnType<typeof useOpenFolder> }) {
+function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
   const { review, progress, error, selectedId, fit } = useStore(
     useShallow((s) => ({
       review: s.review,
@@ -71,6 +71,7 @@ function Overlay({ host, folder }: { host: boolean; folder: ReturnType<typeof us
   const { project, setDoc, fileRecents } = useProjectSession();
   const { files, ready: catalogReady } = useCatalog(Boolean(project.path));
   const treeOpen = useStore((s) => s.treeOpen);
+  const chatOpen = useStore((s) => s.chatOpen);
   const switching = useStore((s) => s.switching);
   if (switching) {
     return (
@@ -105,13 +106,9 @@ function Overlay({ host, folder }: { host: boolean; folder: ReturnType<typeof us
           />
           <PartTree />
           <DetailPanel />
-          <div className="pointer-events-none absolute top-4 right-4 z-10 flex items-start gap-2">
-            {project.path ? <ChatToggle /> : null}
-            {host ? <QuestJoinPanel /> : null}
+          <div className="pointer-events-none absolute top-4 right-3 z-10 flex items-start gap-2">
             <EnterXr />
-            <div className="pointer-events-auto rounded-xl border border-border bg-card/95 p-1 shadow-lg">
-              <ThemeToggle />
-            </div>
+            {!chatOpen && project.path ? <ChatToggle /> : null}
           </div>
         </>
       )}
@@ -174,7 +171,7 @@ function ViewerShell({ host }: { host: boolean }) {
       <SidebarInset className="min-h-0 overflow-hidden">
         <div className="relative min-h-0 min-w-0 flex-1">
           <ViewerCanvas />
-          <Overlay host={host} folder={folder} />
+          <Overlay folder={folder} />
         </div>
       </SidebarInset>
       {!session && chatOpen && hasProject ? <ChatPanel /> : null}

@@ -27,8 +27,23 @@ async function copy(text: string) {
   }
 }
 
-export function QuestJoinPanel({ className }: { className?: string }) {
-  const [open, setOpen] = useState(false);
+export function QuestJoinPanel({
+  className,
+  open: openProp,
+  onOpenChange,
+  showTrigger = true,
+}: {
+  className?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
+}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = openProp ?? internalOpen;
+  const setOpen = (next: boolean) => {
+    if (openProp === undefined) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   const [info, setInfo] = useState<PairingInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -75,20 +90,27 @@ export function QuestJoinPanel({ className }: { className?: string }) {
   const markCopied = (key: string) => setCopied(key);
 
   return (
-    <div className={cn("pointer-events-auto relative", className)}>
-      <Button
-        type="button"
-        size="sm"
-        variant={open ? "secondary" : "default"}
-        className="shadow-lg"
-        onClick={() => setOpen((value) => !value)}
-      >
-        <Headset />
-        Enter Quest
-      </Button>
+    <div className={cn(showTrigger ? "pointer-events-auto relative" : "contents", className)}>
+      {showTrigger ? (
+        <Button
+          type="button"
+          size="sm"
+          variant={open ? "secondary" : "default"}
+          className="shadow-lg"
+          onClick={() => setOpen(!open)}
+        >
+          <Headset />
+          Enter Quest
+        </Button>
+      ) : null}
       {open ? (
-        <div className="fixed top-24 right-4 left-4 z-40 w-auto rounded-2xl border border-border bg-card p-4 text-foreground shadow-xl sm:top-16 sm:left-auto sm:w-[22rem]">
-          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Keep this Mac tab on localhost</p>
+        <div className="fixed right-4 bottom-20 left-4 z-40 w-auto rounded-2xl border border-border bg-card p-4 text-foreground shadow-xl sm:right-auto sm:bottom-4 sm:left-[calc(var(--sidebar-width)+0.75rem)] sm:w-[22rem]">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Keep this Mac tab on localhost</p>
+            <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={() => setOpen(false)}>
+              Done
+            </Button>
+          </div>
           {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
           {!error && !info ? <p className="mt-3 text-sm text-muted-foreground">Loading…</p> : null}
           {info ? (

@@ -1,5 +1,5 @@
 import { useChat } from "@ai-sdk/react";
-import { Check, Copy, EllipsisVertical, History, MessageCircleDashedIcon, Plus, X } from "lucide-react";
+import { Check, Copy, EllipsisVertical, History, MessageCircleDashedIcon, PanelRight, Plus } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 
 import { ChatMessageRow } from "@/components/chat/chat-message-parts";
@@ -11,6 +11,7 @@ import { useLiveShowArtifact } from "@/chat/useLiveShowArtifact";
 import { LiveDot } from "@/components/brand/LiveDot";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import {
   Empty,
   EmptyDescription,
@@ -82,6 +83,18 @@ export function ChatPanel() {
         onMouseDown={onResizeDown}
       />
       <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="size-7"
+          title="Hide chat"
+          onClick={() => setChatOpen(false)}
+        >
+          <PanelRight />
+          <span className="sr-only">Hide chat</span>
+        </Button>
+        <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-4" />
         <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
           {live ? <LiveDot /> : null}
           <div className="min-w-0 truncate text-sm font-medium">{active?.title ?? "Assistant"}</div>
@@ -127,9 +140,6 @@ export function ChatPanel() {
         </Popover>
         <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" title="New chat" onClick={() => void newThread()}>
           <Plus />
-        </Button>
-        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" title="Close chat" onClick={() => setChatOpen(false)}>
-          <X />
         </Button>
       </header>
       {threadId ? (

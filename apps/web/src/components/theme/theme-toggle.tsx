@@ -3,18 +3,66 @@ import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { store } from "@/state/store";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export function ThemeToggle({ className }: { className?: string }) {
-  const { resolvedTheme, setTheme } = useTheme();
+const THEMES = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "system", label: "System" },
+] as const;
+
+type ThemePreference = (typeof THEMES)[number]["value"];
+
+function isThemePreference(value: string | null): value is ThemePreference {
+  return value === "light" || value === "dark" || value === "system";
+}
+
+function useAppearancePicker() {
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const dark = mounted && resolvedTheme === "dark";
-  const toggle = useCallback(() => {
-    const next = dark ? "light" : "dark";
-    store.getState().setAppearance(next);
-    setTheme(next);
-  }, [dark, setTheme]);
+  const preference: ThemePreference = isThemePreference(theme) ? theme : "system";
+  const pick = useCallback(
+    (next: ThemePreference) => {
+      setTheme(next);
+    },
+    [setTheme],
+  );
+  return { dark, preference: mounted ? preference : "system", pick };
+}
+
+export function AppearancePicker({ className }: { className?: string }) {
+  const { preference, pick } = useAppearancePicker();
+  return (
+    <Select
+      modal={false}
+      value={preference}
+      items={THEMES.map(({ value, label }) => ({ value, label }))}
+      onValueChange={(value: string | null) => {
+        if (isThemePreference(value)) pick(value);
+      }}
+    >
+      <SelectTrigger
+        aria-label="Appearance"
+        className={className ?? "h-8 w-full justify-between px-2 text-sm text-foreground"}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="start" side="top" className="min-w-40">
+        {THEMES.map(({ value, label }) => (
+          <SelectItem key={value} value={value} className="text-sm">
+            {label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+export function ThemeToggle({ className }: { className?: string }) {
+  const { dark, pick } = useAppearancePicker();
+  const toggle = useCallback(() => pick(dark ? "light" : "dark"), [dark, pick]);
 
   return (
     <Button
