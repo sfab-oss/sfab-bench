@@ -16,3 +16,6 @@ apps/desktop/app/
 apps/desktop/app.next/
 apps/desktop/app.prev/
 apps/desktop/release/
+
+# Real-world CAD fetched by scripts/fetch_external.mjs. Licensed to use, not to redistribute.
+apps/server/fixtures/external/

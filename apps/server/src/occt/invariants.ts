@@ -157,6 +157,49 @@ function checkMesh(name: string, mesh: Mesh, fail: (why: string) => void): void 
  * Check one built package. Returns every failure rather than throwing at the first,
  * so a broken model reports all of what is wrong with it in one run.
  */
+/**
+ * Every occurrence's triangles, placed, as one mesh in world millimetres.
+ *
+ * `occ.transform` is row-major and already flattened to world, the same reading
+ * `apps/web/src/cad/loadStepPackage.ts` gives it.
+ */
+export function placedMesh(dir: string, pkg: StepPackage): { positions: Float32Array; indices: Uint32Array } {
+  const meshes = new Map<string, Mesh>();
+  for (const key of Object.keys(pkg.components)) {
+    meshes.set(key, decodeTess(readFileSync(join(dir, "components", `${key}.tess`))));
+  }
+  const placed = pkg.occurrences.filter((occ) => meshes.has(occ.component));
+  let vertices = 0;
+  let indexCount = 0;
+  for (const occ of placed) {
+    const mesh = meshes.get(occ.component)!;
+    vertices += mesh.positions.length / 3;
+    indexCount += mesh.indices.length;
+  }
+
+  const positions = new Float32Array(vertices * 3);
+  const indices = new Uint32Array(indexCount);
+  let base = 0;
+  let at = 0;
+  for (const occ of placed) {
+    const mesh = meshes.get(occ.component)!;
+    const t = occ.transform;
+    for (let i = 0; i < mesh.positions.length; i += 3) {
+      const x = mesh.positions[i]!;
+      const y = mesh.positions[i + 1]!;
+      const z = mesh.positions[i + 2]!;
+      for (let row = 0; row < 3; row += 1) {
+        positions[base * 3 + i + row] =
+          t[row * 4]! * x + t[row * 4 + 1]! * y + t[row * 4 + 2]! * z + t[row * 4 + 3]!;
+      }
+    }
+    for (let i = 0; i < mesh.indices.length; i += 1) indices[at + i] = mesh.indices[i]! + base;
+    base += mesh.positions.length / 3;
+    at += mesh.indices.length;
+  }
+  return { positions, indices };
+}
+
 export function checkPackage(dir: string): string[] {
   const failures: string[] = [];
   const fail = (why: string) => failures.push(why);

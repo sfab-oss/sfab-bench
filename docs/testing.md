@@ -202,13 +202,68 @@ mistaken for coverage.
 Free-to-download is not free-to-redistribute. GrabCAD, TraceParts,
 McMaster-Carr, SnapEDA and most vendor part libraries let you download and
 use a model without granting you the right to ship it in a repo, and on
-user-upload sites the provenance is unreliable besides.
+user-upload sites the provenance is unreliable besides. Autodesk's Fusion 360
+Gallery dataset is research-use only. The ABC dataset is MIT on the packaging,
+but its million models are Onshape public documents whose copyright stays with
+their authors, described as free for *research* — fine to fetch, not to commit.
 
-If a real-world corpus is ever wanted, the clean shape is a manifest of
-URL + sha256 + licence, a fetch step into an ignored directory, and only
-the *derived expectations* committed. Sources that are actually permissive:
-NIST's MBE PMI test suite (US Government work, published for exactly this),
-the CAx-IF interoperability models, OCCT's own `data/step/`, FreeCAD's test
-files, KiCad's `packages3D`.
+So nothing is committed. `fixtures/external.manifest.json` records where each
+model came from, what it is licensed under, and the sha256 its bytes must have;
+`pnpm corpus:fetch` downloads them into `fixtures/external/`, which is
+gitignored. What is committed is the manifest and the expectations.
 
-That does not exist today, and the generated corpus is not blocked on it.
+Three sources, each with terms read rather than assumed:
+
+| Source | Terms | What it adds |
+| --- | --- | --- |
+| NIST MBE PMI, 33 files | Public domain, 17 U.S.C. §105 — NIST states the models "can be used without any restrictions" | AP203 and AP242 written by four different CAD systems, vendor identification stripped. Its own README says they are **not** error-free files, which is the point |
+| OCCT `screw.step` | LGPL-2.1, part of OCCT | Helical surfaces, far more faces per millimetre than anything generated |
+| OCCT `linkrods.step` | LGPL-2.1, part of OCCT | A real 1.8MB assembly, from the test data of the kernel we tessellate with |
+
+The two I previously listed without checking are gone. CAx-IF publishes its
+interoperability models for exactly this use but I could find no explicit
+redistribution grant, so its terms are unread. KiCad's `packages3D` is
+CC-BY-SA 4.0: redistributing the library files carries share-alike, which is
+not something to attach to a product repo, and they are electronic component
+models rather than mechanical assemblies.
+
+### What the fetcher guarantees
+
+- **https only, to hosts the manifest names** — and the host is checked again *after* redirects, so a redirect cannot walk the download somewhere else
+- **sha256 verified before anything lands.** A mismatch writes nothing and says so. Pinned by content, not by branch: the OCCT URLs name a commit, so "the file changed" is impossible to miss
+- **archives unpack with paths junked**, so no entry can write outside its directory however it is named inside the zip
+- **nothing downloaded is executed**, only parsed as STEP
+- **no licence, no download.** An entry without `licence` and `licenceUrl` is refused
+
+Both guards are verified by breaking them: a wrong hash and an off-list host
+each abort the fetch.
+
+### Running it
+
+`pnpm corpus:external`, after `pnpm corpus:fetch`. It is **not** part of
+`pnpm test`, and on a clean clone it prints "skipped" and passes — the suite
+must never depend on someone else's server being up.
+
+What it asserts is narrower than the generated corpus, deliberately. Tiers 0
+and 1 apply to any file at all and are hard failures. Tier 2 is **reported and
+not enforced**: the divergence theorem needs a closed, consistently wound
+surface, and open shells, surface bodies and tessellated geometry are all
+legitimate STEP. Failing on those would train everyone to ignore the check.
+
+### What the first run found
+
+35 models, 26 failures, and none of them were the tessellator being wrong:
+32 of 32 closed solids matched their B-rep volume. The corpus was right about
+geometry and wrong about everything around it.
+
+- **22 × `leaf node oN has no occurrence`.** The loader emits assembly tree
+  leaves with nothing to draw for them. Real, and it is a Tier-1 invariant that
+  the generated corpus never triggers because generated assemblies are tidy.
+- **2 × a wasm abort** inside OCCT, one of them on the file that carries
+  tessellated surfaces instead of exact b-rep.
+- **1 × a kernel exception with no message**, arriving as a bare heap pointer.
+- **1 × a zero-length normal** in the tessellator's output.
+- **1 × a 23.1% volume gap**, reported not thrown, worth a look.
+
+None are fixed yet. Each should become a *generated* fixture that reproduces
+it, so the failure is pinned without shipping anyone's geometry.

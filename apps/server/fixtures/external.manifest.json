@@ -1,0 +1,46 @@
+{
+  "comment": [
+    "Real-world STEP files, fetched on demand into fixtures/external/ which is gitignored.",
+    "Nothing here is redistributed: this file records where a model came from, what it is",
+    "licensed under, and the sha256 its bytes must have. `pnpm corpus:fetch` downloads them.",
+    "Every entry must carry a licence that permits use, and a hash that was verified by hand",
+    "before it was written down. An entry without both does not belong in this file."
+  ],
+  "hosts": ["raw.githubusercontent.com", "www.nist.gov"],
+  "sources": [
+    {
+      "id": "nist-pmi",
+      "kind": "zip",
+      "include": "*.stp",
+      "url": "https://www.nist.gov/system/files/documents/noindex/2024/06/19/NIST-PMI-STEP-Files.zip",
+      "sha256": "8fa78429e6d8d9b0d7681d223b6aa9ec98c3772185c55b1a0e3679b21c181911",
+      "bytes": 13976599,
+      "short": "public domain (NIST)",
+      "licence": "US Government work, 17 U.S.C. 105. NIST: \"The test cases, CAD models, and STEP files can be used without any restrictions. Their use in other software or hardware products does not imply a recommendation or endorsement of those products by NIST.\" Acknowledgement requested.",
+      "licenceUrl": "https://www.nist.gov/ctl/smart-connected-systems-division/smart-connected-manufacturing-systems-group/mbe-pmi-0",
+      "why": "33 AP203 and AP242 files from the NIST MBE PMI conformance project, written by four different CAD systems with the vendor identification stripped. Its own README says they are NOT reference files without errors, which is the point: this is what a real export looks like. One of them, nist_ftc_08_asme1_ap242-e1-tg, carries tessellated surfaces instead of exact b-rep."
+    },
+    {
+      "id": "occt-screw",
+      "kind": "file",
+      "url": "https://raw.githubusercontent.com/Open-Cascade-SAS/OCCT/7fd59977dfb3a75f75670474b59dfc0f3f5f90ba/data/step/screw.step",
+      "sha256": "4b3649a4f5c4f05c7a06a402a91fe2fd7e3cba1615520fbd8c62a62610ad3e69",
+      "bytes": 88552,
+      "short": "LGPL-2.1 (OCCT)",
+      "licence": "LGPL-2.1, as part of Open CASCADE Technology",
+      "licenceUrl": "https://github.com/Open-Cascade-SAS/OCCT/blob/master/LICENSE_LGPL_21.txt",
+      "why": "A threaded fastener: helical surfaces, and far more faces per millimetre than anything generated."
+    },
+    {
+      "id": "occt-linkrods",
+      "kind": "file",
+      "url": "https://raw.githubusercontent.com/Open-Cascade-SAS/OCCT/7fd59977dfb3a75f75670474b59dfc0f3f5f90ba/data/step/linkrods.step",
+      "sha256": "3674e4b01ee0e983c81ed170f0574cda201ad08e0f7b46e05e4f4613400fd5f7",
+      "bytes": 1793282,
+      "short": "LGPL-2.1 (OCCT)",
+      "licence": "LGPL-2.1, as part of Open CASCADE Technology",
+      "licenceUrl": "https://github.com/Open-Cascade-SAS/OCCT/blob/master/LICENSE_LGPL_21.txt",
+      "why": "A real multi-part assembly, 1.8MB, from the test data of the kernel we tessellate with."
+    }
+  ]
+}
