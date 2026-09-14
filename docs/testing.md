@@ -64,6 +64,20 @@ Tolerances are 2% on volume and area: tessellation is a chord
 approximation so the numbers never match exactly, but a real defect misses
 by tens of percent, never by tenths.
 
+That measures each leaf solid **in its own frame**, so a second comparison
+runs on the document as a whole: every occurrence's triangles placed by its
+own transform, against `solidProps` of the free label's shape, which carries
+its components' locations and is therefore OCCT's own answer for the
+assembled result.
+
+It closes the one gap the rest of the file could not see. `checkPackage`
+confirms the declared bbox holds the geometry, but that bbox is computed by
+the same code that did the placing, so it only ever agrees with itself. A
+placement composed in the wrong order, applied at the wrong level of the
+tree, or dropped entirely produces a package that passes everything else.
+Centre of mass is the sensitive term: one instance in the wrong place barely
+moves a bounding box and does not change the volume at all.
+
 **Tier 4a — `cad/scene.selfcheck.ts`.** Everything after the package is
 `buildScene` in `cad/loadStepPackage.ts`, which was split out of
 `loadStepPackage` so it could be run without a browser: the fetching stayed
@@ -79,6 +93,9 @@ What it pins:
 - **faces.** A box has six faces, so six rays return six *different* ordinals drawn from exactly 1..6, and four points on one face all return the same one. A ref that means "wherever the mouse was" cannot be handed to an assistant.
 - **the same file twice.** Rebuild and re-assemble, and the same ray returns the same ref. Package determinism is checked server-side; this is the other half.
 - **winding, without pixels.** three derives `hit.face.normal` from the triangle's winding, not from the normal attribute, so a picked face whose normal points *away* from the ray is an inside-out solid. Dropping the `REVERSED` flip in `occt/mesh.ts` fails here as well as in the corpus check.
+- **colour and name on the material.** Read back off `MeshStandardMaterial` and compared to the package. A swapped channel, or the `#9ca3af` default quietly standing in for a colour that was there all along, passes every check on the JSON and looks entirely plausible on screen.
+- **one geometry per component.** `many_instances` is 120 placements of one solid and must produce one `BufferGeometry`. Cloning per occurrence runs a real assembly out of memory, and nothing else would notice until it did.
+- **what `get_viewer` hands over.** `viewerSnapshot()` reaches its tree through `treeTops`, a different walk from the one that fills `parts`. A node dropped or regrouped there shows up as an assistant confidently discussing a part that is not in the file.
 
 **Tier 5a — `scene/placement.selfcheck.ts`.** `placeAtGaze` and `faceToward`
 are the whole of VR spawn placement and are pure functions of a camera pose,
@@ -113,7 +130,7 @@ Every fixture exists because some invariant would otherwise be untested:
 | `bracket_assembly` | a sub-assembly, shared geometry, a colour on an instance beating the product's |
 | `curved_solids` | a sphere's degenerate poles, a torus's seam, a cone's apex |
 | `cut_solid` | a boolean result, whose inner faces are `REVERSED` |
-| `deep_nest` | five levels of placement multiplied together |
+| `deep_nest` | five levels of placement, two of them rotations |
 | `bare_solids` | no names, no colours — every fallback path |
 | `many_instances` | one solid placed 120 times, so content-hash dedup has to hold |
 | `inch_block` | a file whose declared length unit is not millimetres |
@@ -143,31 +160,42 @@ millimetres regardless.
 check that passes against a broken tessellator is worse than no check,
 because it is also a claim.
 
-## Not built yet
+## Not built yet, and mostly not planned
 
-Roughly in the order worth doing.
+**Tier 4b — pixels. Decided against.** It is not unheard of: three.js runs
+screenshot E2E tests with a tolerance, and Google's model-viewer does render
+fidelity comparison. Both are large projects funding a permanent harness. Here
+it means standing up a GL context — headless Chrome over CDP, or a Node WebGL
+binding — and then tuning tolerances until driver variation stops causing false
+failures, all before the first assertion. The defect it was going to catch that
+nothing else could, inside-out solids, is caught by the ray-normal check in
+Tier 4a instead; colour and material state turned out to be readable straight
+off the scene graph. What is genuinely left is only *layout* — coverage
+fraction and screen-space centroid — and that is not worth a renderer.
 
-**Tier 3 — metamorphic.** Build at two deflections and check the coarser
-mesh stays inside the finer one's bounds and keeps the same face ordinals.
-Cheap, and it would catch a mesher change that silently renumbers faces.
+**Tier 3 — metamorphic. Deferred.** Build at two deflections, check the coarser
+mesh stays inside the finer one's bounds and keeps the same face ordinals. The
+idea is good and it would catch a mesher upgrade silently renumbering faces,
+which would break every `#o….fN` in a saved thread. But `LINEAR_DEFLECTION` is
+a module constant in `occt/mesh.ts`, and changing a signature to make a test
+possible is its own kind of cost. Worth doing when there is a second reason to
+parameterise it.
 
-**Tier 4b — pixels.** Not image diffs; GPU and driver variation makes exact
-comparison worthless. Structural metrics from a few canonical views:
-coverage fraction, screen-space centroid, and the pixel colour at each
-part's projected centroid. The reference-free normals test this was also
-meant to carry — `FrontSide` against `DoubleSide` coverage — is now covered
-more cheaply by the ray-normal check in Tier 4a, so what is left here is
-colour and layout, which nothing else can see.
+**Tier 5b — stereo and budget.** Render from both eye matrices and check a part
+appears in both with horizontal disparity of the right sign for its depth;
+inverted eyes are nauseating and completely invisible on a monitor. Assert draw
+calls and triangle counts in CI; record real frame times on-device as a tracked
+number rather than a pass/fail. Wants a headset in the loop to earn its keep.
 
-**Tier 5b — stereo and budget.** Render from both eye matrices and check a
-part appears in both with horizontal disparity of the right sign for its
-depth; inverted eyes are nauseating and completely invisible on a monitor.
-Assert draw calls and triangle counts in CI (deterministic); record real
-frame times on-device as a tracked number rather than a pass/fail.
+## Known gaps
 
-**Still unpinned.** `loadStepPackage`'s flat fallback for a package with no
-`assembly.root` is never exercised — nothing the loader writes today omits
-it. `group.userData.cadRef` is written and read by nothing.
+Things the checks deliberately do not cover, written down so they are not
+mistaken for coverage.
+
+- **Transparency is unreachable from a STEP.** `labelColor` in `occt/document.ts` reads a `Quantity_Color` and hardcodes alpha to 1, so `occ.color[3]` is always 1 and the viewer's `transparent` / `depthWrite` branches never run. The material check asserts them, but only ever against the opaque case.
+- **`namedKids`' filter is a GLB-path guard.** Every group `buildScene` makes is either a listed part or has children, so removing the filter changes nothing for a STEP package. It is not dead — `loadCadReview` needs it — just untested from here.
+- **`loadStepPackage`'s flat fallback** for a package with no `assembly.root` is never exercised; nothing the loader writes today omits it.
+- **`group.userData.cadRef`** is written and read by nothing.
 
 ## On external models
 

@@ -12,6 +12,9 @@ import { decodeTess, type ComponentMesh } from "@/cad/decodeTess";
 import { pickAlongRay } from "@/cad/highlights";
 import { buildScene } from "@/cad/loadStepPackage";
 import type { CadReview } from "@/cad/review";
+import { treeTops } from "@/cad/tree";
+import { viewerSnapshot } from "@/cad/viewer-snapshot";
+import { store } from "@/state/store";
 
 /**
  * Tier 4a — the scene, not the package.
@@ -267,6 +270,133 @@ for (const [name, { review, assembly, world }] of scenes) {
   }
   if (onTop.size !== 1) {
     note(`inch_block: four points on the top face gave ${onTop.size} different refs — ${[...onTop].join(", ")}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Colour, opacity and name, on the materials themselves
+// ---------------------------------------------------------------------------
+
+/**
+ * The package's colours are checked to be in 0..1 by `checkPackage`, and
+ * `occt.selfcheck.ts` checks an instance's colour beats the product's — both on
+ * the JSON. Nothing has ever checked either one survives into a material.
+ *
+ * A swapped channel, a dropped alpha, or the `#9ca3af` default quietly standing in
+ * for a colour that was there all along would pass every check we have, and would
+ * look entirely plausible on screen. Reading it back off the scene costs nothing
+ * and needs no renderer.
+ */
+for (const [name, { review, assembly }] of scenes) {
+  const nodeNames = new Map<string, string>();
+  const walkNames = (node: StepAssemblyNode) => {
+    nodeNames.set(node.id, node.name || node.id);
+    for (const child of node.children) walkNames(child);
+  };
+  if (assembly.assembly?.root) walkNames(assembly.assembly.root);
+
+  const byRef = new Map(review.parts.map((part) => [part.cadRef, part]));
+  for (const occ of assembly.occurrences) {
+    const part = byRef.get(`#${occ.id}`);
+    if (!part) {
+      note(`${name}: occurrence ${occ.id} has no part in the scene`);
+      continue;
+    }
+    const mesh = part.object.children.find((child): child is THREE.Mesh => child instanceof THREE.Mesh);
+    if (!mesh) {
+      note(`${name}: ${occ.id} has no mesh under it`);
+      continue;
+    }
+    const material = mesh.material as THREE.MeshStandardMaterial;
+    // The loader's own fallback, for a solid the STEP never painted.
+    const want = occ.color ?? [0.61, 0.64, 0.69, 1];
+    for (const [channel, index] of [["r", 0], ["g", 1], ["b", 2]] as const) {
+      if (!near(material.color[channel], want[index]!, 1e-4)) {
+        note(
+          `${name}: ${occ.id} is ${channel}=${material.color[channel].toFixed(4)} ` +
+            `but the package says ${want[index]}`,
+        );
+      }
+    }
+    if (!near(material.opacity, want[3]!, 1e-4)) {
+      note(`${name}: ${occ.id} has opacity ${material.opacity}, the package says ${want[3]}`);
+    }
+    // Opaque parts must not be drawn on the transparent pass: it disables depth
+    // writes and the model starts sorting wrong against itself.
+    if (material.transparent !== want[3]! < 0.999) {
+      note(`${name}: ${occ.id} is ${material.transparent ? "" : "not "}transparent at opacity ${want[3]}`);
+    }
+    const expectedName = nodeNames.get(occ.id) ?? (occ.name || occ.id);
+    if (part.name !== expectedName) {
+      note(`${name}: ${occ.id} is called "${part.name}" in the scene and "${expectedName}" in the package`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// One geometry per component
+// ---------------------------------------------------------------------------
+
+/**
+ * `many_instances` is 120 placements of one solid. All 120 have to share a single
+ * `BufferGeometry` — clone it per occurrence and a real assembly runs the tab out
+ * of memory, which nothing else here would notice until it happened.
+ */
+for (const [name, { review, assembly }] of scenes) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  review.root.traverse((child) => {
+    if (child instanceof THREE.Mesh) geometries.add(child.geometry);
+  });
+  const components = Object.keys(assembly.components).length;
+  if (geometries.size !== components) {
+    note(`${name}: ${geometries.size} geometries in the scene for ${components} component(s)`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// What get_viewer hands over
+// ---------------------------------------------------------------------------
+
+/**
+ * `viewerSnapshot()` is the tool output: the names and refs an assistant is given
+ * and then asked to reason about. It reaches them through `treeTops`, a different
+ * walk from the one that fills `parts`, so a node dropped or regrouped there is
+ * invisible to every check above — and shows up as an assistant confidently
+ * discussing a part that is not in the file.
+ */
+for (const [name, { review, assembly }] of scenes) {
+  store.setState({ url: `/api/pkg/${name}/`, review, selectedId: null, pickedRef: null });
+  const snapshot = viewerSnapshot();
+
+  if (snapshot.empty) note(`${name}: the snapshot says the viewer is empty`);
+  if (snapshot.partCount !== review.parts.length) {
+    note(`${name}: the snapshot counts ${snapshot.partCount} parts, the scene has ${review.parts.length}`);
+  }
+
+  // The tops are the assembly root's own children, or the part itself when the
+  // document is a single part with nothing under it.
+  const root = assembly.assembly?.root;
+  const expected = root
+    ? (root.children.length ? root.children.map((child) => `#${child.id}`) : [`#${root.id}`])
+    : assembly.occurrences.map((occ) => `#${occ.id}`);
+  const got = snapshot.tree.map((item) => item.ref ?? "(no ref)");
+  if (got.join(",") !== expected.join(",")) {
+    note(`${name}: the tree reads ${got.join(",")} but the package's top level is ${expected.join(",")}`);
+  }
+  for (const item of snapshot.tree) {
+    if (!item.ref) note(`${name}: tree row "${item.name}" has no ref, so nothing can be said about it`);
+    if (!item.name) note(`${name}: tree row ${item.ref} has no name`);
+  }
+
+  // And a selection has to come back out as the ref it went in as.
+  const part = review.parts[review.parts.length - 1]!;
+  store.setState({ selectedId: part.id, pickedRef: part.cadRef ?? null });
+  const selected = viewerSnapshot();
+  if (selected.selected !== part.cadRef) {
+    note(`${name}: selected ${part.cadRef} but the snapshot reports ${selected.selected}`);
+  }
+  if (selected.selectedName !== part.name) {
+    note(`${name}: selected "${part.name}" but the snapshot reports "${selected.selectedName}"`);
   }
 }
 
