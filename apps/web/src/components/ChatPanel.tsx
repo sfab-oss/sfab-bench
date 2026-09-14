@@ -1,6 +1,6 @@
 import { useChat } from "@ai-sdk/react";
-import { History, MessageCircleDashedIcon, Plus, X } from "lucide-react";
-import { useEffect, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { Check, Copy, EllipsisVertical, History, MessageCircleDashedIcon, Plus, X } from "lucide-react";
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 
 import { ChatMessageRow } from "@/components/chat/chat-message-parts";
 import { GalleryChatInput, type GalleryPromptMessage } from "@/components/chat/composer";
@@ -36,6 +36,7 @@ export function ChatPanel() {
   const width = useStore((s) => s.chatWidth);
   const setWidth = useStore((s) => s.setChatWidth);
   const [resizing, setResizing] = useState(false);
+  const messagesRef = useRef<GalleryChatMessage[]>([]);
   const { threads, threadId, initialMessages, refreshThreads, newThread, openThread } = useViewerChat();
   useEffect(() => {
     void loadHarnesses();
@@ -82,6 +83,15 @@ export function ChatPanel() {
         <div className="min-w-0 flex-1 truncate px-2 text-sm font-medium">
           {active?.title ?? "Assistant"}
         </div>
+        <ChatSettingsMenu
+          onCopyJson={() =>
+            copyConversationJson({
+              id: threadId,
+              title: active?.title ?? "Assistant",
+              messages: messagesRef.current,
+            })
+          }
+        />
         <Popover>
           <PopoverTrigger
             render={<Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" title="Chat history" />}
@@ -124,6 +134,7 @@ export function ChatPanel() {
           key={threadId}
           threadId={threadId}
           initialMessages={initialMessages}
+          messagesRef={messagesRef}
           onPersist={() => void refreshThreads()}
         />
       ) : null}
@@ -131,13 +142,70 @@ export function ChatPanel() {
   );
 }
 
+async function copyConversationJson(conversation: {
+  id: string | null;
+  title: string;
+  messages: GalleryChatMessage[];
+}) {
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(conversation, jsonSafe, 2));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function jsonSafe(_key: string, value: unknown) {
+  if (typeof value === "bigint") return value.toString();
+  if (typeof File !== "undefined" && value instanceof File) {
+    return { type: "File", name: value.name, mimeType: value.type, size: value.size };
+  }
+  if (value instanceof ArrayBuffer) return { type: "ArrayBuffer", byteLength: value.byteLength };
+  if (ArrayBuffer.isView(value)) return { type: value.constructor.name, length: value.byteLength };
+  return value;
+}
+
+function ChatSettingsMenu({ onCopyJson }: { onCopyJson: () => Promise<boolean> }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <Popover
+      onOpenChange={(open) => {
+        if (!open) setCopied(false);
+      }}
+    >
+      <PopoverTrigger
+        render={<Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" title="Chat settings" />}
+      >
+        <EllipsisVertical />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-56 p-1">
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+          onClick={() => {
+            void onCopyJson().then((ok) => {
+              if (ok) setCopied(true);
+            });
+          }}
+        >
+          {copied ? <Check className="size-4 shrink-0" /> : <Copy className="size-4 shrink-0" />}
+          {copied ? "Copied" : "Copy conversation as JSON"}
+        </button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function ChatSession({
   threadId,
   initialMessages,
+  messagesRef,
   onPersist,
 }: {
   threadId: string;
   initialMessages: GalleryChatMessage[];
+  messagesRef: RefObject<GalleryChatMessage[]>;
   onPersist: () => void;
 }) {
   const session = useProjectSession();
@@ -160,6 +228,7 @@ function ChatSession({
   const busy = status === "submitted" || status === "streaming";
   const remoteBusy = session.status !== "idle" && !busy;
   const shown = busy ? messages : (session.messages as GalleryChatMessage[]);
+  messagesRef.current = shown;
   const streamingMessageId =
     (busy || remoteBusy) && shown.at(-1)?.role === "assistant" ? (shown.at(-1)?.id ?? null) : null;
 
