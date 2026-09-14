@@ -20,7 +20,7 @@ pnpm dev
 ```
 
 That starts a loopback API on `http://127.0.0.1:8787` and Vite HTTPS on
-`:5173`, which proxies `/api`. Open `https://127.0.0.1:5173` on the Mac
+`:7322`, which proxies `/api`. Open `https://127.0.0.1:7322` on the Mac
 (loopback is trusted). Click **Open folder**, pick a directory that
 contains STEP or GLB files, then open one.
 
@@ -29,9 +29,9 @@ boot. Otherwise the last recent folder is restored, or the welcome
 screen if none.
 
 Click **Enter Quest** for the LAN URL, QR, and 6-character code. Join
-URLs always use port **5173**.
+URLs always use port **7322**.
 
-On Quest 3: same Wi-Fi, Quest Browser, `https://<mac-ip>:5173/pair`,
+On Quest 3: same Wi-Fi, Quest Browser, `https://<mac-ip>:7322/pair`,
 accept the self-signed cert once, type the code. After that the headset
 stores a device credential. Allow WebXR, then **Enter Studio**.
 

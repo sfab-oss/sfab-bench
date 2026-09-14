@@ -193,7 +193,7 @@ export const store = createStore<State>()(
   selectedId: null,
   pickedRef: null,
   treeOpen: prefs.treeOpen ?? true,
-  chatOpen: prefs.chatOpen ?? false,
+  chatOpen: prefs.chatOpen ?? true,
   chatWidth: prefs.chatWidth != null ? clampChatWidth(prefs.chatWidth) : CHAT_DEFAULT_WIDTH,
   chatHarness: isHarnessId(prefs.chatHarness ?? "") ? prefs.chatHarness! : DEFAULT_HARNESS,
   chatModel:

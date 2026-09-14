@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 
-import { publicPort } from "./config";
+import { DEFAULT_PUBLIC_PORT, publicPort } from "./config";
 import { CODE_TTL_MS, ensureOffer, lookupDevice, mintOffer, redeemCode, redeemFragment } from "./pairing";
 import { forwardedClientAddress, isLoopbackAddress } from "./principal";
 
@@ -25,7 +25,7 @@ process.env.SFAB_BENCH_PUBLIC_PORT = "9999";
 expect(publicPort() === 9999, "SFAB_BENCH_PUBLIC_PORT overrides join port");
 if (prevPort === undefined) delete process.env.SFAB_BENCH_PUBLIC_PORT;
 else process.env.SFAB_BENCH_PUBLIC_PORT = prevPort;
-expect(publicPort() === 5173, "join URLs default to 5173, not the API port");
+expect(publicPort() === DEFAULT_PUBLIC_PORT, "join URLs default to 7322 (SFAB), not the API port");
 
 const db = new DatabaseSync(":memory:");
 const offer = mintOffer(db);

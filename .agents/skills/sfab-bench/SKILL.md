@@ -20,9 +20,9 @@ pnpm dev
 ```
 
 `pnpm dev` starts the loopback API (`http://127.0.0.1:8787`) and Vite
-HTTPS (`:5173`, proxies `/api`). Vite prints a LAN `https://<host>:5173/`
+HTTPS (`:7322`, proxies `/api`). Vite prints a LAN `https://<host>:7322/`
 URL (self-signed). Quest needs that LAN host, not `127.0.0.1`. Confirm
-with `curl -k https://127.0.0.1:5173/api/me` (loopback principal).
+with `curl -k https://127.0.0.1:7322/api/me` (loopback principal).
 Production: `pnpm build && pnpm serve`.
 
 Open a folder from the Mac tab (**Open folder**) or

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { IncomingMessage } from "node:http";
 import { defineConfig } from "vite";
 
-import { apiPort, certDir, DEV_API_HOST } from "@sfab-bench/server/config";
+import { apiPort, certDir, DEV_API_HOST, publicPort } from "@sfab-bench/server/config";
 
 const srcDir = fileURLToPath(new URL("./src", import.meta.url));
 const apiTarget = `http://${DEV_API_HOST}:${apiPort()}`;
@@ -47,12 +47,14 @@ export default defineConfig({
   },
   server: {
     host: true,
-    port: 5173,
+    port: publicPort(),
+    strictPort: true,
     proxy: apiProxy(),
   },
   preview: {
     host: true,
-    port: 5173,
+    port: publicPort(),
+    strictPort: true,
     proxy: apiProxy(),
   },
 });

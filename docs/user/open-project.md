@@ -11,7 +11,7 @@ Then open a STEP or GLB from the file list. Paths in `?file=` are
 relative to that folder:
 
 ```
-https://127.0.0.1:5173/?file=cad/STEP/envelopes/box_envelope.step
+https://127.0.0.1:7322/?file=cad/STEP/envelopes/box_envelope.step
 ```
 
 No `?file=` resumes the last STEP in that folder, or an empty scene.

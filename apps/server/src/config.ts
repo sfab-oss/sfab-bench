@@ -24,8 +24,11 @@ export function apiPort(): number {
   return envPort("SFAB_BENCH_API_PORT", 8787);
 }
 
+/** HTTPS join port. 7322 = SFAB on a phone keypad. */
+export const DEFAULT_PUBLIC_PORT = 7322;
+
 export function publicPort(): number {
-  return envPort("SFAB_BENCH_PUBLIC_PORT", 5173);
+  return envPort("SFAB_BENCH_PUBLIC_PORT", DEFAULT_PUBLIC_PORT);
 }
 
 export function certDir(): string {

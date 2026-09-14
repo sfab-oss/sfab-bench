@@ -60,7 +60,7 @@ export function PairPage({ onPaired }: { onPaired?: () => void }) {
         }}
       >
         <h1 className="text-lg font-semibold text-zinc-900">Enter pairing code</h1>
-        <p className="mt-2 text-sm text-zinc-500">Type the 6-character code shown on the Mac. On the Mac, keep sfab-bench at https://127.0.0.1:5173 and click Enter Quest.</p>
+        <p className="mt-2 text-sm text-zinc-500">Type the 6-character code shown on the Mac. On the Mac, keep sfab-bench at https://127.0.0.1:7322 and click Enter Quest.</p>
         <Input
           autoFocus
           autoCapitalize="characters"

@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 
 import { jsonApi } from "@/lib/api";
 import type { CatalogEntry } from "@/lib/viewer-snapshot";
+import { useProjectSession } from "@/hooks/useProjectSession";
 
 export function useCatalog(enabled = true) {
   const [files, setFiles] = useState<CatalogEntry[]>([]);
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const projectPath = useProjectSession().project.path;
   const reload = useCallback(() => {
     if (!enabled) return;
     void jsonApi.catalog
@@ -26,7 +28,7 @@ export function useCatalog(enabled = true) {
         setError(err instanceof Error ? err.message : String(err));
         setReady(true);
       });
-  }, [enabled]);
+  }, [enabled, projectPath]);
   useEffect(() => {
     reload();
     const onProject = () => reload();

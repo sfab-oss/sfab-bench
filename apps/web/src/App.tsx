@@ -1,13 +1,12 @@
-import { Box, MessageSquare, Scan } from "lucide-react";
+import { Box, Folder, MessageSquare, Scan } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { ChatPanel } from "@/components/ChatPanel";
 import { ViewerChatProvider } from "@/components/chat/useViewerChat";
+import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { DetailPanel } from "@/components/DetailPanel";
 import { PairPage } from "@/components/PairPage";
-import { PartTree } from "@/components/PartTree";
-import { ProjectPanel } from "@/components/ProjectPanel";
 import { QuestJoinPanel } from "@/components/QuestJoinPanel";
 import { Toolbar } from "@/components/Toolbar";
 import { Button } from "@/components/ui/button";
@@ -63,6 +62,8 @@ function Overlay({ host }: { host: boolean }) {
   );
   const session = useXrSession();
   const project = useProjectSession().project;
+  const treeOpen = useStore((s) => s.treeOpen);
+  const setTreeOpen = useStore((s) => s.setTreeOpen);
   const switching = useStore((s) => s.switching);
   if (switching) {
     return (
@@ -80,6 +81,20 @@ function Overlay({ host }: { host: boolean }) {
     <>
       {!session && (
         <>
+          {!treeOpen ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="pointer-events-auto absolute top-4 left-3 z-10 h-9 max-w-48 gap-2 shadow-lg"
+              title="Show files"
+              onClick={() => setTreeOpen(true)}
+            >
+              <Folder className="size-4" />
+              <span className="truncate">
+                {project.path.split("/").filter(Boolean).pop() ?? "Files"}
+              </span>
+            </Button>
+          ) : null}
           <Toolbar
             onHome={() => {
               if (review) fit?.(review.root);
@@ -90,11 +105,9 @@ function Overlay({ host }: { host: boolean }) {
               if (obj) fit?.(obj);
             }}
           />
-          <PartTree />
           <DetailPanel />
           <div className="pointer-events-none absolute top-4 right-4 z-10 flex items-start gap-2">
             <ChatToggle />
-            {host ? <ProjectPanel /> : null}
             {host ? <QuestJoinPanel /> : null}
             <EnterXr />
           </div>
@@ -103,7 +116,7 @@ function Overlay({ host }: { host: boolean }) {
       {!session && !review && progress === null && !error && (
         <div className="pointer-events-none absolute inset-0 z-0 grid place-items-center">
           <div className="rounded-xl border border-dashed border-zinc-200 bg-white/80 px-6 py-4 text-center text-sm text-zinc-500 shadow-sm">
-            {project.path ? "Open a STEP in this folder." : "Open a folder, then a STEP."}
+            {project.path ? "Pick a STEP from Files on the left." : "Open a folder on the left, then a STEP."}
           </div>
         </div>
       )}
@@ -131,8 +144,10 @@ function Overlay({ host }: { host: boolean }) {
 function ViewerShell({ host }: { host: boolean }) {
   const session = useXrSession();
   const chatOpen = useStore((s) => s.chatOpen);
+  const treeOpen = useStore((s) => s.treeOpen);
   return (
     <div className="flex h-dvh w-full">
+      {!session && treeOpen ? <DesktopSidebar host={host} /> : null}
       <div className="relative min-h-0 min-w-0 flex-1">
         <ViewerCanvas />
         <Overlay host={host} />
