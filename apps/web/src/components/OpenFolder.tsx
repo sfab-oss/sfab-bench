@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { desktopBridge } from "@/lib/desktop";
 import { browsePath, fetchProject, openProjectPath, type BrowseInfo, type ProjectInfo } from "@/lib/project";
 
 export function OpenFolderForm({
@@ -15,6 +16,7 @@ export function OpenFolderForm({
   const [path, setPath] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const bridge = desktopBridge();
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +63,23 @@ export function OpenFolderForm({
       <p className="text-[13px] text-zinc-600">
         A project is a folder on this Mac. STEP and GLB files inside it show up as documents.
       </p>
+      {bridge ? (
+        <Button
+          type="button"
+          size="sm"
+          className="h-8"
+          disabled={busy}
+          onClick={() => {
+            void bridge
+              .pickFolder()
+              .then((picked) => (picked ? submit(picked) : undefined))
+              .catch(() => setError("Could not open the folder chooser"));
+          }}
+        >
+          <Folder className="size-3.5" />
+          Choose folder…
+        </Button>
+      ) : null}
       <form
         className="flex flex-col gap-2"
         onSubmit={(ev) => {
@@ -68,7 +87,9 @@ export function OpenFolderForm({
           void submit(path);
         }}
       >
-        <label className="text-[11px] font-medium tracking-wide text-zinc-400 uppercase">Path</label>
+        <label className="text-[11px] font-medium tracking-wide text-zinc-400 uppercase">
+          {bridge ? "Or type a path" : "Path"}
+        </label>
         <Input
           value={path}
           onChange={(ev) => setPath(ev.target.value)}

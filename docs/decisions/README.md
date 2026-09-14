@@ -10,3 +10,4 @@ Use [`template.md`](template.md) (SFab 4-digit). Prefer a short note in
 | [0002-step-loader-occt](0002-step-loader-occt.md) | Destination STEP loader is our OpenCascade WASM tessellator, not cadgen |
 | [0003-library-not-viewport](0003-library-not-viewport.md) | Share recents and thread history; keep each client's viewport independent |
 | [0004-occt-via-opencascade-js](0004-occt-via-opencascade-js.md) | The OCCT kernel is prebuilt opencascade.js; the tessellator is ours |
+| [0005-electron-shell](0005-electron-shell.md) | Electron is a shell around the same server and the same page |

@@ -10,8 +10,9 @@
     "dev": "pnpm --filter @sfab-bench/server dev",
     "serve": "pnpm --filter @sfab-bench/server serve",
     "cli": "pnpm --filter @sfab-bench/server exec tsx src/cli.ts",
-    "build": "pnpm typecheck && pnpm test && pnpm --filter @sfab-bench/web build",
+    "build": "pnpm typecheck && pnpm test && pnpm --filter @sfab-bench/web build && pnpm --filter @sfab-bench/desktop build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm --filter @sfab-bench/server test && pnpm --filter @sfab-bench/web test"
+    "test": "pnpm --filter @sfab-bench/server test && pnpm --filter @sfab-bench/web test",
+    "desktop": "pnpm --filter @sfab-bench/desktop build && pnpm --filter @sfab-bench/desktop exec electron ."
   }
 }

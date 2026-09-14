@@ -37,7 +37,7 @@ Do not re-open these unless the human asks.
 - **One process, two HTTPS clients.** Mac tab (loopback trusted) and Quest Browser (paired). No Unity, no APK.
 - **Share the library, not the viewport.** Recents, thread list, messages at rest, open folder, pairing. Not: loaded file, selection, camera, XR, which chat is open, live stream. `show_artifact` moves only the asking client.
 - **Desktop composer stays TipTap** for future `#` chips (parts, faces, `#o…`). Quest stays plain input + voice.
-- **Electron later.** v0 is this Node server + system browser. A web page cannot give the server a real folder path; typed path / `pnpm cli open` is the v0 picker.
+- **Electron is a shell, not a client.** It starts the same server and loads the same `https://127.0.0.1:7322` page, and adds exactly one thing a browser cannot do: a native folder dialog ([ADR 0005](decisions/0005-electron-shell.md)). The browser path stays first-class — Quest depends on it.
 - **Auth now is pairing.** Accounts are a later `principal.kind`. Never hold provider credentials; show the login command in the UI.
 - **Do not merge** [`sfab-oss/sfab-cad`](https://github.com/sfab-oss/sfab-cad) ([ADR 0001](decisions/0001-new-private-repo.md)).
 - Sphere-robot is a **folder you open**, not the app.
@@ -57,21 +57,26 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 7 | **partial** | Local CLI (`pnpm cli serve` / `dev` / `open`) prints URL, QR, pairing code. **Not** public `npx` (repo is private) |
 | 8 | later | `--tunnel` (pairing already required for non-loopback). Do not start until someone needs Quest off this LAN |
 | 9 | later | Docs app (`apps/docs`, `llms.txt`). After a public install path, not before |
-| 10 | later | Electron (native folder dialog, keep-alive). After 8 has been used by someone else |
+| 10 | **done** | Electron shell: native folder dialog, server starts with the app, keep-alive ([ADR 0005](decisions/0005-electron-shell.md)). Packaging a signed `.app` is still open |
 | 11 | later | Account `principal.kind`. Only when 8 is used by more than one person |
 | 12 | **done** | OCCT WASM loader. STEP opens with no Python ([ADR 0004](decisions/0004-occt-via-opencascade-js.md)) |
 
 ## Do not build
 
-Electron, sign-in, a relay, a component registry, a docs site, a mobile
-app, a background service, multi-project sessions, a diff or terminal
-panel, a second tessellator, Tailscale integration, Fusion / CAD-tool
-integration, Windows anything, merging sfab-cad.
+Sign-in, a relay, a component registry, a docs site, a mobile app, a
+background service, multi-project sessions, a diff or terminal panel, a
+second tessellator, Tailscale integration, Fusion / CAD-tool integration,
+Windows anything, merging sfab-cad.
+
+Electron came off this list on 2026-09-14 by direct ask, as a shell only
+([ADR 0005](decisions/0005-electron-shell.md)). A second UI inside it is
+still not a thing we build.
 
 ## How to run
 
 ```bash
-pnpm dev
+pnpm dev                      # server + Vite, use a browser
+pnpm desktop                  # the same thing in an Electron window
 pnpm cli open /abs/path --dev
 ```
 

@@ -13,7 +13,8 @@ import { printJoinBanner } from "./join-banner";
 import { tryUpgradeSession } from "./ws";
 
 const isDev = process.env.SFAB_BENCH_DEV === "1";
-const dist = fileURLToPath(new URL("../../web/dist", import.meta.url));
+// The desktop shell bundles this file somewhere else, so it says where dist is.
+const dist = process.env.SFAB_BENCH_WEB_DIST ?? fileURLToPath(new URL("../../web/dist", import.meta.url));
 
 function onError(err: unknown, res: { headersSent: boolean; statusCode: number; end: (body?: string) => void }) {
   console.error("[api]", err);

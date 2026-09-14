@@ -15,7 +15,8 @@ Living plan: `docs/product.md`. Human runbook: `docs/user/`.
 ## Start
 
 ```bash
-pnpm dev
+pnpm dev          # browser
+pnpm desktop      # the same app in an Electron window
 ```
 
 `pnpm dev` starts the loopback API (`http://127.0.0.1:8787`) and Vite
@@ -55,4 +56,6 @@ line — do not add a CAD system prompt here.
 
 - Edit Jake `$cad` / `$cad-viewer` / `$step-parts` from this repo.
 - Default-open this repo as the CAD project.
-- Add Electron, accounts, a tunnel, or a second tessellator without an ADR.
+- Add accounts, a tunnel, or a second tessellator without an ADR.
+- Give the Electron shell (`pnpm desktop`) any UI of its own — it wraps the
+  same page ([ADR 0005](../../../docs/decisions/0005-electron-shell.md)).

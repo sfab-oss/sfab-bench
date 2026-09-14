@@ -64,12 +64,13 @@ More: [`docs/user/`](docs/user/).
 ```text
 apps/server     Node API, pairing, session, STEP loader, harness agents
 apps/web        Vite + React + R3F desktop and Quest client
+apps/desktop    Electron shell: starts the server, native folder dialog
 packages/contract   shared library / harness / snapshot types
 docs/           architecture, ADRs, user runbook
 .agents/skills/ how agents should use this viewer
 ```
 
 `npx` install from npm is not this commit. Accounts and a public tunnel
-are later. STEP is tessellated in-process by OpenCascade WASM — see
+are later. `pnpm desktop` runs the whole thing in an Electron window. STEP is tessellated in-process by OpenCascade WASM — see
 [`docs/decisions/0002-step-loader-occt.md`](docs/decisions/0002-step-loader-occt.md)
 and [`0004`](docs/decisions/0004-occt-via-opencascade-js.md).
