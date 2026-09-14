@@ -1,7 +1,7 @@
 import { parentPort } from "node:worker_threads";
 
 import { buildPackageHere } from "./package";
-import { openCascade } from "./runtime";
+import { briefError, openCascade } from "./runtime";
 
 /**
  * The tessellation thread. One job at a time, because the kernel behind it is a
@@ -28,7 +28,7 @@ if (port) {
         port.postMessage({
           id: job.id,
           ok: false,
-          error: err instanceof Error ? err.message : String(err),
+          error: briefError(err),
         } satisfies Done);
       });
   });

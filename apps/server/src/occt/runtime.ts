@@ -59,3 +59,26 @@ export function openCascade(): Promise<OpenCascade> {
   }
   return pending;
 }
+
+/**
+ * A kernel failure, as a line you can put in a log or an HTTP response.
+ *
+ * OCCT throws through embind, which does not always arrive as an `Error`. It can
+ * be a raw heap pointer — a bare integer like `131422920`, with the real message
+ * on the wasm side — or an object whose own `toString` walks back into the
+ * emscripten module and yields the entire 324KB of generated glue. That once went
+ * straight into a check's output and buried every other result in it, and the same
+ * value would otherwise go to a client as an error body.
+ *
+ * So: never longer than a line, and say plainly when the kernel gave us nothing.
+ */
+export function briefError(err: unknown): string {
+  if (err instanceof Error && err.message) return clamp(err.message);
+  if (typeof err === "number") return `the kernel threw at ${err} without a message`;
+  if (typeof err === "string" && err) return clamp(err);
+  return clamp(String((err as { message?: unknown } | null)?.message ?? err));
+}
+
+const LIMIT = 300;
+const clamp = (text: string) =>
+  text.length > LIMIT ? `${text.slice(0, LIMIT)}… (${text.length} characters, truncated)` : text;
