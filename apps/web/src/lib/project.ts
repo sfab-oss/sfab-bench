@@ -1,4 +1,5 @@
 import { jsonApi } from "@/lib/api";
+import { projectUrl, syncProjectQuery } from "@/lib/project-query";
 
 export type ProjectRow = {
   path: string;
@@ -31,6 +32,23 @@ export async function openProjectPath(path: string): Promise<ProjectInfo> {
   const body = (await res.json()) as ProjectInfo & { error?: string };
   if (!res.ok) throw new Error(body.error || "Could not open that folder");
   return body;
+}
+
+/** Register on the Mac (loopback) and point this tab at that folder. */
+export async function registerAndOpenTab(path: string): Promise<ProjectInfo> {
+  const info = await openProjectPath(path);
+  const abs = info.project?.path ?? path.trim();
+  syncProjectQuery(abs);
+  return info;
+}
+
+/** Point this tab at a folder already in recents. No POST. */
+export function openTabProject(path: string) {
+  syncProjectQuery(path);
+}
+
+export function tabProjectPath() {
+  return projectUrl();
 }
 
 export async function browsePath(path?: string): Promise<BrowseInfo> {

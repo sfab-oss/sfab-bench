@@ -17,10 +17,11 @@ Join URLs always use port **7322**, never the dev API port. After pairing,
 the headset stores a device token (`sfab-bench.deviceToken` in
 localStorage) and can open the viewer without typing the code again.
 
-Mac and Quest share the open folder, file recents, the thread list, and
-messages at rest. Each headset or tab keeps its own loaded STEP, selection,
-camera, XR layout, and live chat. Opening a file on the Mac does not change
-what the Quest is looking at.
+Mac and Quest share recents, the thread list for a given folder, and
+messages at rest. Quest picks a folder from the Mac's recents and starts
+on the one the Mac opened last. Opening a folder on the Mac does not move
+the Quest. Each headset or tab keeps its own loaded STEP, selection,
+camera, XR layout, and live chat.
 
 Opening `https://<lan-ip>:7322` on the Mac is treated as a guest: it
 must pair.

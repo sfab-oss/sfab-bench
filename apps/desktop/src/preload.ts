@@ -11,9 +11,7 @@ contextBridge.exposeInMainWorld("sfabBench", {
   setTheme: (theme: "light" | "dark" | "system"): void => ipcRenderer.send("sfab:theme", theme),
 });
 
-// The menu's Open Folder… opens the project in the main process, then says so
-// here. The app already refreshes on this event, so nothing else has to know
-// the desktop shell exists.
-ipcRenderer.on("sfab:project-changed", () => {
-  window.dispatchEvent(new Event("sfab-project"));
+ipcRenderer.on("sfab:open-folder", (_event, path: unknown) => {
+  if (typeof path !== "string" || !path) return;
+  window.dispatchEvent(new CustomEvent("sfab-open-folder", { detail: path }));
 });

@@ -174,22 +174,25 @@ async function pickFolder(parent?: BrowserWindow): Promise<string | null> {
   return result.filePaths[0] ?? null;
 }
 
+/** Native picker only. The page registers the folder and sets this tab. */
 async function pickAndOpen(): Promise<void> {
-  // On a Mac the menu bar outlives the window, so this runs with nothing open too.
   const win = window_;
   const path = await pickFolder(win ?? undefined);
   if (!path) return;
+  if (win) {
+    win.webContents.send("sfab:open-folder", path);
+    return;
+  }
   try {
     await openProject(path);
-    if (win) win.webContents.send("sfab:project-changed");
-    else createWindow();
+    createWindow();
   } catch (err) {
     const box = {
       type: "error" as const,
       message: "Could not open that folder",
       detail: err instanceof Error ? err.message : String(err),
     };
-    await (win ? dialog.showMessageBox(win, box) : dialog.showMessageBox(box));
+    await dialog.showMessageBox(box);
   }
 }
 

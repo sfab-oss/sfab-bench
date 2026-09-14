@@ -2,7 +2,7 @@ import { Check, ChevronDown, Folder, FolderOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { fetchProject, openProjectPath, type ProjectInfo, type ProjectRow } from "@/lib/project";
+import { fetchProject, openTabProject, registerAndOpenTab, type ProjectInfo, type ProjectRow } from "@/lib/project";
 import { cn } from "@/lib/utils";
 
 function folderName(path: string) {
@@ -12,9 +12,11 @@ function folderName(path: string) {
 export function ProjectSwitcher({
   path,
   onBrowse,
+  canRegister = true,
 }: {
   path: string;
   onBrowse: () => void;
+  canRegister?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [info, setInfo] = useState<ProjectInfo | null>(null);
@@ -40,8 +42,8 @@ export function ProjectSwitcher({
     setBusy(true);
     setError(null);
     try {
-      await openProjectPath(nextPath);
-      window.dispatchEvent(new Event("sfab-project"));
+      if (canRegister) await registerAndOpenTab(nextPath);
+      else openTabProject(nextPath);
       setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not open that folder");
@@ -112,13 +114,15 @@ export function ProjectSwitcher({
           </ul>
         )}
         {error ? <p className="px-2 py-1 text-xs text-destructive">{error}</p> : null}
-        <PopoverClose
-          className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
-          onClick={onBrowse}
-        >
-          <FolderOpen className="size-3.5 text-muted-foreground" />
-          Browse folders…
-        </PopoverClose>
+        {canRegister ? (
+          <PopoverClose
+            className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
+            onClick={onBrowse}
+          >
+            <FolderOpen className="size-3.5 text-muted-foreground" />
+            Browse folders…
+          </PopoverClose>
+        ) : null}
       </PopoverContent>
     </Popover>
   );

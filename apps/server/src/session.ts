@@ -99,12 +99,10 @@ export function rememberOpenedFile(rel: string, root?: string | null) {
   const target = root ?? fallbackRoot();
   if (!target) return [];
   const fileRecents = touchFileRecent(rel, target);
-  // Today's web applies every library event as "the" folder. Only broadcast
-  // the fallback so a `?project=` tessellation does not yank param-less tabs.
   if (target === fallbackRoot()) {
     state = { ...state, fileRecents };
-    emit(libraryEvent(target));
   }
+  emit(libraryEvent(target));
   return fileRecents;
 }
 

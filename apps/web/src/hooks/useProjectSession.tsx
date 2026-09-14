@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { jsonApi, getDeviceToken } from "@/lib/api";
+import { registerAndOpenTab } from "@/lib/project";
+import { projectUrl, syncProjectQuery } from "@/lib/project-query";
 import type { ProjectSession, SessionClient, SessionEvent, SessionSnapshot } from "@/lib/session";
 import { modelUrl } from "@/cad/loadCadReview";
 import { store } from "@/state/store";
@@ -31,10 +33,10 @@ export function ProjectSessionProvider({
 }) {
   const [ready, setReady] = useState(false);
   const [you, setYou] = useState(youProp);
-  const [project, setProject] = useState<ProjectSession["project"]>({ path: "" });
+  const [project, setProject] = useState<ProjectSession["project"]>(() => ({ path: projectUrl() }));
   const [fileRecents, setFileRecents] = useState<string[]>([]);
   const appliedDeepLink = useRef(false);
-  const lastPath = useRef("");
+  const lastPath = useRef(projectUrl());
 
   const applyLibrary = useCallback((path: string, recents: string[]) => {
     const pathChanged = lastPath.current !== path;
@@ -45,13 +47,11 @@ export function ProjectSessionProvider({
     setProject({ path });
     setFileRecents(recents);
     store.getState().setRecentFiles(recents);
-    if (pathChanged) window.dispatchEvent(new Event("sfab-project"));
   }, []);
 
-  const applySnapshot = useCallback(
-    (snap: SessionSnapshot) => {
-      if (snap.you) setYou(snap.you);
-      applyLibrary(snap.project.path, snap.fileRecents ?? []);
+  const adoptTab = useCallback(
+    (path: string, recents: string[]) => {
+      applyLibrary(path, recents);
       if (!appliedDeepLink.current) {
         appliedDeepLink.current = true;
         const deep = modelUrl();
@@ -60,6 +60,67 @@ export function ProjectSessionProvider({
     },
     [applyLibrary],
   );
+
+  const loadTabLibrary = useCallback((path: string) => {
+    if (!path) {
+      adoptTab("", []);
+      return;
+    }
+    void jsonApi.project
+      .$get()
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Could not load project");
+        return res.json() as Promise<{ fileRecents?: string[] }>;
+      })
+      .then((body) => {
+        if (projectUrl() !== path) return;
+        adoptTab(path, body.fileRecents ?? []);
+      })
+      .catch(() => {
+        if (projectUrl() === path) adoptTab(path, []);
+      });
+  }, [adoptTab]);
+
+  const applySnapshot = useCallback(
+    (snap: SessionSnapshot) => {
+      if (snap.you) setYou(snap.you);
+      const tab = projectUrl();
+      if (!tab) {
+        if (snap.project.path) syncProjectQuery(snap.project.path, { clearFile: false });
+        else adoptTab("", snap.fileRecents ?? []);
+        return;
+      }
+      if (tab === snap.project.path) {
+        adoptTab(tab, snap.fileRecents ?? []);
+        return;
+      }
+      loadTabLibrary(tab);
+    },
+    [adoptTab, loadTabLibrary],
+  );
+
+  useEffect(() => {
+    const onUrl = () => {
+      const path = projectUrl();
+      if (path === lastPath.current) return;
+      loadTabLibrary(path);
+    };
+    window.addEventListener("sfab-project", onUrl);
+    window.addEventListener("popstate", onUrl);
+    return () => {
+      window.removeEventListener("sfab-project", onUrl);
+      window.removeEventListener("popstate", onUrl);
+    };
+  }, [loadTabLibrary]);
+
+  useEffect(() => {
+    const onOpen = (ev: Event) => {
+      const path = (ev as CustomEvent<string>).detail;
+      if (typeof path === "string" && path.trim()) void registerAndOpenTab(path);
+    };
+    window.addEventListener("sfab-open-folder", onOpen);
+    return () => window.removeEventListener("sfab-open-folder", onOpen);
+  }, []);
 
   useEffect(() => {
     let closed = false;
@@ -82,7 +143,9 @@ export function ProjectSessionProvider({
           return;
         }
         if (event.type === "library") {
-          applyLibrary(event.project.path, event.fileRecents);
+          if (event.project.path === projectUrl()) {
+            adoptTab(event.project.path, event.fileRecents);
+          }
         }
       };
       ws.onclose = () => {
@@ -98,7 +161,7 @@ export function ProjectSessionProvider({
       if (retry) clearTimeout(retry);
       ws?.close();
     };
-  }, [applySnapshot, applyLibrary]);
+  }, [applySnapshot, adoptTab]);
 
   const setDoc = useCallback(async (file: string | null, _reload = false) => {
     await store.getState().loadModel(file ?? "");

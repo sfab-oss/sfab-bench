@@ -1,6 +1,7 @@
 import { hc } from "hono/client";
 
 import type { AppType } from "@sfab-bench/server/app";
+import { projectUrl } from "@/lib/project-query";
 
 const TOKEN_KEY = "sfab-bench.deviceToken";
 
@@ -26,16 +27,52 @@ export function authHeaders(): Record<string, string> {
   return token ? { authorization: `Bearer ${token}` } : {};
 }
 
+function skipProjectPath(pathname: string) {
+  const clean = pathname.replace(/\/$/, "") || "/";
+  return clean === "/api/me" || clean === "/api/pair" || clean === "/api/pairing";
+}
+
+function withProject(input: RequestInfo | URL): RequestInfo | URL {
+  const project = typeof window === "undefined" ? "" : projectUrl();
+  if (!project) return input;
+
+  const apply = (href: string): URL | null => {
+    try {
+      const url = new URL(href, window.location.origin);
+      if (!url.pathname.startsWith("/api") || skipProjectPath(url.pathname) || url.searchParams.has("project")) {
+        return null;
+      }
+      url.searchParams.set("project", project);
+      return url;
+    } catch {
+      return null;
+    }
+  };
+
+  if (typeof input === "string") {
+    const url = apply(input);
+    if (!url) return input;
+    return input.startsWith("http://") || input.startsWith("https://") ? url.href : `${url.pathname}${url.search}${url.hash}`;
+  }
+  if (input instanceof URL) {
+    const url = apply(input.href);
+    return url ?? input;
+  }
+  const url = apply(input.url);
+  return url ? new Request(url, input) : input;
+}
+
 export function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers);
   const token = getDeviceToken();
   if (token && !headers.has("authorization")) headers.set("authorization", `Bearer ${token}`);
-  return fetch(input, { ...init, headers });
+  return fetch(withProject(input), { ...init, headers });
 }
 
 /** JSON routes via hc. Chat, transcribe, and cad-pkg use apiFetch. */
 export const jsonApi = hc<AppType>("/api", {
   headers: () => authHeaders(),
+  fetch: ((input: RequestInfo | URL, init?: RequestInit) => apiFetch(input, init)) as typeof fetch,
 });
 
 export type MePrincipal =

@@ -1,0 +1,31 @@
+/** Tab folder, next to `?file=`. See ADR 0006. */
+
+export function projectUrl(): string {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get("project")?.trim() ?? "";
+}
+
+/**
+ * Keep `?project=` in the page URL. Switching folders drops `?file=` unless
+ * `clearFile` is false (boot seed must not wipe a deep link).
+ */
+export function syncProjectQuery(path: string, opts?: { clearFile?: boolean }) {
+  if (typeof window === "undefined") return;
+  const next = new URL(window.location.href);
+  const prev = next.searchParams.get("project")?.trim() ?? "";
+  const abs = path.trim();
+  const changed = prev !== abs;
+  if (abs) next.searchParams.set("project", abs);
+  else next.searchParams.delete("project");
+  if (changed && opts?.clearFile !== false) next.searchParams.delete("file");
+  const want = next.pathname + next.search + next.hash;
+  const have = window.location.pathname + window.location.search + window.location.hash;
+  if (want !== have) window.history.replaceState(null, "", want);
+  if (changed) window.dispatchEvent(new Event("sfab-project"));
+}
+
+export function appendProjectQuery(url: URL): URL {
+  const project = projectUrl();
+  if (project && !url.searchParams.has("project")) url.searchParams.set("project", project);
+  return url;
+}

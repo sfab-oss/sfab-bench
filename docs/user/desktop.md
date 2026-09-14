@@ -23,8 +23,9 @@ leaves it running when you quit. Otherwise it starts its own and serves
 paired Quest keeps working while the Mac window is shut. Quit (⌘Q) is
 what stops it. Reopen the window from the Dock.
 
-**⌘O** opens a folder from the menu, the same as the button. It works
-with every window closed too, and opens one showing the folder you chose.
+**⌘O** opens a folder in **this window**. Another tab or the Quest stays
+where it is. It works with every window closed too, and opens one showing
+the folder you chose.
 
 **The certificate.** The window trusts the self-signed certificate for
 `https://127.0.0.1:7322` and nothing else.

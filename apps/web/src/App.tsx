@@ -117,7 +117,7 @@ function Overlay({ host }: { host: boolean }) {
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-card/80 px-6 py-5 text-center shadow-sm">
             <Lockup />
             <div className="text-sm text-muted-foreground">
-              {project.path ? "Pick a STEP from Files on the left." : "Open a folder on the left, then a STEP."}
+              {project.path ? "Pick a STEP from Files on the left." : "Pick a folder on the left, then a STEP."}
             </div>
           </div>
         </div>

@@ -75,6 +75,6 @@ seconds of frozen window.
 
 - [0003-library-not-viewport](0003-library-not-viewport.md) — why one origin for both clients
 - [0004-occt-via-opencascade-js](0004-occt-via-opencascade-js.md) — the wasm packaging has to carry
-- [0006-folder-is-a-tab](0006-folder-is-a-tab.md) — ⌘O will target this window's tab (sessions-02)
+- [0006-folder-is-a-tab](0006-folder-is-a-tab.md) — ⌘O targets this window's tab
 - [`docs/notes/2026-09-14-electron-shell.md`](../notes/2026-09-14-electron-shell.md) — the four things that cost time
 - [`product.md`](../product.md) — Electron moved off "later" by direct ask, 2026-09-14

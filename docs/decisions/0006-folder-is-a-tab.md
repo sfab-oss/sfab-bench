@@ -36,15 +36,14 @@ the same way `?file=` already names a document.
 `409` is per workspace. Tessellation stays one worker. `resolveArtifact`
 takes the request's root; it has no default.
 
-### Compat hatch until sessions-02
+### Compat hatch
 
-`POST /api/project` still registers **and** sets the fallback, so today's
-Open folder (which never sends `?project=`) still switches param-less clients.
-It does not abort other workspaces' runs, and a request that already named
-`?project=` is unaffected. Library WebSocket events are only broadcast for the
-fallback folder, so a tessellation under `?project=` does not yank those tabs.
-sessions-02 will put `?project=` on the page URL and stop treating POST as a
-global switch.
+`POST /api/project` still registers **and** sets the fallback. That is the
+seed for a tab with no `?project=` yet (Quest first paint, ⌘O with every
+window closed). It does not abort other workspaces' runs, and a request that
+already named `?project=` is unaffected. Library WebSocket events go out for
+every folder; the web client applies them only when `event.project.path`
+matches the tab.
 
 ## Consequences
 
@@ -53,13 +52,14 @@ global switch.
 - The next client change is a query parameter, not a server-side session object.
 
 ### Negative
-- Until sessions-02, two param-less windows still share the fallback.
-- `POST /api/project` remains a fallback switch for old clients.
+- Two param-less windows still share the fallback until they seed `?project=`.
+- `POST /api/project` still moves that fallback (Quest seed / no-window ⌘O).
 
 ### Mitigations
-- sessions-02: tab state is `?project=` beside `?file=`; the switcher sets the
-  tab instead of POSTing; paired clients pick from recents; ⌘O targets that
-  window's tab ([ADR 0005](0005-electron-shell.md) is otherwise unchanged).
+- The page carries `?project=` beside `?file=`. The switcher sets this tab
+  (loopback POSTs only to register and seed the fallback; Quest sets the URL).
+  Paired clients pick from recents. ⌘O targets that window's tab
+  ([ADR 0005](0005-electron-shell.md) is otherwise unchanged).
 
 ## Implementation notes
 
@@ -67,6 +67,8 @@ global switch.
 - Hono sets `projectRoot` after the principal. Project-scoped routes read it.
 - `session.ts` run mutex is keyed by root. `hydrateSession` does not abort.
 - Selfchecks: two roots at once (`test:project`, `test:session`, `test:cad-pkg`).
+- The page carries `?project=` beside `?file=`; the web client ignores library
+  events for other folders; ⌘O targets this window.
 
 ## Related
 

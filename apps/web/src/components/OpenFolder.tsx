@@ -2,21 +2,64 @@ import { Folder } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { desktopBridge } from "@/lib/desktop";
-import { browsePath, fetchProject, openProjectPath, type BrowseInfo, type ProjectInfo } from "@/lib/project";
+import {
+  browsePath,
+  fetchProject,
+  openTabProject,
+  registerAndOpenTab,
+  type BrowseInfo,
+  type ProjectInfo,
+  type ProjectRow,
+} from "@/lib/project";
+
+function RecentList({
+  recents,
+  busy,
+  onPick,
+}: {
+  recents: ProjectRow[];
+  busy: boolean;
+  onPick: (path: string) => void;
+}) {
+  if (recents.length === 0) return null;
+  return (
+    <div>
+      <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Recent</p>
+      <ul className="mt-1">
+        {recents.map((row) => (
+          <li key={row.path}>
+            <button
+              type="button"
+              disabled={busy}
+              className="flex w-full flex-col items-start rounded-md px-2 py-1.5 text-left hover:bg-accent disabled:opacity-50"
+              onClick={() => onPick(row.path)}
+            >
+              <span className="text-sm text-foreground">{row.name}</span>
+              <span className="w-full truncate font-mono text-[11px] text-muted-foreground">{row.path}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function OpenFolderForm({
   onOpened,
+  canRegister = true,
 }: {
   onOpened?: () => void;
+  canRegister?: boolean;
 }) {
   const [info, setInfo] = useState<ProjectInfo | null>(null);
   const [browse, setBrowse] = useState<BrowseInfo | null>(null);
   const [path, setPath] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const bridge = desktopBridge();
+  const bridge = canRegister ? desktopBridge() : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -24,12 +67,14 @@ export function OpenFolderForm({
       .then(async (next) => {
         if (cancelled) return;
         setInfo(next);
-        setPath(next.project?.path ?? "");
+        const start = next.project?.path ?? "";
+        setPath(start);
+        if (!canRegister) return;
         try {
-          const listing = await browsePath(next.project?.path);
+          const listing = await browsePath(start || undefined);
           if (!cancelled) setBrowse(listing);
         } catch {
-          /* typed path is enough */
+          /* recents are enough */
         }
       })
       .catch((err: unknown) => {
@@ -38,18 +83,16 @@ export function OpenFolderForm({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canRegister]);
 
-  const submit = async (nextPath: string) => {
+  const pick = async (nextPath: string, register: boolean) => {
     const value = nextPath.trim();
     if (!value || busy) return;
     setBusy(true);
     setError(null);
     try {
-      const next = await openProjectPath(value);
-      setInfo(next);
-      setPath(next.project?.path ?? value);
-      window.dispatchEvent(new Event("sfab-project"));
+      if (register) await registerAndOpenTab(value);
+      else openTabProject(value);
       onOpened?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not open that folder");
@@ -58,10 +101,62 @@ export function OpenFolderForm({
     }
   };
 
+  const recents = info?.recents ?? [];
+  const diskBrowser =
+    canRegister && browse ? (
+      <div className="min-h-0 flex-1">
+        <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">This Mac</p>
+        <div className="mt-1 flex items-center gap-2">
+          <button
+            type="button"
+            className="text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40"
+            disabled={!browse.parent}
+            onClick={() => {
+              if (!browse.parent) return;
+              void browsePath(browse.parent).then(setBrowse);
+            }}
+          >
+            Up
+          </button>
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">{browse.path}</span>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="mt-2 h-7 w-full"
+          disabled={busy}
+          onClick={() => void pick(browse.path, true)}
+        >
+          <Folder className="size-3.5" />
+          Open this folder
+        </Button>
+        <ul className="mt-1 max-h-56 overflow-auto">
+          {browse.dirs.map((dir) => (
+            <li key={dir.path}>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 truncate rounded-md px-2 py-1 text-left text-sm text-foreground hover:bg-accent"
+                onClick={() => {
+                  setPath(dir.path);
+                  void browsePath(dir.path).then(setBrowse);
+                }}
+              >
+                <Folder className="size-3.5 shrink-0 text-muted-foreground" />
+                {dir.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    ) : null;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
       <p className="text-[13px] text-muted-foreground">
-        A project is a folder on this Mac. STEP and GLB files inside it show up as documents.
+        {canRegister
+          ? "A project is a folder on this Mac. Pick a recent, or choose one."
+          : "Pick a folder the Mac has opened. Opening a new path is Mac-only."}
       </p>
       {bridge ? (
         <Button
@@ -72,7 +167,7 @@ export function OpenFolderForm({
           onClick={() => {
             void bridge
               .pickFolder()
-              .then((picked) => (picked ? submit(picked) : undefined))
+              .then((picked) => (picked ? pick(picked, true) : undefined))
               .catch(() => setError("Could not open the folder chooser"));
           }}
         >
@@ -80,93 +175,46 @@ export function OpenFolderForm({
           Choose folder…
         </Button>
       ) : null}
-      <form
-        className="flex flex-col gap-2"
-        onSubmit={(ev) => {
-          ev.preventDefault();
-          void submit(path);
-        }}
-      >
-        <label className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-          {bridge ? "Or type a path" : "Path"}
-        </label>
-        <Input
-          value={path}
-          onChange={(ev) => setPath(ev.target.value)}
-          placeholder="~/Projects/my-cad"
-          className="h-8 font-mono text-[12px]"
-          disabled={busy}
-        />
-        <Button type="submit" size="sm" className="h-8" disabled={busy || !path.trim()}>
-          Open folder
-        </Button>
-      </form>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-      {info?.recents?.length ? (
-        <div>
-          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Recent</p>
-          <ul className="mt-1">
-            {info.recents.map((row) => (
-              <li key={row.path}>
-                <button
-                  type="button"
-                  className="flex w-full flex-col items-start rounded-md px-2 py-1.5 text-left hover:bg-accent"
-                  onClick={() => void submit(row.path)}
-                >
-                  <span className="text-sm text-foreground">{row.name}</span>
-                  <span className="w-full truncate font-mono text-[11px] text-muted-foreground">{row.path}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
+      <RecentList recents={recents} busy={busy} onPick={(next) => void pick(next, canRegister)} />
+      {recents.length === 0 && !canRegister ? (
+        <p className="text-[13px] text-muted-foreground">Open a folder on the Mac first, then it shows up here.</p>
       ) : null}
-      {browse ? (
-        <div className="min-h-0 flex-1">
-          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Browse</p>
-          <div className="mt-1 flex items-center gap-2">
-            <button
-              type="button"
-              className="text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40"
-              disabled={!browse.parent}
-              onClick={() => {
-                if (!browse.parent) return;
-                void browsePath(browse.parent).then(setBrowse);
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {diskBrowser && recents.length === 0 ? diskBrowser : null}
+      {diskBrowser && recents.length > 0 ? (
+        <Collapsible>
+          <CollapsibleTrigger className="text-[11px] text-muted-foreground hover:text-foreground">
+            Browse this Mac
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2">{diskBrowser}</CollapsibleContent>
+        </Collapsible>
+      ) : null}
+      {canRegister ? (
+        <Collapsible>
+          <CollapsibleTrigger className="text-[11px] text-muted-foreground hover:text-foreground">
+            Paste a path
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <form
+              className="mt-2 flex flex-col gap-2"
+              onSubmit={(ev) => {
+                ev.preventDefault();
+                void pick(path, true);
               }}
             >
-              Up
-            </button>
-            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">{browse.path}</span>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="mt-2 h-7 w-full"
-            disabled={busy}
-            onClick={() => void submit(browse.path)}
-          >
-            <Folder className="size-3.5" />
-            Open this folder
-          </Button>
-          <ul className="mt-1 max-h-56 overflow-auto">
-            {browse.dirs.map((dir) => (
-              <li key={dir.path}>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 truncate rounded-md px-2 py-1 text-left text-sm text-foreground hover:bg-accent"
-                  onClick={() => {
-                    setPath(dir.path);
-                    void browsePath(dir.path).then(setBrowse);
-                  }}
-                >
-                  <Folder className="size-3.5 shrink-0 text-muted-foreground" />
-                  {dir.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
+              <Input
+                value={path}
+                onChange={(ev) => setPath(ev.target.value)}
+                placeholder="~/Projects/my-cad"
+                className="h-8 font-mono text-[12px]"
+                disabled={busy}
+              />
+              <Button type="submit" size="sm" variant="secondary" className="h-8" disabled={busy || !path.trim()}>
+                Open
+              </Button>
+            </form>
+          </CollapsibleContent>
+        </Collapsible>
       ) : null}
     </div>
   );
