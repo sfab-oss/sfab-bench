@@ -43,9 +43,18 @@ Writes `apps/desktop/release/mac-arm64/sfab-bench.app`, about 380 MB, with
 the server, the OCCT kernel and the web client inside it. Nothing else has
 to be installed to run it.
 
-It is **ad-hoc signed**, not notarised: the first time, right-click the app
-and choose Open, then confirm. Gatekeeper will say it cannot check it for
-malicious software, which is true — proper signing and notarising need an
-Apple Developer identity this repo does not have. The ad-hoc signature is
-there because on Apple silicon an *invalid* signature is worse than a
-missing one: the app simply refuses to launch, with nothing to say why.
+It is **ad-hoc signed**, not notarised. The first launch is refused:
+Gatekeeper says it cannot check it for malicious software, which is true.
+Open **System Settings → Privacy & Security**, scroll to Security, and
+press **Open Anyway** — the button appears there for about an hour after
+the refusal. macOS Sequoia removed the older Control-click → Open route,
+so that is now the only way through.
+
+Proper signing and notarising need an Apple Developer identity this repo
+does not have. The ad-hoc signature is there because on Apple silicon an
+*invalid* signature is worse than a missing one: the app simply refuses
+to launch, with nothing to say why.
+
+The icon comes from `apps/desktop/build/icon.icns`, generated from the
+SFab mark by `apps/desktop/scripts/make_icon.mjs` and committed, so
+packaging does not depend on having run it.

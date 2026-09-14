@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { LiveDot } from "@/components/brand/LiveDot";
+import { Lockup } from "@/components/brand/Lockup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchMe } from "@/lib/api";
@@ -40,7 +42,13 @@ export function PairPage({ onPaired }: { onPaired?: () => void }) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-zinc-50 p-6">
         <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-6 text-center shadow-sm">
-          <h1 className="text-lg font-semibold text-zinc-900">This device is paired</h1>
+          <div className="flex justify-center">
+            <Lockup />
+          </div>
+          <h1 className="mt-5 inline-flex items-center justify-center gap-2 text-lg font-semibold text-zinc-900">
+            <LiveDot />
+            This device is paired
+          </h1>
           <p className="mt-2 text-sm text-zinc-500">You can open the viewer.</p>
           <Button className="mt-5 w-full" onClick={() => { goHome(); onPaired?.(); }}>
             Open viewer
@@ -59,6 +67,7 @@ export function PairPage({ onPaired }: { onPaired?: () => void }) {
           void submit(code);
         }}
       >
+        <Lockup className="mb-5" />
         <h1 className="text-lg font-semibold text-zinc-900">Enter pairing code</h1>
         <p className="mt-2 text-sm text-zinc-500">Type the 6-character code shown on the Mac. On the Mac, keep sfab-bench at https://127.0.0.1:7322 and click Enter Quest.</p>
         <Input
@@ -80,7 +89,14 @@ export function PairPage({ onPaired }: { onPaired?: () => void }) {
         />
         {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
         <Button type="submit" className="mt-5 w-full" disabled={busy || code.replace(/\s/g, "").length < 6}>
-          {busy ? "Pairing…" : "Pair"}
+          {busy ? (
+            <span className="inline-flex items-center gap-2">
+              <LiveDot />
+              Pairing…
+            </span>
+          ) : (
+            "Pair"
+          )}
         </Button>
       </form>
     </div>

@@ -253,6 +253,15 @@ function buildMenu(): void {
   );
 }
 
+// Packaged, the icon comes off the bundle. Run from the checkout there is no
+// bundle, so the Dock would show Electron's own logo — this points it at the
+// same artwork electron-builder compiles into the .icns.
+function useOurDockIcon(): void {
+  if (process.platform !== "darwin" || app.isPackaged) return;
+  const icon = join(__dirname, "..", "build", "icon.png");
+  if (existsSync(icon)) app.dock?.setIcon(icon);
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -289,6 +298,7 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setCertificateVerifyProc(trustLoopback);
     app.on("session-created", (created) => created.setCertificateVerifyProc(trustLoopback));
     buildMenu();
+    useOurDockIcon();
     try {
       await startServer();
     } catch (err) {

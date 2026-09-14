@@ -37,8 +37,13 @@ const runtimeDeps = Object.fromEntries(
   Object.entries(serverPkg.dependencies).filter(([name]) => !name.startsWith("@sfab-bench/")),
 );
 
-const run = (cmd, args, cwd) =>
-  execFileSync(cmd, args, { cwd, stdio: "inherit", env: { ...process.env, ELECTRON_RUN_AS_NODE: "" } });
+const run = (cmd, args, cwd) => {
+  const env = { ...process.env };
+  // Empty is not enough: Electron treats a present ELECTRON_RUN_AS_NODE as
+  // "run this file as Node", and then `app` is undefined.
+  delete env.ELECTRON_RUN_AS_NODE;
+  execFileSync(cmd, args, { cwd, stdio: "inherit", env });
+};
 
 console.log("[package] building bundles");
 run("node", [join(here, "build.mjs")], here);
@@ -61,6 +66,9 @@ writeFileSync(
       name: "sfab-bench",
       productName: "sfab-bench",
       version: desktopPkg.version,
+      description: desktopPkg.description,
+      author: desktopPkg.author,
+      homepage: desktopPkg.homepage,
       private: true,
       main: "main.cjs",
       dependencies: runtimeDeps,
@@ -94,7 +102,7 @@ run(join(here, "node_modules", ".bin", "electron-builder"), ["--config", join(he
  * invalid signature is worse than none: the kernel refuses to launch the binary
  * at all, with nothing in the UI to say why. An ad-hoc signature (`-`) is not a
  * developer identity and does not notarise, but it is valid, and the app starts
- * after the usual right-click → Open.
+ * after System Settings → Privacy & Security → Open Anyway.
  */
 const release = join(here, "release");
 const apps = readdirSync(release, { withFileTypes: true })

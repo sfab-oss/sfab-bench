@@ -8,6 +8,7 @@ import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import { persistThread, useViewerChat } from "@/components/chat/useViewerChat";
 import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
 import { useLiveShowArtifact } from "@/chat/useLiveShowArtifact";
+import { LiveDot } from "@/components/brand/LiveDot";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -36,6 +37,7 @@ export function ChatPanel() {
   const width = useStore((s) => s.chatWidth);
   const setWidth = useStore((s) => s.setChatWidth);
   const [resizing, setResizing] = useState(false);
+  const [live, setLive] = useState(false);
   const messagesRef = useRef<GalleryChatMessage[]>([]);
   const { threads, threadId, initialMessages, refreshThreads, newThread, openThread } = useViewerChat();
   useEffect(() => {
@@ -80,8 +82,9 @@ export function ChatPanel() {
         onMouseDown={onResizeDown}
       />
       <header className="flex h-12 shrink-0 items-center gap-1 border-b border-zinc-200 px-2">
-        <div className="min-w-0 flex-1 truncate px-2 text-sm font-medium">
-          {active?.title ?? "Assistant"}
+        <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
+          {live ? <LiveDot /> : null}
+          <div className="min-w-0 truncate text-sm font-medium">{active?.title ?? "Assistant"}</div>
         </div>
         <ChatSettingsMenu
           onCopyJson={() =>
@@ -135,6 +138,7 @@ export function ChatPanel() {
           threadId={threadId}
           initialMessages={initialMessages}
           messagesRef={messagesRef}
+          onLive={setLive}
           onPersist={() => void refreshThreads()}
         />
       ) : null}
@@ -201,11 +205,13 @@ function ChatSession({
   threadId,
   initialMessages,
   messagesRef,
+  onLive,
   onPersist,
 }: {
   threadId: string;
   initialMessages: GalleryChatMessage[];
   messagesRef: RefObject<GalleryChatMessage[]>;
+  onLive: (live: boolean) => void;
   onPersist: () => void;
 }) {
   const { messages, sendMessage, status, error, stop } = useChat({
@@ -218,6 +224,10 @@ function ChatSession({
     },
   });
   const busy = status === "submitted" || status === "streaming";
+  useEffect(() => {
+    onLive(busy);
+    return () => onLive(false);
+  }, [busy, onLive]);
   useLiveShowArtifact(messages as GalleryChatMessage[], busy);
   messagesRef.current = messages as GalleryChatMessage[];
   const streamingMessageId = busy && messages.at(-1)?.role === "assistant" ? (messages.at(-1)?.id ?? null) : null;

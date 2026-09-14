@@ -1,13 +1,18 @@
 appId: dev.sfab.bench
 productName: sfab-bench
+copyright: © 2026 SFab
 directories:
   app: app
+  buildResources: build
   output: release
-# Unsigned for now: signing and notarising need an Apple identity this repo
-# does not have. Right-click → Open the first time.
+# Unsigned for now: signing and notarising need an Apple identity this repo does
+# not have. Gatekeeper will refuse the first launch. macOS Sequoia removed the
+# old Control-click → Open escape hatch, so the way through is System Settings →
+# Privacy & Security → Open Anyway, right after the refusal.
 mac:
   target: dir
   category: public.app-category.developer-tools
+  icon: build/icon.icns
   identity: null
 # No asar. The wasm kernel is read off disk by path, the utility process forks a
 # real file, and nothing here benefits from being in an archive.

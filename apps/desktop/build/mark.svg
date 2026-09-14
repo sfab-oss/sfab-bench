@@ -1,0 +1,15 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 771 771"
+  width="771"
+  height="771"
+>
+  <title>SFab</title>
+  <rect width="771" height="771" fill="#ffffff" />
+  <circle cx="127.5" cy="257.5" r="74" fill="#000000" />
+  <circle cx="380.5" cy="93.5" r="74" fill="#000000" />
+  <circle cx="648.5" cy="455.5" r="74" fill="#000000" />
+  <circle cx="380.5" cy="659.5" r="74" fill="#000000" />
+  <circle cx="127.5" cy="498.5" r="74" fill="#000000" />
+  <circle cx="380.5" cy="376.5" r="74" fill="#e4007c" />
+</svg>

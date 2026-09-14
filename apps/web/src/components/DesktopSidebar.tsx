@@ -2,6 +2,7 @@ import { Folder } from "lucide-react";
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
+import { Lockup } from "@/components/brand/Lockup";
 import { FileTree } from "@/components/FileTree";
 import { OpenFolderForm } from "@/components/OpenFolder";
 import { ProjectSwitcher } from "@/components/ProjectSwitcher";
@@ -53,7 +54,11 @@ export function DesktopSidebar({ host }: { host: boolean }) {
           </div>
         ) : (
           <div className="flex items-center justify-between gap-1 px-2 py-1.5">
-            <div className="text-sm font-medium">{hasProject ? "Browse folders" : "Open a folder"}</div>
+            {hasProject ? (
+              <div className="text-sm font-medium">Browse folders</div>
+            ) : (
+              <Lockup />
+            )}
             <div className="flex items-center gap-1">
               {hasProject ? (
                 <button

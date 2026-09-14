@@ -1,6 +1,8 @@
 # sfab-bench
 
-Open a folder with a STEP in it and talk to it.
+<img src="apps/web/public/favicon.svg" width="32" height="32" alt="SFab" />
+
+SFab's CAD workbench: open a folder with a STEP in it and talk to it.
 
 Quest Browser on the same Wi-Fi joins that Mac process over HTTPS. The
 open folder, file recents, and thread history are shared. Each client

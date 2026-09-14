@@ -2,6 +2,7 @@
   "name": "@sfab-bench/web",
   "version": "0.0.1",
   "private": true,
+  "description": "The workbench page: viewer, tree, chat. Served to the Mac tab and the Quest browser.",
   "type": "module",
   "scripts": {
     "dev": "vite --host",

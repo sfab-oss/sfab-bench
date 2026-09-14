@@ -3,7 +3,36 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
     <title>sfab-bench</title>
+    <meta
+      name="description"
+      content="Open a folder, open a STEP, talk. Review CAD on the Mac or in the Quest browser."
+    />
+
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Matches --color-background in index.css, so the Quest browser's chrome
+         and the iOS status bar do not flash a colour the app never uses. -->
+    <meta name="theme-color" content="#eeeff1" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="sfab-bench" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- The server is on the LAN and pairs by link. Nothing here should be
+         indexed or previewed by anything that stumbles onto it. -->
+    <meta name="robots" content="noindex, nofollow" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="sfab-bench" />
+    <meta
+      property="og:description"
+      content="Open a folder, open a STEP, talk. Review CAD on the Mac or in the Quest browser."
+    />
+    <meta property="og:image" content="/android-chrome-512x512.png" />
   </head>
   <body>
     <div id="root"></div>

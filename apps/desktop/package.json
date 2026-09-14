@@ -1,11 +1,17 @@
 {
   "name": "@sfab-bench/desktop",
+  "productName": "sfab-bench",
   "version": "0.0.1",
   "private": true,
+  "description": "Electron shell around the server and the same page, plus a native folder chooser.",
+  "author": "SFab",
+  "homepage": "https://github.com/sfab-oss/sfab-bench",
   "type": "module",
   "main": "dist/main.cjs",
   "scripts": {
     "build": "node build.mjs",
+    "icon": "node scripts/make_icon.mjs",
+    "start": "node run.mjs .",
     "typecheck": "tsc --noEmit",
     "package": "node package.mjs"
   },

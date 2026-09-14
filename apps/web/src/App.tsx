@@ -2,6 +2,8 @@ import { Box, MessageSquare, Scan } from "lucide-react";
 import { useEffect, useState, type CSSProperties } from "react";
 import { useShallow } from "zustand/react/shallow";
 
+import { LiveDot } from "@/components/brand/LiveDot";
+import { Lockup } from "@/components/brand/Lockup";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ViewerChatProvider } from "@/components/chat/useViewerChat";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
@@ -108,19 +110,25 @@ function Overlay({ host }: { host: boolean }) {
       )}
       {!session && !review && progress === null && !error && (
         <div className="pointer-events-none absolute inset-0 z-0 grid place-items-center">
-          <div className="rounded-xl border border-dashed border-zinc-200 bg-white/80 px-6 py-4 text-center text-sm text-zinc-500 shadow-sm">
-            {project.path ? "Pick a STEP from Files on the left." : "Open a folder on the left, then a STEP."}
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-zinc-200 bg-white/80 px-6 py-5 text-center shadow-sm">
+            <Lockup />
+            <div className="text-sm text-zinc-500">
+              {project.path ? "Pick a STEP from Files on the left." : "Open a folder on the left, then a STEP."}
+            </div>
           </div>
         </div>
       )}
       {progress !== null && (
         <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 mx-auto w-72 -translate-y-1/2 rounded-xl border border-zinc-200 bg-white/95 p-4 text-center shadow-lg">
-          <strong className="text-sm">Loading CAD model</strong>
+          <strong className="inline-flex items-center gap-2 text-sm">
+            <LiveDot />
+            Loading CAD model
+          </strong>
           <div className="mt-1 text-xs text-zinc-500">
             {progress === 0 ? "Preparing model…" : `Loading model… ${progress}%`}
           </div>
           <div className="mt-2 h-1 overflow-hidden rounded bg-zinc-100">
-            <div className="h-full bg-zinc-900" style={{ width: `${progress}%` }} />
+            <div className="h-full bg-brand" style={{ width: `${progress}%` }} />
           </div>
         </div>
       )}
@@ -202,7 +210,12 @@ export function App() {
 
   if (!ready) {
     return (
-      <div className="grid h-dvh place-items-center bg-zinc-50 text-sm text-zinc-500">Loading…</div>
+      <div className="grid h-dvh place-items-center bg-zinc-50 text-sm text-zinc-500">
+        <span className="inline-flex items-center gap-2">
+          <LiveDot />
+          Loading…
+        </span>
+      </div>
     );
   }
   if (!authed) return <PairPage onPaired={() => {

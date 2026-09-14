@@ -24,6 +24,14 @@
   --color-sidebar-accent-foreground: #18181b;
   --color-sidebar-border: #e4e4e7;
   --color-sidebar-ring: #a1a1aa;
+  /* SFab identity accent — rosa mexicano. Marks the one live thing; never a CTA. */
+  --color-brand: #e4007c;
+  --color-brand-foreground: #000000;
+}
+
+::selection {
+  color: var(--color-brand-foreground);
+  background: var(--color-brand);
 }
 
 .sr-only {

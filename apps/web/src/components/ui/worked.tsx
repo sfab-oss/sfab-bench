@@ -1,6 +1,7 @@
 import { ChevronDownIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { createContext, useCallback, useContext, useState } from "react";
+import { LiveDot } from "@/components/brand/LiveDot";
 import {
   Collapsible,
   CollapsibleContent,
@@ -187,6 +188,7 @@ export function WorkedTrigger({
     >
       {children ?? (
         <>
+          {isStreaming ? <LiveDot /> : null}
           <span className={cn("truncate", isStreaming && "animate-pulse")}>
             {workedLabel({ isStreaming, duration })}
           </span>
