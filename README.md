@@ -35,7 +35,8 @@ already has `?project=`. Same thing as `pnpm cli open /abs/path --dev`.
 `pnpm dev` and `pnpm serve` print the Mac URL, the Quest pair URL, a
 6-character code, and a QR (fragment token in the scan URL).
 
-Click **Enter Quest** in the Mac tab for the same join info in the UI.
+Open **Settings** at the bottom of the files sidebar and click
+**Enter Quest** for the same join info in the UI.
 Join URLs always use port **7322**.
 
 On Quest 3: same Wi-Fi, Quest Browser, `https://<mac-ip>:7322/pair`,
@@ -49,12 +50,17 @@ pnpm serve
 pnpm cli open /abs/path
 ```
 
-`npx` publish is later (this repo is private). Local CLI:
+`npx` publish is later (this repo is private). Local CLI (`pnpm
+sfab-bench` is the same):
 
 ```bash
 pnpm cli --help
 pnpm cli open ~/Development/sphere-robot --dev
 ```
+
+Collaborators can also unzip `sfab-bench-<version>-arm64.app.zip` from
+[Releases](https://github.com/sfab-oss/sfab-bench/releases) — see
+[`docs/user/install.md`](docs/user/install.md).
 
 State lives under `~/.sfab-bench/` (sqlite, tessellation cache, certs).
 The agent's cwd is the open folder.

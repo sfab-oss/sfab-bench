@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { parseCli } from "./cli-parse";
@@ -19,5 +20,8 @@ expect(openedDev.kind === "dev" && openedDev.project === resolve("/tmp/cad"), "o
 
 const missing = parseCli(["open"]);
 expect(missing.kind === "help", "open without dir is help");
+
+const bin = readFileSync(new URL("../bin/sfab-bench.mjs", import.meta.url), "utf8");
+expect(bin.startsWith("#!/usr/bin/env node\n"), "bin shebang");
 
 console.log("cli.selfcheck ok");

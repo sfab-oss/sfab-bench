@@ -6,6 +6,12 @@
  * a content-addressed store, and electron-builder wants a plain directory it can
  * copy. `app/` gets its own package.json with only the dependencies the bundled
  * server still loads at runtime, installed flat with npm.
+ *
+ * Signing is auto-detected from the environment (T3's rule: omitting secrets
+ * only makes the artefact unsigned). `CSC_NAME` or `CSC_LINK` → electron-builder
+ * signs. Notary env (`APPLE_ID` + app-specific password + `APPLE_TEAM_ID`, or an
+ * API key) → notarize. Otherwise: identity null, then ad-hoc `codesign -`, then
+ * `ditto --keepParent` so the zip keeps that signature.
  */
 import { execFileSync } from "node:child_process";
 import {
@@ -35,6 +41,14 @@ const desktopPkg = JSON.parse(readFileSync(join(here, "package.json"), "utf8"));
 
 const runtimeDeps = Object.fromEntries(
   Object.entries(serverPkg.dependencies).filter(([name]) => !name.startsWith("@sfab-bench/")),
+);
+
+const canSign = Boolean(process.env.CSC_NAME || process.env.CSC_LINK);
+const canNotarise = Boolean(
+  (process.env.APPLE_ID &&
+    (process.env.APPLE_APP_SPECIFIC_PASSWORD || process.env.APPLE_ID_PASSWORD) &&
+    process.env.APPLE_TEAM_ID) ||
+    (process.env.APPLE_API_KEY && process.env.APPLE_API_KEY_ID && process.env.APPLE_API_ISSUER),
 );
 
 const run = (cmd, args, cwd) => {
@@ -93,11 +107,21 @@ if (existsSync(stage)) renameSync(stage, previous);
 renameSync(next, stage);
 rmSync(previous, { recursive: true, force: true });
 
-console.log("[package] electron-builder");
-run(join(here, "node_modules", ".bin", "electron-builder"), ["--config", join(here, "electron-builder.yml")], here);
+const builderArgs = ["--config", join(here, "electron-builder.yml")];
+if (!canSign) {
+  // Force unsigned even if a random identity sits in the keychain.
+  builderArgs.push("-c.mac.identity=null");
+}
+if (canSign && canNotarise) {
+  builderArgs.push("-c.mac.notarize=true");
+}
+console.log(
+  `[package] electron-builder (${canSign ? "signed" : "unsigned"}${canSign && canNotarise ? ", notarize" : ""})`,
+);
+run(join(here, "node_modules", ".bin", "electron-builder"), builderArgs, here);
 
 /**
- * electron-builder is told `identity: null`, which leaves the .app carrying
+ * Without a developer identity, electron-builder leaves the .app carrying
  * Electron's own signature over contents we then replaced. On Apple silicon an
  * invalid signature is worse than none: the kernel refuses to launch the binary
  * at all, with nothing in the UI to say why. An ad-hoc signature (`-`) is not a
@@ -111,10 +135,21 @@ const apps = readdirSync(release, { withFileTypes: true })
   .filter((path) => existsSync(path));
 if (process.platform === "darwin") {
   if (!apps.length) throw new Error(`no sfab-bench.app under ${release}`);
-  for (const app of apps) {
-    console.log(`[package] ad-hoc signing ${app}`);
-    run("codesign", ["--force", "--deep", "--sign", "-", app], here);
-    run("codesign", ["--verify", "--deep", "--strict", app], here);
+  if (!canSign) {
+    for (const app of apps) {
+      console.log(`[package] ad-hoc signing ${app}`);
+      run("codesign", ["--force", "--deep", "--sign", "-", app], here);
+      run("codesign", ["--verify", "--deep", "--strict", app], here);
+    }
   }
+  const arch = process.arch === "arm64" ? "arm64" : process.arch;
+  const zipPath = join(release, `sfab-bench-${desktopPkg.version}-${arch}.app.zip`);
+  rmSync(zipPath, { force: true });
+  for (const app of apps) {
+    console.log(`[package] ditto ${zipPath}`);
+    run("ditto", ["-c", "-k", "--keepParent", app, zipPath], here);
+  }
+  console.log(`[package] done: ${apps.join(", ")} → ${zipPath}`);
+} else {
+  console.log(`[package] done: ${apps.join(", ")}`);
 }
-console.log(`[package] done: ${apps.join(", ")}`);
