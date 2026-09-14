@@ -12,3 +12,5 @@ dist/
 .agent-runs/
 **/__pycache__/
 *.py[cod]
+apps/desktop/app/
+apps/desktop/release/

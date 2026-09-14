@@ -6,7 +6,8 @@
   "main": "dist/main.cjs",
   "scripts": {
     "build": "node build.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "package": "node package.mjs"
   },
   "dependencies": {
     "@sfab-bench/server": "workspace:*"
@@ -15,6 +16,7 @@
     "@types/node": "^22.20.2",
     "electron": "^44.3.0",
     "esbuild": "^0.28.2",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "electron-builder": "^26.0.12"
   }
 }

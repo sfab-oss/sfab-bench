@@ -1,0 +1,16 @@
+appId: dev.sfab.bench
+productName: sfab-bench
+directories:
+  app: app
+  output: release
+# Unsigned for now: signing and notarising need an Apple identity this repo
+# does not have. Right-click → Open the first time.
+mac:
+  target: dir
+  category: public.app-category.developer-tools
+  identity: null
+# No asar. The wasm kernel is read off disk by path, the utility process forks a
+# real file, and nothing here benefits from being in an archive.
+asar: false
+files:
+  - "**/*"

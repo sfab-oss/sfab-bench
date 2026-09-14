@@ -1,14 +1,26 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell, utilityProcess } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell, utilityProcess } from "electron";
 import type { UtilityProcess } from "electron";
+import { existsSync } from "node:fs";
 import { request } from "node:https";
 import { join } from "node:path";
 
 import { publicPort } from "@sfab-bench/server/config";
 
 const ORIGIN = `https://127.0.0.1:${publicPort()}`;
-const SERVER = join(__dirname, "..", "..", "server", "dist", "api.mjs");
 const PRELOAD = join(__dirname, "preload.cjs");
-const WEB_DIST = join(__dirname, "..", "..", "web", "dist");
+
+/**
+ * Packaged, everything sits next to main.cjs. From a checkout, the bundles stay
+ * where they are built: the API beside the server's node_modules, and the web
+ * client in its own dist.
+ */
+function beside(packaged: string, fromCheckout: string[]): string {
+  const local = join(__dirname, packaged);
+  return existsSync(local) ? local : join(__dirname, ...fromCheckout);
+}
+
+const SERVER = beside("api.mjs", ["..", "..", "server", "dist", "api.mjs"]);
+const WEB_DIST = beside("web", ["..", "..", "web", "dist"]);
 
 let server: UtilityProcess | null = null;
 let window_: BrowserWindow | null = null;
@@ -75,11 +87,14 @@ async function startServer(): Promise<void> {
     console.log(`[desktop] attaching to the server already on ${ORIGIN}`);
     return;
   }
+  if (!existsSync(SERVER)) throw new Error(`the API bundle is missing at ${SERVER}`);
+  console.log(`[desktop] starting api from ${SERVER}`);
   server = utilityProcess.fork(SERVER, [], {
     serviceName: "sfab-bench-api",
     stdio: "inherit",
     env: { ...process.env, SFAB_BENCH_WEB_DIST: WEB_DIST },
   });
+  server.on("spawn", () => console.log("[desktop] api process spawned"));
   server.on("exit", (code) => {
     console.error(`[desktop] api exited (${code})`);
     server = null;
@@ -203,7 +218,14 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   // The API serves HTTPS with the same self-signed certificate the Quest is
-  // asked to trust. Accept it for our own loopback origin only.
+  // asked to trust. `certificate-error` only covers frame navigation, so the
+  // page would load and then every .tess fetch would die on a failed handshake.
+  // The session verifier is what covers subresources too. Loopback only;
+  // everything else keeps Chromium's own answer.
+  const trustLoopback = (request: { hostname: string }, callback: (verdict: number) => void) => {
+    const ours = request.hostname === "127.0.0.1" || request.hostname === "localhost";
+    callback(ours ? 0 : -3); // 0 trusts it, -3 keeps Chromium's own answer
+  };
   app.on("certificate-error", (event, _webContents, url, _error, _certificate, callback) => {
     const trusted = url.startsWith(ORIGIN);
     if (trusted) event.preventDefault();
@@ -215,6 +237,9 @@ if (!app.requestSingleInstanceLock()) {
   );
 
   app.whenReady().then(async () => {
+    // Sessions cannot be touched before ready.
+    session.defaultSession.setCertificateVerifyProc(trustLoopback);
+    app.on("session-created", (created) => created.setCertificateVerifyProc(trustLoopback));
     buildMenu();
     try {
       await startServer();

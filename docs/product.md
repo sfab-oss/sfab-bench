@@ -57,7 +57,7 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 7 | **partial** | Local CLI (`pnpm cli serve` / `dev` / `open`) prints URL, QR, pairing code. **Not** public `npx` (repo is private) |
 | 8 | later | `--tunnel` (pairing already required for non-loopback). Do not start until someone needs Quest off this LAN |
 | 9 | later | Docs app (`apps/docs`, `llms.txt`). After a public install path, not before |
-| 10 | **done** | Electron shell: native folder dialog, server starts with the app, keep-alive ([ADR 0005](decisions/0005-electron-shell.md)). Packaging a signed `.app` is still open |
+| 10 | **done** | Electron shell: native folder dialog, server starts with the app, keep-alive ([ADR 0005](decisions/0005-electron-shell.md)). `pnpm desktop:package` builds an unsigned `.app`; **still to do:** signing and notarisation, which need an Apple identity |
 | 11 | later | Account `principal.kind`. Only when 8 is used by more than one person |
 | 12 | **done** | OCCT WASM loader. STEP opens with no Python ([ADR 0004](decisions/0004-occt-via-opencascade-js.md)) |
 

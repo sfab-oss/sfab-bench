@@ -13,6 +13,7 @@
     "build": "pnpm typecheck && pnpm test && pnpm --filter @sfab-bench/web build && pnpm --filter @sfab-bench/desktop build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm --filter @sfab-bench/server test && pnpm --filter @sfab-bench/web test",
-    "desktop": "pnpm --filter @sfab-bench/desktop build && pnpm --filter @sfab-bench/desktop exec electron ."
+    "desktop": "pnpm --filter @sfab-bench/desktop build && pnpm --filter @sfab-bench/desktop exec electron .",
+    "desktop:package": "pnpm --filter @sfab-bench/web build && pnpm --filter @sfab-bench/desktop package"
   }
 }

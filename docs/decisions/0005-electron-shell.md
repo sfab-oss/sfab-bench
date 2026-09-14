@@ -67,10 +67,13 @@ seconds of frozen window.
 - `src/preload.ts` — the `window.sfabBench` bridge, and nothing else.
 - `build.mjs` — esbuild: main and preload to `apps/desktop/dist`, the API to
   `apps/server/dist/api.mjs` (it has to sit beside the node_modules it needs).
-- `pnpm desktop` builds and runs it.
+- `package.mjs` stages `app/` with a flat npm-installed node_modules, because
+  electron-builder cannot walk pnpm's symlinks, and runs electron-builder on it.
+- `pnpm desktop` builds and runs it; `pnpm desktop:package` makes the `.app`.
 
 ## Related
 
 - [0003-library-not-viewport](0003-library-not-viewport.md) — why one origin for both clients
 - [0004-occt-via-opencascade-js](0004-occt-via-opencascade-js.md) — the wasm packaging has to carry
+- [`docs/notes/2026-09-14-electron-shell.md`](../notes/2026-09-14-electron-shell.md) — the four things that cost time
 - [`product.md`](../product.md) — Electron moved off "later" by direct ask, 2026-09-14

@@ -3,6 +3,8 @@ packages:
   - packages/*
 
 allowBuilds:
+  # Windows installer packaging, pulled in by electron-builder. We do not ship Windows.
+  electron-winstaller: false
   esbuild: true
 
 minimumReleaseAgeExclude:

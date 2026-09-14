@@ -23,6 +23,7 @@ Run from the **monorepo root**:
 | --- | --- |
 | Dev (API + Vite HTTPS) | `pnpm dev` |
 | Desktop app (Electron) | `pnpm desktop` |
+| Package a `.app` (unsigned) | `pnpm desktop:package` |
 | Open a folder then serve | `pnpm cli open /abs/path` |
 | Open a folder then Vite | `pnpm cli open /abs/path --dev` |
 | Type check | `pnpm typecheck` |

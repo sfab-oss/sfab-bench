@@ -29,8 +29,16 @@ what stops it. Reopen the window from the Dock.
 `https://127.0.0.1:7322` and nothing else. External links open in your
 normal browser.
 
-## Not yet
+## Building a `.app`
 
-A double-clickable, signed `.app`. For now this is a `pnpm desktop` away
-from a checkout — see the packaging note in
-[`product.md`](../product.md).
+```bash
+pnpm desktop:package
+```
+
+Writes `apps/desktop/release/mac-arm64/sfab-bench.app`, about 380 MB, with
+the server, the OCCT kernel and the web client inside it. Nothing else has
+to be installed to run it.
+
+It is **unsigned**: the first time, right-click the app and choose Open,
+then confirm. Signing and notarising need an Apple Developer identity this
+repo does not have.
