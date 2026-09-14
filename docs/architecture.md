@@ -36,7 +36,19 @@ a code workbench. Authoring is whatever produced the STEP.
 
 ## Loader
 
-STEP → view package is a **loader**, not a project adapter. Today that
-is cadgen, managed under `~/.sfab-bench/tools/cadgen/`, with a project's
-`cad/.cad-venv` as a fast path. Destination: our own OpenCascade WASM in
-Node, same package contract. [ADR 0002](decisions/0002-step-loader-occt.md).
+STEP → view package is a **loader**, not a project adapter. It is
+OpenCascade compiled to WASM, running inside the API process:
+`apps/server/src/occt/` reads the STEP into an XCAF document, walks the
+assembly for names, placements and colours, tessellates each distinct
+solid once, and writes `assembly.json` + `components/<hash>.tess` into
+`~/.sfab-bench/cache/`. No Python, no subprocess
+([ADR 0002](decisions/0002-step-loader-occt.md),
+[ADR 0004](decisions/0004-occt-via-opencascade-js.md)).
+
+Components are keyed by **mesh content hash**, so the same solid placed
+forty times is downloaded and uploaded once. Occurrences carry world
+transforms; the tree carries the structure.
+
+cadgen remains reachable as `SFAB_BENCH_LOADER=cadgen` while the OCCT
+path settles. `source.json` records which loader built a cached package,
+so switching rebuilds rather than serving the other one's `#o…` refs.

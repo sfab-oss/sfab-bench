@@ -16,6 +16,7 @@ import { Readable } from "node:stream";
 
 import { cacheDir } from "./config";
 import { cadgenPython } from "./loader";
+import { buildStepPackage } from "./occt/package";
 import { insideRoot, posixRel, projectPath } from "./projects";
 import { rememberOpenedFile } from "./session";
 
@@ -32,7 +33,14 @@ export type ResolvedArtifact =
   | { kind: "glb"; rel: string; abs: string }
   | { error: string };
 
-type SourceStamp = { path: string; mtimeMs: number; size: number };
+type SourceStamp = { path: string; mtimeMs: number; size: number; loader: LoaderName };
+
+type LoaderName = "occt" | "cadgen";
+
+/** OCCT WASM is the loader. `SFAB_BENCH_LOADER=cadgen` falls back to the Python stopgap. */
+function loaderName(): LoaderName {
+  return process.env.SFAB_BENCH_LOADER?.trim() === "cadgen" ? "cadgen" : "occt";
+}
 
 function existingFile(root: string, abs: string): string | null {
   if (!existsSync(abs)) return null;
@@ -78,7 +86,7 @@ function packageCacheDir(abs: string) {
 
 function stampOf(rel: string, abs: string): SourceStamp {
   const st = statSync(abs);
-  return { path: rel, mtimeMs: Math.round(st.mtimeMs), size: st.size };
+  return { path: rel, mtimeMs: Math.round(st.mtimeMs), size: st.size, loader: loaderName() };
 }
 
 function isFresh(dest: string, stamp: SourceStamp): boolean {
@@ -88,7 +96,14 @@ function isFresh(dest: string, stamp: SourceStamp): boolean {
   if (!existsSync(ok) || !existsSync(src) || !existsSync(assembly)) return false;
   try {
     const prev = JSON.parse(readFileSync(src, "utf8")) as SourceStamp;
-    return prev.path === stamp.path && prev.mtimeMs === stamp.mtimeMs && prev.size === stamp.size;
+    // A package built by the other loader numbers its occurrences differently, so
+    // switching loaders has to rebuild rather than serve stale refs.
+    return (
+      prev.path === stamp.path &&
+      prev.mtimeMs === stamp.mtimeMs &&
+      prev.size === stamp.size &&
+      prev.loader === stamp.loader
+    );
   } catch {
     return false;
   }
@@ -127,9 +142,13 @@ async function buildPackage(rel: string, abs: string): Promise<string> {
   console.log(`[cad-pkg] tessellate ${rel}`);
   mkdirSync(join(dest, ".."), { recursive: true });
   try {
-    const py = await cadgenPython();
-    await mkdir(dest, { recursive: true });
-    await runDump(py, abs, dest);
+    if (stamp.loader === "cadgen") {
+      const py = await cadgenPython();
+      await mkdir(dest, { recursive: true });
+      await runDump(py, abs, dest);
+    } else {
+      await buildStepPackage(abs, dest);
+    }
     writeFileSync(join(dest, "source.json"), JSON.stringify(stamp));
     writeFileSync(join(dest, "ok"), "ok\n");
   } catch (err) {

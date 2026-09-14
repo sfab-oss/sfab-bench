@@ -23,6 +23,7 @@ https://127.0.0.1:7322/?file=cad/STEP/envelopes/box_envelope.step
 No `?file=` is an empty scene. Files anyone opened show up under Recents
 for every client; opening one is a local choice.
 
-STEP is tessellated on demand (cadgen stopgap under
-`~/.sfab-bench/tools/cadgen/`, or `cad/.cad-venv` inside the opened
-folder). Cache is `~/.sfab-bench/cache/`.
+STEP is tessellated on demand by OpenCascade inside the server — no
+Python, nothing to install. Cache is `~/.sfab-bench/cache/`; delete a
+folder there to force a rebuild. `SFAB_BENCH_LOADER=cadgen` switches back
+to the old Python path if you ever need to compare.

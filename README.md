@@ -54,8 +54,8 @@ pnpm cli --help
 pnpm cli open ~/Development/sphere-robot --dev
 ```
 
-State lives under `~/.sfab-bench/` (sqlite, tessellation cache, certs,
-managed cadgen). The agent's cwd is the open folder.
+State lives under `~/.sfab-bench/` (sqlite, tessellation cache, certs).
+The agent's cwd is the open folder.
 
 More: [`docs/user/`](docs/user/).
 
@@ -69,7 +69,7 @@ docs/           architecture, ADRs, user runbook
 .agents/skills/ how agents should use this viewer
 ```
 
-`npx` install from npm is not this commit. Electron, accounts, and a public
-tunnel are later. Cadgen is a stopgap tessellator; the destination
-loader is our own OpenCascade WASM — see
-[`docs/decisions/0002-step-loader-occt.md`](docs/decisions/0002-step-loader-occt.md).
+`npx` install from npm is not this commit. Accounts and a public tunnel
+are later. STEP is tessellated in-process by OpenCascade WASM — see
+[`docs/decisions/0002-step-loader-occt.md`](docs/decisions/0002-step-loader-occt.md)
+and [`0004`](docs/decisions/0004-occt-via-opencascade-js.md).

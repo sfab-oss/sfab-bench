@@ -11,11 +11,12 @@
     "serve": "tsx src/cli.ts serve",
     "dev": "tsx src/cli.ts dev",
     "typecheck": "tsc --noEmit",
-    "test": "tsx src/auth.selfcheck.ts && tsx src/project.selfcheck.ts && tsx src/session.selfcheck.ts && tsx src/cli.selfcheck.ts",
+    "test": "tsx src/auth.selfcheck.ts && tsx src/project.selfcheck.ts && tsx src/session.selfcheck.ts && tsx src/cli.selfcheck.ts && tsx src/occt.selfcheck.ts",
     "test:cli": "tsx src/cli.selfcheck.ts",
     "test:auth": "tsx src/auth.selfcheck.ts",
     "test:project": "tsx src/project.selfcheck.ts",
-    "test:session": "tsx src/session.selfcheck.ts"
+    "test:session": "tsx src/session.selfcheck.ts",
+    "test:occt": "tsx src/occt.selfcheck.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.80",
@@ -31,6 +32,7 @@
     "@vitejs/plugin-basic-ssl": "^2.1.0",
     "ai": "^7.0.99",
     "hono": "^4.13.7",
+    "opencascade.js": "1.1.1",
     "uqr": "^0.1.3",
     "ws": "^8.21.3",
     "zod": "^4.6.5"

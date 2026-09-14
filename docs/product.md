@@ -33,7 +33,7 @@ viewport ([ADR 0003](decisions/0003-library-not-viewport.md)).
 Do not re-open these unless the human asks.
 
 - **No adapters.** Project = a directory. Document = a STEP or GLB in it. Agent cwd = that directory. Skills live in the project if the user put them there.
-- **Tessellation is a loader**, not an adapter. Cadgen is stopgap. Destination is our OpenCascade WASM tessellator, same `assembly.json` + `.tess` + `#o…` contract ([ADR 0002](decisions/0002-step-loader-occt.md)).
+- **Tessellation is a loader**, not an adapter. OpenCascade WASM in the API process, same `assembly.json` + `.tess` + `#o…` contract ([ADR 0002](decisions/0002-step-loader-occt.md), [ADR 0004](decisions/0004-occt-via-opencascade-js.md)). Cadgen was the stopgap and is now only `SFAB_BENCH_LOADER=cadgen`.
 - **One process, two HTTPS clients.** Mac tab (loopback trusted) and Quest Browser (paired). No Unity, no APK.
 - **Share the library, not the viewport.** Recents, thread list, messages at rest, open folder, pairing. Not: loaded file, selection, camera, XR, which chat is open, live stream. `show_artifact` moves only the asking client.
 - **Desktop composer stays TipTap** for future `#` chips (parts, faces, `#o…`). Quest stays plain input + voice.
@@ -59,7 +59,7 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 9 | later | Docs app (`apps/docs`, `llms.txt`). After a public install path, not before |
 | 10 | later | Electron (native folder dialog, keep-alive). After 8 has been used by someone else |
 | 11 | later | Account `principal.kind`. Only when 8 is used by more than one person |
-| — | later | OCCT WASM loader. Do not start while 6’s TipTap mentions are open |
+| 12 | **done** | OCCT WASM loader. STEP opens with no Python ([ADR 0004](decisions/0004-occt-via-opencascade-js.md)) |
 
 ## Do not build
 

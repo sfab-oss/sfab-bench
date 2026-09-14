@@ -48,7 +48,7 @@ symlinks the skill above.
 ## Conventions
 
 - Project = a directory. Document = a STEP or GLB in it. Agent cwd = that directory.
-- Tessellation is a loader, not a project adapter. Cadgen is stopgap; OCCT WASM is the destination ([ADR 0002](docs/decisions/0002-step-loader-occt.md)).
+- Tessellation is a loader, not a project adapter. It is OCCT WASM in the API process ([ADR 0002](docs/decisions/0002-step-loader-occt.md), [ADR 0004](docs/decisions/0004-occt-via-opencascade-js.md)); cadgen is only the `SFAB_BENCH_LOADER=cadgen` fallback.
 - Loopback is trusted. Anything else on `/api` needs pairing.
 - Mac and Quest share the open folder, recents, and thread history. Each client keeps its own file, selection, and live chat ([ADR 0003](docs/decisions/0003-library-not-viewport.md)).
 - Do not merge `sfab-oss/sfab-cad` (cloud + Godot). That choice is [ADR 0001](docs/decisions/0001-new-private-repo.md).

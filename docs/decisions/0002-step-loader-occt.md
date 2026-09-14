@@ -1,6 +1,6 @@
 # ADR-0002: STEP loader is own OpenCascade, not cadgen
 
-**Status:** Accepted
+**Status:** Accepted — implemented 2026-09-14 ([ADR 0004](0004-occt-via-opencascade-js.md))
 **Date:** 2026-09-13
 **Deciders:** Alwurts
 
@@ -47,10 +47,14 @@ It is not the destination.
 
 ## Implementation notes
 
-Not this commit. Stopgap path: `apps/server/src/loader.ts` and
-`apps/server/scripts/dump_step_package.py`.
+Shipped 2026-09-14 as `apps/server/src/occt/`, on the kernel chosen in
+[ADR 0004](0004-occt-via-opencascade-js.md). The cadgen path
+(`apps/server/src/loader.ts`, `apps/server/scripts/dump_step_package.py`)
+stays reachable with `SFAB_BENCH_LOADER=cadgen` and is now the fallback, not
+the default.
 
 ## Related
 
+- [0004-occt-via-opencascade-js](0004-occt-via-opencascade-js.md) — which WASM binary
 - [0001-new-private-repo](0001-new-private-repo.md)
 - Not this: HOOPS / Autodesk / any hosted CAD SDK; a forever `pythonocc` install
