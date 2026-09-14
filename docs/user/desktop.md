@@ -5,11 +5,11 @@ pnpm desktop
 ```
 
 An Electron window that starts the server for you. No terminal to keep
-open, and **Choose folder…** is the real macOS folder chooser instead of
+open, and **Open…** is the real macOS folder chooser instead of
 a typed path.
 
 It is the same app the browser shows. The window loads
-`https://127.0.0.1:7322`, which is also the page a paired Quest joins, so
+`https://127.0.0.1:7322` (Welcome). A paired Quest joins that origin, so
 nothing can drift between the two ([ADR 0005](../decisions/0005-electron-shell.md)).
 
 ## Things worth knowing
@@ -24,8 +24,8 @@ paired Quest keeps working while the Mac window is shut. Quit (⌘Q) is
 what stops it. Reopen the window from the Dock.
 
 **⌘O** opens a folder in **this window**. Another tab or the Quest stays
-where it is. It works with every window closed too, and opens one showing
-the folder you chose.
+where it is. It works with every window closed too: the new window opens
+on `/?project=` for the folder you chose.
 
 **The certificate.** The window trusts the self-signed certificate for
 `https://127.0.0.1:7322` and nothing else.

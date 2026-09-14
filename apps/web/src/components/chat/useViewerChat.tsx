@@ -86,15 +86,17 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
   const [initialMessages, setInitialMessages] = useState<GalleryChatMessage[]>([]);
 
   const refreshThreads = useCallback(async () => {
+    if (!projectPath) return [];
     const res = await jsonApi.threads.$get();
     if (!res.ok) return;
     const rows = (await res.json()) as ThreadRow[];
     setThreads(rows);
     return rows;
-  }, []);
+  }, [projectPath]);
 
   const openThread = useCallback(
     async (id: string) => {
+      if (!projectPath) return;
       const res = await jsonApi.threads[":id"].$get({ param: { id } });
       if (!res.ok) return;
       const body = (await res.json()) as { thread?: ThreadRow; messages?: GalleryChatMessage[] };
@@ -108,6 +110,7 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
   );
 
   const newThread = useCallback(async () => {
+    if (!projectPath) return;
     const res = await jsonApi.threads.$post();
     if (!res.ok) return;
     const row = (await res.json()) as ThreadRow;

@@ -153,7 +153,7 @@ function stopServer(): void {
 }
 
 /** Open a folder as the project, the same call the web UI makes. */
-async function openProject(path: string): Promise<void> {
+async function openProject(path: string): Promise<string> {
   const res = await api("/api/project", { method: "POST", body: JSON.stringify({ path }) });
   if (res.status !== 200) {
     let message = `could not open ${path}`;
@@ -163,6 +163,12 @@ async function openProject(path: string): Promise<void> {
       /* not JSON */
     }
     throw new Error(message);
+  }
+  try {
+    const body = JSON.parse(res.body) as { project?: { path?: string } };
+    return body.project?.path ?? path;
+  } catch {
+    return path;
   }
 }
 
@@ -184,8 +190,10 @@ async function pickAndOpen(): Promise<void> {
     return;
   }
   try {
-    await openProject(path);
-    createWindow();
+    const abs = await openProject(path);
+    const url = new URL(ORIGIN);
+    url.searchParams.set("project", abs);
+    createWindow(url.href);
   } catch (err) {
     const box = {
       type: "error" as const,
@@ -196,7 +204,7 @@ async function pickAndOpen(): Promise<void> {
   }
 }
 
-function createWindow(): void {
+function createWindow(startUrl = ORIGIN): void {
   window_ = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -229,8 +237,8 @@ function createWindow(): void {
   window_.webContents.on("did-fail-load", (_event, code, description, url) => {
     console.error(`[desktop] window could not load ${url}: ${description} (${code})`);
   });
-  window_.webContents.on("did-finish-load", () => console.log(`[desktop] window showing ${ORIGIN}`));
-  void window_.loadURL(ORIGIN);
+  window_.webContents.on("did-finish-load", () => console.log(`[desktop] window showing ${startUrl}`));
+  void window_.loadURL(startUrl);
 }
 
 function buildMenu(): void {

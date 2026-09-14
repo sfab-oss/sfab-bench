@@ -25,7 +25,7 @@ URL (self-signed). Quest needs that LAN host, not `127.0.0.1`. Confirm
 with `curl -k https://127.0.0.1:7322/api/me` (loopback principal).
 Production: `pnpm build && pnpm serve`.
 
-Open a folder from the Mac tab (recents, **Choose folder…**, or browse),
+Open a folder from the Mac tab (Welcome recents or **Open folder**),
 `pnpm cli open /abs/path --dev`, or `SFAB_BENCH_PROJECT=/abs/path pnpm dev`.
 The folder is the tab's (`?project=`). This repo has no STEP files; point
 it at a CAD directory (for example sphere-robot).
@@ -34,8 +34,9 @@ it at a CAD directory (for example sphere-robot).
 
 ## Load an artifact
 
-No `?file=` → empty scene. Recents on the server list files anyone opened
-in this folder (Quest can pick one; it is not yanked onto Mac's view).
+No `?file=` → empty scene (pick a recent STEP, or one from Files). Recents
+on the server list files anyone opened in this folder (Quest can pick one;
+it is not yanked onto Mac's view). `/` with no `?project=` is Welcome.
 
 Query string, relative to **this tab's project folder**:
 

@@ -143,7 +143,8 @@ function TreeNode({
 export function FilesList({ onPick }: { onPick?: () => void }) {
   const url = useStore((s) => s.url);
   const recents = useStore((s) => s.recentFiles);
-  const { files, error, ready } = useCatalog(true);
+  const projectPath = useProjectSession().project.path;
+  const { files, error, ready } = useCatalog(Boolean(projectPath));
   const theme = useXrTheme();
   const { recents: recentRows } = catalogSections(files, recents);
   const tree = useMemo(() => catalogTree(files), [files]);
@@ -199,7 +200,7 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
   if (files.length === 0) {
     return (
       <Text fontSize={12} color={theme.subtle}>
-        Open a STEP in this folder.
+        {projectPath ? "This folder has no STEP or GLB." : "Open a folder first."}
       </Text>
     );
   }

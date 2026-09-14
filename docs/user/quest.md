@@ -18,10 +18,10 @@ the headset stores a device token (`sfab-bench.deviceToken` in
 localStorage) and can open the viewer without typing the code again.
 
 Mac and Quest share recents, the thread list for a given folder, and
-messages at rest. Quest picks a folder from the Mac's recents and starts
-on the one the Mac opened last. Opening a folder on the Mac does not move
-the Quest. Each headset or tab keeps its own loaded STEP, selection,
-camera, XR layout, and live chat.
+messages at rest. Quest starts on Welcome and picks a folder from the
+Mac's recents (the last Mac folder is at the top). Opening a folder on
+the Mac does not move the Quest. Each headset or tab keeps its own
+loaded STEP, selection, camera, XR layout, and live chat.
 
 Opening `https://<lan-ip>:7322` on the Mac is treated as a guest: it
 must pair.

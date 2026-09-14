@@ -12,7 +12,10 @@ export function printJoinBanner(mode: "dev" | "serve") {
   const port = publicPort();
   const offer = ensureOffer();
   const info = joinInfo(offer);
-  const mac = `https://127.0.0.1:${port}`;
+  const macUrl = new URL(`https://127.0.0.1:${port}`);
+  const project = process.env.SFAB_BENCH_PROJECT?.trim();
+  if (project) macUrl.searchParams.set("project", project);
+  const mac = macUrl.href;
   const quest = info.pairUrl ?? info.lanUrl;
   const qrValue = info.fragmentUrl ?? info.pairUrl;
   console.log("");

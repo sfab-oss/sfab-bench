@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { jsonApi, getDeviceToken } from "@/lib/api";
 import { registerAndOpenTab } from "@/lib/project";
-import { projectUrl, syncProjectQuery } from "@/lib/project-query";
+import { projectUrl } from "@/lib/project-query";
 import type { ProjectSession, SessionClient, SessionEvent, SessionSnapshot } from "@/lib/session";
 import { modelUrl } from "@/cad/loadCadReview";
 import { store } from "@/state/store";
@@ -55,7 +55,7 @@ export function ProjectSessionProvider({
       if (!appliedDeepLink.current) {
         appliedDeepLink.current = true;
         const deep = modelUrl();
-        if (deep) void store.getState().loadModel(deep);
+        if (deep && path) void store.getState().loadModel(deep);
       }
     },
     [applyLibrary],
@@ -86,8 +86,7 @@ export function ProjectSessionProvider({
       if (snap.you) setYou(snap.you);
       const tab = projectUrl();
       if (!tab) {
-        if (snap.project.path) syncProjectQuery(snap.project.path, { clearFile: false });
-        else adoptTab("", snap.fileRecents ?? []);
+        adoptTab("", []);
         return;
       }
       if (tab === snap.project.path) {

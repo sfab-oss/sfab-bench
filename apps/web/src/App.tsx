@@ -7,6 +7,7 @@ import { Lockup } from "@/components/brand/Lockup";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ViewerChatProvider } from "@/components/chat/useViewerChat";
+import { BrowseFolderDialog, WelcomeFiles, WelcomeFolders, useOpenFolder } from "@/components/OpenFolder";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { DetailPanel } from "@/components/DetailPanel";
 import { PairPage } from "@/components/PairPage";
@@ -15,6 +16,7 @@ import { QuestJoinPanel } from "@/components/QuestJoinPanel";
 import { Toolbar } from "@/components/Toolbar";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { useCatalog } from "@/hooks/useCatalog";
 import { useXrSession } from "@/hooks/useXrSession";
 import { useXrSupport } from "@/hooks/useXrSupport";
 import { ProjectSessionProvider, useProjectSession } from "@/hooks/useProjectSession";
@@ -55,7 +57,7 @@ function EnterXr() {
   );
 }
 
-function Overlay({ host }: { host: boolean }) {
+function Overlay({ host, folder }: { host: boolean; folder: ReturnType<typeof useOpenFolder> }) {
   const { review, progress, error, selectedId, fit } = useStore(
     useShallow((s) => ({
       review: s.review,
@@ -66,7 +68,8 @@ function Overlay({ host }: { host: boolean }) {
     })),
   );
   const session = useXrSession();
-  const project = useProjectSession().project;
+  const { project, setDoc, fileRecents } = useProjectSession();
+  const { files, ready: catalogReady } = useCatalog(Boolean(project.path));
   const treeOpen = useStore((s) => s.treeOpen);
   const switching = useStore((s) => s.switching);
   if (switching) {
@@ -103,7 +106,7 @@ function Overlay({ host }: { host: boolean }) {
           <PartTree />
           <DetailPanel />
           <div className="pointer-events-none absolute top-4 right-4 z-10 flex items-start gap-2">
-            <ChatToggle />
+            {project.path ? <ChatToggle /> : null}
             {host ? <QuestJoinPanel /> : null}
             <EnterXr />
             <div className="pointer-events-auto rounded-xl border border-border bg-card/95 p-1 shadow-lg">
@@ -114,11 +117,18 @@ function Overlay({ host }: { host: boolean }) {
       )}
       {!session && !review && progress === null && !error && (
         <div className="pointer-events-none absolute inset-0 z-0 grid place-items-center">
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-card/80 px-6 py-5 text-center shadow-sm">
+          <div className="pointer-events-auto flex w-80 flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-card/80 px-6 py-5 text-center shadow-sm">
             <Lockup />
-            <div className="text-sm text-muted-foreground">
-              {project.path ? "Pick a STEP from Files on the left." : "Pick a folder on the left, then a STEP."}
-            </div>
+            {project.path ? (
+              <WelcomeFiles
+                recents={fileRecents}
+                hasCad={files.length > 0}
+                ready={catalogReady}
+                onPick={(path) => void setDoc(path)}
+              />
+            ) : (
+              <WelcomeFolders folder={folder} />
+            )}
           </div>
         </div>
       )}
@@ -151,6 +161,8 @@ function ViewerShell({ host }: { host: boolean }) {
   const chatOpen = useStore((s) => s.chatOpen);
   const treeOpen = useStore((s) => s.treeOpen);
   const setTreeOpen = useStore((s) => s.setTreeOpen);
+  const folder = useOpenFolder(host);
+  const hasProject = Boolean(useProjectSession().project.path);
   return (
     <SidebarProvider
       className="h-dvh min-h-0 overflow-hidden"
@@ -158,14 +170,15 @@ function ViewerShell({ host }: { host: boolean }) {
       onOpenChange={setTreeOpen}
       style={{ "--sidebar-width": "19rem" } as CSSProperties}
     >
-      {!session ? <DesktopSidebar host={host} /> : null}
+      {!session ? <DesktopSidebar host={host} folder={folder} /> : null}
       <SidebarInset className="min-h-0 overflow-hidden">
         <div className="relative min-h-0 min-w-0 flex-1">
           <ViewerCanvas />
-          <Overlay host={host} />
+          <Overlay host={host} folder={folder} />
         </div>
       </SidebarInset>
-      {!session && chatOpen ? <ChatPanel /> : null}
+      {!session && chatOpen && hasProject ? <ChatPanel /> : null}
+      <BrowseFolderDialog open={folder.dialogOpen} onOpenChange={folder.setDialogOpen} />
     </SidebarProvider>
   );
 }

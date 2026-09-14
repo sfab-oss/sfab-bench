@@ -7,7 +7,8 @@ export function projectUrl(): string {
 
 /**
  * Keep `?project=` in the page URL. Switching folders drops `?file=` unless
- * `clearFile` is false (boot seed must not wipe a deep link).
+ * `clearFile` is false (a deep link must not lose `?file=` while the folder
+ * query is filled in).
  */
 export function syncProjectQuery(path: string, opts?: { clearFile?: boolean }) {
   if (typeof window === "undefined") return;

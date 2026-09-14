@@ -11,7 +11,14 @@ export function useCatalog(enabled = true) {
   const [ready, setReady] = useState(false);
   const projectPath = useProjectSession().project.path;
   const reload = useCallback(() => {
-    if (!enabled) return;
+    if (!enabled || !projectPath) {
+      setFiles([]);
+      setRevision(0);
+      setError(null);
+      setReady(true);
+      return;
+    }
+    setError(null);
     void jsonApi.catalog
       .$get()
       .then(async (res) => {
@@ -28,6 +35,9 @@ export function useCatalog(enabled = true) {
         setError(err instanceof Error ? err.message : String(err));
         setReady(true);
       });
+  }, [enabled, projectPath]);
+  useEffect(() => {
+    if (enabled && projectPath) setReady(false);
   }, [enabled, projectPath]);
   useEffect(() => {
     reload();

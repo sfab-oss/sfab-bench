@@ -30,6 +30,7 @@ let pending: { project: string; promise: Promise<HarnessInfo[]> } | undefined;
 
 export function loadHarnesses(): Promise<HarnessInfo[]> {
   const project = projectUrl();
+  if (!project) return Promise.resolve([]);
   if (cached && cached.project === project) return Promise.resolve(cached.list);
   if (pending && pending.project === project) return pending.promise;
   const promise = jsonApi.harnesses
@@ -55,6 +56,12 @@ export function useHarnesses() {
   const [ready, setReady] = useState(cached != null);
   const [error, setError] = useState(false);
   useEffect(() => {
+    if (!project) {
+      setHarnesses([]);
+      setReady(true);
+      setError(false);
+      return;
+    }
     let cancelled = false;
     void loadHarnesses()
       .then((list) => {

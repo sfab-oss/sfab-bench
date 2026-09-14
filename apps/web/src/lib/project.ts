@@ -47,8 +47,24 @@ export function openTabProject(path: string) {
   syncProjectQuery(path);
 }
 
+/** Leave the folder. Back to Welcome. */
+export function closeTabProject() {
+  syncProjectQuery("");
+}
+
 export function tabProjectPath() {
   return projectUrl();
+}
+
+export function folderName(path: string) {
+  return path.split("/").filter(Boolean).pop() ?? path;
+}
+
+/** `/Users/you/src/foo` → `~/src/foo` — the usual Mac recents line. */
+export function shortPath(path: string) {
+  const home = path.match(/^\/Users\/[^/]+/);
+  if (home && path.length > home[0].length) return `~${path.slice(home[0].length)}`;
+  return path;
 }
 
 export async function browsePath(path?: string): Promise<BrowseInfo> {

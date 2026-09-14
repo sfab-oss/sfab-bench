@@ -38,12 +38,13 @@ takes the request's root; it has no default.
 
 ### Compat hatch
 
-`POST /api/project` still registers **and** sets the fallback. That is the
-seed for a tab with no `?project=` yet (Quest first paint, ⌘O with every
-window closed). It does not abort other workspaces' runs, and a request that
-already named `?project=` is unaffected. Library WebSocket events go out for
-every folder; the web client applies them only when `event.project.path`
-matches the tab.
+`POST /api/project` still registers **and** sets the fallback. That is
+the seed for param-less **API** requests (agents, `cli open` without a
+query yet). The page does not adopt it: `/` is Welcome until the tab
+sets `?project=`. It does not abort other workspaces' runs, and a request
+that already named `?project=` is unaffected. Library WebSocket events go
+out for every folder; the web client applies them only when
+`event.project.path` matches the tab.
 
 ## Consequences
 
@@ -52,8 +53,8 @@ matches the tab.
 - The next client change is a query parameter, not a server-side session object.
 
 ### Negative
-- Two param-less windows still share the fallback until they seed `?project=`.
-- `POST /api/project` still moves that fallback (Quest seed / no-window ⌘O).
+- Two param-less API clients still share the fallback.
+- `POST /api/project` still moves that fallback. The Welcome page does not follow it.
 
 ### Mitigations
 - The page carries `?project=` beside `?file=`. The switcher sets this tab

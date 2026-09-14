@@ -2,20 +2,25 @@ import { Check, ChevronDown, Folder, FolderOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { fetchProject, openTabProject, registerAndOpenTab, type ProjectInfo, type ProjectRow } from "@/lib/project";
+import {
+  fetchProject,
+  folderName,
+  openTabProject,
+  closeTabProject,
+  registerAndOpenTab,
+  shortPath,
+  type ProjectInfo,
+  type ProjectRow,
+} from "@/lib/project";
 import { cn } from "@/lib/utils";
-
-function folderName(path: string) {
-  return path.split("/").filter(Boolean).pop() ?? path;
-}
 
 export function ProjectSwitcher({
   path,
-  onBrowse,
+  onOpenFolder,
   canRegister = true,
 }: {
   path: string;
-  onBrowse: () => void;
+  onOpenFolder?: () => void;
   canRegister?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -71,10 +76,7 @@ export function ProjectSwitcher({
         title={path}
       >
         <Folder className="size-4 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-foreground">{folderName(path)}</span>
-          <span className="block truncate font-mono text-[11px] text-muted-foreground">{path}</span>
-        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{folderName(path)}</span>
         <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
       </PopoverTrigger>
       <PopoverContent align="start" side="bottom" className="w-80 p-1">
@@ -105,7 +107,9 @@ export function ProjectSwitcher({
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm text-foreground">{row.name}</span>
-                      <span className="block truncate font-mono text-[11px] text-muted-foreground">{row.path}</span>
+                      <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                        {shortPath(row.path)}
+                      </span>
                     </span>
                   </button>
                 </li>
@@ -114,15 +118,21 @@ export function ProjectSwitcher({
           </ul>
         )}
         {error ? <p className="px-2 py-1 text-xs text-destructive">{error}</p> : null}
-        {canRegister ? (
+        {canRegister && onOpenFolder ? (
           <PopoverClose
             className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
-            onClick={onBrowse}
+            onClick={() => onOpenFolder()}
           >
             <FolderOpen className="size-3.5 text-muted-foreground" />
-            Browse folders…
+            Open…
           </PopoverClose>
         ) : null}
+        <PopoverClose
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+          onClick={() => closeTabProject()}
+        >
+          Close folder
+        </PopoverClose>
       </PopoverContent>
     </Popover>
   );

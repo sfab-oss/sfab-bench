@@ -4,9 +4,10 @@
 
 SFab's CAD workbench: open a folder with a STEP in it and talk to it.
 
-Quest Browser on the same Wi-Fi joins that Mac process over HTTPS. The
-open folder, file recents, and thread history are shared. Each client
-keeps its own loaded file, selection, camera, and live chat.
+Quest Browser on the same Wi-Fi joins that Mac process over HTTPS. File
+recents, folder recents, and thread history are shared. Each client
+keeps its own loaded file, selection, camera, and live chat. The folder
+a tab is in is the tab's.
 
 This is a CAD workbench that hosts the same class of agents T3 Code
 hosts (Codex, Claude Code, Cursor, Grok, OpenCode) using logins already
@@ -25,12 +26,11 @@ pnpm dev
 
 That starts a loopback API on `http://127.0.0.1:8787` and Vite HTTPS on
 `:7322`, which proxies `/api`. Open `https://127.0.0.1:7322` on the Mac
-(loopback is trusted). Click **Open folder**, pick a directory that
-contains STEP or GLB files, then open one.
+(loopback is trusted). That is Welcome. Click **Open folder**, pick a
+directory that contains STEP or GLB files, then open one.
 
-Optional: `SFAB_BENCH_PROJECT=/abs/path pnpm dev` opens that folder on
-boot. Same thing as `pnpm cli open /abs/path --dev`. Otherwise the last
-recent folder is restored, or the welcome screen if none.
+Optional: `SFAB_BENCH_PROJECT=/abs/path pnpm dev` prints a Mac URL that
+already has `?project=`. Same thing as `pnpm cli open /abs/path --dev`.
 
 `pnpm dev` and `pnpm serve` print the Mac URL, the Quest pair URL, a
 6-character code, and a QR (fragment token in the scan URL).
