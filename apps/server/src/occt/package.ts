@@ -19,6 +19,7 @@ import {
   referredLabel,
 } from "./document";
 import { tessellate } from "./mesh";
+import { recycleLargeKernel } from "./runtime";
 import { encodeTess } from "./tess";
 import type { Label, OpenCascade, Shape } from "./types";
 
@@ -202,6 +203,7 @@ async function build(stepAbs: string, dest: string): Promise<void> {
     let triangles = 0;
     for (const [entry, definition] of walk.definitions) {
       const mesh = tessellate(oc, definition.shape);
+      definition.shape.delete();
       if (!mesh.indices.length) continue;
       const hash = createHash("sha256");
       for (const array of [mesh.positions, mesh.indices, mesh.faceOrds]) {
@@ -241,5 +243,6 @@ async function build(stepAbs: string, dest: string): Promise<void> {
     );
   } finally {
     document.close();
+    recycleLargeKernel();
   }
 }

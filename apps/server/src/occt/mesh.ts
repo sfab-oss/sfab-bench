@@ -49,10 +49,14 @@ export function tessellate(oc: OpenCascade, shape: Shape): ComponentMesh {
 
     for (let i = 1; i <= nodeCount; i += 1) {
       const raw = nodes.Value(i);
+      // `Transformed` returns a new gp_Pnt by value, so it is ours to free. On a
+      // 150k-triangle assembly this one allocation is most of the leak.
       const point = placed ? raw.Transformed(trsf) : raw;
       const x = point.X();
       const y = point.Y();
       const z = point.Z();
+      if (placed) point.delete();
+      raw.delete();
       positions.push(x, y, z);
       faceOrds.push(ord);
       if (x < min[0]) min[0] = x;

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { openCascade } from "./runtime";
-import type { Embound, Label, OpenCascade, ShapeTool, ColorTool } from "./types";
+import type { Deletable, Embound, Label, OpenCascade, ShapeTool, ColorTool } from "./types";
 
 /**
  * An XCAF document: the assembly graph OCCT builds from a STEP file, with the
@@ -11,6 +11,7 @@ export type StepDocument = {
   oc: OpenCascade;
   shapeTool: ShapeTool;
   colorTool: ColorTool;
+  /** Frees the staged file and every OCCT object this document owns. */
   close(): void;
 };
 
@@ -32,15 +33,23 @@ function readExtended(oc: OpenCascade, str: Embound): string {
 export function labelEntry(oc: OpenCascade, label: Label): string {
   const str = new oc.TCollection_AsciiString_1();
   oc.TDF_Tool.Entry(label, str);
-  return readAscii(oc, str);
+  const entry = readAscii(oc, str);
+  str.delete();
+  return entry;
 }
 
 /** The product name STEP carried for this label, if it carried one. */
 export function labelName(oc: OpenCascade, label: Label): string | null {
   const attribute = new oc.Handle_TDF_Attribute_1();
-  if (!label.FindAttribute_1(oc.TDataStd_Name.GetID(), attribute)) return null;
+  if (!label.FindAttribute_1(oc.TDataStd_Name.GetID(), attribute)) {
+    attribute.delete();
+    return null;
+  }
   const name = new oc.Handle_TDataStd_Name_2(attribute.get());
-  return readExtended(oc, name.get().Get()) || null;
+  const text = readExtended(oc, name.get().Get()) || null;
+  name.delete();
+  attribute.delete();
+  return text;
 }
 
 /** Surface colour as `[r, g, b, a]` in 0..1, or null when the label carries none. */
@@ -54,12 +63,15 @@ export function labelColor(oc: OpenCascade, colorTool: ColorTool, label: Label):
     for (const get of [colorTool.GetColor_4, colorTool.GetColor_1]) {
       try {
         if (get.call(colorTool, label, type, color)) {
-          return [color.Red(), color.Green(), color.Blue(), 1];
+          const rgba = [color.Red(), color.Green(), color.Blue(), 1];
+          color.delete();
+          return rgba;
         }
       } catch {
         /* wrong overload for this build */
       }
     }
+    color.delete();
   }
   return null;
 }
@@ -70,10 +82,14 @@ export function childLabels(
   keep: (child: Label) => boolean,
 ): Label[] {
   const out: Label[] = [];
-  for (const it = new oc.TDF_ChildIterator_2(label, false); it.More(); it.Next()) {
+  // Only the iterator is ours. The labels it yields are views into OCCT's own
+  // tree — freeing one corrupts the iterator and `More()` never terminates.
+  const it = new oc.TDF_ChildIterator_2(label, false);
+  for (; it.More(); it.Next()) {
     const child = it.Value();
     if (keep(child)) out.push(child);
   }
+  it.delete();
   return out;
 }
 
@@ -112,10 +128,33 @@ export async function readStep(absPath: string): Promise<StepDocument> {
   const oc = await openCascade();
   const staged = stagingName();
   oc.FS.writeFile(staged, readFileSync(absPath));
+  const owned: Deletable[] = [];
+  const unstage = () => {
+    try {
+      oc.FS.unlink(staged);
+    } catch {
+      /* already gone */
+    }
+  };
+  const release = () => {
+    // Reverse order: the document outlives the handles taken from it.
+    for (const object of owned.reverse()) {
+      try {
+        object.delete();
+      } catch {
+        /* already released */
+      }
+    }
+    owned.length = 0;
+  };
   try {
-    const document = new oc.TDocStd_Document(new oc.TCollection_ExtendedString_1());
+    const format = new oc.TCollection_ExtendedString_1();
+    owned.push(format);
+    const document = new oc.TDocStd_Document(format);
     const handle = new oc.Handle_TDocStd_Document_2(document);
     const reader = new oc.STEPCAFControl_Reader_1();
+    // The handle refcounts the document: freeing both double-frees it.
+    owned.push(handle, reader);
     reader.SetColorMode(true);
     reader.SetNameMode(true);
     const status = reader.ReadFile(staged);
@@ -124,24 +163,21 @@ export async function readStep(absPath: string): Promise<StepDocument> {
     }
     if (!reader.Transfer_1(handle)) throw new Error("STEP carried no transferable shapes");
     const main = document.Main();
+    const shapeHandle = oc.XCAFDoc_DocumentTool.ShapeTool(main);
+    const colorHandle = oc.XCAFDoc_DocumentTool.ColorTool(main);
+    owned.push(shapeHandle, colorHandle);
     return {
       oc,
-      shapeTool: oc.XCAFDoc_DocumentTool.ShapeTool(main).get(),
-      colorTool: oc.XCAFDoc_DocumentTool.ColorTool(main).get(),
+      shapeTool: shapeHandle.get(),
+      colorTool: colorHandle.get(),
       close: () => {
-        try {
-          oc.FS.unlink(staged);
-        } catch {
-          /* already gone */
-        }
+        unstage();
+        release();
       },
     };
   } catch (err) {
-    try {
-      oc.FS.unlink(staged);
-    } catch {
-      /* already gone */
-    }
+    unstage();
+    release();
     throw err;
   }
 }

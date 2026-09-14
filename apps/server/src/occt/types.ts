@@ -11,31 +11,41 @@
 /** An embind object handle. `ptr` is the address of the C++ object in the wasm heap. */
 export type Embound = { $$: { ptr: number } };
 
+/**
+ * embind hands back a JS handle for every call that returns an object, and this
+ * build has no FinalizationRegistry, so nothing is reclaimed unless we say so.
+ * Anything we own must be `delete()`d or the wasm heap grows until it hits its
+ * hard 2 GB ceiling and the kernel starts failing every call.
+ */
+export interface Deletable {
+  delete(): void;
+}
+
 export type Enum = { value: number };
 
 export interface Trsf {
   Value(row: number, col: number): number;
 }
 
-export interface Location {
+export interface Location extends Deletable {
   IsIdentity(): boolean;
   Transformation(): Trsf;
-  delete(): void;
 }
 
-export interface Pnt {
+export interface Pnt extends Deletable {
   X(): number;
   Y(): number;
   Z(): number;
+  /** Returns a new gp_Pnt by value — the caller owns it. */
   Transformed(trsf: Trsf): Pnt;
 }
 
-export interface Shape {
+export interface Shape extends Deletable {
   IsNull(): boolean;
   Orientation_1(): Enum;
 }
 
-export interface Label extends Embound {
+export interface Label extends Embound, Deletable {
   Tag(): number;
   NbChildren(): number;
   FindAttribute_1(id: unknown, attr: Embound): boolean;
@@ -45,19 +55,19 @@ export interface Triangle {
   Value(i: number): number;
 }
 
-export interface Array1<T> {
+export interface Array1<T> extends Deletable {
   Length(): number;
   Value(i: number): T;
 }
 
-export interface Triangulation {
+export interface Triangulation extends Deletable {
   NbNodes(): number;
   NbTriangles(): number;
   Nodes(): Array1<Pnt>;
   Triangles(): Array1<Triangle>;
 }
 
-export interface Handle<T> {
+export interface Handle<T> extends Deletable {
   IsNull(): boolean;
   get(): T;
 }
@@ -81,26 +91,26 @@ export interface ColorTool {
   GetColor_4(label: Label, type: Enum, out: Color): boolean;
 }
 
-export interface Color {
+export interface Color extends Deletable {
   Red(): number;
   Green(): number;
   Blue(): number;
 }
 
-export interface StepReader {
+export interface StepReader extends Deletable {
   SetColorMode(on: boolean): void;
   SetNameMode(on: boolean): void;
   ReadFile(path: string): Enum;
   Transfer_1(doc: unknown): boolean;
 }
 
-export interface ChildIterator {
+export interface ChildIterator extends Deletable {
   More(): boolean;
   Next(): void;
   Value(): Label;
 }
 
-export interface Explorer {
+export interface Explorer extends Deletable {
   More(): boolean;
   Next(): void;
   Current(): Shape;
@@ -110,15 +120,17 @@ type Ctor<T, A extends unknown[] = unknown[]> = new (...args: A) => T;
 
 export interface OpenCascade {
   FS: { writeFile(path: string, data: Uint8Array): void; unlink(path: string): void };
+  /** Whole wasm heap. Its length is what the recycle watermark watches. */
+  HEAPU8: Uint8Array;
   HEAPU16: Uint16Array;
   HEAPU32: Uint32Array;
   UTF8ToString(ptr: number): string;
 
-  TCollection_AsciiString_1: Ctor<Embound>;
-  TCollection_ExtendedString_1: Ctor<Embound>;
-  TDocStd_Document: Ctor<{ Main(): Label }>;
-  Handle_TDocStd_Document_2: Ctor<unknown>;
-  STEPCAFControl_Reader_1: Ctor<StepReader>;
+  TCollection_AsciiString_1: Ctor<Embound & Deletable>;
+  TCollection_ExtendedString_1: Ctor<Embound & Deletable>;
+  TDocStd_Document: Ctor<{ Main(): Label } & Deletable>;
+  Handle_TDocStd_Document_2: Ctor<Deletable>;
+  STEPCAFControl_Reader_1: Ctor<StepReader & Deletable>;
   IFSelect_ReturnStatus: { IFSelect_RetDone: Enum };
 
   XCAFDoc_DocumentTool: {
@@ -135,9 +147,9 @@ export interface OpenCascade {
   Handle_TDF_Attribute_1: Ctor<Handle<Embound> & Embound>;
   Handle_TDataStd_Name_2: Ctor<Handle<{ Get(): Embound }>>;
 
-  Quantity_Color_1: Ctor<Color>;
+  Quantity_Color_1: Ctor<Color & Deletable>;
 
-  BRepMesh_IncrementalMesh_2: Ctor<unknown>;
+  BRepMesh_IncrementalMesh_2: Ctor<Deletable>;
   TopExp_Explorer_2: Ctor<Explorer>;
   TopAbs_ShapeEnum: { TopAbs_FACE: Enum; TopAbs_SHAPE: Enum };
   TopAbs_Orientation: { TopAbs_REVERSED: Enum };
