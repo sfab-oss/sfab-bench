@@ -1,7 +1,7 @@
 import type { ComponentMesh, FaceRange } from "./tess";
 import type { OpenCascade, Shape } from "./types";
 
-/** Chord and angle tolerance. Same numbers cadgen's mesh-export used, so face counts match. */
+/** Chord and angle tolerance. Chord is relative to the shape's own size. */
 const LINEAR_DEFLECTION = 0.0015; // relative to each face's size
 const ANGULAR_DEFLECTION = 0.35; // radians
 

@@ -52,7 +52,7 @@ symlinks the skill above.
 ## Conventions
 
 - Project = a directory. Document = a STEP or GLB in it. Agent cwd = that directory.
-- Tessellation is a loader, not a project adapter. It is OCCT WASM in the API process ([ADR 0002](docs/decisions/0002-step-loader-occt.md), [ADR 0004](docs/decisions/0004-occt-via-opencascade-js.md)); cadgen is only the `SFAB_BENCH_LOADER=cadgen` fallback.
+- Tessellation is a loader, not a project adapter. It is OCCT WASM in the API process, and the only one ([ADR 0002](docs/decisions/0002-step-loader-occt.md), [ADR 0004](docs/decisions/0004-occt-via-opencascade-js.md)).
 - Loopback is trusted. Anything else on `/api` needs pairing.
 - Electron is a shell: same server, same `https://127.0.0.1:7322` page, plus a native folder dialog. `apps/web` never imports from it ([ADR 0005](docs/decisions/0005-electron-shell.md)).
 - Mac and Quest share the open folder, recents, and thread history. Each client keeps its own file, selection, and live chat ([ADR 0003](docs/decisions/0003-library-not-viewport.md)).

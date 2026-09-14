@@ -49,6 +49,7 @@ Components are keyed by **mesh content hash**, so the same solid placed
 forty times is downloaded and uploaded once. Occurrences carry world
 transforms; the tree carries the structure.
 
-cadgen remains reachable as `SFAB_BENCH_LOADER=cadgen` while the OCCT
-path settles. `source.json` records which loader built a cached package,
-so switching rebuilds rather than serving the other one's `#o…` refs.
+`source.json` records the source file's stamp and the package format
+version. Occurrence ids and face ordinals are refs that leave the server,
+so a cache from an older format is rebuilt rather than served with refs
+that no longer mean what they did.

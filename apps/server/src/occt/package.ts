@@ -44,7 +44,7 @@ type LeafDefinition = { shape: Shape };
  * Occurrences carry their world transform, not their parent-relative one, and only
  * leaves get an entry: the viewer builds groups from the tree and looks up an
  * occurrence per node, so a flattened leaf transform draws the same scene with
- * fewer entries. That is also what cadgen emitted.
+ * fewer entries.
  */
 type Walk = {
   occurrences: (StepOccurrence & { definition: string })[];
@@ -204,7 +204,7 @@ async function build(stepAbs: string, dest: string): Promise<void> {
 
     // Distinct definitions often tessellate to identical meshes (the same bolt placed
     // 40 times arrives as 40 STEP products). Key components by mesh content so the
-    // viewer downloads and uploads one geometry, as cadgen's content hash did.
+    // viewer downloads and uploads one geometry.
     const components: StepPackage["components"] = {};
     const bounds = new Map<string, { min: number[]; max: number[] }>();
     const componentOf = new Map<string, string>();

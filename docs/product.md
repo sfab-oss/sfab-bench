@@ -33,7 +33,7 @@ viewport ([ADR 0003](decisions/0003-library-not-viewport.md)).
 Do not re-open these unless the human asks.
 
 - **No adapters.** Project = a directory. Document = a STEP or GLB in it. Agent cwd = that directory. Skills live in the project if the user put them there.
-- **Tessellation is a loader**, not an adapter. OpenCascade WASM in the API process, same `assembly.json` + `.tess` + `#o…` contract ([ADR 0002](decisions/0002-step-loader-occt.md), [ADR 0004](decisions/0004-occt-via-opencascade-js.md)). Cadgen was the stopgap and is now only `SFAB_BENCH_LOADER=cadgen`.
+- **Tessellation is a loader**, not an adapter. OpenCascade WASM in the API process, and the only one, producing `assembly.json` + `.tess` + `#o…` ([ADR 0002](decisions/0002-step-loader-occt.md), [ADR 0004](decisions/0004-occt-via-opencascade-js.md)). The Python stopgap it replaced is gone.
 - **One process, two HTTPS clients.** Mac tab (loopback trusted) and Quest Browser (paired). No Unity, no APK.
 - **Share the library, not the viewport.** Recents, thread list, messages at rest, open folder, pairing. Not: loaded file, selection, camera, XR, which chat is open, live stream. `show_artifact` moves only the asking client.
 - **Desktop composer stays TipTap** for future `#` chips (parts, faces, `#o…`). Quest stays plain input + voice.
@@ -50,7 +50,7 @@ Each row is one PR-sized unit. Update status here when it ships.
 | --- | --- | --- |
 | 1 | **done** | Pairing: loopback trusted, LAN needs a device token |
 | 2 | **done** | Standalone Node server; Vite proxies `/api` in dev |
-| 3 | **done** | Project folder + managed cadgen loader + recents |
+| 3 | **done** | Project folder + STEP loader + recents |
 | 4 | **done** | Library, not viewport ([ADR 0003](decisions/0003-library-not-viewport.md)) |
 | 5 | **done** | This repo; sphere-robot `xr-viewer/` deleted |
 | 6 | **partial** | Desktop layout (files left, model tree on canvas, chat right, provider status). **Still to do:** TipTap `#` mentions from parts / faces / `#o…`; chips flatten to those refs; click-in-history selects on this tab |

@@ -1,6 +1,6 @@
 # ADR-0002: STEP loader is own OpenCascade, not cadgen
 
-**Status:** Accepted — implemented 2026-09-14 ([ADR 0004](0004-occt-via-opencascade-js.md))
+**Status:** Accepted — implemented 2026-09-14 ([ADR 0004](0004-occt-via-opencascade-js.md)); cadgen fallback removed 2026-09-14
 **Date:** 2026-09-13
 **Deciders:** Alwurts
 
@@ -48,10 +48,16 @@ It is not the destination.
 ## Implementation notes
 
 Shipped 2026-09-14 as `apps/server/src/occt/`, on the kernel chosen in
-[ADR 0004](0004-occt-via-opencascade-js.md). The cadgen path
-(`apps/server/src/loader.ts`, `apps/server/scripts/dump_step_package.py`)
-stays reachable with `SFAB_BENCH_LOADER=cadgen` and is now the fallback, not
-the default.
+[ADR 0004](0004-occt-via-opencascade-js.md).
+
+The cadgen path was kept for a few hours as `SFAB_BENCH_LOADER=cadgen`, then
+deleted the same day along with `apps/server/src/loader.ts`,
+`scripts/dump_step_package.py` and `scripts/tessellate_package.mjs`. Two
+loaders that number occurrences differently is a second contract to keep
+honest, and the OCCT path had already matched it on every file we had. There
+is now one tessellator, which is what this ADR decided; the fallback was
+scaffolding for the migration, not part of the decision. Cached packages
+carry a `format` version so anything written by the old path is rebuilt.
 
 ## Related
 

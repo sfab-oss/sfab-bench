@@ -40,7 +40,7 @@ settled here.
 - Full XCAF today: `STEPCAFControl_Reader` gives the assembly graph with names,
   colours and per-instance placements, so the tree the viewer draws is the tree
   the STEP author wrote.
-- No Python. STEP opens in a folder that has never seen cadgen.
+- No Python. STEP opens in a folder that has never had a CAD toolchain in it.
 - Cold tessellation got faster: ~0.3 s for a part, ~1.3 s for a 22-part
   assembly, ~12 s for an 11 MB / 318-occurrence one, then cached.
 - The kernel is one wasm instance in the API process. No subprocess, no venv,
@@ -57,8 +57,6 @@ settled here.
 - Everything quirky is isolated in `occt/runtime.ts` and `occt/document.ts`
   behind named helpers, with the reason in a comment. Swapping the binary means
   editing those two files, not the tessellator.
-- `SFAB_BENCH_LOADER=cadgen` still runs the Python path, so a bad kernel day is
-  a one-env-var fallback rather than an outage.
 - `occt.selfcheck.ts` builds a committed fixture and asserts the package
   invariants the viewer depends on, including that normals point outward.
 

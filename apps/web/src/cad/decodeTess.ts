@@ -1,4 +1,4 @@
-/** cadgen component tessellation (.tess, TESS v3). Coordinates are CAD millimetres, Z-up. */
+/** A component's tessellation (.tess, TESS v3). Coordinates are CAD millimetres, Z-up. */
 
 export type FaceRange = {
   ord: number;

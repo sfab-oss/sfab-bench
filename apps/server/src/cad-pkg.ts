@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { spawn } from "node:child_process";
 import {
   createReadStream,
   existsSync,
@@ -9,13 +8,12 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { mkdir, rm } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
 
 import { cacheDir } from "./config";
-import { cadgenPython } from "./loader";
 import { buildStepPackage } from "./occt/package";
 import { insideRoot, posixRel, projectPath } from "./projects";
 import { rememberOpenedFile } from "./session";
@@ -26,21 +24,21 @@ const PKG_FILE = /^\/api\/cad-pkg\/(.+)\/(assembly\.json|components\/[^/]+\.tess
 const PROJECT_FILE = /^\/api\/files\/(.+)$/;
 
 const inflight = new Map<string, Promise<string>>();
-const dumpScript = fileURLToPath(new URL("../scripts/dump_step_package.py", import.meta.url));
+
+/**
+ * Bumped whenever a package's contents change shape. Occurrence ids and face
+ * ordinals are refs the viewer and the assistant hand around, so a cache written
+ * by an older build has to be rebuilt rather than served with refs that no longer
+ * mean what they did.
+ */
+const PACKAGE_FORMAT = 2;
 
 export type ResolvedArtifact =
   | { kind: "step"; rel: string; abs: string }
   | { kind: "glb"; rel: string; abs: string }
   | { error: string };
 
-type SourceStamp = { path: string; mtimeMs: number; size: number; loader: LoaderName };
-
-type LoaderName = "occt" | "cadgen";
-
-/** OCCT WASM is the loader. `SFAB_BENCH_LOADER=cadgen` falls back to the Python stopgap. */
-function loaderName(): LoaderName {
-  return process.env.SFAB_BENCH_LOADER?.trim() === "cadgen" ? "cadgen" : "occt";
-}
+type SourceStamp = { path: string; mtimeMs: number; size: number; format: number };
 
 function existingFile(root: string, abs: string): string | null {
   if (!existsSync(abs)) return null;
@@ -86,7 +84,7 @@ function packageCacheDir(abs: string) {
 
 function stampOf(rel: string, abs: string): SourceStamp {
   const st = statSync(abs);
-  return { path: rel, mtimeMs: Math.round(st.mtimeMs), size: st.size, loader: loaderName() };
+  return { path: rel, mtimeMs: Math.round(st.mtimeMs), size: st.size, format: PACKAGE_FORMAT };
 }
 
 function isFresh(dest: string, stamp: SourceStamp): boolean {
@@ -96,43 +94,15 @@ function isFresh(dest: string, stamp: SourceStamp): boolean {
   if (!existsSync(ok) || !existsSync(src) || !existsSync(assembly)) return false;
   try {
     const prev = JSON.parse(readFileSync(src, "utf8")) as SourceStamp;
-    // A package built by the other loader numbers its occurrences differently, so
-    // switching loaders has to rebuild rather than serve stale refs.
     return (
       prev.path === stamp.path &&
       prev.mtimeMs === stamp.mtimeMs &&
       prev.size === stamp.size &&
-      prev.loader === stamp.loader
+      prev.format === stamp.format
     );
   } catch {
     return false;
   }
-}
-
-function runDump(py: string, abs: string, dest: string): Promise<void> {
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn(py, [dumpScript, abs, "--dest", dest], {
-      cwd: projectPath(),
-      env: process.env,
-    });
-    let stderr = "";
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString("utf8");
-    });
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error("tessellate timed out"));
-    }, 5 * 60 * 1000);
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-    child.on("exit", (code) => {
-      clearTimeout(timer);
-      if (code === 0) resolvePromise();
-      else reject(new Error(stderr.trim() || `dump_step_package exited ${code}`));
-    });
-  });
 }
 
 async function buildPackage(rel: string, abs: string): Promise<string> {
@@ -142,13 +112,7 @@ async function buildPackage(rel: string, abs: string): Promise<string> {
   console.log(`[cad-pkg] tessellate ${rel}`);
   mkdirSync(join(dest, ".."), { recursive: true });
   try {
-    if (stamp.loader === "cadgen") {
-      const py = await cadgenPython();
-      await mkdir(dest, { recursive: true });
-      await runDump(py, abs, dest);
-    } else {
-      await buildStepPackage(abs, dest);
-    }
+    await buildStepPackage(abs, dest);
     writeFileSync(join(dest, "source.json"), JSON.stringify(stamp));
     writeFileSync(join(dest, "ok"), "ok\n");
   } catch (err) {

@@ -3,14 +3,9 @@ import { join } from "node:path";
 
 export const DEV_API_HOST = "127.0.0.1";
 export const APP_HOME = join(homedir(), ".sfab-bench");
-export const CADGEN_VERSION = "0.5.0";
 
 export function cacheDir(): string {
   return join(APP_HOME, "cache");
-}
-
-export function cadgenDir(): string {
-  return join(APP_HOME, "tools", "cadgen", CADGEN_VERSION);
 }
 
 export function envPort(name: string, fallback: number): number {

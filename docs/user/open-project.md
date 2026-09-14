@@ -25,5 +25,4 @@ for every client; opening one is a local choice.
 
 STEP is tessellated on demand by OpenCascade inside the server — no
 Python, nothing to install. Cache is `~/.sfab-bench/cache/`; delete a
-folder there to force a rebuild. `SFAB_BENCH_LOADER=cadgen` switches back
-to the old Python path if you ever need to compare.
+folder there to force a rebuild.

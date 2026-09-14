@@ -3,8 +3,8 @@
  *
  * Layout: magic, version, JSON header length, JSON header, then the raw arrays in
  * order — positions, normals, face ordinals, indices, side ordinals, edge polylines.
- * We emit no side ordinals and no edges (both are cadgen extras the viewer skips),
- * so a file we write is a legal subset of one cadgen writes.
+ * We emit no side ordinals and no edges: the format has fields for both, the
+ * viewer skips them, so every file we write declares them as empty.
  */
 
 const MAGIC = 1397966164; // "TESS"

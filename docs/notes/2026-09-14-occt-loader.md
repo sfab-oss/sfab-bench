@@ -1,17 +1,19 @@
 # 2026-09-14 the OCCT WASM loader, and what this build does badly
 
-STEP now opens through OpenCascade in-process ([ADR 0004](../decisions/0004-occt-via-opencascade-js.md)).
-cadgen stays behind `SFAB_BENCH_LOADER=cadgen` until this has run for a while.
+STEP now opens through OpenCascade in-process ([ADR 0004](../decisions/0004-occt-via-opencascade-js.md)),
+and as of the same day it is the only loader — the Python stopgap it replaced
+is deleted.
 
-## It matches cadgen where it has to
+## How it was checked against the loader it replaced
 
-Rebuilt every package in `~/.sfab-bench/cache` (13 files from sphere-robot,
-1 part to 318 occurrences) and compared against what cadgen had written:
+Before the old path was removed: rebuilt every package in `~/.sfab-bench/cache`
+(13 files, 1 part to 318 occurrences) and compared against what the Python
+loader had written for the same files:
 
 - **occurrence count: identical on all 13.**
 - **component count: identical on all 13**, once components were keyed by mesh
   content hash rather than by XCAF definition label. Keying by label gave 318
-  components where cadgen gave 46 — STEP hands you the same bolt as N separate
+  components where the old loader gave 46 — STEP hands you the same bolt as N separate
   products, and only content hashing collapses them again.
 - bbox within 0.092 mm (mesh chord difference, not a structural one).
 - face count per component identical on the part checked by hand, so
@@ -60,7 +62,7 @@ XCAF hands back a graph, the viewer wants a tree plus flat occurrences:
   carries a placement and points at a definition label.
 - Only leaves get an occurrence, and it carries the **world** transform, not the
   parent-relative one. Intermediate nodes stay in the tree with no occurrence —
-  that is what cadgen emitted, and `loadStepPackage` looks up an occurrence per
+  that is what the old loader emitted, and `loadStepPackage` looks up an occurrence per
   node, so a missing one is just an identity group.
 - Vertices are never shared between faces. That is what makes `.f7` refs
   possible at all, and it gives hard edges between faces while normals averaged
@@ -94,8 +96,8 @@ regardless of how complete the `delete()` audit is, and it is only safe because
 `buildStepPackage` serialises builds — every raw pointer in flight belongs to the
 one document it just closed.
 
-## Still cadgen's
+## Deliberately not written
 
-`.surf` and `.brep` sidecars. The viewer never fetches them (the route only
-serves `assembly.json` and `components/*.tess`), so the OCCT packages do not
-write them.
+`.surf` and `.brep` sidecars, which the old packages carried. The viewer never
+fetches them — the route only serves `assembly.json` and `components/*.tess` —
+so nothing writes them any more.
