@@ -3,6 +3,7 @@
 What "renders correctly" means here, and which parts of it are checked today.
 
 Checks are plain `tsx` scripts named `*.selfcheck.ts`, run by `pnpm test`.
+The desktop packager check is a `node` script next to `package.mjs`.
 No framework. A check either prints `… ok` or throws.
 
 ## The ladder
@@ -27,6 +28,15 @@ stale the moment the tessellator legitimately changes.** Prefer an
 invariant to a golden every time one is available.
 
 ## Built
+
+**Desktop — `package.selfcheck.mjs`.** Codex and OpenCode read lockfiles
+out of `@ai-sdk/harness-*/dist/bridge`. electron-builder drops those from
+`node_modules`, which is the ENOENT the `.app` used to show in chat.
+The check confirms the npm packages still ship the files, that
+`package.mjs` still copies them back, and — when `release/` has a
+`.app` — that the packaged tree contains them. `package.mjs` itself
+throws if a build would ship without them. Dock PATH (Homebrew,
+`~/.opencode/bin`) is `config.selfcheck.ts` and `models.selfcheck.ts`.
 
 **Tier 0–1 — `occt/invariants.ts`, run by `occt.corpus.selfcheck.ts`.**
 `checkPackage(dir)` reads a built package back off disk and returns every

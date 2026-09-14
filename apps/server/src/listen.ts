@@ -3,7 +3,7 @@ import { createServer as createHttpServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { fileURLToPath } from "node:url";
 
-import { apiPort, certDir, DEV_API_HOST, publicPort } from "./config";
+import { apiPort, certDir, DEV_API_HOST, ensureLoginLikePath, publicPort } from "./config";
 import { handleRequest } from "./http";
 import { bootProject, subscribeProjectChange } from "./projects";
 import { hydrateSession } from "./session";
@@ -36,6 +36,7 @@ function onListenError(err: NodeJS.ErrnoException, host: string, port: number): 
 }
 
 async function main() {
+  ensureLoginLikePath();
   subscribeProjectChange(() => {
     hydrateSession();
   });

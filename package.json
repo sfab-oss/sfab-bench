@@ -1,6 +1,6 @@
 {
   "name": "sfab-bench",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Open a folder, open a STEP, talk. A CAD workbench for the Mac and the Quest browser.",
   "author": "SFab",
@@ -25,7 +25,7 @@
     "sfab-bench": "node apps/server/bin/sfab-bench.mjs",
     "build": "pnpm typecheck && pnpm test && pnpm --filter @sfab-bench/web build && pnpm --filter @sfab-bench/desktop build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm --filter @sfab-bench/server test && pnpm --filter @sfab-bench/web test",
+    "test": "pnpm --filter @sfab-bench/server test && pnpm --filter @sfab-bench/web test && pnpm --filter @sfab-bench/desktop test",
     "corpus:fetch": "node apps/server/scripts/fetch_external.mjs",
     "corpus:external": "pnpm --filter @sfab-bench/server exec tsx src/occt.external.selfcheck.ts",
     "desktop": "pnpm --filter @sfab-bench/web build && pnpm --filter @sfab-bench/desktop build && pnpm --filter @sfab-bench/desktop exec node run.mjs .",

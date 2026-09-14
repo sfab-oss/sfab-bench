@@ -63,7 +63,7 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 12 | **done** | OCCT WASM loader. STEP opens with no Python ([ADR 0004](decisions/0004-occt-via-opencascade-js.md)) |
 | 13 | **done** | sessions-01 — project is a request parameter, per-workspace `409` ([ADR 0006](decisions/0006-folder-is-a-tab.md)). Server and contract; web unchanged. |
 | 14 | **done** | sessions-02 — `?project=` as tab state, switcher sets the tab instead of `POST /api/project`, paired clients pick from recents, ⌘O targets the window's tab. Welcome is `/`; a folder with no `?file=` is an empty scene. |
-| 15 | **done** | ship-01 — tag `v0.1.0`: `bin` field, Releases zip via `ditto`, signing auto-detect with today's ad-hoc fallback, `install.md` recipe "now" |
+| 15 | **done** | ship-01 — tag `v0.1.0`: `bin` field, Releases zip via `ditto`, signing auto-detect with today's ad-hoc fallback, `install.md` recipe "now". `v0.1.1` restores Codex/OpenCode in the packaged app. |
 | 16 | later | ship-02 — `sfab-bench app [dir]`, binary inside the `.app`, "Open at login". Not until the `.app` sits in `/Applications` and launches from the Dock |
 
 ## Do not build

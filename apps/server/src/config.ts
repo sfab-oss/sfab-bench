@@ -1,8 +1,43 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
 export const DEV_API_HOST = "127.0.0.1";
 export const APP_HOME = join(homedir(), ".sfab-bench");
+
+/** Directories a Dock-launched `.app` does not inherit from the terminal. */
+export function loginPathExtras(home = homedir()): string[] {
+  return [
+    "/opt/homebrew/bin",
+    "/opt/homebrew/sbin",
+    "/usr/local/bin",
+    join(home, ".local/bin"),
+    join(home, ".opencode/bin"),
+    join(home, "Library/pnpm"),
+    join(home, ".local/share/pnpm"),
+  ];
+}
+
+/**
+ * Finder and Dock launches get `/usr/bin:/bin:/usr/sbin:/sbin`. Homebrew,
+ * pnpm, and `opencode` live elsewhere. Prepend those dirs when they exist so
+ * Codex bootstrap and the OpenCode picker still work from the `.app`.
+ */
+export function loginLikePath(current = process.env.PATH ?? "", home = homedir()): string {
+  const extras = loginPathExtras(home).filter((dir) => existsSync(dir));
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const dir of [...extras, ...current.split(":")]) {
+    if (!dir || seen.has(dir)) continue;
+    seen.add(dir);
+    parts.push(dir);
+  }
+  return parts.join(":");
+}
+
+export function ensureLoginLikePath(): void {
+  process.env.PATH = loginLikePath();
+}
 
 export function cacheDir(): string {
   return join(APP_HOME, "cache");

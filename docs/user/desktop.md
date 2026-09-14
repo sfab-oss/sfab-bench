@@ -57,7 +57,9 @@ Writes `apps/desktop/release/mac-arm64/sfab-bench.app`, about 380 MB, with
 the server, the OCCT kernel and the web client inside it, and
 `apps/desktop/release/sfab-bench-<version>-arm64.app.zip` via `ditto
 --keepParent` so the ad-hoc signature survives. Nothing else has to be
-installed to run it.
+installed to run it. electron-builder drops `pnpm-lock.yaml` from
+`node_modules`; `package.mjs` copies the harness bridge lockfiles back
+in before signing, or Codex/OpenCode fail with ENOENT on first chat.
 
 With `CSC_NAME` or `CSC_LINK` in the environment, the same command signs
 with that identity. Notary credentials (`APPLE_ID`, app-specific password,

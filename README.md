@@ -55,7 +55,7 @@ sfab-bench` is the same):
 
 ```bash
 pnpm cli --help
-pnpm cli open ~/Development/sphere-robot --dev
+pnpm cli open /abs/path --dev
 ```
 
 Collaborators can also unzip `sfab-bench-<version>-arm64.app.zip` from

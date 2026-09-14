@@ -58,3 +58,4 @@ symlinks the skill above.
 - Electron is a shell: same server, same `https://127.0.0.1:7322` page, plus a native folder dialog. `apps/web` never imports from it ([ADR 0005](docs/decisions/0005-electron-shell.md)).
 - Mac and Quest share recents and thread history. The folder is the tab's (`?project=`). Each client keeps its own file, selection, and live chat ([ADR 0003](docs/decisions/0003-library-not-viewport.md), [ADR 0006](docs/decisions/0006-folder-is-a-tab.md)).
 - Do not merge `sfab-oss/sfab-cad` (cloud + Godot). That choice is [ADR 0001](docs/decisions/0001-new-private-repo.md).
+- Do not commit machine-specific home paths or usernames. CLI examples use `/abs/path`.

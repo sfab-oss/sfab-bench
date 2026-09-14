@@ -22,10 +22,13 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { assertHarnessBridgeAssets } from "./harness-bridge.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..", "..");
@@ -118,7 +121,38 @@ if (canSign && canNotarise) {
 console.log(
   `[package] electron-builder (${canSign ? "signed" : "unsigned"}${canSign && canNotarise ? ", notarize" : ""})`,
 );
+assertHarnessBridgeAssets(stage, "staged app/");
 run(join(here, "node_modules", ".bin", "electron-builder"), builderArgs, here);
+
+/**
+ * electron-builder always excludes pnpm-lock.yaml (and similar lockfiles)
+ * after the files glob, so each @ai-sdk harness dist/bridge loses the files
+ * Codex and OpenCode read via import.meta.url. Copy them back from the
+ * staged app/ before signing — adding files after codesign invalidates it.
+ */
+function restoreHarnessBridgeAssets(appPath) {
+  const stagedAi = join(stage, "node_modules", "@ai-sdk");
+  const packedAi = join(appPath, "Contents", "Resources", "app", "node_modules", "@ai-sdk");
+  if (!existsSync(stagedAi) || !existsSync(packedAi)) {
+    throw new Error(`harness bridge restore: missing @ai-sdk in stage or ${appPath}`);
+  }
+  let restored = 0;
+  for (const pkg of readdirSync(stagedAi, { withFileTypes: true })) {
+    if (!pkg.isDirectory() || !pkg.name.startsWith("harness-")) continue;
+    const stagedBridge = join(stagedAi, pkg.name, "dist", "bridge");
+    if (!existsSync(stagedBridge)) continue;
+    const packedBridge = join(packedAi, pkg.name, "dist", "bridge");
+    mkdirSync(packedBridge, { recursive: true });
+    for (const name of readdirSync(stagedBridge)) {
+      const from = join(stagedBridge, name);
+      if (!statSync(from).isFile()) continue;
+      cpSync(from, join(packedBridge, name));
+      restored += 1;
+    }
+  }
+  console.log(`[package] restored ${restored} harness bridge files into ${appPath}`);
+  assertHarnessBridgeAssets(join(appPath, "Contents", "Resources", "app"), "packaged app");
+}
 
 /**
  * Without a developer identity, electron-builder leaves the .app carrying
@@ -135,11 +169,18 @@ const apps = readdirSync(release, { withFileTypes: true })
   .filter((path) => existsSync(path));
 if (process.platform === "darwin") {
   if (!apps.length) throw new Error(`no sfab-bench.app under ${release}`);
-  if (!canSign) {
-    for (const app of apps) {
+  for (const app of apps) {
+    restoreHarnessBridgeAssets(app);
+    if (canSign && process.env.CSC_NAME) {
+      console.log(`[package] re-signing ${app}`);
+      run("codesign", ["--force", "--deep", "--options", "runtime", "--sign", process.env.CSC_NAME, app], here);
+      run("codesign", ["--verify", "--deep", "--strict", app], here);
+    } else if (!canSign) {
       console.log(`[package] ad-hoc signing ${app}`);
       run("codesign", ["--force", "--deep", "--sign", "-", app], here);
       run("codesign", ["--verify", "--deep", "--strict", app], here);
+    } else {
+      console.warn("[package] CSC_LINK signing: restore happened after electron-builder; re-sign before distributing");
     }
   }
   const arch = process.arch === "arm64" ? "arm64" : process.arch;

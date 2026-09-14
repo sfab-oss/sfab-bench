@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -79,13 +80,20 @@ function parseModelsCli(stdout: string): OpenCodeProvider[] {
   }));
 }
 
-function opencodeBin(root?: string | null): string {
+export function opencodeBinCandidates(root?: string | null, home = homedir()): string[] {
   const candidates: string[] = [];
   if (root) {
     candidates.push(join(root, ".harness-bootstrap/opencode/node_modules/.bin/opencode"));
   }
-  candidates.push(join(APP_HOME, "tools/opencode/node_modules/.bin/opencode"));
-  for (const candidate of candidates) {
+  candidates.push(join(home, ".sfab-bench/tools/opencode/node_modules/.bin/opencode"));
+  candidates.push(join(home, ".opencode/bin/opencode"));
+  candidates.push("/opt/homebrew/bin/opencode");
+  candidates.push("/usr/local/bin/opencode");
+  return candidates;
+}
+
+function opencodeBin(root?: string | null): string {
+  for (const candidate of opencodeBinCandidates(root)) {
     if (existsSync(candidate)) return candidate;
   }
   return "opencode";

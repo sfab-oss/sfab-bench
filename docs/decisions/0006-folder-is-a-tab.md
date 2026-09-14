@@ -12,7 +12,7 @@ the **open folder** as process-global: `projectPath()` was one value, `POST
 /api/project` mutated it, and `hydrateSession` aborted whichever chat was
 running. That is the wrong unit once two windows share a host — Electron
 attaches to `pnpm dev` on `:7322`, so a Mac tab and an Electron window are
-already two clients of one process. Opening bench-lab in one flipped the
+already two clients of one process. Opening a second folder in one flipped the
 other's catalog and killed its agent.
 
 The server has no tab id: loopback is the constant `"loopback"`. Minting a

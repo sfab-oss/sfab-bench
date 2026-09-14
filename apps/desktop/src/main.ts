@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { request } from "node:https";
 import { join } from "node:path";
 
-import { publicPort } from "@sfab-bench/server/config";
+import { loginLikePath, publicPort } from "@sfab-bench/server/config";
 
 const ORIGIN = `https://127.0.0.1:${publicPort()}`;
 const PRELOAD = join(__dirname, "preload.cjs");
@@ -137,7 +137,11 @@ async function startServer(): Promise<void> {
   server = utilityProcess.fork(SERVER, [], {
     serviceName: "sfab-bench-api",
     stdio: "inherit",
-    env: { ...process.env, SFAB_BENCH_WEB_DIST: WEB_DIST },
+    env: {
+      ...process.env,
+      PATH: loginLikePath(),
+      SFAB_BENCH_WEB_DIST: WEB_DIST,
+    },
   });
   server.on("spawn", () => console.log("[desktop] api process spawned"));
   server.on("exit", (code) => {

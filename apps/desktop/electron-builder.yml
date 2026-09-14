@@ -15,5 +15,7 @@ mac:
 # No asar. The wasm kernel is read off disk by path, the utility process forks a
 # real file, and nothing here benefits from being in an archive.
 asar: false
+# `**/*` is not enough: electron-builder still drops lockfiles from
+# node_modules. package.mjs copies harness `dist/bridge` files back in.
 files:
   - "**/*"
