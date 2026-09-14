@@ -40,11 +40,15 @@ export type ResolvedArtifact =
 
 type SourceStamp = { path: string; mtimeMs: number; size: number; format: number };
 
-function existingFile(root: string, abs: string): string | null {
+/**
+ * `abs` as the filesystem really knows it, or null if it is not a file inside
+ * `rootReal`. Symlinks are resolved before the containment test, so a link inside
+ * the project pointing out of it is caught — nothing else would catch that.
+ */
+function existingFile(rootReal: string, abs: string): string | null {
   if (!existsSync(abs)) return null;
   try {
     const real = realpathSync(abs);
-    const rootReal = realpathSync(root);
     if (!insideRoot(rootReal, real)) return null;
     if (!statSync(real).isFile()) return null;
     return real;
@@ -60,13 +64,35 @@ export function resolveArtifact(input: string, root = projectPath()): ResolvedAr
   if (raw.startsWith("file://")) raw = fileURLToPath(raw);
   if (/^https?:\/\//i.test(raw)) return { error: "remote URLs are not documents" };
 
+  /**
+   * The project as the filesystem knows it, because `existingFile` resolves what it
+   * finds the same way and the two are subtracted below. Skip this and they are
+   * different bases: on macOS `/var` is a link to `/private/var`, so a project
+   * opened under /tmp produced a `rel` full of `..` that climbed out of its own
+   * project — and since that `rel` is the viewer's URL, the value handed to the
+   * assistant and the recents entry, the file opened once and was refused ever after.
+   */
+  let base: string;
+  try {
+    base = realpathSync(root);
+  } catch {
+    return { error: "the project folder is gone" };
+  }
+
   const qless = raw.split("?")[0] ?? raw;
-  let rel = qless.replace(/^\/+/, "");
+  /**
+   * An absolute path that lands inside the project is that file — an assistant
+   * working in the folder will naturally produce one. Anything else is read as
+   * project-relative, so a leading slash means the root of the project and not the
+   * root of the filesystem, which is what `?file=/part.step` in a URL means.
+   */
+  const direct = isAbsolute(qless) ? existingFile(base, qless) : null;
+  let rel = direct ? posixRel(base, direct) : qless.replace(/^\/+/, "");
   if (!rel || rel.split("/").includes("..")) return { error: "path escapes project" };
 
-  const abs = existingFile(root, resolve(root, rel));
+  const abs = direct ?? existingFile(base, resolve(base, rel));
   if (!abs) return { error: `no file at ${rel}` };
-  rel = posixRel(root, abs);
+  rel = posixRel(base, abs);
 
   if (STEP_RE.test(rel)) return { kind: "step", rel, abs };
   if (GLB_RE.test(rel)) return { kind: "glb", rel, abs };

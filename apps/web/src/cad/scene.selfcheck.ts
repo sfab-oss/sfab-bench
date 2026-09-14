@@ -406,6 +406,63 @@ for (const [name, { review, assembly }] of scenes) {
 }
 
 // ---------------------------------------------------------------------------
+// A ref, handed over and handed back
+// ---------------------------------------------------------------------------
+
+/**
+ * The loop closing. `get_viewer` gives an assistant a ref; the assistant names it
+ * back; the viewer has to land on the thing the ray hit.
+ *
+ * Every ref the viewer produces is a *face* ref — `viewerSnapshot` returns
+ * `pickedRef` first, and picking always yields `#o1.1.f6` rather than `#o1.1`. So
+ * "can a ref be used" is entirely the question of whether a face ref selects, and
+ * the part-only form is the easy case that was already working.
+ */
+for (const [name, { review, world }] of scenes) {
+  const box = new THREE.Box3().setFromObject(world);
+  for (const target of targets(review)) {
+    for (const [label, dir] of AXES) {
+      const pick = pickAlongRay(review, rayFrom(target.at, dir));
+      if (!pick) continue;
+
+      store.setState({ review, url: `/api/pkg/${name}/`, selectedId: null, pickedRef: null });
+      store.getState().selectByRef(pick.cadRef);
+      const after = store.getState();
+
+      if (after.selectedId === null) {
+        note(`${name}: ${pick.cadRef} came off a ray from ${label} and selects nothing`);
+      } else if (review.parts[after.selectedId]?.cadRef !== pick.cadRef.replace(/\.f\d+$/, "")) {
+        note(
+          `${name}: ${pick.cadRef} selected ${review.parts[after.selectedId]?.cadRef}, ` +
+            `not ${pick.cadRef.replace(/\.f\d+$/, "")}`,
+        );
+      }
+      // The full ref is what the panel shows and what goes back out again, so the
+      // face must survive the trip even though selection is per part.
+      if (after.pickedRef !== pick.cadRef) {
+        note(`${name}: selecting ${pick.cadRef} left pickedRef as ${after.pickedRef}`);
+      }
+      break; // one ray per part is enough; this is about the ref, not the geometry
+    }
+  }
+  void box;
+}
+
+/** A ref for something that is not in this model must select nothing, quietly. */
+{
+  const { review } = scenes.get("bracket_assembly")!;
+  store.setState({ review, url: "/api/pkg/x/", selectedId: 0, pickedRef: "#o1.1" });
+  store.getState().selectByRef("#o9.9.f1");
+  if (store.getState().selectedId !== null) {
+    note(`a ref for a part that does not exist selected part ${store.getState().selectedId}`);
+  }
+  store.getState().selectByRef(null);
+  if (store.getState().selectedId !== null || store.getState().pickedRef !== null) {
+    note("selectByRef(null) did not clear the selection");
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The same file twice
 // ---------------------------------------------------------------------------
 

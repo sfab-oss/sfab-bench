@@ -307,7 +307,18 @@ export const store = createStore<State>()(
       return;
     }
     const { review } = get();
-    const part = review?.parts.find((p) => p.cadRef === ref);
+    /**
+     * Refs come back in the form they went out in, and what goes out is a *face*
+     * ref: picking yields `#o1.1.f6`, and `viewerSnapshot` reports that rather than
+     * the part. Parts answer to `#o1.1`, so matching the whole string found nothing
+     * for every ref the viewer has ever produced — the panel showed the ref while
+     * the model highlighted nothing.
+     *
+     * Selection is per part; the face is kept as the ref, because that is what the
+     * detail panel shows and what goes back out to the assistant next time.
+     */
+    const partRef = ref.replace(/\.f\d+$/, "");
+    const part = review?.parts.find((p) => p.cadRef === partRef);
     if (part) get().select(part.id, ref);
     else set({ selectedId: null, pickedRef: ref });
   },

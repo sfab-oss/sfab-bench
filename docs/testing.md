@@ -197,6 +197,15 @@ mistaken for coverage.
 - **`loadStepPackage`'s flat fallback** for a package with no `assembly.root` is never exercised; nothing the loader writes today omits it.
 - **`group.userData.cadRef`** is written and read by nothing.
 
+**`cad-pkg.selfcheck.ts`** covers the other end of the loop: `resolveArtifact`,
+where a string from an assistant's `show_artifact` or a `?file=` becomes a file
+read. A table of what must resolve and what must not — `..`, a symlink inside the
+project pointing out of it, an absolute path outside, `file://` outside, a
+directory named like a document — and the round trip, which is the part that
+actually broke. Escaping is guarded twice, by the `..` check on the way in and the
+realpath containment test on the way out; removing either alone still refuses
+every case, which is why both are there.
+
 ## On external models
 
 Free-to-download is not free-to-redistribute. GrabCAD, TraceParts,
