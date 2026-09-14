@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { APP_HOME } from "./config";
-import { hasProject, projectPath } from "./projects";
 
 const execFileAsync = promisify(execFile);
 
@@ -80,10 +79,10 @@ function parseModelsCli(stdout: string): OpenCodeProvider[] {
   }));
 }
 
-function opencodeBin(): string {
+function opencodeBin(root?: string | null): string {
   const candidates: string[] = [];
-  if (hasProject()) {
-    candidates.push(join(projectPath(), ".harness-bootstrap/opencode/node_modules/.bin/opencode"));
+  if (root) {
+    candidates.push(join(root, ".harness-bootstrap/opencode/node_modules/.bin/opencode"));
   }
   candidates.push(join(APP_HOME, "tools/opencode/node_modules/.bin/opencode"));
   for (const candidate of candidates) {
@@ -92,35 +91,36 @@ function opencodeBin(): string {
   return "opencode";
 }
 
-function modelsCwd(): string {
-  return hasProject() ? projectPath() : APP_HOME;
+function modelsCwd(root?: string | null): string {
+  return root || APP_HOME;
 }
 
-let cached: { at: number; value: ModelsResponse } | null = null;
+let cached: { root: string; at: number; value: ModelsResponse } | null = null;
 const CACHE_MS = 10_000;
 
-export async function listOpenCodeModels(): Promise<ModelsResponse> {
-  if (cached && Date.now() - cached.at < CACHE_MS) return cached.value;
+export async function listOpenCodeModels(root?: string | null): Promise<ModelsResponse> {
+  const key = root ?? "";
+  if (cached && cached.root === key && Date.now() - cached.at < CACHE_MS) return cached.value;
   const empty: ModelsResponse = { connected: false, providers: [] };
-  const bin = opencodeBin();
+  const bin = opencodeBin(root);
   if (bin !== "opencode" && !existsSync(bin)) {
-    cached = { at: Date.now(), value: empty };
+    cached = { root: key, at: Date.now(), value: empty };
     return empty;
   }
   try {
     const { stdout } = await execFileAsync(bin, ["models", "--verbose"], {
-      cwd: modelsCwd(),
+      cwd: modelsCwd(root),
       env: process.env,
       maxBuffer: 16 * 1024 * 1024,
       timeout: 25_000,
     });
     const providers = parseModelsCli(stdout);
     const value: ModelsResponse = { connected: providers.length > 0, providers };
-    cached = { at: Date.now(), value };
+    cached = { root: key, at: Date.now(), value };
     return value;
   } catch (err) {
     console.error("[api] opencode models failed", err instanceof Error ? err.message : err);
-    cached = { at: Date.now(), value: empty };
+    cached = { root: key, at: Date.now(), value: empty };
     return empty;
   }
 }

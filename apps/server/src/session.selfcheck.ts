@@ -34,12 +34,20 @@ expect(clientOf(mac).label === "Mac", "loopback label is Mac");
 const quest = { kind: "paired" as const, deviceId: "dev-1", label: "Quest", scopes: ["view" as const, "chat" as const] };
 expect(clientOf(quest).id === "dev-1", "paired client id is the device");
 
-const run = startSessionRun();
-expect(run != null, "idle run starts");
-expect(startSessionRun() == null, "second run is rejected");
-endSessionRun();
-expect(startSessionRun() != null, "run lock clears");
-endSessionRun();
+const folderA = "/tmp/sfab-run-a";
+const folderB = "/tmp/sfab-run-b";
+const runA = startSessionRun(folderA);
+expect(runA != null, "idle run starts");
+expect(startSessionRun(folderA) == null, "second run on the same folder is rejected");
+const runB = startSessionRun(folderB);
+expect(runB != null, "a second folder can run at the same time");
+hydrateSession();
+expect(!runA!.signal.aborted, "hydrateSession does not abort another folder's run");
+expect(!runB!.signal.aborted, "hydrateSession does not abort the named folder's run");
+endSessionRun(folderA);
+expect(startSessionRun(folderA) != null, "run lock clears per folder");
+endSessionRun(folderA);
+endSessionRun(folderB);
 
 unsub();
 console.log("session.selfcheck ok");

@@ -1,11 +1,19 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { catalogTree, filterCatalogTree } from "@sfab-bench/contract";
 
 import { resolveArtifact } from "./cad-pkg";
-import { listProjectFiles, shouldSkipDir } from "./projects";
+import { db } from "./db";
+import {
+  fallbackRoot,
+  listProjectFiles,
+  openProject,
+  registerProject,
+  resolveRequestRoot,
+  shouldSkipDir,
+} from "./projects";
 
 function expect(cond: unknown, label: string) {
   if (!cond) throw new Error(label);
@@ -47,5 +55,48 @@ const escape = resolveArtifact("../outside.step", root);
 expect("error" in escape, "parent paths are rejected");
 const missing = resolveArtifact("cad/STEP/nope.step", root);
 expect("error" in missing, "missing STEP is rejected");
+
+const other = mkdtempSync(join(tmpdir(), "xr-project-b-"));
+writeFileSync(join(other, "other.step"), "ISO-10303");
+expect("error" in resolveArtifact("other.step", root), "artifact from another root is refused");
+const otherStep = resolveArtifact("other.step", other);
+expect(!("error" in otherStep) && otherStep.kind === "step", "same name resolves inside its own root");
+expect("error" in resolveArtifact("cad/STEP/envelopes/box.step", other), "first root's path is not in the second");
+
+const a = mkdtempSync(join(tmpdir(), "xr-fallback-a-"));
+const b = mkdtempSync(join(tmpdir(), "xr-named-b-"));
+const stray = mkdtempSync(join(tmpdir(), "xr-stray-"));
+let registeredPath: string | undefined;
+let openedPath: string | undefined;
+try {
+  const before = fallbackRoot();
+  const registered = registerProject(b);
+  registeredPath = registered.path;
+  expect(fallbackRoot() === before, "register does not set fallback");
+  const again = registerProject(b);
+  expect(again.openedAt === registered.openedAt, "repeat register does not bump opened_at");
+  const opened = openProject(a);
+  openedPath = opened.path;
+  expect(fallbackRoot() === opened.path, "open sets fallback");
+  const named = resolveRequestRoot(b, "loopback");
+  expect(named === registered.path, "loopback ?project= is the named folder");
+  expect(fallbackRoot() === opened.path, "named request does not steal fallback");
+  expect(resolveRequestRoot(undefined, "loopback") === opened.path, "param-less is fallback");
+  let pairedStatus = 0;
+  try {
+    resolveRequestRoot(stray, "paired");
+  } catch (err) {
+    pairedStatus = (err as { status?: number }).status ?? 0;
+  }
+  expect(pairedStatus === 403, "paired unknown folder is 403");
+} finally {
+  for (const path of [registeredPath, openedPath]) {
+    if (path) db.prepare("DELETE FROM projects WHERE path = ?").run(path);
+  }
+  rmSync(a, { recursive: true, force: true });
+  rmSync(b, { recursive: true, force: true });
+  rmSync(stray, { recursive: true, force: true });
+  rmSync(other, { recursive: true, force: true });
+}
 
 console.log("project.selfcheck ok");

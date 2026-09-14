@@ -65,8 +65,8 @@ function staticModels(id: Exclude<HarnessId, "opencode">): HarnessModel[] {
   return STATIC_HARNESS_MODELS[id].map((m) => ({ ...m, slug: m.id }));
 }
 
-async function probeOpenCode(): Promise<HarnessInfo> {
-  const catalog = await listOpenCodeModels();
+async function probeOpenCode(root?: string | null): Promise<HarnessInfo> {
+  const catalog = await listOpenCodeModels(root);
   const models: HarnessModel[] = catalog.providers.flatMap((p) =>
     p.models.map((m) => ({ id: m.slug, name: m.name, slug: m.slug, group: p.name })),
   );
@@ -128,8 +128,8 @@ function probeGrok(): HarnessInfo {
   };
 }
 
-export async function listHarnesses(): Promise<{ harnesses: HarnessInfo[] }> {
-  const opencode = await probeOpenCode();
+export async function listHarnesses(root?: string | null): Promise<{ harnesses: HarnessInfo[] }> {
+  const opencode = await probeOpenCode(root);
   return {
     harnesses: HARNESS_IDS.map((id) => {
       if (id === "opencode") return opencode;

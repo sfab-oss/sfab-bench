@@ -19,7 +19,6 @@ import {
 } from "@sfab-bench/contract";
 import { emptySnapshot, type ViewerSnapshot } from "@sfab-bench/contract";
 import { getAgent } from "./agent";
-import { projectPath } from "./projects";
 import {
   endSessionRun,
   rememberOpenedFile,
@@ -31,19 +30,19 @@ import { runViewerContext } from "./viewer-context";
 
 const sessions = new Map<string, Promise<HarnessAgentSession>>();
 
-function sessionKey(harness: HarnessId, chatId: string, effort: ChatEffort) {
-  return `${projectPath()}:${harness}:${effort}:${chatId}`;
+function sessionKey(root: string, harness: HarnessId, chatId: string, effort: ChatEffort) {
+  return `${root}:${harness}:${effort}:${chatId}`;
 }
 
 export function resetChatSessions() {
   sessions.clear();
 }
 
-function sessionFor(harness: HarnessId, chatId: string, effort: ChatEffort) {
-  const key = sessionKey(harness, chatId, effort);
+function sessionFor(root: string, harness: HarnessId, chatId: string, effort: ChatEffort) {
+  const key = sessionKey(root, harness, chatId, effort);
   let pending = sessions.get(key);
   if (!pending) {
-    pending = getAgent(harness, effort)
+    pending = getAgent(harness, effort, root)
       .createSession({ sessionId: `${chatId}:${effort}` })
       .catch((err) => {
         sessions.delete(key);
@@ -83,15 +82,15 @@ function stampUser(last: UIMessage, snapshot: ViewerSnapshot): UIMessage {
   };
 }
 
-function persistChat(chatId: string, next: UIMessage[]) {
+function persistChat(chatId: string, next: UIMessage[], root: string) {
   try {
-    saveMessages(chatId, projectPath(), next);
+    saveMessages(chatId, root, next);
   } catch {
     /* tests / missing thread */
   }
 }
 
-export async function handleChat(req: Request): Promise<Response> {
+export async function handleChat(req: Request, root: string): Promise<Response> {
   let body: ChatBody;
   try {
     body = (await req.json()) as ChatBody;
@@ -111,7 +110,7 @@ export async function handleChat(req: Request): Promise<Response> {
     return new Response("missing message", { status: 400 });
   }
 
-  const run = startSessionRun();
+  const run = startSessionRun(root);
   if (!run) {
     return new Response("a reply is already in progress", { status: 409 });
   }
@@ -128,18 +127,19 @@ export async function handleChat(req: Request): Promise<Response> {
         try {
           await runViewerContext(
             {
+              root,
               file: snapshot.file,
               snapshot,
               show: (file) => {
-                rememberOpenedFile(file);
+                rememberOpenedFile(file, root);
                 writer.write({ type: "data-viewer", data: { file } });
               },
             },
             async () => {
-              const key = sessionKey(harness, chatId, effort);
+              const key = sessionKey(root, harness, chatId, effort);
               const isNew = !sessions.has(key);
-              const agent = getAgent(harness, effort);
-              const session = await sessionFor(harness, chatId, effort);
+              const agent = getAgent(harness, effort, root);
+              const session = await sessionFor(root, harness, chatId, effort);
               const model =
                 typeof body.model === "string" && body.model.trim()
                   ? body.model.trim()
@@ -161,19 +161,19 @@ export async function handleChat(req: Request): Promise<Response> {
                 try {
                   for await (const msg of readUIMessageStream({ stream: toPersist })) {
                     assistant = msg;
-                    setSessionRunStatus("streaming");
+                    setSessionRunStatus(root, "streaming");
                   }
                 } catch {
                   /* abort or stream error — persist what we have */
                 }
-                persistChat(chatId, assistant ? [...live, assistant] : live);
+                persistChat(chatId, assistant ? [...live, assistant] : live, root);
               })();
               writer.merge(toClient);
               await persist;
             },
           );
         } finally {
-          endSessionRun();
+          endSessionRun(root);
         }
       },
       onError: (err) => (err instanceof Error ? err.message : String(err)),

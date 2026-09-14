@@ -3,8 +3,6 @@ import { createServer as createHttpServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { fileURLToPath } from "node:url";
 
-import { resetAgents } from "./agent";
-import { resetChatSessions } from "./chat";
 import { apiPort, certDir, DEV_API_HOST, publicPort } from "./config";
 import { handleRequest } from "./http";
 import { bootProject, subscribeProjectChange } from "./projects";
@@ -39,8 +37,6 @@ function onListenError(err: NodeJS.ErrnoException, host: string, port: number): 
 
 async function main() {
   subscribeProjectChange(() => {
-    resetAgents();
-    resetChatSessions();
     hydrateSession();
   });
   bootProject();

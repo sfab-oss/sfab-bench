@@ -6,13 +6,11 @@ import { createOpenCode } from "@ai-sdk/harness-opencode";
 import { z } from "zod";
 
 import {
-  DEFAULT_CHAT_EFFORT,
   DEFAULT_HARNESS_MODEL,
   type ChatEffort,
   type HarnessId,
 } from "@sfab-bench/contract";
 import { createLocalSandbox } from "./local-sandbox";
-import { projectPath } from "./projects";
 import { viewerTools } from "./viewer-context";
 
 const callOptions = z.object({ model: z.string().min(1) });
@@ -89,12 +87,18 @@ function agentKey(id: HarnessId, effort: ChatEffort, root: string) {
   return id === "cursor" ? `${root}:${id}` : `${root}:${id}:${effort}`;
 }
 
-export function resetAgents() {
-  agents.clear();
+export function resetAgents(root?: string) {
+  if (!root) {
+    agents.clear();
+    return;
+  }
+  const prefix = `${root}:`;
+  for (const key of agents.keys()) {
+    if (key.startsWith(prefix)) agents.delete(key);
+  }
 }
 
-export function getAgent(id: HarnessId, effort: ChatEffort = DEFAULT_CHAT_EFFORT) {
-  const root = projectPath();
+export function getAgent(id: HarnessId, effort: ChatEffort, root: string) {
   const key = agentKey(id, effort, root);
   let agent = agents.get(key);
   if (!agent) {

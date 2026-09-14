@@ -8,6 +8,7 @@ import { emptySnapshot } from "@sfab-bench/contract";
 import { resolveArtifact, shownUrl } from "./cad-pkg";
 
 type ViewerStore = {
+  root: string;
   file: string;
   snapshot: ViewerSnapshot;
   show: (file: string) => void;
@@ -20,7 +21,9 @@ export function runViewerContext<T>(store: ViewerStore, fn: () => Promise<T>) {
 }
 
 export function viewerFileUrl(path: string) {
-  const resolved = resolveArtifact(path);
+  const root = als.getStore()?.root;
+  if (!root) return { error: "no project open" };
+  const resolved = resolveArtifact(path, root);
   if ("error" in resolved) return { error: resolved.error };
   return { shown: shownUrl(resolved) };
 }

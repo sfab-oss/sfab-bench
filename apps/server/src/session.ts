@@ -3,6 +3,7 @@ import { getPrincipal, type ClientPrincipal } from "./principal";
 import {
   catalogRevision,
   currentProject,
+  fallbackRoot,
   listFileRecents,
   touchFileRecent,
 } from "./projects";
@@ -16,8 +17,12 @@ let state: ProjectSession = {
   fileRecents: [],
 };
 
-let run: AbortController | null = null;
-let status: SessionStatus = "idle";
+type WorkspaceRun = {
+  run: AbortController;
+  status: SessionStatus;
+};
+
+const runs = new Map<string, WorkspaceRun>();
 
 export function clientOf(principal: ClientPrincipal): SessionClient {
   if (principal.kind === "loopback") return { id: "loopback", label: "Mac" };
@@ -37,12 +42,12 @@ function emit(event: SessionEvent, except?: SessionSocket) {
   }
 }
 
-function libraryEvent(): Extract<SessionEvent, { type: "library" }> {
+function libraryEvent(root: string): Extract<SessionEvent, { type: "library" }> {
   return {
     type: "library",
-    project: { path: state.project.path },
-    fileRecents: state.fileRecents,
-    revision: catalogRevision(),
+    project: { path: root },
+    fileRecents: listFileRecents(root),
+    revision: catalogRevision(root),
   };
 }
 
@@ -57,8 +62,10 @@ export function sessionState(): ProjectSession {
   return state;
 }
 
-export function sessionStatus(): SessionStatus {
-  return status;
+export function sessionStatus(root?: string | null): SessionStatus {
+  const target = root ?? fallbackRoot();
+  if (!target) return "idle";
+  return runs.get(target)?.status ?? "idle";
 }
 
 export function snapshotFor(principal?: ClientPrincipal): SessionSnapshot {
@@ -74,48 +81,54 @@ function readLibrary() {
   const project = currentProject();
   state = {
     project: { path: project?.path ?? "" },
-    fileRecents: listFileRecents(),
+    fileRecents: listFileRecents(project?.path),
   };
 }
 
-/** Rebuild from the open project. Called on boot and when the folder changes. */
+/**
+ * Rebuild the param-less snapshot from the fallback folder.
+ * Does not abort runs — another tab may be chatting in a different folder.
+ */
 export function hydrateSession() {
-  if (run) {
-    run.abort();
-    run = null;
-  }
-  status = "idle";
   readLibrary();
   emit({ type: "snapshot", session: { ...state } });
 }
 
 /** Shared recents only — does not load the file on any client. */
-export function rememberOpenedFile(rel: string) {
-  const fileRecents = touchFileRecent(rel);
-  if (state.project.path) {
+export function rememberOpenedFile(rel: string, root?: string | null) {
+  const target = root ?? fallbackRoot();
+  if (!target) return [];
+  const fileRecents = touchFileRecent(rel, target);
+  // Today's web applies every library event as "the" folder. Only broadcast
+  // the fallback so a `?project=` tessellation does not yank param-less tabs.
+  if (target === fallbackRoot()) {
     state = { ...state, fileRecents };
-    emit(libraryEvent());
+    emit(libraryEvent(target));
   }
   return fileRecents;
 }
 
-export function startSessionRun(): AbortController | null {
-  if (status !== "idle") return null;
-  run?.abort();
-  run = new AbortController();
-  status = "submitted";
+export function startSessionRun(root: string): AbortController | null {
+  const current = runs.get(root);
+  if (current && current.status !== "idle") return null;
+  current?.run.abort();
+  const run = new AbortController();
+  runs.set(root, { run, status: "submitted" });
   return run;
 }
 
-export function setSessionRunStatus(next: SessionStatus) {
-  status = next;
+export function setSessionRunStatus(root: string, next: SessionStatus) {
+  const current = runs.get(root);
+  if (!current) return;
+  current.status = next;
 }
 
-export function endSessionRun() {
-  run = null;
-  status = "idle";
+export function endSessionRun(root: string) {
+  runs.delete(root);
 }
 
-export function stopSessionRun() {
-  run?.abort();
+export function stopSessionRun(root?: string | null) {
+  const target = root ?? fallbackRoot();
+  if (!target) return;
+  runs.get(target)?.run.abort();
 }

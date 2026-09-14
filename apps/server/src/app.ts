@@ -13,13 +13,13 @@ import { hasScope, publicPrincipal, resolvePrincipal, runWithPrincipal, type Cli
 import {
   catalogRevision,
   currentProject,
-  hasProject,
   listBrowse,
   listFileRecents,
   listProjectFiles,
   listRecents,
   openProject,
-  projectPath,
+  projectRow,
+  resolveRequestRoot,
 } from "./projects";
 import { createThread, getThread, listThreads, saveMessages, saveThreadPrefs } from "./threads-db";
 import { handleTranscribe } from "./transcribe";
@@ -34,7 +34,7 @@ import {
 
 export type AppEnv = {
   Bindings: HttpBindings;
-  Variables: { principal: ClientPrincipal };
+  Variables: { principal: ClientPrincipal; projectRoot?: string };
 };
 
 const pairBodySchema = z
@@ -74,8 +74,8 @@ function denyLoopback(c: { get: (key: "principal") => ClientPrincipal; json: (bo
   return c.json({ error: "only for this Mac" }, 403);
 }
 
-function denyNoProject(c: { json: (body: unknown, status: 409) => Response }) {
-  if (hasProject()) return null;
+function denyNoProject(c: { get: (key: "projectRoot") => string | undefined; json: (body: unknown, status: 409) => Response }) {
+  if (c.get("projectRoot")) return null;
   return c.json({ error: "open a folder first" }, 409);
 }
 
@@ -84,12 +84,14 @@ function isPublicPair(method: string, path: string) {
   return method === "POST" && (clean === "/pair" || clean === "/api/pair");
 }
 
-function projectPayload() {
+function projectPayload(root?: string | null) {
+  const project = root ? projectRow(root) : currentProject();
+  const path = project?.path ?? root ?? null;
   return {
-    project: currentProject(),
+    project,
     recents: listRecents(),
-    fileRecents: listFileRecents(),
-    revision: catalogRevision(),
+    fileRecents: listFileRecents(path),
+    revision: catalogRevision(path),
   };
 }
 
@@ -113,6 +115,16 @@ export const api = new Hono<AppEnv>()
     const principal = resolvePrincipal(c.env.incoming);
     if (!principal) return c.json({ error: "pairing required" }, 401);
     c.set("principal", principal);
+    try {
+      const root = resolveRequestRoot(c.req.query("project"), principal.kind);
+      if (root) c.set("projectRoot", root);
+    } catch (err) {
+      const status = (err as { status?: number }).status ?? 400;
+      if (status === 400 || status === 403) {
+        return c.json({ error: err instanceof Error ? err.message : String(err) }, status as 400 | 403);
+      }
+      throw err;
+    }
     await runWithPrincipal(principal, () => next());
   })
   .post("/pair", zValidator("json", pairBodySchema), (c) => {
@@ -141,14 +153,14 @@ export const api = new Hono<AppEnv>()
   .get("/project", (c) => {
     const denied = denyScope(c, "view");
     if (denied) return denied;
-    return c.json(projectPayload());
+    return c.json(projectPayload(c.get("projectRoot")));
   })
   .post("/project", zValidator("json", openProjectSchema), (c) => {
     const denied = denyLoopback(c);
     if (denied) return denied;
     try {
-      openProject(c.req.valid("json").path);
-      return c.json(projectPayload());
+      const row = openProject(c.req.valid("json").path);
+      return c.json(projectPayload(row.path));
     } catch (err) {
       const status = (err as { status?: number }).status ?? 400;
       return c.json({ error: err instanceof Error ? err.message : String(err) }, status as 400);
@@ -167,11 +179,12 @@ export const api = new Hono<AppEnv>()
   .get("/catalog", (c) => {
     const denied = denyScope(c, "view");
     if (denied) return denied;
-    if (!hasProject()) return c.json({ files: [], recents: [], revision: catalogRevision() });
+    const root = c.get("projectRoot");
+    if (!root) return c.json({ files: [], recents: [], revision: catalogRevision() });
     return c.json({
-      files: listProjectFiles(projectPath()),
-      recents: listFileRecents(),
-      revision: catalogRevision(),
+      files: listProjectFiles(root),
+      recents: listFileRecents(root),
+      revision: catalogRevision(root),
     });
   })
   .get("/session", (c) => {
@@ -182,10 +195,11 @@ export const api = new Hono<AppEnv>()
   .post("/recents", zValidator("json", recentFileSchema), (c) => {
     const denied = denyScope(c, "view") ?? denyNoProject(c);
     if (denied) return denied;
+    const root = c.get("projectRoot")!;
     try {
-      const resolved = resolveArtifact(c.req.valid("json").path);
+      const resolved = resolveArtifact(c.req.valid("json").path, root);
       if ("error" in resolved) return c.json({ error: resolved.error }, 400);
-      return c.json({ recents: rememberOpenedFile(shownUrl(resolved)) });
+      return c.json({ recents: rememberOpenedFile(shownUrl(resolved), root) });
     } catch (err) {
       const status = (err as { status?: number }).status ?? 400;
       return c.json({ error: err instanceof Error ? err.message : String(err) }, status as 400);
@@ -194,33 +208,33 @@ export const api = new Hono<AppEnv>()
   .post("/chat/stop", (c) => {
     const denied = denyScope(c, "chat");
     if (denied) return denied;
-    stopSessionRun();
+    stopSessionRun(c.get("projectRoot"));
     return c.json({ ok: true });
   })
   .get("/models", async (c) => {
     const denied = denyScope(c, "view");
     if (denied) return denied;
-    return c.json(await listOpenCodeModels());
+    return c.json(await listOpenCodeModels(c.get("projectRoot")));
   })
   .get("/harnesses", async (c) => {
     const denied = denyScope(c, "view");
     if (denied) return denied;
-    return c.json(await listHarnesses());
+    return c.json(await listHarnesses(c.get("projectRoot")));
   })
   .get("/threads", (c) => {
     const denied = denyScope(c, "chat") ?? denyNoProject(c);
     if (denied) return denied;
-    return c.json(listThreads(projectPath()));
+    return c.json(listThreads(c.get("projectRoot")!));
   })
   .post("/threads", (c) => {
     const denied = denyScope(c, "chat") ?? denyNoProject(c);
     if (denied) return denied;
-    return c.json(createThread(projectPath()), 201);
+    return c.json(createThread(c.get("projectRoot")!), 201);
   })
   .get("/threads/:id", (c) => {
     const denied = denyScope(c, "chat") ?? denyNoProject(c);
     if (denied) return denied;
-    const row = getThread(c.req.param("id"), projectPath());
+    const row = getThread(c.req.param("id"), c.get("projectRoot")!);
     if (!row) return c.json({ error: "not found" }, 404);
     return c.json(row);
   })
@@ -228,7 +242,7 @@ export const api = new Hono<AppEnv>()
     const denied = denyScope(c, "chat") ?? denyNoProject(c);
     if (denied) return denied;
     const prefs = prefsFromBody(c.req.valid("json"));
-    if (!saveThreadPrefs(c.req.param("id"), projectPath(), prefs)) {
+    if (!saveThreadPrefs(c.req.param("id"), c.get("projectRoot")!, prefs)) {
       return c.json({ error: "not found" }, 404);
     }
     return c.json({ thread: prefs });
@@ -237,7 +251,7 @@ export const api = new Hono<AppEnv>()
     const denied = denyScope(c, "chat") ?? denyNoProject(c);
     if (denied) return denied;
     const { messages } = c.req.valid("json");
-    if (!saveMessages(c.req.param("id"), projectPath(), messages as UIMessage[])) {
+    if (!saveMessages(c.req.param("id"), c.get("projectRoot")!, messages as UIMessage[])) {
       return c.json({ error: "not found" }, 404);
     }
     return c.json({ ok: true });
@@ -245,7 +259,7 @@ export const api = new Hono<AppEnv>()
   .post("/chat", async (c) => {
     const denied = denyScope(c, "chat") ?? denyNoProject(c);
     if (denied) return denied;
-    return handleChat(c.req.raw);
+    return handleChat(c.req.raw, c.get("projectRoot")!);
   })
   .post("/transcribe", async (c) => {
     const denied = denyScope(c, "chat");
@@ -253,14 +267,14 @@ export const api = new Hono<AppEnv>()
     return handleTranscribe(c.req.raw);
   })
   .on(["GET", "HEAD"], "/cad-pkg/*", async (c) => {
-    const denied = denyScope(c, "view");
+    const denied = denyScope(c, "view") ?? denyNoProject(c);
     if (denied) return denied;
-    return handleCadPkg(c.req.raw);
+    return handleCadPkg(c.req.raw, c.get("projectRoot")!);
   })
   .on(["GET", "HEAD"], "/files/*", async (c) => {
-    const denied = denyScope(c, "view");
+    const denied = denyScope(c, "view") ?? denyNoProject(c);
     if (denied) return denied;
-    return handleProjectFile(c.req.raw);
+    return handleProjectFile(c.req.raw, c.get("projectRoot")!);
   });
 
 export const app = new Hono().route("/api", api);

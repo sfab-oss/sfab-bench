@@ -98,6 +98,14 @@ try {
       note(`re-opening ${url} gave ${back.rel}, not ${opened.rel}`);
     }
   }
+
+  const otherRoot = mkdtempSync(join(tmpdir(), "sfab-project-b-"));
+  writeFileSync(join(otherRoot, "other.step"), "x");
+  const fromOther = resolveArtifact("other.step", root);
+  if (!("error" in fromOther)) note("other.step resolved inside the first root — it should not have");
+  const inOther = resolveArtifact("other.step", otherRoot);
+  if ("error" in inOther) note(`other.step refused in its own root: ${inOther.error}`);
+  rmSync(otherRoot, { recursive: true, force: true });
 } finally {
   rmSync(root, { recursive: true, force: true });
   rmSync(outside, { recursive: true, force: true });

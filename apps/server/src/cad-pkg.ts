@@ -15,7 +15,7 @@ import { Readable } from "node:stream";
 
 import { cacheDir } from "./config";
 import { buildStepPackage } from "./occt/build";
-import { insideRoot, posixRel, projectPath } from "./projects";
+import { insideRoot, posixRel } from "./projects";
 import { rememberOpenedFile } from "./session";
 
 const STEP_RE = /\.(step|stp)$/i;
@@ -57,8 +57,8 @@ function existingFile(rootReal: string, abs: string): string | null {
   }
 }
 
-/** Map a show_artifact / ?file= value to a STEP or GLB inside the open project. */
-export function resolveArtifact(input: string, root = projectPath()): ResolvedArtifact {
+/** Map a show_artifact / ?file= value to a STEP or GLB inside `root`. */
+export function resolveArtifact(input: string, root: string): ResolvedArtifact {
   let raw = input.trim().replace(/\\/g, "/");
   if (!raw) return { error: "empty path" };
   if (raw.startsWith("file://")) raw = fileURLToPath(raw);
@@ -177,7 +177,7 @@ function mimeFor(file: string) {
 }
 
 /** Serve /api/cad-pkg/<project-rel-step>/{assembly.json,components/*.tess}. */
-export async function handleCadPkg(req: Request): Promise<Response> {
+export async function handleCadPkg(req: Request, root: string): Promise<Response> {
   const path = new URL(req.url).pathname;
   const m = PKG_FILE.exec(path);
   if (!m) return jsonResponse(404, { error: "cad package file not found" });
@@ -189,11 +189,11 @@ export async function handleCadPkg(req: Request): Promise<Response> {
     return jsonResponse(400, { error: "bad package path" });
   }
   const file = m[2] ?? "";
-  const resolved = resolveArtifact(rel);
+  const resolved = resolveArtifact(rel, root);
   if ("error" in resolved) return jsonResponse(404, { error: resolved.error });
   if (resolved.kind !== "step") return jsonResponse(400, { error: "cad-pkg only serves STEP" });
 
-  if (file === "assembly.json") rememberOpenedFile(resolved.rel);
+  if (file === "assembly.json") rememberOpenedFile(resolved.rel, root);
 
   let dest: string;
   try {
@@ -212,8 +212,8 @@ export async function handleCadPkg(req: Request): Promise<Response> {
   return fileResponse(absFile, mimeFor(file), req.method === "HEAD");
 }
 
-/** Serve a GLB/GLTF from the open project (paired clients cannot hit disk otherwise). */
-export async function handleProjectFile(req: Request): Promise<Response> {
+/** Serve a GLB/GLTF from the named project (paired clients cannot hit disk otherwise). */
+export async function handleProjectFile(req: Request, root: string): Promise<Response> {
   const path = new URL(req.url).pathname;
   const m = PROJECT_FILE.exec(path);
   if (!m) return jsonResponse(404, { error: "file not found" });
@@ -223,9 +223,9 @@ export async function handleProjectFile(req: Request): Promise<Response> {
   } catch {
     return jsonResponse(400, { error: "bad path" });
   }
-  const resolved = resolveArtifact(rel);
+  const resolved = resolveArtifact(rel, root);
   if ("error" in resolved) return jsonResponse(404, { error: resolved.error });
   if (resolved.kind !== "glb") return jsonResponse(400, { error: "not a GLB" });
-  rememberOpenedFile(resolved.rel);
+  rememberOpenedFile(resolved.rel, root);
   return fileResponse(resolved.abs, mimeFor(resolved.abs), req.method === "HEAD");
 }

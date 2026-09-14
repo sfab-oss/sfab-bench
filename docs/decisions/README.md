@@ -11,3 +11,4 @@ Use [`template.md`](template.md) (SFab 4-digit). Prefer a short note in
 | [0003-library-not-viewport](0003-library-not-viewport.md) | Share recents and thread history; keep each client's viewport independent |
 | [0004-occt-via-opencascade-js](0004-occt-via-opencascade-js.md) | The OCCT kernel is prebuilt opencascade.js; the tessellator is ours |
 | [0005-electron-shell](0005-electron-shell.md) | Electron is a shell around the same server and the same page |
+| [0006-folder-is-a-tab](0006-folder-is-a-tab.md) | The folder is a tab's choice, not the process's |

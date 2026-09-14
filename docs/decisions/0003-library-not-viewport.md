@@ -19,10 +19,13 @@ two people (or two eyes) looking at the same project.
 
 Synced (server, every client may read):
 
-- The open **project folder** (one per process; Quest has no Mac path)
 - Recently opened **files** and recent **folders**
 - Thread **list** and messages **at rest**
 - Pairing / auth
+
+The folder a tab is in is the tab's (`?project=`), like `?file=` among the
+catalog ([ADR 0006](0006-folder-is-a-tab.md)). Recents for that folder stay
+shared.
 
 Not synced (per tab):
 
@@ -35,8 +38,9 @@ does not set a process-wide current file. `?file=` is a deep link for
 that tab, not session state.
 
 The live WebSocket still exists, but it only pushes **library** events
-(project path, file recents, catalog revision) so Quest can refresh
-when Mac opens a different folder.
+(project path, file recents, catalog revision) so a param-less client can
+refresh when the process fallback changes. A tab that names `?project=` is
+not moved by someone else's tessellation ([ADR 0006](0006-folder-is-a-tab.md)).
 
 ## Consequences
 
@@ -49,8 +53,8 @@ when Mac opens a different folder.
 ### Negative
 - Two clients can be looking at different STEPs and different threads.
   That is intended.
-- One agent run at a time remains a process lock (409) so two composers
-  cannot stream into the same harness session at once.
+- One agent run at a time remains a **per-workspace** lock (409) so two
+  composers cannot stream into the same harness session at once.
 
 ### Mitigations
 - Recents and the thread list are the way to join another client's
@@ -71,3 +75,4 @@ when Mac opens a different folder.
 
 - [0001](0001-new-private-repo.md) — this repo
 - [0002](0002-step-loader-occt.md) — loader; independent of this split
+- [0006](0006-folder-is-a-tab.md) — the folder is a tab's choice

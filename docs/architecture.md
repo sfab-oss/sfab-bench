@@ -1,9 +1,10 @@
 # Architecture
 
-One Node process owns the open folder, the STEP loader, the harness
-agents, and the sqlite store under `~/.sfab-bench/`. The Mac browser tab
-and Quest Browser are both HTTPS clients of that process. Product calls
-and ranked next: [`product.md`](product.md).
+One Node process owns the STEP loader, the harness agents, and the
+sqlite store under `~/.sfab-bench/`. The folder a request is about is
+`?project=` ([ADR 0006](decisions/0006-folder-is-a-tab.md)). The Mac
+browser tab and Quest Browser are both HTTPS clients of that process.
+Product calls and ranked next: [`product.md`](product.md).
 
 ## Model
 
@@ -14,8 +15,10 @@ and ranked next: [`product.md`](product.md).
   skipping `node_modules`, `.git`, and cache dirs.
 - **Agent cwd** = the project directory. Skills and kernels belong to
   the folder, not to this app.
-- **Library** is shared: open folder, file recents, folder recents,
-  thread list, messages at rest. [ADR 0003](decisions/0003-library-not-viewport.md).
+- **Library** is shared: file recents, folder recents, thread list,
+  messages at rest. The folder a tab is in is the tab's
+  ([ADR 0006](decisions/0006-folder-is-a-tab.md),
+  [ADR 0003](decisions/0003-library-not-viewport.md)).
 - **Viewport is per browser:** loaded file, selection, camera, XR, which
   chat is open, live stream. `show_artifact` moves only the asking client
   and appends recents.
