@@ -5,10 +5,7 @@ import type { PhrasingContent, RootContent } from "mdast";
 import { gfm } from "micromark-extension-gfm";
 import { useMemo, type ReactNode } from "react";
 
-const BODY = "#18181b";
-const MUTED = "#52525b";
-const CODE_BG = "#e4e4e7";
-const LINK = "#2563eb";
+import { useXrTheme, type XrPalette } from "@/xr/ui/theme";
 
 /** uikit's default Inter MSDF atlas is Latin + basic punctuation. Missing glyphs render as black squares. */
 export function asciiSafe(s: string) {
@@ -38,8 +35,13 @@ export function asciiSafe(s: string) {
 
 type Weight = "medium" | "semi-bold";
 
-function phrasing(nodes: PhrasingContent[], keyPrefix: string, base: { color?: string; weight?: Weight; size?: number } = {}): ReactNode[] {
-  const color = base.color ?? BODY;
+function phrasing(
+  nodes: PhrasingContent[],
+  keyPrefix: string,
+  p: XrPalette,
+  base: { color?: string; weight?: Weight; size?: number } = {},
+): ReactNode[] {
+  const color = base.color ?? p.text;
   const weight = base.weight ?? "medium";
   const size = base.size ?? 13;
   const out: ReactNode[] = [];
@@ -60,17 +62,17 @@ function phrasing(nodes: PhrasingContent[], keyPrefix: string, base: { color?: s
       return;
     }
     if (node.type === "strong") {
-      out.push(...phrasing(node.children, k, { color, weight: "semi-bold", size }));
+      out.push(...phrasing(node.children, k, p, { color, weight: "semi-bold", size }));
       return;
     }
     if (node.type === "emphasis") {
-      out.push(...phrasing(node.children, k, { color: MUTED, weight, size }));
+      out.push(...phrasing(node.children, k, p, { color: p.subtle, weight, size }));
       return;
     }
     if (node.type === "inlineCode") {
       out.push(
-        <Container key={k} backgroundColor={CODE_BG} borderRadius={4} paddingX={3} paddingY={1}>
-          <Text fontSize={size - 1} fontWeight="medium" color={BODY}>
+        <Container key={k} backgroundColor={p.code} borderRadius={4} paddingX={3} paddingY={1}>
+          <Text fontSize={size - 1} fontWeight="medium" color={p.text}>
             {asciiSafe(node.value)}
           </Text>
         </Container>,
@@ -78,11 +80,11 @@ function phrasing(nodes: PhrasingContent[], keyPrefix: string, base: { color?: s
       return;
     }
     if (node.type === "link") {
-      out.push(...phrasing(node.children, k, { color: LINK, weight, size }));
+      out.push(...phrasing(node.children, k, p, { color: p.link, weight, size }));
       return;
     }
     if (node.type === "delete") {
-      out.push(...phrasing(node.children, k, { color: MUTED, weight, size }));
+      out.push(...phrasing(node.children, k, p, { color: p.subtle, weight, size }));
       return;
     }
     const leftover = asciiSafe(plainNode(node));
@@ -106,14 +108,16 @@ function Inline({
   size?: number;
   weight?: Weight;
 }) {
+  const p = useXrTheme();
   return (
     <Container flexDirection="row" flexWrap="wrap" alignItems="center" width="100%" gap={0}>
-      {phrasing(nodes, "p", { size, weight })}
+      {phrasing(nodes, "p", p, { size, weight })}
     </Container>
   );
 }
 
 function Block({ node, index }: { node: RootContent; index: number }) {
+  const p = useXrTheme();
   if (node.type === "paragraph") {
     return <Inline nodes={node.children} />;
   }
@@ -137,7 +141,7 @@ function Block({ node, index }: { node: RootContent; index: number }) {
                 </Container>
               ))}
             </Container>
-            {ri === 0 ? <Container width="100%" height={1} backgroundColor="#e4e4e7" /> : null}
+            {ri === 0 ? <Container width="100%" height={1} backgroundColor={p.border} /> : null}
           </Container>
         ))}
       </Container>
@@ -146,9 +150,9 @@ function Block({ node, index }: { node: RootContent; index: number }) {
   if (node.type === "code") {
     const lines = node.value.split("\n");
     return (
-      <Container width="100%" backgroundColor={CODE_BG} borderRadius={8} padding={8} flexDirection="column" gap={2}>
+      <Container width="100%" backgroundColor={p.code} borderRadius={8} padding={8} flexDirection="column" gap={2}>
         {lines.map((line, i) => (
-          <Text key={i} fontSize={12} color={BODY} fontWeight="medium">
+          <Text key={i} fontSize={12} color={p.text} fontWeight="medium">
             {line.length === 0 ? " " : asciiSafe(line)}
           </Text>
         ))}
@@ -160,7 +164,7 @@ function Block({ node, index }: { node: RootContent; index: number }) {
       <Container width="100%" flexDirection="column" gap={4} paddingLeft={4}>
         {node.children.map((item, i) => (
           <Container key={i} flexDirection="row" gap={6} width="100%" flexShrink={0}>
-            <Text fontSize={13} color={BODY} fontWeight="medium">
+            <Text fontSize={13} color={p.text} fontWeight="medium">
               {item.checked === true ? "[x]" : item.checked === false ? "[ ]" : node.ordered ? `${(node.start ?? 1) + i}.` : "-"}
             </Text>
             <Container flexGrow={1} minWidth={0} flexDirection="column" gap={4}>
@@ -181,7 +185,7 @@ function Block({ node, index }: { node: RootContent; index: number }) {
         gap={4}
         paddingLeft={8}
         borderLeftWidth={2}
-        borderColor="#d4d4d8"
+        borderColor={p.divider}
       >
         {node.children.map((child, i) => (
           <Block key={i} node={child} index={i} />
@@ -190,17 +194,17 @@ function Block({ node, index }: { node: RootContent; index: number }) {
     );
   }
   if (node.type === "thematicBreak") {
-    return <Container width="100%" height={1} backgroundColor="#d4d4d8" />;
+    return <Container width="100%" height={1} backgroundColor={p.divider} />;
   }
   if (node.type === "html") {
     return (
-      <Text fontSize={13} color={BODY}>
+      <Text fontSize={13} color={p.text}>
         {asciiSafe(node.value)}
       </Text>
     );
   }
   return (
-    <Text fontSize={13} color={BODY}>
+    <Text fontSize={13} color={p.text}>
       {asciiSafe(plainNode(node))}
     </Text>
   );
@@ -217,6 +221,7 @@ function plainNode(node: RootContent | PhrasingContent): string {
 }
 
 export function UikitMarkdown({ markdown }: { markdown: string }) {
+  const p = useXrTheme();
   const tree = useMemo(() => {
     try {
       return fromMarkdown(markdown, {
@@ -231,7 +236,7 @@ export function UikitMarkdown({ markdown }: { markdown: string }) {
   if (!markdown.trim()) return null;
   if (!tree) {
     return (
-      <Text fontSize={13} color={BODY}>
+      <Text fontSize={13} color={p.text}>
         {asciiSafe(markdown)}
       </Text>
     );

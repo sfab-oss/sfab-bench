@@ -39,14 +39,14 @@ function Node({ obj }: { obj: Object3D }) {
       <div
         className={cn(
           "flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[13px]",
-          selected ? "bg-zinc-100 font-medium text-zinc-900" : "text-zinc-700 hover:bg-zinc-50",
+          selected ? "bg-accent font-medium text-accent-foreground" : "text-foreground hover:bg-accent/60",
         )}
         onClick={() => select(part.id)}
         onDoubleClick={() => isolate(part.id)}
       >
         <button
           type="button"
-          className="grid h-5 w-5 shrink-0 place-items-center text-zinc-400"
+          className="grid h-5 w-5 shrink-0 place-items-center text-muted-foreground"
           onClick={(ev) => {
             ev.stopPropagation();
             if (kids.length) setOpen((v) => !v);
@@ -56,16 +56,16 @@ function Node({ obj }: { obj: Object3D }) {
         </button>
         <input
           type="checkbox"
-          className="size-3.5 accent-zinc-900"
+          className="size-3.5 accent-foreground"
           checked={!hiddenIds.has(part.id)}
           onClick={(ev) => ev.stopPropagation()}
           onChange={(ev) => setVisible(part.id, ev.target.checked)}
         />
-        <span className="size-2.5 shrink-0 rounded-[2px] border border-zinc-200" style={{ background: part.color }} />
+        <span className="size-2.5 shrink-0 rounded-[2px] border border-border" style={{ background: part.color }} />
         <span className="min-w-0 flex-1 truncate">{part.name}</span>
       </div>
       {open && kids.length > 0 && (
-        <div className="ml-3 border-l border-zinc-100 pl-1">
+        <div className="ml-3 border-l border-border pl-1">
           {kids.map((child) => (
             <Node key={child.uuid} obj={child} />
           ))}
@@ -93,7 +93,7 @@ function ModelTreeBody() {
         />
         <button
           type="button"
-          className="shrink-0 text-[11px] text-zinc-400 hover:text-zinc-700"
+          className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground"
           onClick={() => setCollapseKey((k) => k + 1)}
         >
           Collapse
@@ -142,12 +142,12 @@ export function PartTree() {
     );
   }
   return (
-    <aside className="pointer-events-auto absolute top-16 left-3 z-10 flex w-[280px] max-h-[min(32rem,calc(100dvh-6rem))] flex-col overflow-hidden rounded-xl border border-zinc-200/80 bg-white/95 shadow-lg backdrop-blur-sm">
-      <header className="flex shrink-0 items-center gap-2 border-b border-zinc-100 px-3 py-2">
-        <ListTree className="size-4 shrink-0 text-zinc-400" />
+    <aside className="pointer-events-auto absolute top-16 left-3 z-10 flex w-[280px] max-h-[min(32rem,calc(100dvh-6rem))] flex-col overflow-hidden rounded-xl border border-border/80 bg-card/95 shadow-lg backdrop-blur-sm">
+      <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
+        <ListTree className="size-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-medium text-zinc-900">Model</div>
-          <div className="truncate text-[11px] text-zinc-500">{title}</div>
+          <div className="text-[13px] font-medium text-foreground">Model</div>
+          <div className="truncate text-[11px] text-muted-foreground">{title}</div>
         </div>
         <Button
           type="button"

@@ -3,6 +3,7 @@ import { useXRInputSourceState } from "@react-three/xr";
 import { createContext, useContext, useMemo, useRef, useState, type ComponentType } from "react";
 
 import { pulseClick, pulseHover } from "@/xr/haptics";
+import { useXrTheme } from "@/xr/ui/theme";
 
 export type Feedback = {
   /** Called on hover enter/leave; pulses once per distinct button entered. */
@@ -15,9 +16,6 @@ export const FeedbackContext = createContext<Feedback>({ hover: () => {}, click:
 
 /** Delay before a hovered button shows its tooltip. */
 const TIP_DELAY_MS = 450;
-
-/** Pressed-frame colours for the light buttons; uikit applies them while a button is down. */
-export const PRESSED = { backgroundColor: "#bfdbfe" } as const;
 
 /** Haptic feedback bound to one input source (a no-op for hands, which have no actuator). */
 export function useFeedback(source: XRInputSource | undefined): Feedback {
@@ -59,8 +57,8 @@ export function ToolBtn({
   grow = true,
   round = false,
   onHover,
-  backgroundColor = "#f4f4f5",
-  hoverColor = "#e4e4e7",
+  backgroundColor,
+  hoverColor,
 }: {
   id: string;
   icon?: Icon;
@@ -74,6 +72,9 @@ export function ToolBtn({
   backgroundColor?: string;
   hoverColor?: string;
 }) {
+  const theme = useXrTheme();
+  const idle = backgroundColor ?? theme.muted;
+  const hover = hoverColor ?? theme.hover;
   const feedback = useContext(FeedbackContext);
   const [tipShown, setTipShown] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -91,9 +92,9 @@ export function ToolBtn({
       alignItems="center"
       justifyContent="center"
       borderRadius={round ? 9 : 6}
-      backgroundColor={active ? "#dbeafe" : backgroundColor}
-      hover={{ backgroundColor: hoverColor }}
-      active={PRESSED}
+      backgroundColor={active ? theme.active : idle}
+      hover={{ backgroundColor: hover }}
+      active={{ backgroundColor: theme.pressed }}
       onClick={() => {
         clearTip();
         feedback.click();
@@ -111,9 +112,9 @@ export function ToolBtn({
       }}
     >
       {Icon ? (
-        <Icon width={round ? 12 : 16} height={round ? 12 : 16} color="#18181b" />
+        <Icon width={round ? 12 : 16} height={round ? 12 : 16} color={theme.text} />
       ) : (
-        <Text fontSize={14} color="#18181b">
+        <Text fontSize={14} color={theme.text}>
           {label}
         </Text>
       )}
@@ -135,9 +136,9 @@ export function ToolBtn({
             paddingX={8}
             paddingY={4}
             borderRadius={6}
-            backgroundColor="#18181b"
+            backgroundColor={theme.tooltipBg}
           >
-            <Text fontSize={11} color="#fafafa" whiteSpace="pre">
+            <Text fontSize={11} color={theme.tooltipFg} whiteSpace="pre">
               {tip}
             </Text>
           </Container>

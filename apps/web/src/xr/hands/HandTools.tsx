@@ -8,6 +8,7 @@ import { useStore } from "@/state/store";
 import { PalmDownGate } from "@/xr/PalmDownGate";
 import { TOOLS } from "@/xr/tools";
 import { FeedbackContext, ToolBtn, useFeedback } from "@/xr/ui/ToolBtn";
+import { useXrTheme } from "@/xr/ui/theme";
 
 /** Side of the right wrist: +Z out the face, +Y up the back of the hand. */
 function RightWristFace({ children }: { children: ReactNode }) {
@@ -23,6 +24,7 @@ function ToolWatch() {
     useShallow((s) => ({ tool: s.tool, toolsOpen: s.toolsOpen, setToolsOpen: s.setToolsOpen })),
   );
   const Icon = TOOLS.find((t) => t.id === tool)?.Icon ?? MousePointer2;
+  const theme = useXrTheme();
   return (
     <>
       <mesh
@@ -32,11 +34,11 @@ function ToolWatch() {
         }}
       >
         <circleGeometry args={[0.02, 28]} />
-        <meshBasicMaterial color={toolsOpen ? "#dbeafe" : "#fafafa"} />
+        <meshBasicMaterial color={toolsOpen ? theme.active : theme.card} />
       </mesh>
       <group position={[0, 0, 0.001]} raycast={() => {}}>
         <Container pixelSize={0.0007} pointerEvents="none">
-          <Icon width={28} height={28} color="#18181b" />
+          <Icon width={28} height={28} color={theme.text} />
         </Container>
       </group>
     </>
@@ -51,6 +53,7 @@ function HandToolRig({ hidden }: { hidden: boolean }) {
   // a no-op today and starts working if a controller ever drives it.
   const leftHand = useXRInputSourceState("hand", "left");
   const feedback = useFeedback(leftHand?.inputSource);
+  const theme = useXrTheme();
   return (
     <FeedbackContext.Provider value={feedback}>
       <PalmDownGate hand="right" position={[0, 0.08, 0]} rotation={[0, 0, 0]} hidden={hidden}>
@@ -59,7 +62,7 @@ function HandToolRig({ hidden }: { hidden: boolean }) {
           gap={8}
           padding={8}
           borderRadius={12}
-          backgroundColor="#fafafa"
+          backgroundColor={theme.card}
           pixelSize={0.001}
         >
           {TOOLS.map((item) => (

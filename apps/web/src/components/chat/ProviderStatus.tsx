@@ -8,7 +8,7 @@ export function ProviderStatus() {
   const info = harnesses.find((h) => h.id === harness);
   if (!ready || !info || info.status === "ready") return null;
   return (
-    <p className="px-2 pb-1 text-xs text-amber-800">
+    <p className="px-2 pb-1 text-xs text-amber-800 dark:text-amber-400">
       {HARNESS_LABEL[harness]} is not ready. {info.detail ?? info.status}
     </p>
   );

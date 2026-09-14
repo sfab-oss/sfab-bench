@@ -8,6 +8,7 @@ import { contextBridge, ipcRenderer } from "electron";
 contextBridge.exposeInMainWorld("sfabBench", {
   desktop: true,
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke("sfab:pick-folder"),
+  setTheme: (theme: "light" | "dark" | "system"): void => ipcRenderer.send("sfab:theme", theme),
 });
 
 // The menu's Open Folder… opens the project in the main process, then says so

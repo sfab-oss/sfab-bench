@@ -3,8 +3,10 @@ import { Check, Loader, X } from "@react-three/uikit-lucide";
 
 import { formatVoiceTime } from "@/hooks/useVoiceInput";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
+import { useXrTheme } from "@/xr/ui/theme";
 
 function Wave({ elapsedMs, frozen, level }: { elapsedMs: number; frozen?: boolean; level: number }) {
+  const theme = useXrTheme();
   return (
     <Container
       flexGrow={1}
@@ -25,7 +27,7 @@ function Wave({ elapsedMs, frozen, level }: { elapsedMs: number; frozen?: boolea
             height={h}
             flexShrink={0}
             borderRadius={1}
-            backgroundColor={frozen ? "#d4d4d8" : "#ef4444"}
+            backgroundColor={frozen ? theme.divider : "#ef4444"}
           />
         );
       })}
@@ -50,6 +52,7 @@ export function VoiceRecordRow({
   onCancel: () => void;
   onComplete: () => void;
 }) {
+  const theme = useXrTheme();
   return (
     <Container flexDirection="row" flexShrink={0} alignItems="center" gap={4} width="100%">
       <ToolBtn id="xr-chat-voice-cancel" icon={X} tip="Cancel" grow={false} onClick={onCancel} />
@@ -58,14 +61,14 @@ export function VoiceRecordRow({
         minWidth={0}
         height={36}
         borderRadius={8}
-        backgroundColor="#f4f4f5"
+        backgroundColor={theme.muted}
         paddingX={8}
         flexDirection="row"
         alignItems="center"
         gap={6}
       >
         <Wave elapsedMs={elapsedMs} frozen={transcribing} level={level} />
-        <Text fontSize={12} color="#71717a">
+        <Text fontSize={12} color={theme.subtle}>
           {transcribing ? "..." : formatVoiceTime(elapsedMs)}
         </Text>
       </Container>

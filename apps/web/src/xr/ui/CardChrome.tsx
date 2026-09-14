@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode }
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 
-import { PRESSED, ToolBtn } from "@/xr/ui/ToolBtn";
+import { ToolBtn } from "@/xr/ui/ToolBtn";
 import { useWorldCard } from "@/xr/ui/WorldCard";
 import {
   CARD_R,
@@ -35,9 +35,8 @@ import {
   type EdgeId,
   type Region,
 } from "@/xr/ui/chrome";
+import { useXrTheme } from "@/xr/ui/theme";
 
-const HOVER = "#e4e4e7";
-const HANDLE_IDLE = "#d4d4d8";
 const CORNER_STROKE = cornerStrokeGeometry();
 const HANDLE_GEOM = stadiumGeometry(HANDLE_LEN, HANDLE_R);
 const HANDLE_EXP_GEOM = stadiumGeometry(HANDLE_EXP_LEN, HANDLE_EXP_R);
@@ -50,14 +49,15 @@ export function HandleButton({
   ...props
 }: Omit<Parameters<typeof ToolBtn>[0], "round" | "grow">) {
   const ctx = useContext(HandleContext);
+  const theme = useXrTheme();
   if (!ctx) throw new Error("HandleButton must be used within WorldCard handle");
   return (
     <ToolBtn
       {...props}
       round
       grow={false}
-      backgroundColor={HOVER}
-      hoverColor={HANDLE_IDLE}
+      backgroundColor={theme.hover}
+      hoverColor={theme.handleIdle}
       onHover={(h) => {
         if (h) ctx.keepOpen();
         else ctx.maybeClose();
@@ -121,6 +121,9 @@ export function CardChrome({
     notifyDragStart,
     notifyDragEnd,
   } = useWorldCard();
+  const theme = useXrTheme();
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   const meters = cardMeters(size);
   const hw = meters.w / 2;
   const hh = meters.h / 2;
@@ -320,11 +323,12 @@ export function CardChrome({
   useEffect(() => () => vStroke.dispose(), [vStroke]);
 
   const paint = (region: Region, on: boolean, pressed = false) => {
-    const color = pressed ? PRESSED.backgroundColor : HOVER;
+    const t = themeRef.current;
+    const color = pressed ? t.pressed : t.hover;
     if (region === "handle") {
       const idle = idleVis.current;
       if (idle && "color" in idle.material && idle.material.color instanceof THREE.Color) {
-        idle.material.color.set(pressed ? PRESSED.backgroundColor : on ? HOVER : HANDLE_IDLE);
+        idle.material.color.set(pressed ? t.pressed : on ? t.hover : t.handleIdle);
       }
       return;
     }
@@ -476,7 +480,7 @@ export function CardChrome({
         </mesh>
         <mesh ref={bindStroke("ring")} visible={false} position={[0, 0, 0.003]} raycast={() => {}}>
           <primitive attach="geometry" object={orbRing} />
-          <meshBasicMaterial color={HOVER} side={THREE.DoubleSide} />
+          <meshBasicMaterial color={theme.hover} side={THREE.DoubleSide} />
         </mesh>
       </group>
     );
@@ -502,7 +506,7 @@ export function CardChrome({
             <group key={c.id} position={[c.sx * hw, c.sy * hh, 0.003]} rotation={[0, 0, c.rot]}>
               <mesh ref={bindStroke(`corner:${c.id}`)} visible={false} raycast={() => {}}>
                 <primitive attach="geometry" object={CORNER_STROKE} />
-                <meshBasicMaterial color={HOVER} />
+                <meshBasicMaterial color={theme.hover} />
               </mesh>
             </group>
           ))
@@ -514,7 +518,7 @@ export function CardChrome({
             <group position={[0, edgeAlong(e.id) + GAP, 0]}>
               <mesh ref={bindStroke(`edge:${e.id}`)} visible={false} raycast={() => {}}>
                 <primitive attach="geometry" object={horiz ? hStroke : vStroke} />
-                <meshBasicMaterial color={HOVER} />
+                <meshBasicMaterial color={theme.hover} />
               </mesh>
             </group>
           </group>
@@ -524,12 +528,12 @@ export function CardChrome({
         <group name="card-handle" position={[0, pillY, 0.002]}>
           <mesh ref={idleVis} raycast={() => {}}>
             <primitive attach="geometry" object={HANDLE_GEOM} />
-            <meshBasicMaterial color={HANDLE_IDLE} />
+            <meshBasicMaterial color={theme.handleIdle} />
           </mesh>
           <group ref={expVis} visible={false}>
             <mesh raycast={() => {}}>
               <primitive attach="geometry" object={HANDLE_EXP_GEOM} />
-              <meshBasicMaterial color={HOVER} />
+              <meshBasicMaterial color={theme.hover} />
             </mesh>
           </group>
           <mesh

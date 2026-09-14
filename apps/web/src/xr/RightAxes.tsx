@@ -12,6 +12,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import { store, useStore } from "@/state/store";
 import { WorldAxes } from "@/xr/WorldAxes";
+import { useXrTheme } from "@/xr/ui/theme";
 
 const parentQ = new THREE.Quaternion();
 const modelQ = new THREE.Quaternion();
@@ -41,10 +42,11 @@ function ModelAlignedAxes({ length }: { length: number }) {
 
 export function CornerAxes() {
   const axesVisible = useStore((s) => s.axesVisible);
+  const theme = useXrTheme();
   if (!axesVisible) return null;
   return (
     <GizmoHelper alignment="bottom-right" margin={[72, 72]}>
-      <GizmoViewport axisColors={["#e11d48", "#16a34a", "#2563eb"]} labelColor="#18181b" />
+      <GizmoViewport axisColors={["#e11d48", "#16a34a", "#2563eb"]} labelColor={theme.text} />
     </GizmoHelper>
   );
 }

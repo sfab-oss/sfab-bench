@@ -13,7 +13,8 @@ import {
 } from "@/lib/viewer-snapshot";
 import { useStore } from "@/state/store";
 import { asciiSafe } from "@/xr/ui/UikitMarkdown";
-import { FeedbackContext, PRESSED } from "@/xr/ui/ToolBtn";
+import { FeedbackContext } from "@/xr/ui/ToolBtn";
+import { useXrTheme } from "@/xr/ui/theme";
 
 function FileRow({
   name,
@@ -30,6 +31,7 @@ function FileRow({
 }) {
   const { setDoc } = useProjectSession();
   const feedback = useContext(FeedbackContext);
+  const theme = useXrTheme();
   const active = path === current;
   return (
     <Container
@@ -38,9 +40,9 @@ function FileRow({
       padding={6}
       paddingLeft={6 + depth * 12}
       borderRadius={8}
-      backgroundColor={active ? "#dbeafe" : "#f4f4f5"}
-      hover={{ backgroundColor: active ? "#dbeafe" : "#e4e4e7" }}
-      active={PRESSED}
+      backgroundColor={active ? theme.active : theme.muted}
+      hover={{ backgroundColor: active ? theme.active : theme.hover }}
+      active={{ backgroundColor: theme.pressed }}
       onHoverChange={(hovered: boolean) => feedback.hover(path, hovered)}
       onClick={() => {
         feedback.click();
@@ -48,7 +50,7 @@ function FileRow({
         onPick?.();
       }}
     >
-      <Text fontSize={13} color="#18181b">
+      <Text fontSize={13} color={theme.text}>
         {asciiSafe(name)}
       </Text>
     </Container>
@@ -71,6 +73,7 @@ function DirNode({
   onPick?: () => void;
 }) {
   const feedback = useContext(FeedbackContext);
+  const theme = useXrTheme();
   const open = expanded.has(node.path);
   return (
     <Container width="100%" flexShrink={0} flexDirection="column" gap={2}>
@@ -83,17 +86,17 @@ function DirNode({
         padding={6}
         paddingLeft={6 + depth * 12}
         borderRadius={8}
-        backgroundColor="#f4f4f5"
-        hover={{ backgroundColor: "#e4e4e7" }}
-        active={PRESSED}
+        backgroundColor={theme.muted}
+        hover={{ backgroundColor: theme.hover }}
+        active={{ backgroundColor: theme.pressed }}
         onHoverChange={(hovered: boolean) => feedback.hover(`dir-${node.path}`, hovered)}
         onClick={() => {
           feedback.click();
           toggle(node.path);
         }}
       >
-        <ChevronDown width={12} height={12} color="#18181b" transformRotateZ={open ? 0 : 90} />
-        <Text fontSize={13} color="#18181b">
+        <ChevronDown width={12} height={12} color={theme.text} transformRotateZ={open ? 0 : 90} />
+        <Text fontSize={13} color={theme.text}>
           {asciiSafe(node.name)}
         </Text>
       </Container>
@@ -141,6 +144,7 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
   const url = useStore((s) => s.url);
   const recents = useStore((s) => s.recentFiles);
   const { files, error, ready } = useCatalog(true);
+  const theme = useXrTheme();
   const { recents: recentRows } = catalogSections(files, recents);
   const tree = useMemo(() => catalogTree(files), [files]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -180,21 +184,21 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
 
   if (error) {
     return (
-      <Text fontSize={12} color="#b91c1c">
+      <Text fontSize={12} color={theme.danger}>
         {asciiSafe(error)}
       </Text>
     );
   }
   if (!ready) {
     return (
-      <Text fontSize={12} color="#71717a">
+      <Text fontSize={12} color={theme.subtle}>
         Loading files…
       </Text>
     );
   }
   if (files.length === 0) {
     return (
-      <Text fontSize={12} color="#71717a">
+      <Text fontSize={12} color={theme.subtle}>
         Open a STEP in this folder.
       </Text>
     );
@@ -204,7 +208,7 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
     <>
       {recentRows.length > 0 ? (
         <Container width="100%" flexShrink={0} flexDirection="column" gap={2}>
-          <Text fontSize={11} color="#a1a1aa">
+          <Text fontSize={11} color={theme.subtle}>
             Recent
           </Text>
           {recentRows.map((row: CatalogEntry) => (
@@ -221,7 +225,7 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
       ) : null}
       <Container width="100%" flexShrink={0} flexDirection="column" gap={2}>
         {recentRows.length > 0 ? (
-          <Text fontSize={11} color="#a1a1aa">
+          <Text fontSize={11} color={theme.subtle}>
             Folders
           </Text>
         ) : null}

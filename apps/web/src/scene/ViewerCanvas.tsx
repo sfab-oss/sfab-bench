@@ -4,10 +4,12 @@ import { IfInSessionMode, XR } from "@react-three/xr";
 import { Suspense, useCallback, useLayoutEffect } from "react";
 import * as THREE from "three";
 
+import { useStudioColor } from "@/hooks/useStudioColor";
 import { CadModel } from "@/scene/CadModel";
 import { RecenterOnReset } from "@/scene/RecenterOnReset";
 import { SpawnInFront } from "@/scene/SpawnInFront";
 import { store, useStore } from "@/state/store";
+import { useXrTheme } from "@/xr/ui/theme";
 import { CornerAxes, RightAxes, RightHandAxes } from "@/xr/RightAxes";
 import { ToolDrawer } from "@/xr/ToolDrawer";
 import { HandRig } from "@/xr/hands/HandRig";
@@ -20,13 +22,11 @@ import { ChatDock } from "@/xr/ui/ChatDock";
 import { xrStore } from "@/xrStore";
 
 function StudioFloor() {
-  const studioDark = useStore((s) => s.studioDark);
+  const theme = useXrTheme();
   return (
     <IfInSessionMode allow="immersive-vr">
-      <color attach="background" args={[studioDark ? "#1a1d21" : "#eeeff1"]} />
-      <gridHelper
-        args={studioDark ? [8, 32, 0x4b5158, 0x2c3036] : [8, 32, 0xc9cdd3, 0xe2e4e8]}
-      />
+      <color attach="background" args={[theme.studio]} />
+      <gridHelper args={[8, 32, theme.gridMajor, theme.gridMinor]} />
     </IfInSessionMode>
   );
 }
@@ -62,6 +62,7 @@ function FitBridge() {
 }
 
 export function ViewerCanvas() {
+  const studio = useStudioColor();
   const setPlaced = useStore((s) => s.setPlaced);
   const onFit = useCallback(
     (obj: THREE.Object3D) => store.getState().fit?.(obj, new THREE.Vector3(0.6, 0.5, 0.7)),
@@ -76,7 +77,7 @@ export function ViewerCanvas() {
     >
       <XR store={xrStore}>
         <IfInSessionMode deny="immersive-ar">
-          <color attach="background" args={["#eeeff1"]} />
+          <color attach="background" args={[studio]} />
         </IfInSessionMode>
         <StudioFloor />
         <RecenterOnReset />

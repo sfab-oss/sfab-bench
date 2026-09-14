@@ -60,7 +60,7 @@ export function OpenFolderForm({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
-      <p className="text-[13px] text-zinc-600">
+      <p className="text-[13px] text-muted-foreground">
         A project is a folder on this Mac. STEP and GLB files inside it show up as documents.
       </p>
       {bridge ? (
@@ -87,7 +87,7 @@ export function OpenFolderForm({
           void submit(path);
         }}
       >
-        <label className="text-[11px] font-medium tracking-wide text-zinc-400 uppercase">
+        <label className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
           {bridge ? "Or type a path" : "Path"}
         </label>
         <Input
@@ -101,20 +101,20 @@ export function OpenFolderForm({
           Open folder
         </Button>
       </form>
-      {error ? <p className="text-xs text-red-600">{error}</p> : null}
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
       {info?.recents?.length ? (
         <div>
-          <p className="text-[11px] font-medium tracking-wide text-zinc-400 uppercase">Recent</p>
+          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Recent</p>
           <ul className="mt-1">
             {info.recents.map((row) => (
               <li key={row.path}>
                 <button
                   type="button"
-                  className="flex w-full flex-col items-start rounded-md px-2 py-1.5 text-left hover:bg-zinc-100"
+                  className="flex w-full flex-col items-start rounded-md px-2 py-1.5 text-left hover:bg-accent"
                   onClick={() => void submit(row.path)}
                 >
-                  <span className="text-sm text-zinc-800">{row.name}</span>
-                  <span className="w-full truncate font-mono text-[11px] text-zinc-400">{row.path}</span>
+                  <span className="text-sm text-foreground">{row.name}</span>
+                  <span className="w-full truncate font-mono text-[11px] text-muted-foreground">{row.path}</span>
                 </button>
               </li>
             ))}
@@ -123,11 +123,11 @@ export function OpenFolderForm({
       ) : null}
       {browse ? (
         <div className="min-h-0 flex-1">
-          <p className="text-[11px] font-medium tracking-wide text-zinc-400 uppercase">Browse</p>
+          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Browse</p>
           <div className="mt-1 flex items-center gap-2">
             <button
               type="button"
-              className="text-[11px] text-zinc-500 hover:text-zinc-800 disabled:opacity-40"
+              className="text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40"
               disabled={!browse.parent}
               onClick={() => {
                 if (!browse.parent) return;
@@ -136,7 +136,7 @@ export function OpenFolderForm({
             >
               Up
             </button>
-            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-400">{browse.path}</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">{browse.path}</span>
           </div>
           <Button
             type="button"
@@ -154,13 +154,13 @@ export function OpenFolderForm({
               <li key={dir.path}>
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2 truncate rounded-md px-2 py-1 text-left text-sm text-zinc-700 hover:bg-zinc-100"
+                  className="flex w-full items-center gap-2 truncate rounded-md px-2 py-1 text-left text-sm text-foreground hover:bg-accent"
                   onClick={() => {
                     setPath(dir.path);
                     void browsePath(dir.path).then(setBrowse);
                   }}
                 >
-                  <Folder className="size-3.5 shrink-0 text-zinc-400" />
+                  <Folder className="size-3.5 shrink-0 text-muted-foreground" />
                   {dir.name}
                 </button>
               </li>

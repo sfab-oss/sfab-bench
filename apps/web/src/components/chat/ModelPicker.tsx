@@ -89,17 +89,17 @@ export function ModelPicker() {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 max-w-32 min-w-0 gap-1.5 px-1.5 text-xs font-normal text-zinc-600"
+            className="h-7 max-w-32 min-w-0 gap-1.5 px-1.5 text-xs font-normal text-muted-foreground"
             title={fullTitle}
           />
         }
       >
         <ProviderMark id={chatHarness} />
         <span className="min-w-0 truncate">{selectedName}</span>
-        <ChevronDown className="size-3 shrink-0 text-zinc-400" />
+        <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
       </PopoverTrigger>
       <PopoverContent align="start" side="top" className="flex h-72 w-80 gap-1 p-1">
-        <div className="flex w-10 shrink-0 flex-col gap-0.5 border-r border-zinc-100 pr-1">
+        <div className="flex w-10 shrink-0 flex-col gap-0.5 border-r border-border pr-1">
           {HARNESS_IDS.map((id) => {
             const info = harnesses.find((h) => h.id === id);
             const dim = info != null && info.status !== "ready";
@@ -111,7 +111,7 @@ export function ModelPicker() {
                 size="icon-sm"
                 title={HARNESS_LABEL[id]}
                 aria-label={HARNESS_LABEL[id]}
-                className={cn("size-9", rail === id && "bg-zinc-100", dim && "opacity-50")}
+                className={cn("size-9", rail === id && "bg-accent", dim && "opacity-50")}
                 onClick={() => {
                   setRail(id);
                   setQuery("");
@@ -133,17 +133,17 @@ export function ModelPicker() {
             {catalogPending ? (
               <ModelListSkeleton />
             ) : error ? (
-              <div className="px-2 py-1.5 text-xs text-zinc-500">Couldn’t load models</div>
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">Couldn’t load models</div>
             ) : notReady ? (
-              <div className="px-2 py-1.5 text-xs text-amber-800">{active.detail ?? active.status}</div>
+              <div className="px-2 py-1.5 text-xs text-amber-800 dark:text-amber-400">{active.detail ?? active.status}</div>
             ) : groups.length === 0 ? (
-              <div className="px-2 py-1.5 text-xs text-zinc-500">No matches</div>
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">No matches</div>
             ) : (
               <ul>
                 {groups.map(([group, models]) => (
                   <li key={group} className="mb-1">
                     {group ? (
-                      <div className="px-2 py-1 text-[10px] font-medium tracking-wide text-zinc-400 uppercase">
+                      <div className="px-2 py-1 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
                         {group}
                       </div>
                     ) : null}
@@ -153,8 +153,8 @@ export function ModelPicker() {
                         className={cn(
                           "flex w-full truncate rounded-sm px-2 py-1.5 text-left text-xs",
                           rail === chatHarness && m.slug === chatModel
-                            ? "bg-zinc-100 font-medium text-zinc-900"
-                            : "text-zinc-600 hover:bg-zinc-50",
+                            ? "bg-accent font-medium text-accent-foreground"
+                            : "text-muted-foreground hover:bg-accent",
                         )}
                         onClick={() => setChatSelection(rail, m.slug)}
                       >

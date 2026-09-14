@@ -8,6 +8,7 @@ import { useStore } from "@/state/store";
 import { asciiSafe } from "@/xr/ui/UikitMarkdown";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
 import { TreeRow } from "@/xr/ui/TreeRow";
+import { useXrTheme } from "@/xr/ui/theme";
 
 export function CardBody({
   width = 204,
@@ -50,6 +51,7 @@ export function CardBody({
     () => (review ? treeTops(review) : []),
     [review],
   );
+  const theme = useXrTheme();
 
   return (
       <Container
@@ -58,7 +60,7 @@ export function CardBody({
         padding={8}
         gap={4}
         flexDirection="column"
-        backgroundColor="#fafafa"
+        backgroundColor={theme.card}
         borderRadius={12}
         pixelSize={0.001}
         pointerEvents="auto"
@@ -80,25 +82,25 @@ export function CardBody({
             onClick={() => setPage(page === "settings" ? "tree" : "settings")}
           />
         </Container>
-        <Text fontSize={12} color="#71717a" width="100%">
+        <Text fontSize={12} color={theme.subtle} width="100%">
           {url ? asciiSafe(title) : "No file"}
         </Text>
-        <Container width="100%" height={1} flexShrink={0} backgroundColor="#e4e4e7" />
+        <Container width="100%" height={1} flexShrink={0} backgroundColor={theme.border} />
         <Container flexGrow={1} width="100%" overflow="scroll" gap={2} flexDirection="column">
           {tops.length > 0 ? (
             tops.map((obj) => <TreeRow key={obj.uuid} obj={obj} />)
           ) : (
-            <Text fontSize={12} color="#71717a" width="100%">
+            <Text fontSize={12} color={theme.subtle} width="100%">
               Open a file. Run a model under cad/src to see it here.
             </Text>
           )}
         </Container>
-        <Container width="100%" height={1} flexShrink={0} backgroundColor="#e4e4e7" />
+        <Container width="100%" height={1} flexShrink={0} backgroundColor={theme.border} />
         <Container flexDirection="row" flexShrink={0} alignItems="center" gap={4} width="100%">
           <ToolBtn id="minus" icon={Minus} tip="Zoom out" onClick={() => bumpScale(1 / 1.25)} />
           <ToolBtn id="scale" label={scaleLabel} tip="Reset to 1:1" onClick={() => resetScale()} />
           <ToolBtn id="plus" icon={Plus} tip="Zoom in" onClick={() => bumpScale(1.25)} />
-          <Container width={1} height={16} flexShrink={0} backgroundColor="#d4d4d8" />
+          <Container width={1} height={16} flexShrink={0} backgroundColor={theme.divider} />
           <ToolBtn
             id="recenter"
             icon={LocateFixed}

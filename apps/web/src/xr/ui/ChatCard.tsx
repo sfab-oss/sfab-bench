@@ -13,9 +13,7 @@ import { asciiSafe, UikitMarkdown } from "@/xr/ui/UikitMarkdown";
 import { useXrChatScroll } from "@/xr/ui/useXrChatScroll";
 import { VoiceRecordRow } from "@/xr/ui/VoiceRecordRow";
 import { useXrChatRuntime } from "@/xr/ui/XrChatRuntime";
-
-const MUTED = "#71717a";
-const BODY = "#18181b";
+import { useXrTheme } from "@/xr/ui/theme";
 
 function workedDurationSeconds(message: GalleryChatMessage) {
   const n = message.metadata?.responseTime;
@@ -24,10 +22,11 @@ function workedDurationSeconds(message: GalleryChatMessage) {
 }
 
 function XrPlan({ entries }: { entries: AIDataPart["plan"]["entries"] }) {
+  const theme = useXrTheme();
   return (
     <Container width="100%" flexShrink={0} flexDirection="column" gap={3}>
       {entries.map((entry, i) => (
-        <Text key={i} fontSize={12} color={entry.status === "completed" ? MUTED : BODY}>
+        <Text key={i} fontSize={12} color={entry.status === "completed" ? theme.subtle : theme.text}>
           {entry.status === "completed" ? "[x] " : "[ ] "}
           {entry.content}
         </Text>
@@ -63,11 +62,12 @@ function XrToolLine({
   const label = toolTitle(toolName, input);
   const inText = dump(input);
   const outText = dump(output);
+  const theme = useXrTheme();
   return (
     <Container width="100%" flexShrink={0} flexDirection="column" gap={2}>
       <Container flexDirection="row" alignItems="center" gap={4} onClick={() => setOpen((v) => !v)}>
-        <ChevronDown width={12} height={12} color={MUTED} transformRotateZ={open ? 0 : 90} />
-        <Text fontSize={12} color={MUTED}>
+        <ChevronDown width={12} height={12} color={theme.subtle} transformRotateZ={open ? 0 : 90} />
+        <Text fontSize={12} color={theme.subtle}>
           {asciiSafe(label)}
         </Text>
       </Container>
@@ -75,20 +75,20 @@ function XrToolLine({
         <Container width="100%" flexShrink={0} flexDirection="column" gap={2} paddingLeft={16}>
           {inText ? (
             <>
-              <Text fontSize={11} color={MUTED} fontWeight="semi-bold">
+              <Text fontSize={11} color={theme.subtle} fontWeight="semi-bold">
                 Input
               </Text>
-              <Text fontSize={11} color={MUTED}>
+              <Text fontSize={11} color={theme.subtle}>
                 {inText}
               </Text>
             </>
           ) : null}
           {outText ? (
             <>
-              <Text fontSize={11} color={MUTED} fontWeight="semi-bold">
+              <Text fontSize={11} color={theme.subtle} fontWeight="semi-bold">
                 Output
               </Text>
-              <Text fontSize={11} color={MUTED}>
+              <Text fontSize={11} color={theme.subtle}>
                 {outText}
               </Text>
             </>
@@ -104,16 +104,17 @@ function XrReasoning({ text, isStreaming }: { text: string; isStreaming: boolean
   const streamed = useRef(isStreaming);
   if (isStreaming) streamed.current = true;
   const open = userOpen ?? (isStreaming || streamed.current);
+  const theme = useXrTheme();
   return (
     <Container width="100%" flexShrink={0} flexDirection="column" gap={2}>
       <Container flexDirection="row" alignItems="center" gap={4} onClick={() => setUserOpen(!open)}>
-        <ChevronDown width={12} height={12} color={MUTED} transformRotateZ={open ? 0 : 90} />
-        <Text fontSize={12} color={MUTED}>
+        <ChevronDown width={12} height={12} color={theme.subtle} transformRotateZ={open ? 0 : 90} />
+        <Text fontSize={12} color={theme.subtle}>
           {isStreaming ? "Reasoning..." : "Reasoning"}
         </Text>
       </Container>
       {open ? (
-        <Text fontSize={12} color="#52525b">
+        <Text fontSize={12} color={theme.subtle}>
           {asciiSafe(text)}
         </Text>
       ) : null}
@@ -132,11 +133,12 @@ function XrWorked({
 }) {
   const [userOpen, setUserOpen] = useState<boolean | null>(null);
   const open = userOpen ?? isStreaming;
+  const theme = useXrTheme();
   return (
     <Container width="100%" flexShrink={0} flexDirection="column" gap={4}>
       <Container flexDirection="row" alignItems="center" gap={4} onClick={() => setUserOpen(!open)}>
-        <ChevronDown width={12} height={12} color={MUTED} transformRotateZ={open ? 0 : 90} />
-        <Text fontSize={12} color={MUTED}>
+        <ChevronDown width={12} height={12} color={theme.subtle} transformRotateZ={open ? 0 : 90} />
+        <Text fontSize={12} color={theme.subtle}>
           {workedLabel({ isStreaming, duration })}
         </Text>
       </Container>
@@ -207,6 +209,7 @@ const XrMessageRow = memo(function XrMessageRow({
 }) {
   const mine = message.role === "user";
   const text = messagePlainText(message);
+  const theme = useXrTheme();
   if (mine && !text) return null;
   return (
     <Container width="100%" flexShrink={0} flexDirection="column" alignItems={mine ? "flex-end" : "flex-start"}>
@@ -218,9 +221,9 @@ const XrMessageRow = memo(function XrMessageRow({
           alignSelf="flex-end"
           padding={8}
           borderRadius={10}
-          backgroundColor="#e4e4e7"
+          backgroundColor={theme.bubble}
         >
-          <Text fontSize={13} color={BODY}>
+          <Text fontSize={13} color={theme.text}>
             {asciiSafe(text)}
           </Text>
         </Container>
@@ -242,6 +245,7 @@ function XrChatSession({
 }) {
   const runtime = useXrChatRuntime();
   const { ref: listRef, atEnd, onScroll, jumpToEnd } = useXrChatScroll();
+  const theme = useXrTheme();
   if (!runtime) return null;
   const { messages, busy, error, draft, setDraft, send, stop, voice } = runtime;
   const submit = () => {
@@ -264,7 +268,7 @@ function XrChatSession({
           onScroll={onScroll}
         >
           {messages.length === 0 ? (
-            <Text fontSize={13} color="#71717a">
+            <Text fontSize={13} color={theme.subtle}>
               Ask for a CAD change. Try "What am I looking at?" then a size change.
             </Text>
           ) : (
@@ -277,7 +281,7 @@ function XrChatSession({
             ))
           )}
           {error ? (
-            <Text fontSize={12} color="#dc2626">
+            <Text fontSize={12} color={theme.danger}>
               {error.message}
             </Text>
           ) : null}
@@ -304,7 +308,7 @@ function XrChatSession({
           </Container>
         ) : null}
       </Container>
-      <Container width="100%" height={1} flexShrink={0} backgroundColor="#e4e4e7" />
+      <Container width="100%" height={1} flexShrink={0} backgroundColor={theme.border} />
       {voice.active ? (
         <VoiceRecordRow
           elapsedMs={voice.elapsedMs}
@@ -317,7 +321,7 @@ function XrChatSession({
         />
       ) : (
         <Container flexDirection="row" flexShrink={0} alignItems="center" gap={4} width="100%">
-          <Container flexGrow={1} minWidth={0} height={36} borderRadius={8} backgroundColor="#f4f4f5" paddingX={8}>
+          <Container flexGrow={1} minWidth={0} height={36} borderRadius={8} backgroundColor={theme.muted} paddingX={8}>
             <Input
               value={draft}
               onValueChange={(value: string) => setDraft(value)}
@@ -326,7 +330,7 @@ function XrChatSession({
               width="100%"
               height="100%"
               fontSize={14}
-              color="#18181b"
+              color={theme.text}
             />
           </Container>
           <ToolBtn
@@ -346,7 +350,7 @@ function XrChatSession({
         </Container>
       )}
       {voice.error && !voice.active ? (
-        <Text fontSize={11} color="#dc2626">
+        <Text fontSize={11} color={theme.danger}>
           {asciiSafe(voice.error)}
         </Text>
       ) : null}
@@ -374,6 +378,7 @@ export function ChatCard({
 }) {
   const { threads, threadId, newThread } = useViewerChat();
   const active = threads.find((t) => t.id === threadId);
+  const theme = useXrTheme();
 
   return (
     <Container
@@ -382,14 +387,14 @@ export function ChatCard({
       padding={8}
       gap={6}
       flexDirection="column"
-      backgroundColor="#fafafa"
+      backgroundColor={theme.card}
       borderRadius={12}
       pixelSize={0.001}
       pointerEvents="auto"
     >
       <Container flexDirection="row" flexShrink={0} alignItems="center" gap={4} width="100%">
         <Container flexGrow={1} minWidth={0} flexDirection="row" alignItems="center" gap={6}>
-          <Text fontSize={14} color="#18181b">
+          <Text fontSize={14} color={theme.text}>
             {active?.title ?? "Assistant"}
           </Text>
 
@@ -404,12 +409,12 @@ export function ChatCard({
         />
         <ToolBtn id="xr-chat-new" icon={Plus} tip="New chat" grow={false} onClick={() => void newThread()} />
       </Container>
-      <Container width="100%" height={1} flexShrink={0} backgroundColor="#e4e4e7" />
+      <Container width="100%" height={1} flexShrink={0} backgroundColor={theme.border} />
       {threadId ? (
         <XrChatSession modelsOpen={modelsOpen} onToggleModels={onToggleModels} />
       ) : (
         <Container flexGrow={1}>
-          <Text fontSize={13} color="#71717a">
+          <Text fontSize={13} color={theme.subtle}>
             Loading...
           </Text>
         </Container>

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell, utilityProcess } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, session, shell, utilityProcess } from "electron";
 import type { UtilityProcess } from "electron";
 import { existsSync } from "node:fs";
 import { request } from "node:https";
@@ -9,6 +9,8 @@ import { publicPort } from "@sfab-bench/server/config";
 const ORIGIN = `https://127.0.0.1:${publicPort()}`;
 const PRELOAD = join(__dirname, "preload.cjs");
 const API_TIMEOUT_MS = 5_000;
+const STUDIO_LIGHT = "#eeeff1";
+const STUDIO_DARK = "#1a1d21";
 
 /** Our own page, and nothing that merely starts like it: `startsWith(ORIGIN)` would
  * happily accept `https://127.0.0.1:7322.example.com`. */
@@ -41,6 +43,14 @@ const WEB_DIST = beside("web", ["..", "..", "web", "dist"]);
 
 let server: UtilityProcess | null = null;
 let window_: BrowserWindow | null = null;
+
+function studioColor(): string {
+  return nativeTheme.shouldUseDarkColors ? STUDIO_DARK : STUDIO_LIGHT;
+}
+
+function paintWindow(): void {
+  window_?.setBackgroundColor(studioColor());
+}
 
 /**
  * Talk to our own API. Not `fetch`: the server presents the self-signed
@@ -190,7 +200,7 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     title: "sfab-bench",
-    backgroundColor: "#ffffff",
+    backgroundColor: studioColor(),
     titleBarStyle: "hiddenInset",
     webPreferences: { preload: PRELOAD, contextIsolation: true, nodeIntegration: false },
   });
@@ -292,6 +302,13 @@ if (!app.requestSingleInstanceLock()) {
   ipcMain.handle("sfab:pick-folder", (event) =>
     pickFolder(BrowserWindow.fromWebContents(event.sender) ?? undefined),
   );
+  ipcMain.on("sfab:theme", (_event, theme: unknown) => {
+    if (theme === "light" || theme === "dark" || theme === "system") {
+      nativeTheme.themeSource = theme;
+      paintWindow();
+    }
+  });
+  nativeTheme.on("updated", paintWindow);
 
   app.whenReady().then(async () => {
     // Sessions cannot be touched before ready.

@@ -11,7 +11,7 @@ export function ProviderMark({
 }) {
   const mark = PROVIDER_MARK[id];
   return (
-    <svg viewBox={mark.viewBox} fill="currentColor" aria-hidden className={cn("size-4 shrink-0 text-zinc-900", className)}>
+    <svg viewBox={mark.viewBox} fill="currentColor" aria-hidden className={cn("size-4 shrink-0 text-foreground", className)}>
       {mark.paths.map((p) => (
         <path key={p.d.slice(0, 24)} d={p.d} fillRule={p.evenodd ? "evenodd" : undefined} clipRule={p.evenodd ? "evenodd" : undefined} />
       ))}

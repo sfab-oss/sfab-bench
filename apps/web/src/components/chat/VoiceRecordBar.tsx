@@ -13,7 +13,7 @@ function Wave({ level, frozen, elapsedMs }: { level: number; frozen?: boolean; e
         return (
           <span
             key={i}
-            className={cn("w-[2px] rounded-full", frozen ? "bg-zinc-300" : "bg-red-500")}
+            className={cn("w-[2px] rounded-full", frozen ? "bg-muted-foreground/40" : "bg-destructive")}
             style={{ height: `${h}px` }}
           />
         );
@@ -57,7 +57,7 @@ export function VoiceRecordBar({
         <X />
       </Button>
       <Wave elapsedMs={elapsedMs} frozen={transcribing} level={level} />
-      <span className="w-10 shrink-0 text-center text-xs tabular-nums text-zinc-500">
+      <span className="w-10 shrink-0 text-center text-xs tabular-nums text-muted-foreground">
         {transcribing ? "…" : formatVoiceTime(elapsedMs)}
       </span>
       <Button
@@ -67,7 +67,7 @@ export function VoiceRecordBar({
         disabled={transcribing || !recording}
         aria-label="Done recording"
         title={error ?? (transcribing ? "Transcribing…" : "Done")}
-        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
         onClick={onComplete}
       >
         {transcribing ? <Loader2 className="animate-spin" /> : <Check />}

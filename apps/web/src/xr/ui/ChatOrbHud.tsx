@@ -9,6 +9,7 @@ import { ORB_RADIUS } from "@/xr/ui/SpeakingOrb";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
 import { asciiSafe } from "@/xr/ui/UikitMarkdown";
 import { useXrChatRuntime } from "@/xr/ui/XrChatRuntime";
+import { useXrTheme } from "@/xr/ui/theme";
 
 const CLEAR = ORB_RADIUS + bandWidth(NEAR_PAD) + 0.008;
 const TEXT_W = 240;
@@ -33,6 +34,7 @@ function closedTextRows(messages: GalleryChatMessage[]) {
 
 export function ChatOrbHud() {
   const runtime = useXrChatRuntime();
+  const theme = useXrTheme();
   if (!runtime) return null;
   const { messages, busy, error, stop, voice } = runtime;
   const rows = closedTextRows(messages);
@@ -51,13 +53,13 @@ export function ChatOrbHud() {
           gap={4}
           padding={recording ? 4 : 0}
           borderRadius={10}
-          backgroundColor={recording ? "#fafafa" : "#00000000"}
+          backgroundColor={recording ? theme.card : "#00000000"}
         >
           {recording ? (
             <>
               <ToolBtn id="xr-orb-voice-cancel" icon={X} tip="Cancel" grow={false} onClick={voice.cancel} />
               <Container width={40} alignItems="center" justifyContent="center">
-                <Text fontSize={12} color="#71717a">
+                <Text fontSize={12} color={theme.subtle}>
                   {voice.busy ? "..." : formatVoiceTime(voice.elapsedMs)}
                 </Text>
               </Container>
@@ -102,29 +104,29 @@ export function ChatOrbHud() {
                   maxWidth="80%"
                   padding={8}
                   borderRadius={10}
-                  backgroundColor="#e4e4e7"
+                  backgroundColor={theme.bubble}
                   flexShrink={0}
                 >
-                  <Text fontSize={13} color="#18181b" wordBreak="break-word">
+                  <Text fontSize={13} color={theme.text} wordBreak="break-word">
                     {asciiSafe(row.text)}
                   </Text>
                 </Container>
               </Container>
             ) : (
               <Container key={row.id} width="100%" flexShrink={0}>
-                <Text fontSize={13} color="#18181b" wordBreak="break-word">
+                <Text fontSize={13} color={theme.text} wordBreak="break-word">
                   {asciiSafe(row.text)}
                 </Text>
               </Container>
             ),
           )}
           {error ? (
-            <Text fontSize={11} color="#dc2626" wordBreak="break-word">
+            <Text fontSize={11} color={theme.danger} wordBreak="break-word">
               {asciiSafe(error.message)}
             </Text>
           ) : null}
           {voice.error && !voice.active ? (
-            <Text fontSize={11} color="#dc2626" wordBreak="break-word">
+            <Text fontSize={11} color={theme.danger} wordBreak="break-word">
               {asciiSafe(voice.error)}
             </Text>
           ) : null}

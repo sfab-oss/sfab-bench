@@ -29,7 +29,7 @@ export function Toolbar({ onHome, onFit }: Props) {
     })),
   );
   return (
-    <div className="pointer-events-auto absolute top-4 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 rounded-xl border border-zinc-200 bg-white/95 p-1 shadow-lg">
+    <div className="pointer-events-auto absolute top-4 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 rounded-xl border border-border bg-card/95 p-1 shadow-lg">
       <Button type="button" variant="secondary" size="sm" className="h-9 w-9 p-0" title="Home" onClick={onHome}>
         <Home />
       </Button>
@@ -51,7 +51,7 @@ export function Toolbar({ onHome, onFit }: Props) {
         type="button"
         variant="secondary"
         size="sm"
-        className={cn("h-9 w-9 p-0", tool === "measure" && "bg-zinc-200")}
+        className={cn("h-9 w-9 p-0", tool === "measure" && "bg-accent")}
         title="Measure"
         onClick={() => setTool(tool === "measure" ? "select" : "measure")}
       >
@@ -61,7 +61,7 @@ export function Toolbar({ onHome, onFit }: Props) {
         type="button"
         variant="secondary"
         size="sm"
-        className={cn("h-9 w-9 p-0", axesVisible && "bg-zinc-200")}
+        className={cn("h-9 w-9 p-0", axesVisible && "bg-accent")}
         title="World axes"
         onClick={() => setAxesVisible((open) => !open)}
       >

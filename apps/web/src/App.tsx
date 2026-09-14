@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import { LiveDot } from "@/components/brand/LiveDot";
 import { Lockup } from "@/components/brand/Lockup";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ViewerChatProvider } from "@/components/chat/useViewerChat";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
@@ -27,12 +28,12 @@ function ChatToggle() {
   const chatOpen = useStore((s) => s.chatOpen);
   const setChatOpen = useStore((s) => s.setChatOpen);
   return (
-    <div className="pointer-events-auto rounded-xl border border-zinc-200 bg-white/95 p-1 shadow-lg">
+    <div className="pointer-events-auto rounded-xl border border-border bg-card/95 p-1 shadow-lg">
       <Button
         type="button"
         variant="secondary"
         size="sm"
-        className={chatOpen ? "h-9 w-9 bg-zinc-200 p-0" : "h-9 w-9 p-0"}
+        className={chatOpen ? "h-9 w-9 bg-accent p-0" : "h-9 w-9 p-0"}
         title={chatOpen ? "Close chat" : "Open chat"}
         onClick={() => setChatOpen((open) => !open)}
       >
@@ -70,12 +71,12 @@ function Overlay({ host }: { host: boolean }) {
   const switching = useStore((s) => s.switching);
   if (switching) {
     return (
-      <div className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-zinc-950 text-zinc-100">
+      <div className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-background text-foreground">
         <div className="text-center">
           <div className="text-base font-medium">
             {switching === "ar" ? "Switching to passthrough…" : "Switching to Studio…"}
           </div>
-          <div className="mt-1 text-sm text-zinc-400">Stay in this tab</div>
+          <div className="mt-1 text-sm text-muted-foreground">Stay in this tab</div>
         </div>
       </div>
     );
@@ -85,7 +86,7 @@ function Overlay({ host }: { host: boolean }) {
       {!session && (
         <>
           {!treeOpen ? (
-            <div className="pointer-events-auto absolute top-4 left-3 z-10 rounded-xl border border-zinc-200 bg-white/95 shadow-lg">
+            <div className="pointer-events-auto absolute top-4 left-3 z-10 rounded-xl border border-border bg-card/95 shadow-lg">
               <SidebarTrigger className="h-9 w-9" title="Show files" />
             </div>
           ) : null}
@@ -105,37 +106,40 @@ function Overlay({ host }: { host: boolean }) {
             <ChatToggle />
             {host ? <QuestJoinPanel /> : null}
             <EnterXr />
+            <div className="pointer-events-auto rounded-xl border border-border bg-card/95 p-1 shadow-lg">
+              <ThemeToggle />
+            </div>
           </div>
         </>
       )}
       {!session && !review && progress === null && !error && (
         <div className="pointer-events-none absolute inset-0 z-0 grid place-items-center">
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-zinc-200 bg-white/80 px-6 py-5 text-center shadow-sm">
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-card/80 px-6 py-5 text-center shadow-sm">
             <Lockup />
-            <div className="text-sm text-zinc-500">
+            <div className="text-sm text-muted-foreground">
               {project.path ? "Pick a STEP from Files on the left." : "Open a folder on the left, then a STEP."}
             </div>
           </div>
         </div>
       )}
       {progress !== null && (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 mx-auto w-72 -translate-y-1/2 rounded-xl border border-zinc-200 bg-white/95 p-4 text-center shadow-lg">
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 mx-auto w-72 -translate-y-1/2 rounded-xl border border-border bg-card/95 p-4 text-center shadow-lg">
           <strong className="inline-flex items-center gap-2 text-sm">
             <LiveDot />
             Loading CAD model
           </strong>
-          <div className="mt-1 text-xs text-zinc-500">
+          <div className="mt-1 text-xs text-muted-foreground">
             {progress === 0 ? "Preparing model…" : `Loading model… ${progress}%`}
           </div>
-          <div className="mt-2 h-1 overflow-hidden rounded bg-zinc-100">
+          <div className="mt-2 h-1 overflow-hidden rounded bg-muted">
             <div className="h-full bg-brand" style={{ width: `${progress}%` }} />
           </div>
         </div>
       )}
       {error && (
-        <div className="pointer-events-auto absolute inset-x-0 top-1/2 z-20 mx-auto w-80 -translate-y-1/2 rounded-xl border border-red-200 bg-white p-4 text-sm shadow-lg">
+        <div className="pointer-events-auto absolute inset-x-0 top-1/2 z-20 mx-auto w-80 -translate-y-1/2 rounded-xl border border-destructive bg-card p-4 text-sm shadow-lg">
           <strong>Could not load the CAD model</strong>
-          <div className="mt-1 text-zinc-600">{error}</div>
+          <div className="mt-1 text-muted-foreground">{error}</div>
         </div>
       )}
     </>
@@ -210,7 +214,7 @@ export function App() {
 
   if (!ready) {
     return (
-      <div className="grid h-dvh place-items-center bg-zinc-50 text-sm text-zinc-500">
+      <div className="grid h-dvh place-items-center bg-studio text-sm text-muted-foreground">
         <span className="inline-flex items-center gap-2">
           <LiveDot />
           Loading…

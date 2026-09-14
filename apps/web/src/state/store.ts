@@ -3,6 +3,7 @@ import { useStore as useZustandStore } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
 
+import { type Appearance, readDomAppearance } from "@/lib/appearance";
 import { applyHighlights, clearHighlights } from "@/cad/highlights";
 import { fileLabel, loadCadReview, modelUrl, syncFileQuery } from "@/cad/loadCadReview";
 import { isAncestor, type CadReview } from "@/cad/review";
@@ -137,7 +138,7 @@ type State = {
   xrChatPhase: "idle" | "submitted" | "streaming";
   xrChatChars: number;
   toolsOpen: boolean;
-  studioDark: boolean;
+  appearance: Appearance;
   setPage: (page: Page) => void;
   setCardOpen: (open: Setter) => void;
   setCardMode: (mode: CardMode) => void;
@@ -153,7 +154,7 @@ type State = {
   cardDragging: boolean;
   setCardDragging: (on: boolean) => void;
   setToolsOpen: (open: Setter) => void;
-  setStudioDark: (dark: boolean) => void;
+  setAppearance: (appearance: Appearance) => void;
 
   // hands
   left: boolean;
@@ -390,7 +391,7 @@ export const store = createStore<State>()(
   xrChatPhase: "idle",
   xrChatChars: 0,
   toolsOpen: false,
-  studioDark: false,
+  appearance: readDomAppearance(),
   setPage: (page) => set({ page }),
   setCardOpen: (open) => set((s) => ({ cardOpen: resolve(s.cardOpen, open) })),
   setCardMode: (cardMode) => set({ cardMode }),
@@ -410,7 +411,9 @@ export const store = createStore<State>()(
     if (get().cardDragging !== on) set({ cardDragging: on });
   },
   setToolsOpen: (open) => set((s) => ({ toolsOpen: resolve(s.toolsOpen, open) })),
-  setStudioDark: (studioDark) => set({ studioDark }),
+  setAppearance: (appearance) => {
+    if (get().appearance !== appearance) set({ appearance });
+  },
 
   left: false,
   right: false,

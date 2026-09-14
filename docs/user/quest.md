@@ -9,8 +9,9 @@ Same Wi-Fi as the Mac. Quest Browser, not an APK.
 3. On the headset, open `https://<mac-ip>:7322/pair`, accept the cert
    once, type the code. A phone can scan the QR instead (token is in the
    URL fragment).
-4. Allow WebXR, then **Enter Studio**. Passthrough is in the in-headset
-   settings.
+4. Allow WebXR, then **Enter Studio**. In the headset settings, **Pass** is
+   passthrough and **Studio** is the grid room. **Light** / **Dark** paints
+   the menus in both, and the studio floor when you are in Studio.
 
 Join URLs always use port **7322**, never the dev API port. After pairing,
 the headset stores a device token (`sfab-bench.deviceToken` in

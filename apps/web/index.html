@@ -15,8 +15,8 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- Matches --color-background in index.css, so the Quest browser's chrome
-         and the iOS status bar do not flash a colour the app never uses. -->
+    <!-- Matches --studio, so the Quest browser's chrome and the iOS status
+         bar do not flash a colour the app never uses. Updated when the theme flips. -->
     <meta name="theme-color" content="#eeeff1" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="sfab-bench" />
@@ -25,6 +25,22 @@
     <!-- The server is on the LAN and pairs by link. Nothing here should be
          indexed or previewed by anything that stumbles onto it. -->
     <meta name="robots" content="noindex, nofollow" />
+
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("sfab-bench.theme");
+          var theme = stored || "system";
+          var dark =
+            theme === "dark" ||
+            (theme !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", dark ? "#1a1d21" : "#eeeff1");
+        } catch (_) {}
+      })();
+    </script>
 
     <meta property="og:type" content="website" />
     <meta property="og:title" content="sfab-bench" />

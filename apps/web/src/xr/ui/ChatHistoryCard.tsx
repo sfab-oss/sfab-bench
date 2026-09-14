@@ -2,9 +2,11 @@ import { Container, Text } from "@react-three/uikit";
 
 import { useViewerChat } from "@/components/chat/useViewerChat";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
+import { useXrTheme } from "@/xr/ui/theme";
 
 export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
   const { threads, threadId, openThread } = useViewerChat();
+  const theme = useXrTheme();
   return (
     <Container
       width={192}
@@ -12,10 +14,10 @@ export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
       padding={8}
       gap={6}
       flexDirection="column"
-      backgroundColor="#fafafa"
+      backgroundColor={theme.card}
       borderRadius={12}
       borderWidth={1}
-      borderColor="#e4e4e7"
+      borderColor={theme.border}
       pixelSize={0.001}
       pointerEvents="auto"
     >
@@ -24,7 +26,7 @@ export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
       </Container>
       <Container flexGrow={1} width="100%" overflow="scroll" gap={4} flexDirection="column">
         {threads.length === 0 ? (
-          <Text fontSize={13} color="#71717a">
+          <Text fontSize={13} color={theme.subtle}>
             No chats yet
           </Text>
         ) : (
@@ -34,14 +36,14 @@ export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
               width="100%"
               padding={8}
               borderRadius={8}
-              backgroundColor={t.id === threadId ? "#e4e4e7" : "#f4f4f5"}
-              hover={{ backgroundColor: "#e4e4e7" }}
+              backgroundColor={t.id === threadId ? theme.hover : theme.muted}
+              hover={{ backgroundColor: theme.hover }}
               onClick={() => {
                 void openThread(t.id);
                 onClose();
               }}
             >
-              <Text fontSize={13} color="#18181b">
+              <Text fontSize={13} color={theme.text}>
                 {t.title}
               </Text>
             </Container>

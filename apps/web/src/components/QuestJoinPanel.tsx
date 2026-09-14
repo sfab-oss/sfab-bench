@@ -87,31 +87,31 @@ export function QuestJoinPanel({ className }: { className?: string }) {
         Enter Quest
       </Button>
       {open ? (
-        <div className="fixed top-24 right-4 left-4 z-40 w-auto rounded-2xl border border-zinc-200 bg-white p-4 text-zinc-900 shadow-xl sm:top-16 sm:left-auto sm:w-[22rem]">
-          <p className="text-[11px] font-medium tracking-wide text-zinc-400 uppercase">Keep this Mac tab on localhost</p>
-          {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
-          {!error && !info ? <p className="mt-3 text-sm text-zinc-500">Loading…</p> : null}
+        <div className="fixed top-24 right-4 left-4 z-40 w-auto rounded-2xl border border-border bg-card p-4 text-foreground shadow-xl sm:top-16 sm:left-auto sm:w-[22rem]">
+          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Keep this Mac tab on localhost</p>
+          {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+          {!error && !info ? <p className="mt-3 text-sm text-muted-foreground">Loading…</p> : null}
           {info ? (
             <>
-              <p className="mt-3 text-xs text-zinc-500">On Quest Browser open</p>
+              <p className="mt-3 text-xs text-muted-foreground">On Quest Browser open</p>
               <button
                 type="button"
-                className="mt-1 w-full rounded-lg bg-zinc-50 px-3 py-2 text-left font-mono text-sm leading-snug break-all text-zinc-900 hover:bg-zinc-100"
+                className="mt-1 w-full rounded-lg bg-muted px-3 py-2 text-left font-mono text-sm leading-snug break-all text-foreground hover:bg-accent"
                 onClick={() => {
                   if (info.pairUrl) void copy(info.pairUrl).then((ok) => ok && markCopied("url"));
                 }}
               >
                 {info.pairUrl ?? "No LAN address. Connect this Mac to Wi-Fi."}
               </button>
-              <p className="mt-3 text-xs text-zinc-500">then type this code</p>
+              <p className="mt-3 text-xs text-muted-foreground">then type this code</p>
               <div className="mt-1 flex items-center justify-between gap-2">
-                <div className="font-mono text-3xl tracking-[0.2em] text-zinc-900">{formatCode(info.code)}</div>
-                <span className="text-xs text-zinc-400">{remainingLabel(info.expiresAt, now)}</span>
+                <div className="font-mono text-3xl tracking-[0.2em] text-foreground">{formatCode(info.code)}</div>
+                <span className="text-xs text-muted-foreground">{remainingLabel(info.expiresAt, now)}</span>
               </div>
               {info.fragmentUrl ? (
                 <div className="mt-4 flex items-start gap-3">
-                  <QrCode value={info.fragmentUrl} className="h-28 w-28 shrink-0 border border-zinc-200" />
-                  <div className="min-w-0 text-xs text-zinc-500">
+                  <QrCode value={info.fragmentUrl} className="h-28 w-28 shrink-0 border border-border" />
+                  <div className="min-w-0 text-xs text-muted-foreground">
                     <p>Phone: scan the QR. The token stays in the URL fragment so it is less likely to hit logs.</p>
                     <Button
                       type="button"
@@ -158,7 +158,7 @@ export function QuestJoinPanel({ className }: { className?: string }) {
                 </Button>
               </div>
               {info.lanUrls.length > 1 ? (
-                <p className="mt-3 text-[11px] text-zinc-400">Other LAN addresses: {info.lanUrls.slice(1).join(", ")}</p>
+                <p className="mt-3 text-[11px] text-muted-foreground">Other LAN addresses: {info.lanUrls.slice(1).join(", ")}</p>
               ) : null}
             </>
           ) : null}

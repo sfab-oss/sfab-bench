@@ -71,17 +71,17 @@ export function ChatPanel() {
 
   return (
     <aside
-      className="relative flex h-full shrink-0 flex-col border-l border-zinc-200 bg-white"
+      className="relative flex h-full shrink-0 flex-col border-l border-border bg-background"
       style={{ width }}
     >
       <div
         className={cn(
-          "absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize bg-transparent hover:bg-zinc-400",
-          resizing && "bg-zinc-500",
+          "absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize bg-transparent hover:bg-border",
+          resizing && "bg-muted-foreground",
         )}
         onMouseDown={onResizeDown}
       />
-      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-zinc-200 px-2">
+      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
           {live ? <LiveDot /> : null}
           <div className="min-w-0 truncate text-sm font-medium">{active?.title ?? "Assistant"}</div>
@@ -103,7 +103,7 @@ export function ChatPanel() {
           </PopoverTrigger>
           <PopoverContent align="end" className="w-64 p-1">
             {threads.length === 0 ? (
-              <div className="px-2 py-1.5 text-xs text-zinc-500">No chats yet</div>
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">No chats yet</div>
             ) : (
               <ul className="max-h-72 overflow-y-auto">
                 {threads.map((t) => (
@@ -112,8 +112,8 @@ export function ChatPanel() {
                       className={cn(
                         "flex w-full truncate rounded-sm px-2 py-1.5 text-left text-sm",
                         t.id === threadId
-                          ? "bg-zinc-100 font-medium text-zinc-900"
-                          : "text-zinc-600 hover:bg-zinc-50",
+                          ? "bg-accent font-medium text-accent-foreground"
+                          : "text-muted-foreground hover:bg-accent",
                       )}
                       onClick={() => void openThread(t.id)}
                     >
@@ -186,7 +186,7 @@ function ChatSettingsMenu({ onCopyJson }: { onCopyJson: () => Promise<boolean> }
       <PopoverContent align="end" className="w-56 p-1">
         <button
           type="button"
-          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
           onClick={() => {
             void onCopyJson().then((ok) => {
               if (ok) setCopied(true);
@@ -240,7 +240,7 @@ function ChatSession({
 
   return (
     <>
-      {error ? <div className="px-3 py-1 text-xs text-red-600">{error.message}</div> : null}
+      {error ? <div className="px-3 py-1 text-xs text-destructive">{error.message}</div> : null}
       <MessageScrollerProvider>
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport>

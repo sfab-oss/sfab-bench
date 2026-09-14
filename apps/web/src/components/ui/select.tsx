@@ -12,7 +12,7 @@ function SelectTrigger({ className, children, ...props }: SelectPrimitive.Trigge
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       className={cn(
-        "inline-flex h-7 min-w-0 cursor-pointer items-center gap-1 rounded-md px-1.5 text-xs text-zinc-600 outline-none select-none hover:bg-zinc-100 hover:text-zinc-900",
+        "inline-flex h-7 min-w-0 cursor-pointer items-center gap-1 rounded-md px-1.5 text-xs text-muted-foreground outline-none select-none hover:bg-accent hover:text-accent-foreground",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0",
         className,
       )}
@@ -20,7 +20,7 @@ function SelectTrigger({ className, children, ...props }: SelectPrimitive.Trigge
     >
       {children}
       <SelectPrimitive.Icon className="inline-flex">
-        <ChevronDown className="size-3 text-zinc-400" />
+        <ChevronDown className="size-3 text-muted-foreground" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -56,7 +56,7 @@ function SelectContent({
         <SelectPrimitive.Popup
           data-slot="select-content"
           className={cn(
-            "origin-[var(--transform-origin)] rounded-md border border-zinc-200 bg-white p-1 text-zinc-900 shadow-md outline-none",
+            "origin-[var(--transform-origin)] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md outline-none",
             "transition-[opacity,transform] duration-150",
             "data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
             "data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
@@ -77,7 +77,7 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
       data-slot="select-item"
       className={cn(
         "flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-xs outline-none select-none",
-        "data-highlighted:bg-zinc-100 data-selected:font-medium",
+        "data-highlighted:bg-accent data-selected:font-medium",
         className,
       )}
       {...props}

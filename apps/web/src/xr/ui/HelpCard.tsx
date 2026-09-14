@@ -2,6 +2,7 @@ import { Container, Text } from "@react-three/uikit";
 
 import { useStore } from "@/state/store";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
+import { useXrTheme } from "@/xr/ui/theme";
 
 const SECTIONS: { title: string; rows: [string, string][] }[] = [
   {
@@ -39,33 +40,34 @@ const SECTIONS: { title: string; rows: [string, string][] }[] = [
 
 export function HelpCard() {
   const setPage = useStore((s) => s.setPage);
+  const theme = useXrTheme();
   return (
     <Container
       width={192}
       padding={8}
       gap={6}
       flexDirection="column"
-      backgroundColor="#fafafa"
+      backgroundColor={theme.card}
       borderRadius={12}
       borderWidth={1}
-      borderColor="#e4e4e7"
+      borderColor={theme.border}
       pixelSize={0.001}
       pointerEvents="auto"
     >
       <ToolBtn id="help-back" label="Back" onClick={() => setPage("settings")} />
       {SECTIONS.map((section) => (
         <Container key={section.title} flexDirection="column" gap={2} width="100%">
-          <Text fontSize={13} color="#18181b">
+          <Text fontSize={13} color={theme.text}>
             {section.title}
           </Text>
           {section.rows.map(([key, what]) => (
             <Container key={key} flexDirection="row" gap={6} width="100%">
               <Container width={72} flexShrink={0}>
-                <Text fontSize={11} color="#18181b">
+                <Text fontSize={11} color={theme.text}>
                   {key}
                 </Text>
               </Container>
-              <Text fontSize={11} color="#52525b">
+              <Text fontSize={11} color={theme.subtle}>
                 {what}
               </Text>
             </Container>

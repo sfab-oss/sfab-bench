@@ -5,6 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import { formatMm, measureDelta } from "@/lib/measure";
 import { useStore } from "@/state/store";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
+import { useXrTheme } from "@/xr/ui/theme";
 
 export function DetailsCard() {
   const {
@@ -33,6 +34,7 @@ export function DetailsCard() {
       })),
     );
   const part = selectedId !== null ? review?.parts[selectedId] : undefined;
+  const theme = useXrTheme();
 
   if (tool === "measure") {
     const a = measure.a;
@@ -44,33 +46,33 @@ export function DetailsCard() {
         padding={8}
         gap={6}
         flexDirection="column"
-        backgroundColor="#fafafa"
+        backgroundColor={theme.card}
         borderRadius={12}
         borderWidth={1}
-        borderColor="#e4e4e7"
+        borderColor={theme.border}
         pixelSize={0.001}
         pointerEvents="auto"
       >
-        <Text fontSize={13} color="#18181b">
+        <Text fontSize={13} color={theme.text}>
           Measure
         </Text>
-        <Text fontSize={12} color="#52525b">
+        <Text fontSize={12} color={theme.subtle}>
           {`1 ${a?.cadRef ?? "-"}`}
         </Text>
-        <Text fontSize={12} color="#52525b">
+        <Text fontSize={12} color={theme.subtle}>
           {`2 ${b?.cadRef ?? "-"}`}
         </Text>
         {delta ? (
           <>
-            <Text fontSize={16} color="#18181b">
+            <Text fontSize={16} color={theme.text}>
               {formatMm(delta.dist)}
             </Text>
-            <Text fontSize={11} color="#52525b">
+            <Text fontSize={11} color={theme.subtle}>
               {`dX ${formatMm(delta.dx)}  dY ${formatMm(delta.dy)}  dZ ${formatMm(delta.dz)}`}
             </Text>
           </>
         ) : (
-          <Text fontSize={12} color="#52525b">
+          <Text fontSize={12} color={theme.subtle}>
             Click two places
           </Text>
         )}
@@ -91,10 +93,10 @@ export function DetailsCard() {
       padding={8}
       gap={6}
       flexDirection="column"
-      backgroundColor="#fafafa"
+      backgroundColor={theme.card}
       borderRadius={12}
       borderWidth={1}
-      borderColor="#e4e4e7"
+      borderColor={theme.border}
       pixelSize={0.001}
       pointerEvents="auto"
     >
@@ -107,13 +109,13 @@ export function DetailsCard() {
             borderRadius={2}
             backgroundColor={part.color}
           />
-          <Text fontSize={13} color="#18181b">
+          <Text fontSize={13} color={theme.text}>
             {part.name.length > 16 ? `${part.name.slice(0, 15)}...` : part.name}
           </Text>
         </Container>
       ) : null}
       {ref && ref !== part?.name ? (
-        <Text fontSize={12} color="#18181b">
+        <Text fontSize={12} color={theme.text}>
           {ref.length > 24 ? `${ref.slice(0, 23)}...` : ref}
         </Text>
       ) : null}

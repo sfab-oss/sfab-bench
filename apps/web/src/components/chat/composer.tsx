@@ -112,7 +112,7 @@ function ChatInputInner({
       </Composer>
       <ProviderStatus />
       {voice.error && !voice.active ? (
-        <p className="px-2 pt-1 text-xs text-red-600">{voice.error}</p>
+        <p className="px-2 pt-1 text-xs text-destructive">{voice.error}</p>
       ) : null}
     </div>
   );

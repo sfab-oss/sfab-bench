@@ -13,19 +13,21 @@ import { useShallow } from "zustand/react/shallow";
 import { useStore } from "@/state/store";
 import { pulse } from "@/xr/haptics";
 import { TOOLS } from "@/xr/tools";
+import { useXrTheme } from "@/xr/ui/theme";
 
 const SLOT = 0.04;
 const quat = new THREE.Quaternion();
 const scratch = new THREE.Vector3();
 
 export function DrawerStrip({ highlight }: { highlight: number }) {
+  const theme = useXrTheme();
   return (
     <Container
       flexDirection="row"
       gap={8}
       padding={8}
       borderRadius={12}
-      backgroundColor="#fafafa"
+      backgroundColor={theme.card}
       pixelSize={0.001}
       pointerEvents="none"
     >
@@ -37,9 +39,9 @@ export function DrawerStrip({ highlight }: { highlight: number }) {
           alignItems="center"
           justifyContent="center"
           borderRadius={8}
-          backgroundColor={highlight === i ? "#dbeafe" : "#f4f4f5"}
+          backgroundColor={highlight === i ? theme.active : theme.muted}
         >
-          <item.Icon width={20} height={20} color="#18181b" />
+          <item.Icon width={20} height={20} color={theme.text} />
         </Container>
       ))}
     </Container>

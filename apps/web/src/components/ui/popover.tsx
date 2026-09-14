@@ -36,7 +36,7 @@ function PopoverContent({
         <PopoverPrimitive.Popup
           data-slot="popover-content"
           className={cn(
-            "w-72 origin-[var(--transform-origin)] rounded-md border border-zinc-200 bg-white p-4 text-zinc-900 shadow-md outline-none",
+            "w-72 origin-[var(--transform-origin)] rounded-md border border-border bg-popover p-4 text-popover-foreground shadow-md outline-none",
             "transition-[opacity,transform] duration-150",
             "data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
             "data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
@@ -69,7 +69,7 @@ function PopoverDescription({ className, ...props }: PopoverPrimitive.Descriptio
   return (
     <PopoverPrimitive.Description
       data-slot="popover-description"
-      className={cn("text-sm text-zinc-500", className)}
+      className={cn("text-sm text-muted-foreground", className)}
       {...props}
     />
   );

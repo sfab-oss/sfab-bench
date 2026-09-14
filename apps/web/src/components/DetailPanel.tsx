@@ -27,14 +27,14 @@ function SelectionBody() {
     <>
       <header className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[13px] font-medium">Selection</span>
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-zinc-500" onClick={() => select(null)}>
+        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => select(null)}>
           Clear
         </Button>
       </header>
       {part ? (
         <div className="mb-2 flex items-center gap-2 text-[13px]">
           <span
-            className="size-3 shrink-0 rounded-[2px] border border-zinc-300"
+            className="size-3 shrink-0 rounded-[2px] border border-border"
             style={{ background: part.color }}
           />
           <span className="min-w-0 truncate font-medium">{part.name}</span>
@@ -42,7 +42,7 @@ function SelectionBody() {
       ) : null}
       {ref ? (
         <div className="mb-3 flex items-center gap-2">
-          <code className="min-w-0 flex-1 truncate rounded-md bg-zinc-100 px-2 py-1 text-[12px]">
+          <code className="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1 text-[12px]">
             {ref}
           </code>
           <Button
@@ -89,17 +89,17 @@ function MeasureBody() {
     <>
       <header className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[13px] font-medium">Measure</span>
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-zinc-500" onClick={() => setTool("select")}>
+        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setTool("select")}>
           Done
         </Button>
       </header>
-      <p className="mb-2 text-[12px] text-zinc-500">Click two places on the model.</p>
+      <p className="mb-2 text-[12px] text-muted-foreground">Click two places on the model.</p>
       <div className="mb-1 truncate font-mono text-[12px]">1 {a?.cadRef ?? "—"}</div>
       <div className="mb-3 truncate font-mono text-[12px]">2 {b?.cadRef ?? "—"}</div>
       {delta ? (
         <div className="mb-3">
           <div className="text-[16px] font-medium">{formatMm(delta.dist)}</div>
-          <div className="mt-1 font-mono text-[11px] text-zinc-500">
+          <div className="mt-1 font-mono text-[11px] text-muted-foreground">
             ΔX {formatMm(delta.dx)}
             <br />
             ΔY {formatMm(delta.dy)}
@@ -129,7 +129,7 @@ export function DetailPanel() {
   if (tool !== "measure" && !part && !pickedRef) return null;
 
   return (
-    <aside className="pointer-events-auto absolute top-16 right-4 z-10 w-[260px] rounded-xl border border-zinc-200 bg-white/95 p-3 shadow-lg">
+    <aside className="pointer-events-auto absolute top-16 right-4 z-10 w-[260px] rounded-xl border border-border bg-card/95 p-3 shadow-lg">
       {tool === "measure" ? <MeasureBody /> : <SelectionBody />}
     </aside>
   );

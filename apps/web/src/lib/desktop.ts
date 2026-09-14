@@ -6,6 +6,8 @@ export type DesktopBridge = {
   desktop: true;
   /** Native folder chooser. Resolves to null when the user cancels. */
   pickFolder(): Promise<string | null>;
+  /** Paint the Electron window to match the page theme. No-op in the browser. */
+  setTheme?(theme: "light" | "dark" | "system"): void;
 };
 
 declare global {
