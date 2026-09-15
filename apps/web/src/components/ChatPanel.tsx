@@ -4,9 +4,10 @@ import { Check, Copy, EllipsisVertical, History, MessageCircleDashedIcon, PanelR
 import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 
 import { ChatMessageRow } from "@/components/chat/chat-message-parts";
-import { GalleryChatInput, type GalleryPromptMessage } from "@/components/chat/composer";
+import { GalleryChatInput, type GalleryChatHandle, type GalleryPromptMessage } from "@/components/chat/composer";
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import { persistThread, useViewerChat } from "@/components/chat/useViewerChat";
+import { lastUserPromptText, mapChatErrorMessage, isWorkspaceBusyError } from "@/chat/composer-recovery";
 import { finishPersistMessages } from "@/chat/persist-thread";
 import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
 import { findPendingAskUserQuestions, type AskUserQuestionsOutput } from "@/chat/ask-user-questions";
@@ -59,6 +60,7 @@ export function ChatPanel({
   const messagesRef = useRef<GalleryChatMessage[]>([]);
   const compactOpenRef = useRef(false);
   const panelRef = useRef<HTMLElement>(null);
+  const stopTurnRef = useRef<(() => void) | null>(null);
   const { threads, threadId, initialMessages, refreshThreads, newThread, openThread } = useViewerChat();
   useEffect(() => {
     void loadHarnesses();
@@ -223,7 +225,12 @@ export function ChatPanel({
                           ? "bg-accent font-medium text-accent-foreground"
                           : "text-muted-foreground hover:bg-accent",
                       )}
-                      onClick={() => void openThread(t.id)}
+                      onClick={() => {
+                        if (t.id === threadId) return;
+                        // Stop the live turn first so History does not abandon the workspace mutex.
+                        stopTurnRef.current?.();
+                        void openThread(t.id);
+                      }}
                     >
                       {t.title}
                     </PopoverClose>
@@ -233,7 +240,17 @@ export function ChatPanel({
             )}
           </PopoverContent>
         </Popover>
-        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" title="New chat" onClick={() => void newThread()}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0"
+          title="New chat"
+          onClick={() => {
+            stopTurnRef.current?.();
+            void newThread();
+          }}
+        >
           <Plus />
         </Button>
       </header>
@@ -253,6 +270,7 @@ export function ChatPanel({
             messagesRef={messagesRef}
             onLive={setLive}
             onPersist={() => void refreshThreads()}
+            stopTurnRef={stopTurnRef}
           />
         ) : null}
       </RenderErrorBoundary>
@@ -359,14 +377,19 @@ function ChatSession({
   messagesRef,
   onLive,
   onPersist,
+  stopTurnRef,
 }: {
   threadId: string;
   initialMessages: GalleryChatMessage[];
   messagesRef: RefObject<GalleryChatMessage[]>;
   onLive: (live: boolean) => void;
   onPersist: () => void;
+  stopTurnRef: RefObject<(() => void) | null>;
 }) {
   const turnErrorRef = useRef<string | null>(null);
+  const composerRef = useRef<GalleryChatHandle>(null);
+  const progress = useStore((s) => s.progress);
+  const url = useStore((s) => s.url);
   const { messages, sendMessage, status, error, stop, addToolOutput } = useChat({
     id: threadId,
     throttle: 50,
@@ -374,7 +397,7 @@ function ChatSession({
     transport: viewerChatTransport(),
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onError: (err) => {
-      turnErrorRef.current = err.message;
+      turnErrorRef.current = mapChatErrorMessage(err) ?? err.message;
     },
     onFinish: ({ messages: next, isError }) => {
       const text = turnErrorRef.current;
@@ -388,6 +411,12 @@ function ChatSession({
   const pendingAsk = findPendingAskUserQuestions(messages);
   const pendingViewer = findPendingGetViewer(messages);
   const live = busy || pendingViewer !== null;
+  const loadingModel = pendingViewer !== null || progress !== null;
+  const stopTurn = () => {
+    stop();
+    void jsonApi["chat"].stop.$post();
+  };
+  stopTurnRef.current = stopTurn;
   useEffect(() => {
     onLive(live);
     return () => onLive(false);
@@ -395,11 +424,17 @@ function ChatSession({
   useLiveViewerTools(messages as GalleryChatMessage[], addToolOutput, busy);
   messagesRef.current = messages as GalleryChatMessage[];
   const streamingMessageId = busy && messages.at(-1)?.role === "assistant" ? (messages.at(-1)?.id ?? null) : null;
+  const lastPrompt = lastUserPromptText(messages);
 
   const onSubmit = (payload: GalleryPromptMessage) => {
     const text = payload.text.trim();
     if (!text) return;
     void sendMessage({ text });
+  };
+
+  const retryLast = () => {
+    if (!lastPrompt) return;
+    composerRef.current?.submitText(lastPrompt);
   };
 
   const onAnswerAskUser = useCallback(
@@ -413,9 +448,25 @@ function ChatSession({
     [addToolOutput],
   );
 
+  const errorText = mapChatErrorMessage(error);
+  const errorIsBusy = isWorkspaceBusyError(error);
+
   return (
     <>
-      {error ? <div className="px-3 py-1 text-xs text-destructive">{error.message}</div> : null}
+      {errorText ? (
+        <div className="flex items-center gap-2 px-3 py-1 text-xs text-destructive">
+          <span className="min-w-0 flex-1">{errorText}</span>
+          {errorIsBusy ? (
+            <Button type="button" size="sm" variant="ghost" className="h-6 px-2" onClick={stopTurn}>
+              Stop
+            </Button>
+          ) : (
+            <Button type="button" size="sm" variant="ghost" className="h-6 px-2" onClick={retryLast}>
+              Retry
+            </Button>
+          )}
+        </div>
+      ) : null}
       <MessageScrollerProvider>
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport>
@@ -438,6 +489,8 @@ function ChatSession({
                     <ChatMessageRow
                       isStreaming={streamingMessageId === message.id}
                       message={message as GalleryChatMessage}
+                      onRetry={retryLast}
+                      onStop={stopTurn}
                     />
                   </MessageScrollerItem>
                 ))
@@ -448,16 +501,18 @@ function ChatSession({
         </MessageScroller>
       </MessageScrollerProvider>
       <GalleryChatInput
-        onSubmit={onSubmit}
-        onStop={() => {
-          stop();
-          void jsonApi["chat"].stop.$post();
-        }}
-        pendingAsk={pendingAsk}
+        canStop={pendingViewer !== null}
+        historyMessages={messages}
+        loadingModel={loadingModel}
+        modelLoaded={Boolean(url) && progress === null}
         onAnswerAskUser={onAnswerAskUser}
-        placeholder="Ask for a change…"
+        onStop={stopTurn}
+        onSubmit={onSubmit}
+        pendingAsk={pendingAsk}
+        ref={composerRef}
+        restorePrompt={status === "error" ? lastPrompt : null}
         status={status}
-        disabled={busy || pendingViewer !== null}
+        threadId={threadId}
       />
     </>
   );

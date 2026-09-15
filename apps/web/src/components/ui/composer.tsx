@@ -14,7 +14,6 @@ import {
   AtSignIcon,
   Loader2Icon,
   SquareIcon,
-  XIcon,
 } from "lucide-react";
 import {
   type ComponentProps,
@@ -31,6 +30,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { composerDocFromPrompt, EMPTY_PROMPT_REASON } from "@/chat/composer-recovery";
 import { InputGroup, InputGroupButton } from "@/components/ui/input-group";
 import { cn } from "@/lib/utils";
 
@@ -67,6 +67,7 @@ export interface ComposerHandle {
   getText: () => string;
   setText: (text: string) => void;
   insertText: (text: string) => void;
+  submit: () => void;
 }
 
 interface ComposerHelpers {
@@ -86,6 +87,9 @@ interface ComposerContextValue {
   mentionsRef: RefObject<MentionConfigs | undefined>;
   selectedItemsRef: RefObject<SelectedMentionItems>;
   suggestionOpenRef: RefObject<boolean>;
+  onPromptHistoryRef: RefObject<((direction: "backward" | "forward") => boolean) | undefined>;
+  sendDisabledReason?: string | null;
+  canStop?: boolean;
 }
 
 function filterStaticItems<T extends BaseMentionItem>(
@@ -106,14 +110,9 @@ function resolveMentionItems<T extends BaseMentionItem>(
   return filterStaticItems(config.items, query);
 }
 
-function textToDoc(text: string): JSONContent {
-  return {
-    type: "doc",
-    content: text.split("\n").map((line) => ({
-      type: "paragraph",
-      ...(line ? { content: [{ type: "text", text: line }] } : {}),
-    })),
-  };
+function mentionTypeFromConfigs(mentions: MentionConfigs | undefined): string | undefined {
+  const key = mentions ? Object.keys(mentions)[0] : undefined;
+  return key ? `${key}-mention` : undefined;
 }
 
 interface MentionListHandle {
@@ -458,7 +457,11 @@ type SharedComposerProps = {
   defaultValue?: string;
   className?: string;
   children: ReactNode;
-  /** Imperative handle (clear/focus/getText/setText/insertText), not the DOM node. */
+  sendDisabledReason?: string | null;
+  /** Show Stop while a turn is live even if useChat status is not streaming (get_viewer). */
+  canStop?: boolean;
+  onPromptHistory?: (direction: "backward" | "forward") => boolean;
+  /** Imperative handle (clear/focus/getText/setText/insertText/submit), not the DOM node. */
   ref?: Ref<ComposerHandle>;
 } & Omit<
   ComponentProps<"div">,
@@ -492,6 +495,9 @@ export function Composer({
   className,
   children,
   ref,
+  sendDisabledReason,
+  canStop,
+  onPromptHistory,
   ...props
 }: SharedComposerProps & {
   mentions?: MentionConfigs;
@@ -504,9 +510,11 @@ export function Composer({
   const onSubmitRef = useRef(onSubmit);
   const selectedItemsRef = useRef<SelectedMentionItems>({});
   const suggestionOpenRef = useRef(false);
+  const onPromptHistoryRef = useRef(onPromptHistory);
 
   mentionsRef.current = mentions;
   onSubmitRef.current = onSubmit;
+  onPromptHistoryRef.current = onPromptHistory;
 
   const parse = useCallback(() => {
     if (!editor) {
@@ -532,10 +540,12 @@ export function Composer({
     if (disabled) {
       return;
     }
+    if (status === "submitted" || status === "streaming") {
+      return;
+    }
     const parsed = parse();
-    editor?.commands.blur();
     onSubmitRef.current(parsed, { clear, focus });
-  }, [clear, disabled, editor, focus, parse]);
+  }, [clear, disabled, focus, parse, status]);
 
   useImperativeHandle(
     ref,
@@ -544,13 +554,17 @@ export function Composer({
       focus,
       getText: () => parse().text,
       setText: (text) => {
-        editor?.commands.setContent(textToDoc(text));
+        editor?.commands.setContent(
+          composerDocFromPrompt(text, mentionTypeFromConfigs(mentionsRef.current)),
+        );
+        editor?.commands.focus("end");
       },
       insertText: (text) => {
         editor?.chain().focus().insertContent(text).run();
       },
+      submit,
     }),
-    [clear, editor, focus, parse]
+    [clear, editor, focus, parse, submit]
   );
 
   const contextValue = useMemo<ComposerContextValue>(
@@ -566,8 +580,11 @@ export function Composer({
       mentionsRef,
       selectedItemsRef,
       suggestionOpenRef,
+      onPromptHistoryRef,
+      sendDisabledReason,
+      canStop,
     }),
-    [defaultValue, disabled, editor, mentions, onStop, status, submit]
+    [canStop, defaultValue, disabled, editor, mentions, onStop, sendDisabledReason, status, submit]
   );
 
   return (
@@ -604,6 +621,32 @@ const SubmitEnter = Extension.create({
   },
 });
 
+const PromptHistory = Extension.create({
+  name: "composerPromptHistory",
+  addOptions() {
+    return {
+      isSuggestionOpen: (): boolean => false,
+      onStep: (_direction: "backward" | "forward"): boolean => false,
+    };
+  },
+  addKeyboardShortcuts() {
+    return {
+      ArrowUp: () => {
+        if (this.options.isSuggestionOpen?.()) {
+          return false;
+        }
+        return this.options.onStep?.("backward") ?? false;
+      },
+      ArrowDown: () => {
+        if (this.options.isSuggestionOpen?.()) {
+          return false;
+        }
+        return this.options.onStep?.("forward") ?? false;
+      },
+    };
+  },
+});
+
 export function ComposerEditor({
   placeholder = "Type a message...",
   className,
@@ -622,6 +665,7 @@ export function ComposerEditor({
     mentionsRef,
     selectedItemsRef,
     suggestionOpenRef,
+    onPromptHistoryRef,
   } = useComposerContext();
 
   const initialMentionsRef = useRef(mentions);
@@ -650,6 +694,11 @@ export function ComposerEditor({
         getOnEnter: () => onEnterRef.current,
         isSuggestionOpen: () => suggestionOpenRef.current,
       }),
+      PromptHistory.configure({
+        isSuggestionOpen: () => suggestionOpenRef.current,
+        onStep: (direction: "backward" | "forward") =>
+          onPromptHistoryRef.current?.(direction) ?? false,
+      }),
       ...buildMentionExtensions(
         mentionsRef,
         selectedItemsRef,
@@ -662,7 +711,10 @@ export function ComposerEditor({
 
   const editor = useEditor({
     extensions,
-    content: defaultValue ?? "",
+    content: composerDocFromPrompt(
+      defaultValue ?? "",
+      mentionTypeFromConfigs(initialMentionsRef.current),
+    ),
     editable: !disabled,
     autofocus: autoFocus ? "end" : false,
     immediatelyRender: false,
@@ -686,6 +738,11 @@ export function ComposerEditor({
       editor.setEditable(!disabled);
     }
   }, [disabled, editor]);
+
+  useEffect(() => {
+    if (!autoFocus || !editor) return;
+    editor.commands.focus("end");
+  }, [autoFocus, editor]);
 
   return (
     <EditorContent
@@ -711,29 +768,48 @@ export function ComposerSubmitButton({
   ...props
 }: ComponentProps<typeof InputGroupButton>) {
   const {
+    editor,
     submit,
     status,
     onStop,
     disabled: contextDisabled,
+    sendDisabledReason,
+    canStop,
   } = useComposerContext();
+  const [emptyPrompt, setEmptyPrompt] = useState(true);
+
+  useEffect(() => {
+    if (!editor) return;
+    const sync = () => setEmptyPrompt(!editor.getText().trim());
+    sync();
+    editor.on("update", sync);
+    editor.on("create", sync);
+    return () => {
+      editor.off("update", sync);
+      editor.off("create", sync);
+    };
+  }, [editor]);
 
   const isInFlight = status === "submitted" || status === "streaming";
-  const actAsStop = isInFlight && onStop !== undefined;
+  const actAsStop = (isInFlight || Boolean(canStop)) && onStop !== undefined;
+  const reason = actAsStop
+    ? null
+    : (sendDisabledReason ?? (emptyPrompt ? EMPTY_PROMPT_REASON : null));
+  const blocked = Boolean(reason) || (disabled ?? contextDisabled) || isInFlight;
+  const label = actAsStop ? "Stop" : (reason ?? "Send");
 
   let icon = <ArrowUpIcon className="size-4" />;
   if (actAsStop) {
     icon = <SquareIcon className="size-4" />;
   } else if (isInFlight) {
     icon = <Loader2Icon className="size-4 animate-spin" />;
-  } else if (status === "error") {
-    icon = <XIcon className="size-4" />;
   }
 
-  return (
+  const button = (
     <InputGroupButton
-      aria-label={actAsStop ? "Stop" : "Send"}
+      aria-label={label}
       className={className}
-      disabled={actAsStop ? false : (disabled ?? contextDisabled) || isInFlight}
+      disabled={actAsStop ? false : blocked}
       onClick={(event) => {
         event.preventDefault();
         if (actAsStop) {
@@ -743,14 +819,24 @@ export function ComposerSubmitButton({
         }
       }}
       size="icon-sm"
+      title={label}
       type="button"
       variant="default"
       {...props}
     >
       {children ?? icon}
-      <span className="sr-only">{actAsStop ? "Stop" : "Send"}</span>
+      <span className="sr-only">{label}</span>
     </InputGroupButton>
   );
+
+  if (!actAsStop && reason) {
+    return (
+      <span className="inline-flex" title={reason}>
+        {button}
+      </span>
+    );
+  }
+  return button;
 }
 
 export function ComposerMentionButton({

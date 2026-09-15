@@ -1,6 +1,6 @@
 import type { ChatStatus } from "ai";
 import { Hash, Mic } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref, type RefObject } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   askUserComposerPlaceholder,
@@ -15,6 +15,18 @@ import {
   type CadMentionCatalogPart,
   type CadMentionItem,
 } from "@/chat/cad-refs";
+import {
+  buildPromptHistoryEntries,
+  COMPOSER_HINT,
+  composerPlaceholder,
+  getSessionDraft,
+  providerSendBlockReason,
+  sendDisabledReason,
+  setSessionDraft,
+  stepPromptHistory,
+  type PromptHistoryMessage,
+  type PromptHistoryPosition,
+} from "@/chat/composer-recovery";
 import { AskUserQuestionsPanel, type AskUserQuestionsHandle } from "@/components/chat/AskUserQuestionsPanel";
 import {
   Composer,
@@ -25,7 +37,9 @@ import {
 } from "@/components/ui/composer";
 import { Button } from "@/components/ui/button";
 import { InputGroupAddon } from "@/components/ui/input-group";
+import { useHarnesses } from "@/hooks/useHarnesses";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { HARNESS_LABEL } from "@/lib/harness";
 import { partLabelFileStem } from "@/lib/part-label";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
@@ -78,6 +92,13 @@ function ChatInputInner({
   status,
   lockSend,
   attached,
+  threadId,
+  restorePrompt,
+  canStop,
+  loadingModel,
+  historyMessages,
+  sendBlockReason,
+  inputRef,
 }: {
   disabled: boolean;
   onStop?: () => void;
@@ -86,8 +107,15 @@ function ChatInputInner({
   status: ChatStatus;
   lockSend: boolean;
   attached: boolean;
+  threadId: string;
+  restorePrompt: string | null;
+  canStop: boolean;
+  loadingModel: boolean;
+  historyMessages: PromptHistoryMessage[];
+  sendBlockReason: string | null;
+  inputRef: RefObject<ComposerHandle | null>;
 }) {
-  const inputRef = useRef<ComposerHandle>(null);
+  const historyPositionRef = useRef<PromptHistoryPosition | null>(null);
   const { review, selectedId, title } = useStore(
     useShallow((s) => ({
       review: s.review,
@@ -157,24 +185,65 @@ function ChatInputInner({
     return () => window.removeEventListener("keydown", onKey);
   }, [voice.active, voice.cancel]);
 
+  useEffect(() => {
+    return () => {
+      setSessionDraft(threadId, inputRef.current?.getText() ?? "");
+    };
+  }, [threadId]);
+
+  useEffect(() => {
+    if (!restorePrompt) return;
+    const cur = inputRef.current?.getText() ?? "";
+    if (cur.trim()) return;
+    inputRef.current?.setText(restorePrompt);
+    inputRef.current?.focus();
+  }, [restorePrompt]);
+
+  const reason = sendDisabledReason({
+    loadingModel,
+    lockSend,
+    askPlaceholder: placeholder,
+    providerReason: sendBlockReason,
+  });
+
   return (
     <div className="w-full">
       <Composer
+        canStop={canStop}
         className={attached ? "rounded-none border-0 bg-transparent shadow-none dark:bg-transparent" : "rounded-2xl"}
+        defaultValue={getSessionDraft(threadId)}
         disabled={disabled}
         mentions={mentions}
+        onPromptHistory={(direction) => {
+          const current = inputRef.current?.getText() ?? "";
+          const step = stepPromptHistory({
+            direction,
+            entries: buildPromptHistoryEntries(historyMessages),
+            position: historyPositionRef.current,
+            currentPrompt: current,
+          });
+          if (!step) return false;
+          historyPositionRef.current = step.position;
+          inputRef.current?.setText(step.prompt);
+          return true;
+        }}
         onStop={onStop}
-        onSubmit={(parsed, { clear }) => {
+        onSubmit={(parsed, { clear, focus }) => {
           if (voice.active) return;
           const trimmed = parsed.text.trim();
-          if (!trimmed || lockSend) return;
+          if (!trimmed || lockSend || loadingModel || sendBlockReason) return;
+          historyPositionRef.current = null;
+          setSessionDraft(threadId, "");
           clear();
+          focus();
           Promise.resolve(onSubmit({ text: trimmed })).catch(() => undefined);
         }}
         ref={inputRef}
+        sendDisabledReason={reason}
         status={status}
       >
       <ComposerEditor
+        autoFocus
         className={voice.active ? "invisible pointer-events-none" : undefined}
         placeholder={placeholder}
       />
@@ -187,7 +256,7 @@ function ChatInputInner({
         <EffortSelect />
         <ComposerMentionButton
           aria-label="Mention a part (#)"
-          disabled={disabled || !hasCadParts}
+          disabled={!hasCadParts}
           title={mentionTitle}
           variant="ghost"
         >
@@ -198,14 +267,14 @@ function ChatInputInner({
             type="button"
             variant="ghost"
             size="icon-sm"
-            disabled={disabled || lockSend || status === "streaming" || status === "submitted"}
+            disabled={lockSend || status === "streaming" || status === "submitted"}
             aria-label="Start voice input"
             title={voice.error ?? "Tap to talk"}
             onClick={() => void voice.start()}
           >
             <Mic />
           </Button>
-          <ComposerSubmitButton disabled={lockSend} />
+          <ComposerSubmitButton />
         </div>
       </InputGroupAddon>
       {voice.active ? (
@@ -229,34 +298,80 @@ function ChatInputInner({
   );
 }
 
+export type GalleryChatHandle = {
+  submitText: (text: string) => void;
+};
+
 export function GalleryChatInput({
   disabled = false,
   onStop,
   onSubmit,
-  placeholder = "Ask anything...",
   status,
   pendingAsk = null,
   onAnswerAskUser,
+  threadId,
+  restorePrompt = null,
+  canStop = false,
+  loadingModel = false,
+  modelLoaded = false,
+  historyMessages = [],
+  ref,
 }: {
   disabled?: boolean;
   onStop?: () => void;
   onSubmit: (message: GalleryPromptMessage) => void | Promise<void>;
-  placeholder?: string;
   status: ChatStatus;
   pendingAsk?: { toolCallId: string; input: AskUserQuestionsInput } | null;
   onAnswerAskUser?: (toolCallId: string, output: AskUserQuestionsOutput) => void;
+  threadId: string;
+  restorePrompt?: string | null;
+  canStop?: boolean;
+  loadingModel?: boolean;
+  modelLoaded?: boolean;
+  historyMessages?: PromptHistoryMessage[];
+  ref?: Ref<GalleryChatHandle>;
 }) {
   const askRef = useRef<AskUserQuestionsHandle>(null);
+  const composerRef = useRef<ComposerHandle>(null);
   const [activeQuestion, setActiveQuestion] = useState<AskUserQuestion | null>(
     pendingAsk?.input.questions[0] ?? null,
   );
   const attached = Boolean(pendingAsk);
   const lockSend = attached && !activeQuestion?.allowFreeForm;
-  const prompt = attached ? askUserComposerPlaceholder(activeQuestion ?? pendingAsk?.input.questions[0]) : placeholder;
+  const askPlaceholder = attached
+    ? askUserComposerPlaceholder(activeQuestion ?? pendingAsk?.input.questions[0])
+    : null;
+  const prompt = composerPlaceholder({
+    askUser: askPlaceholder,
+    loadingModel,
+    modelLoaded,
+  });
+  const harness = useStore((s) => s.chatHarness);
+  const { harnesses, ready } = useHarnesses();
+  const info = harnesses.find((h) => h.id === harness);
+  const sendBlockReason = providerSendBlockReason({
+    ready,
+    label: HARNESS_LABEL[harness],
+    status: info?.status,
+    detail: info?.detail,
+  });
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      submitText: (text) => {
+        const trimmed = text.trim();
+        if (!trimmed) return;
+        composerRef.current?.setText(trimmed);
+        composerRef.current?.submit();
+      },
+    }),
+    [],
+  );
 
   return (
     <div className="relative bottom-0 z-10 w-full min-w-0 overflow-x-hidden bg-background pt-2" data-chat-composer>
-      <div className="mx-auto w-full min-w-0 p-2 @[360px]:px-4 @[360px]:pb-4 md:max-w-3xl @[500px]:md:pb-6">
+      <div className="mx-auto w-full min-w-0 p-2 @[360px]/chat:px-4 @[360px]/chat:pb-4 md:max-w-3xl @[500px]/chat:md:pb-6">
         <div
           className={cn(
             attached && "overflow-hidden rounded-2xl border border-input shadow-xs dark:bg-input/30",
@@ -275,7 +390,11 @@ export function GalleryChatInput({
           <div className={cn(attached && "border-t border-border")}>
             <ChatInputInner
               attached={attached}
+              canStop={canStop}
               disabled={disabled}
+              historyMessages={historyMessages}
+              inputRef={composerRef}
+              loadingModel={loadingModel}
               lockSend={lockSend}
               onStop={onStop}
               onSubmit={(message) => {
@@ -286,10 +405,14 @@ export function GalleryChatInput({
                 return onSubmit(message);
               }}
               placeholder={prompt}
+              restorePrompt={restorePrompt}
+              sendBlockReason={sendBlockReason}
               status={status}
+              threadId={threadId}
             />
           </div>
         </div>
+        <p className="hidden px-2 pt-1 text-[11px] text-muted-foreground @[360px]/chat:block">{COMPOSER_HINT}</p>
         <ProviderStatus />
       </div>
     </div>

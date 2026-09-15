@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
-    "test": "tsx src/xr/ui/chrome.selfcheck.ts && tsx src/components/ui/worked.selfcheck.ts && tsx src/chat/ask-user-questions.selfcheck.ts && tsx src/chat/get-viewer.selfcheck.ts && tsx src/chat/persist-thread.selfcheck.ts && tsx src/chat/cad-refs.selfcheck.ts && tsx src/scene/placement.selfcheck.ts && tsx src/cad/scene.selfcheck.ts && tsx src/lib/files-rail.selfcheck.ts && tsx src/lib/redact.selfcheck.ts && tsx src/lib/welcome.selfcheck.ts && tsx src/lib/part-label.selfcheck.ts && tsx src/lib/layout.selfcheck.ts",
+    "test": "tsx src/xr/ui/chrome.selfcheck.ts && tsx src/components/ui/worked.selfcheck.ts && tsx src/chat/ask-user-questions.selfcheck.ts && tsx src/chat/get-viewer.selfcheck.ts && tsx src/chat/persist-thread.selfcheck.ts && tsx src/chat/cad-refs.selfcheck.ts && tsx src/chat/composer-recovery.selfcheck.ts && tsx src/scene/placement.selfcheck.ts && tsx src/cad/scene.selfcheck.ts && tsx src/lib/files-rail.selfcheck.ts && tsx src/lib/redact.selfcheck.ts && tsx src/lib/welcome.selfcheck.ts && tsx src/lib/part-label.selfcheck.ts && tsx src/lib/layout.selfcheck.ts",
     "test:scene": "tsx src/cad/scene.selfcheck.ts",
     "test:placement": "tsx src/scene/placement.selfcheck.ts",
     "test:chrome": "tsx src/xr/ui/chrome.selfcheck.ts"
