@@ -1,5 +1,5 @@
 import {
-  CONNECTION_OFFLINE_AFTER_FAILURES,
+  CONNECTION_GRACE_MS,
   CONNECTION_RELOAD_AFTER_MS,
   ERROR_TEXT_DARK,
   ERROR_TEXT_LIGHT,
@@ -24,57 +24,69 @@ function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
 }
 
-expect(CONNECTION_OFFLINE_AFTER_FAILURES === 3, "offline after 3 failed retries");
-expect(CONNECTION_RELOAD_AFTER_MS === 10_000, "reload after 10s offline");
+expect(CONNECTION_GRACE_MS === 2_000, "lost toast waits 2s");
+expect(CONNECTION_RELOAD_AFTER_MS === 10_000, "reload after 10s down");
 
 let conn = INITIAL_CONNECTION_STATE;
 expect(conn.phase === "connecting", "starts connecting");
-expect(connectionDotVisible(conn.phase) === false, "connecting is quiet");
+expect(connectionDotVisible(conn.phase, conn.lostShown) === false, "connecting is quiet");
 
-let step = reduceConnection(conn, { type: "close", now: 1_000 });
+let step = reduceConnection(conn, { type: "close" });
 conn = step.state;
 expect(conn.phase === "connecting", "close before first snapshot stays connecting");
 expect(step.notice === null, "no lost toast before a session");
 
-step = reduceConnection(conn, { type: "snapshot", now: 2_000 });
+step = reduceConnection(conn, { type: "snapshot" });
 conn = step.state;
 expect(conn.phase === "connected" && conn.hadConnected, "snapshot connects");
 expect(step.notice === null, "first connect is not Reconnected");
-expect(connectionDotVisible(conn.phase) === false, "connected is quiet");
+expect(connectionDotVisible(conn.phase, conn.lostShown) === false, "connected is quiet");
 expect(connectionDotLabel("connected", false) === "Connected", "connected label");
 
-step = reduceConnection(conn, { type: "close", now: 3_000 });
+step = reduceConnection(conn, { type: "close" });
 conn = step.state;
-expect(conn.phase === "reconnecting", "drop → reconnecting");
+expect(conn.phase === "down" && conn.lostShown === false, "drop → down, still in grace");
+expect(step.notice === null, "grace has no toast yet");
+expect(connectionDotVisible(conn.phase, conn.lostShown) === false, "grace is quiet");
+expect(suppressNetworkFailureToast("down"), "down suppresses network toasts");
+
+step = reduceConnection(conn, { type: "close" });
+expect(step.notice === null, "close during grace is silent");
+expect(step.state.lostShown === false && step.state.offerReload === false, "grace close does not announce");
+conn = step.state;
+
+step = reduceConnection(conn, { type: "grace" });
+conn = step.state;
+expect(conn.lostShown, "grace announces");
 expect(step.notice === "lost", "one-shot lost toast");
-expect(connectionDotVisible(conn.phase), "reconnecting is visible");
-expect(connectionDotLabel("reconnecting", false) === "Reconnecting…", "reconnecting label");
+expect(connectionDotVisible(conn.phase, conn.lostShown), "lost shows the footer dot");
+expect(connectionDotLabel("down", false) === "Lost connection to this Mac", "down label");
 
-step = reduceConnection(conn, { type: "close", now: 4_000 });
+step = reduceConnection(conn, { type: "grace" });
+expect(step.notice === null, "grace does not re-toast");
+
+step = reduceConnection(conn, { type: "reload" });
 conn = step.state;
-expect(conn.phase === "reconnecting" && conn.consecutiveFailures === 2, "second fail still reconnecting");
-expect(step.notice === null, "no extra lost toast");
+expect(conn.offerReload, "10s down offers Reload");
+expect(step.notice === null, "Reload is footer-only");
+expect(connectionDotLabel("down", true) === "Offline — Reload", "reload label");
 
-step = reduceConnection(conn, { type: "close", now: 5_000 });
+step = reduceConnection(conn, { type: "close" });
+expect(step.notice === null, "close while down is not a second toast");
+expect(step.state.offerReload, "close while down keeps Reload");
 conn = step.state;
-expect(conn.phase === "offline", "third fail is offline");
-expect(conn.offerReload === false, "reload waits 10s");
-expect(connectionDotVisible(conn.phase), "offline is visible");
 
-step = reduceConnection(conn, { type: "tick", now: 5_000 + 9_000 });
-expect(step.state.offerReload === false, "9s offline is not yet reload");
-step = reduceConnection(conn, { type: "tick", now: 5_000 + 10_000 });
+step = reduceConnection(conn, { type: "reload" });
+expect(step.notice === null && step.state.offerReload, "reload notice does not repeat");
+
+step = reduceConnection(conn, { type: "snapshot" });
+expect(step.state.phase === "connected" && step.state.offerReload === false, "snapshot clears down");
+expect(step.notice === "reconnected", "reconnected toast after a shown loss");
 conn = step.state;
-expect(conn.offerReload, "10s offline offers reload");
-expect(step.notice === "reload", "reload notice once");
-expect(connectionDotLabel("offline", true) === "Offline — Reload", "reload label");
 
-step = reduceConnection(conn, { type: "tick", now: 5_000 + 12_000 });
-expect(step.notice === null, "reload notice does not repeat");
-
-step = reduceConnection(conn, { type: "snapshot", now: 20_000 });
-expect(step.state.phase === "connected" && step.state.offerReload === false, "snapshot clears offline");
-expect(step.notice === "reconnected", "reconnected toast");
+step = reduceConnection(conn, { type: "close" });
+step = reduceConnection(step.state, { type: "snapshot" });
+expect(step.notice === null, "reconnect during grace has no toasts");
 
 const firstFail = noteFailureStreak(INITIAL_FAILURE_STREAK, false);
 expect(firstFail.toast === false, "first-load fail stays inline");
@@ -93,8 +105,7 @@ expect(noteFailureStreak(recovered.next, false).toast, "a new streak toasts agai
 
 expect(suppressNetworkFailureToast("connected") === false, "connected allows network toasts");
 expect(suppressNetworkFailureToast("connecting") === false, "connecting allows network toasts");
-expect(suppressNetworkFailureToast("reconnecting"), "reconnecting suppresses network toasts");
-expect(suppressNetworkFailureToast("offline"), "offline suppresses network toasts");
+expect(suppressNetworkFailureToast("down"), "down suppresses network toasts");
 
 const outageHold = noteFailureStreak(firstOk.next, false, { suppressToast: true });
 expect(outageHold.toast === false, "outage does not consume the catalog toast");

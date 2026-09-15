@@ -30,7 +30,7 @@ function AlertDialogContent({
         )}
       >
         <AlertDialogPrimitive.Popup
-          data-slot="dialog-content"
+          data-slot="alert-dialog-content"
           className={cn(
             "pointer-events-auto relative flex max-h-[min(32rem,calc(100dvh-2rem))] w-full max-w-md flex-col rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-lg outline-none",
             "transition-[opacity,transform] duration-150",

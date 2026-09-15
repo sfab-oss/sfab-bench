@@ -2,16 +2,19 @@ import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { copyText } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
+type CopyFlash = "idle" | "copied" | "failed";
+
 export function CommandBlock({ command, className }: { command: string; className?: string }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<CopyFlash>("idle");
   const timer = useRef<number | null>(null);
   const commandRef = useRef(command);
   commandRef.current = command;
 
   useEffect(() => {
-    setCopied(false);
+    setCopied("idle");
     if (timer.current != null) window.clearTimeout(timer.current);
     return () => {
       if (timer.current != null) window.clearTimeout(timer.current);
@@ -20,19 +23,17 @@ export function CommandBlock({ command, className }: { command: string; classNam
 
   const copy = () => {
     const snapshot = command;
-    void navigator.clipboard.writeText(snapshot).then(
-      () => {
-        if (commandRef.current !== snapshot) return;
-        if (timer.current != null) window.clearTimeout(timer.current);
-        setCopied(true);
-        timer.current = window.setTimeout(() => setCopied(false), 1500);
-      },
-      () => {
-        if (commandRef.current !== snapshot) return;
-        setCopied(false);
-      },
-    );
+    void copyText(snapshot).then((ok) => {
+      if (commandRef.current !== snapshot) return;
+      if (timer.current != null) window.clearTimeout(timer.current);
+      setCopied(ok ? "copied" : "failed");
+      timer.current = window.setTimeout(() => setCopied("idle"), 1500);
+    });
   };
+
+  const failed = copied === "failed";
+  const done = copied === "copied";
+  const label = done ? "Copied" : failed ? "Copy failed" : "Copy";
 
   return (
     <div
@@ -50,12 +51,12 @@ export function CommandBlock({ command, className }: { command: string; classNam
         size="sm"
         variant="ghost"
         className="h-6 shrink-0 gap-1 px-1.5 text-xs"
-        aria-label={copied ? "Copied" : "Copy command"}
-        title={copied ? "Copied" : "Copy"}
+        aria-label={done ? "Copied" : failed ? "Copy failed" : "Copy command"}
+        title={label}
         onClick={copy}
       >
-        {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-        {copied ? "Copied" : "Copy"}
+        {done ? <Check className="size-3" /> : <Copy className="size-3" />}
+        {label}
       </Button>
     </div>
   );

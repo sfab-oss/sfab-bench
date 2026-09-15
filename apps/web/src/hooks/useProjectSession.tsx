@@ -3,6 +3,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { closeToast, showToast } from "@/components/ui/toast";
 import { jsonApi, getDeviceToken } from "@/lib/api";
 import {
+  CONNECTION_GRACE_MS,
+  CONNECTION_RELOAD_AFTER_MS,
   CONNECTION_RETRY_MS,
   INITIAL_CONNECTION_STATE,
   reduceConnection,
@@ -26,6 +28,7 @@ type SessionValue = {
   project: ProjectSession["project"];
   fileRecents: string[];
   connectionPhase: ConnectionPhase;
+  connectionLostShown: boolean;
   connectionOfferReload: boolean;
   setDoc: (file: string | null, reload?: boolean) => Promise<void>;
 };
@@ -158,34 +161,42 @@ export function ProjectSessionProvider({
     let closed = false;
     let ws: WebSocket | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
+    let graceTimer: ReturnType<typeof setTimeout> | null = null;
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null;
     let current = INITIAL_CONNECTION_STATE;
     setLiveConnectionPhase(current.phase);
 
+    const clearDownTimers = () => {
+      if (graceTimer) clearTimeout(graceTimer);
+      if (reloadTimer) clearTimeout(reloadTimer);
+      graceTimer = null;
+      reloadTimer = null;
+    };
+
     const applyConnection = (event: ConnectionEvent) => {
+      if (closed) return;
+      const prev = current;
       const { state, notice } = reduceConnection(current, event);
       current = state;
       setLiveConnectionPhase(state.phase);
       setConnection(state);
+      if (prev.phase !== "down" && state.phase === "down") {
+        graceTimer = setTimeout(() => applyConnection({ type: "grace" }), CONNECTION_GRACE_MS);
+        reloadTimer = setTimeout(() => applyConnection({ type: "reload" }), CONNECTION_RELOAD_AFTER_MS);
+      }
+      if (state.phase !== "down") clearDownTimers();
       if (notice === "lost") {
         closeToast("connection-reconnected");
         showToast({
           id: "connection-lost",
-          type: "info",
-          title: "Lost connection to this Mac — reconnecting…",
+          type: "error",
+          title: "Lost connection to this Mac",
+          description: "This page can't reach the workbench process.",
         });
       } else if (notice === "reconnected") {
         closeToast("connection-lost");
         closeToast("connection-offline");
         showToast({ id: "connection-reconnected", type: "success", title: "Reconnected" });
-      } else if (notice === "reload") {
-        closeToast("connection-lost");
-        showToast({
-          id: "connection-offline",
-          type: "error",
-          title: "Lost connection to this Mac",
-          description: "This page can't reach the workbench process.",
-          action: { label: "Reload", onClick: () => window.location.reload() },
-        });
       }
     };
 
@@ -202,7 +213,7 @@ export function ProjectSessionProvider({
         if (event.type === "snapshot") {
           applySnapshot(event.session);
           setReady(true);
-          applyConnection({ type: "snapshot", now: Date.now() });
+          applyConnection({ type: "snapshot" });
           return;
         }
         if (event.type === "library") {
@@ -214,19 +225,15 @@ export function ProjectSessionProvider({
       ws.onclose = () => {
         if (closed) return;
         setReady(false);
-        applyConnection({ type: "close", now: Date.now() });
+        applyConnection({ type: "close" });
         retry = setTimeout(connect, CONNECTION_RETRY_MS);
       };
     };
 
     connect();
-    const tick = window.setInterval(() => {
-      if (closed || current.phase === "connected") return;
-      applyConnection({ type: "tick", now: Date.now() });
-    }, 1_000);
     return () => {
       closed = true;
-      window.clearInterval(tick);
+      clearDownTimers();
       if (retry) clearTimeout(retry);
       ws?.close();
     };
@@ -249,10 +256,11 @@ export function ProjectSessionProvider({
       project,
       fileRecents,
       connectionPhase: connection.phase,
+      connectionLostShown: connection.lostShown,
       connectionOfferReload: connection.offerReload,
       setDoc,
     }),
-    [ready, you, project, fileRecents, connection.phase, connection.offerReload, setDoc],
+    [ready, you, project, fileRecents, connection.phase, connection.lostShown, connection.offerReload, setDoc],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

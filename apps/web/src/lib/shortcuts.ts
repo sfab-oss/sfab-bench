@@ -214,7 +214,9 @@ export function probeEscLayers(root: QueryRoot | null): EscProbe {
   return {
     mention: Boolean(root.querySelector("[data-mention-list]")),
     popoverOrSelect: Boolean(root.querySelector("[data-slot='popover-content'], [data-slot='select-content']")),
-    dialog: Boolean(root.querySelector("[data-slot='dialog-content']")),
+    dialog: Boolean(
+      root.querySelector("[data-slot='dialog-content'], [data-slot='alert-dialog-content']"),
+    ),
     voice: Boolean(root.querySelector("[data-voice-recording]")),
   };
 }
@@ -234,5 +236,5 @@ export function escBelongsTo(layer: EscLayer, open: EscLayersOpen): boolean {
 
 export function compactChatSheetOpen(root: QueryRoot | null): boolean {
   if (!root) return false;
-  return Boolean(root.querySelector('aside[role="dialog"][aria-label="Assistant"]'));
+  return Boolean(root.querySelector("[data-compact-chat]"));
 }

@@ -46,7 +46,7 @@ expect(friendlyLoadReason("STEP could not be read (status 2)") === "This file is
 expect(friendlyLoadReason("STEP could not be read (status 4)") === "STEP could not be read", "occt other");
 expect(friendlyLoadReason("not a STEP or GLB: notes.md") === "Not a STEP or GLB file", "typed extension");
 expect(
-  friendlyLoadReason("not a directory: /Users/you/nope") === "This folder isn't available — Open folder",
+  friendlyLoadReason("not a directory: /Users/you/nope") === "This folder isn't available",
   "missing folder copy",
 );
 expect(
@@ -56,7 +56,7 @@ expect(
 );
 expect(
   displayLoadError("not a directory: /Users/you/proj", "/Users/you/proj") ===
-    "This folder isn't available — Open folder",
+    "This folder isn't available",
   "folder card has no abs path",
 );
 

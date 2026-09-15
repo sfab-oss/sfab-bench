@@ -263,7 +263,7 @@ export function PartTree({
     <RenderErrorBoundary
       resetKeys={[url]}
       fallback={({ error, reset }) => (
-        <div className="pointer-events-auto absolute top-16 left-3 z-10">
+        <div ref={cardRef} className="pointer-events-auto absolute top-16 left-3 z-10">
           <CrashCard error={error} onRetry={reset} />
         </div>
       )}

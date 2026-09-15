@@ -36,7 +36,7 @@ export function isUnavailableFolder(raw: string | null | undefined): boolean {
  */
 export function friendlyLoadReason(raw: string): string {
   const text = unwrap(raw);
-  if (isUnavailableFolder(text)) return "This folder isn't available — Open folder";
+  if (isUnavailableFolder(text)) return "This folder isn't available";
   if (/^not a STEP or GLB/i.test(text)) return "Not a STEP or GLB file";
   const occt = /^STEP could not be read \(status (\d+)\)$/i.exec(text);
   if (occt) {

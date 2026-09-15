@@ -1,35 +1,32 @@
-/** Connection phase, silent-failure dedupe, hidden-chat notices, error-text contrast. */
+/** Connection up/down, silent-failure dedupe, hidden-chat notices, error-text contrast. */
 
-export type ConnectionPhase = "connecting" | "connected" | "reconnecting" | "offline";
+export type ConnectionPhase = "connecting" | "connected" | "down";
 
-export const CONNECTION_OFFLINE_AFTER_FAILURES = 3;
+export const CONNECTION_GRACE_MS = 2_000;
 export const CONNECTION_RELOAD_AFTER_MS = 10_000;
 export const CONNECTION_RETRY_MS = 1_000;
 
 export type ConnectionState = {
   phase: ConnectionPhase;
-  consecutiveFailures: number;
-  disconnectedAt: number | null;
-  offlineAt: number | null;
-  offerReload: boolean;
   hadConnected: boolean;
+  lostShown: boolean;
+  offerReload: boolean;
 };
 
 export const INITIAL_CONNECTION_STATE: ConnectionState = {
   phase: "connecting",
-  consecutiveFailures: 0,
-  disconnectedAt: null,
-  offlineAt: null,
-  offerReload: false,
   hadConnected: false,
+  lostShown: false,
+  offerReload: false,
 };
 
 export type ConnectionEvent =
-  | { type: "snapshot"; now: number }
-  | { type: "close"; now: number }
-  | { type: "tick"; now: number };
+  | { type: "snapshot" }
+  | { type: "close" }
+  | { type: "grace" }
+  | { type: "reload" };
 
-export type ConnectionNotice = "lost" | "reconnected" | "reload" | null;
+export type ConnectionNotice = "lost" | "reconnected" | null;
 
 export function reduceConnection(
   state: ConnectionState,
@@ -37,56 +34,39 @@ export function reduceConnection(
 ): { state: ConnectionState; notice: ConnectionNotice } {
   switch (event.type) {
     case "snapshot": {
-      const notice: ConnectionNotice = state.hadConnected && state.phase !== "connected" ? "reconnected" : null;
+      const notice: ConnectionNotice = state.lostShown ? "reconnected" : null;
       return {
         state: {
           phase: "connected",
-          consecutiveFailures: 0,
-          disconnectedAt: null,
-          offlineAt: null,
-          offerReload: false,
           hadConnected: true,
+          lostShown: false,
+          offerReload: false,
         },
         notice,
       };
     }
     case "close": {
-      if (state.phase === "connected") {
-        return {
-          state: {
-            phase: "reconnecting",
-            consecutiveFailures: 1,
-            disconnectedAt: event.now,
-            offlineAt: null,
-            offerReload: false,
-            hadConnected: true,
-          },
-          notice: "lost",
-        };
+      if (!state.hadConnected) {
+        return { state: { ...state, phase: "connecting" }, notice: null };
       }
-      const failures = state.consecutiveFailures + 1;
-      const goOffline = state.hadConnected && failures >= CONNECTION_OFFLINE_AFTER_FAILURES;
-      const offlineAt = goOffline ? (state.offlineAt ?? event.now) : null;
+      if (state.phase === "down") return { state, notice: null };
       return {
         state: {
-          phase: goOffline ? "offline" : state.hadConnected ? "reconnecting" : "connecting",
-          consecutiveFailures: failures,
-          disconnectedAt: state.disconnectedAt ?? event.now,
-          offlineAt,
+          phase: "down",
+          hadConnected: true,
+          lostShown: false,
           offerReload: false,
-          hadConnected: state.hadConnected,
         },
         notice: null,
       };
     }
-    case "tick": {
-      if (state.phase !== "offline" || state.offlineAt == null) return { state, notice: null };
-      const offerReload = event.now - state.offlineAt >= CONNECTION_RELOAD_AFTER_MS;
-      if (offerReload === state.offerReload) return { state, notice: null };
-      return {
-        state: { ...state, offerReload },
-        notice: offerReload ? "reload" : null,
-      };
+    case "grace": {
+      if (state.phase !== "down" || state.lostShown) return { state, notice: null };
+      return { state: { ...state, lostShown: true }, notice: "lost" };
+    }
+    case "reload": {
+      if (state.phase !== "down" || state.offerReload) return { state, notice: null };
+      return { state: { ...state, offerReload: true }, notice: null };
     }
   }
 }
@@ -95,12 +75,11 @@ export function connectionDotLabel(phase: ConnectionPhase, offerReload: boolean)
   if (offerReload) return "Offline — Reload";
   if (phase === "connected") return "Connected";
   if (phase === "connecting") return "Connecting to this Mac";
-  if (phase === "reconnecting") return "Reconnecting…";
-  return "Offline — this page can't reach this Mac";
+  return "Lost connection to this Mac";
 }
 
-export function connectionDotVisible(phase: ConnectionPhase): boolean {
-  return phase === "reconnecting" || phase === "offline";
+export function connectionDotVisible(phase: ConnectionPhase, lostShown: boolean): boolean {
+  return phase === "down" && lostShown;
 }
 
 let currentConnectionPhase: ConnectionPhase = INITIAL_CONNECTION_STATE.phase;
@@ -110,12 +89,8 @@ export function setLiveConnectionPhase(phase: ConnectionPhase): void {
   currentConnectionPhase = phase;
 }
 
-export function liveConnectionPhase(): ConnectionPhase {
-  return currentConnectionPhase;
-}
-
 export function suppressNetworkFailureToast(phase: ConnectionPhase = currentConnectionPhase): boolean {
-  return phase === "reconnecting" || phase === "offline";
+  return phase === "down";
 }
 
 export type FailureStreak = { hadSuccess: boolean; failing: boolean };

@@ -4,14 +4,16 @@ import { Button } from "@/components/ui/button";
 
 export function ConnectionStatusDot({
   phase,
+  lostShown,
   offerReload,
 }: {
   phase: ConnectionPhase;
+  lostShown: boolean;
   offerReload: boolean;
 }) {
   const label = connectionDotLabel(phase, offerReload);
-  const visible = connectionDotVisible(phase);
-  const ping = phase === "reconnecting";
+  const visible = connectionDotVisible(phase, lostShown);
+  const ping = visible && !offerReload;
   return (
     <div className="flex shrink-0 items-center gap-1">
       <span
@@ -29,7 +31,7 @@ export function ConnectionStatusDot({
         <span
           className={cn(
             "relative inline-flex size-2 rounded-full",
-            phase === "offline" ? "bg-destructive" : visible ? "bg-muted-foreground" : "bg-muted-foreground/50",
+            offerReload ? "bg-destructive" : visible ? "bg-muted-foreground" : "bg-muted-foreground/50",
           )}
         />
       </span>

@@ -88,7 +88,15 @@ function ChatToggle({
         <LiveDot className="animate-pulse" />
         <span>Replying…</span>
         <span className="text-muted-foreground">·</span>
-        <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={stopTabTurn}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 px-1.5 text-xs"
+          tabIndex={hidden ? -1 : undefined}
+          aria-hidden={hidden || undefined}
+          onClick={stopTabTurn}
+        >
           Stop
         </Button>
         <span className="text-muted-foreground">·</span>
