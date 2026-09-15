@@ -1,6 +1,6 @@
 import type { ChatStatus } from "ai";
 import { Hash, Mic } from "lucide-react";
-import { useEffect, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject, type Ref, type RefObject } from "react";
+import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type Ref, type RefObject } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   askUserComposerPlaceholder,
@@ -12,6 +12,8 @@ import {
   CAD_MENTION_FACE_CAP,
   cadMentionQueryCloses,
   filterCadMentionCatalog,
+  parseCadRefs,
+  resolveCadRef,
   type CadMentionCatalogPart,
   type CadMentionItem,
 } from "@/chat/cad-refs";
@@ -128,8 +130,6 @@ function ChatInputInner({
   const draftTouchedRef = useRef(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [draftText, setDraftText] = useState(() => getSessionDraft(threadId));
-  const draftTextRef = useRef(draftText);
-  draftTextRef.current = draftText;
   const { review, selectedId, title } = useStore(
     useShallow((s) => ({
       review: s.review,
@@ -161,6 +161,17 @@ function ChatInputInner({
         trigger: "#",
         allowSpaces: true,
         queryCloses: cadMentionQueryCloses,
+        refsInText: parseCadRefs,
+        resolve: (ref: string) => {
+          const resolved = resolveCadRef(ref, catalogParts, fileStem);
+          if (!resolved) return undefined;
+          return {
+            id: resolved.ref,
+            name: resolved.label,
+            cadRef: resolved.ref,
+            kind: resolved.kind,
+          } satisfies CadMentionItem;
+        },
         items: (query: string) => {
           return filterCadMentionCatalog(catalogParts, query, {
             fileStem,
@@ -220,10 +231,9 @@ function ChatInputInner({
     setDraftText(text);
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     return () => {
-      const live = inputRef.current?.getText();
-      const text = live || draftTextRef.current;
+      const text = inputRef.current?.getText() ?? "";
       if (text || draftTouchedRef.current) captureSessionDraft(threadId, text);
     };
   }, [inputRef, threadId]);

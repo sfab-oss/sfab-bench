@@ -4,6 +4,8 @@
  * - `data-mention-list` on the popup mount node (Esc-layer probe).
  * - Mention parse/`renderText` emits node id so chips send `#o…` refs, not labels
  *   (`setText`/`getText` are plain text, so the ref must live in the text).
+ * - `setText`/`defaultValue` hydrate `<key>-mention` nodes via MentionConfig.resolve
+ *   + `refsInText` (pattern lives on the caller). Unresolved refs stay plain text.
  * - `allowSpaces` / `queryCloses` on MentionConfig so `#` queries can include spaces.
  * - Mention option `onMouseDown` preventDefault so click selects before the editor blurs.
  */
@@ -57,6 +59,10 @@ export interface MentionConfig<T extends BaseMentionItem> {
   /** Fixed at mount — changing it later has no effect. */
   allowSpaces?: boolean;
   queryCloses?: (query: string) => boolean;
+  /** Plain-text → chip. Wrapper owns the id format. */
+  resolve?: (ref: string) => T | undefined;
+  /** Find serialized refs in a line. Wrapper owns the pattern. */
+  refsInText?: (text: string) => { start: number; end: number; ref: string }[];
 }
 
 export type MentionConfigs = Record<string, MentionConfig<BaseMentionItem>>;
@@ -112,12 +118,91 @@ function resolveMentionItems<T extends BaseMentionItem>(
   return filterStaticItems(config.items, query);
 }
 
-function textToDoc(text: string): JSONContent {
+type MentionTextHit = {
+  start: number;
+  end: number;
+  key: string;
+  item: BaseMentionItem;
+};
+
+function mentionHitsInLine(
+  line: string,
+  mentions: MentionConfigs | undefined
+): MentionTextHit[] {
+  if (!mentions) {
+    return [];
+  }
+  const hits: MentionTextHit[] = [];
+  for (const [key, config] of Object.entries(mentions)) {
+    if (!config.resolve || !config.refsInText) {
+      continue;
+    }
+    for (const found of config.refsInText(line)) {
+      const item = config.resolve(found.ref);
+      if (!item) {
+        continue;
+      }
+      hits.push({ start: found.start, end: found.end, key, item });
+    }
+  }
+  hits.sort((a, b) => a.start - b.start || b.end - a.end);
+  const picked: MentionTextHit[] = [];
+  let cursor = 0;
+  for (const hit of hits) {
+    if (hit.start < cursor) {
+      continue;
+    }
+    picked.push(hit);
+    cursor = hit.end;
+  }
+  return picked;
+}
+
+function inlineFromText(
+  line: string,
+  mentions: MentionConfigs | undefined,
+  selectedItems: SelectedMentionItems | undefined
+): JSONContent[] {
+  const hits = mentionHitsInLine(line, mentions);
+  if (hits.length === 0) {
+    return [{ type: "text", text: line }];
+  }
+  const content: JSONContent[] = [];
+  let cursor = 0;
+  for (const hit of hits) {
+    if (hit.start > cursor) {
+      content.push({ type: "text", text: line.slice(cursor, hit.start) });
+    }
+    content.push({
+      type: `${hit.key}-mention`,
+      attrs: { id: hit.item.id, label: hit.item.name },
+    });
+    if (selectedItems) {
+      if (!selectedItems[hit.key]) {
+        selectedItems[hit.key] = new Map();
+      }
+      selectedItems[hit.key].set(hit.item.id, hit.item);
+    }
+    cursor = hit.end;
+  }
+  if (cursor < line.length) {
+    content.push({ type: "text", text: line.slice(cursor) });
+  }
+  return content;
+}
+
+export function textToDoc(
+  text: string,
+  mentions?: MentionConfigs,
+  selectedItems?: SelectedMentionItems
+): JSONContent {
   return {
     type: "doc",
     content: text.split("\n").map((line) => ({
       type: "paragraph",
-      ...(line ? { content: [{ type: "text", text: line }] } : {}),
+      ...(line
+        ? { content: inlineFromText(line, mentions, selectedItems) }
+        : {}),
     })),
   };
 }
@@ -524,7 +609,9 @@ export function ChatInput({
       focus,
       getText: () => parse().text,
       setText: (text) => {
-        editor?.commands.setContent(textToDoc(text));
+        editor?.commands.setContent(
+          textToDoc(text, mentionsRef.current, selectedItemsRef.current)
+        );
       },
       insertText: (text) => {
         editor?.chain().focus().insertContent(text).run();
@@ -599,6 +686,13 @@ export function ChatInputEditor({
   } = useChatInputContext();
 
   const initialMentionsRef = useRef(mentions);
+  const initialContentRef = useRef(
+    textToDoc(
+      defaultValue ?? "",
+      initialMentionsRef.current,
+      selectedItemsRef.current
+    )
+  );
   const placeholderRef = useRef(placeholder);
   placeholderRef.current = placeholder;
 
@@ -634,7 +728,7 @@ export function ChatInputEditor({
 
   const editor = useEditor({
     extensions,
-    content: defaultValue ?? "",
+    content: initialContentRef.current,
     editable: !disabled,
     autofocus: autoFocus ? "end" : false,
     immediatelyRender: false,
