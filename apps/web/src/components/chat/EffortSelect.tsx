@@ -23,7 +23,7 @@ export function EffortSelect() {
         disabled
         aria-label="Reasoning effort"
         title={`Effort isn't available for ${HARNESS_LABEL[harness]}`}
-        className="inline-flex h-7 max-w-20 min-w-0 cursor-not-allowed items-center gap-1 rounded-md px-1.5 text-xs text-muted-foreground opacity-50 outline-none select-none @[360px]/chat:max-w-none"
+        className="inline-flex h-7 max-w-20 min-w-0 shrink-0 cursor-not-allowed items-center gap-1 rounded-md px-1.5 text-xs text-muted-foreground opacity-50 outline-none select-none"
       >
         <span className="min-w-0 truncate">Effort</span>
         <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
@@ -42,7 +42,7 @@ export function EffortSelect() {
       <SelectTrigger
         aria-label="Reasoning effort"
         title={EFFORT_TRIGGER_TITLE}
-        className="max-w-20 min-w-0 @[360px]/chat:max-w-none"
+        className="max-w-20 min-w-0 shrink-0"
       >
         <SelectValue />
       </SelectTrigger>

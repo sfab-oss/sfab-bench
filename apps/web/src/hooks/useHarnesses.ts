@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { applyHarnessFetchResult, decideHarnessRefetch, type HarnessRefreshReason } from "@/chat/model-picker";
+import {
+  applyHarnessFetchResult,
+  decideHarnessRefetch,
+  shouldAcceptHarnessCatalog,
+  type HarnessRefreshReason,
+} from "@/chat/model-picker";
 import { apiFetch } from "@/lib/api";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { projectUrl } from "@/lib/project-query";
@@ -26,11 +31,9 @@ export function harnessModelName(harnesses: HarnessInfo[], harness: HarnessId, s
   return i >= 0 ? slug.slice(i + 1) : slug;
 }
 
-type CatalogCache = { project: string; list: HarnessInfo[] };
-
-let lastGood: CatalogCache | undefined;
-let inflight: { project: string; promise: Promise<HarnessInfo[]> } | undefined;
-let lastStartedAt: number | null = null;
+const lastGoodByProject = new Map<string, HarnessInfo[]>();
+const inflightByProject = new Map<string, Promise<HarnessInfo[]>>();
+const lastStartedAtByProject = new Map<string, number>();
 const listeners = new Set<() => void>();
 
 function notifyHarnesses() {
@@ -45,43 +48,44 @@ function parseHarnessList(body: unknown): HarnessInfo[] {
 
 export function loadHarnesses(): Promise<HarnessInfo[]> {
   const project = projectUrl();
-  if (!project) {
-    lastGood = undefined;
-    return Promise.resolve([]);
-  }
-  if (inflight && inflight.project === project) return inflight.promise;
-  lastStartedAt = Date.now();
+  if (!project) return Promise.resolve([]);
+  const pending = inflightByProject.get(project);
+  if (pending) return pending;
+  lastStartedAtByProject.set(project, Date.now());
   const promise = apiFetch("/api/harnesses", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : Promise.reject(new Error("harnesses"))))
     .then((body) => {
       const fetched = parseHarnessList(body);
-      const applied = applyHarnessFetchResult({ ok: true, list: fetched, lastGood: lastGood?.list ?? null });
-      lastGood = { project, list: applied.list };
-      notifyHarnesses();
-      return lastGood.list;
+      const applied = applyHarnessFetchResult({
+        ok: true,
+        list: fetched,
+        lastGood: lastGoodByProject.get(project) ?? null,
+      });
+      lastGoodByProject.set(project, applied.list);
+      if (shouldAcceptHarnessCatalog(project, projectUrl())) notifyHarnesses();
+      return applied.list;
     })
     .catch((err) => {
       const applied = applyHarnessFetchResult({
         ok: false,
-        lastGood: lastGood && lastGood.project === project ? lastGood.list : null,
+        lastGood: lastGoodByProject.get(project) ?? null,
       });
-      notifyHarnesses();
+      if (!applied.error) lastGoodByProject.set(project, applied.list);
+      if (shouldAcceptHarnessCatalog(project, projectUrl())) notifyHarnesses();
       if (!applied.error) return applied.list;
       throw err;
     })
     .finally(() => {
-      if (inflight?.promise === promise) inflight = undefined;
+      if (inflightByProject.get(project) === promise) inflightByProject.delete(project);
     });
-  inflight = { project, promise };
+  inflightByProject.set(project, promise);
   return promise;
 }
 
 export function useHarnesses() {
   const project = useProjectSession().project.path;
-  const [harnesses, setHarnesses] = useState<HarnessInfo[]>(() =>
-    lastGood && lastGood.project === projectUrl() ? lastGood.list : [],
-  );
-  const [ready, setReady] = useState(() => lastGood != null && lastGood.project === projectUrl());
+  const [harnesses, setHarnesses] = useState<HarnessInfo[]>(() => lastGoodByProject.get(projectUrl()) ?? []);
+  const [ready, setReady] = useState(() => lastGoodByProject.has(projectUrl()));
   const [error, setError] = useState(false);
 
   const apply = useCallback((list: HarnessInfo[], failed: boolean) => {
@@ -101,14 +105,18 @@ export function useHarnesses() {
       const decision = decideHarnessRefetch({
         reason,
         now: Date.now(),
-        lastStartedAt,
-        inflight: Boolean(inflight && inflight.project === projectUrl()),
+        lastStartedAt: lastStartedAtByProject.get(project) ?? null,
+        inflight: inflightByProject.has(project),
       });
       if (decision === "skip") return;
       void loadHarnesses()
-        .then((list) => apply(list, false))
+        .then((list) => {
+          if (!shouldAcceptHarnessCatalog(project, projectUrl())) return;
+          apply(list, false);
+        })
         .catch(() => {
-          const fallback = lastGood && lastGood.project === projectUrl() ? lastGood.list : [];
+          if (!shouldAcceptHarnessCatalog(project, projectUrl())) return;
+          const fallback = lastGoodByProject.get(project) ?? [];
           apply(fallback, fallback.length === 0);
         });
     },
@@ -116,18 +124,38 @@ export function useHarnesses() {
   );
 
   useEffect(() => {
+    let cancelled = false;
+    const cached = project ? lastGoodByProject.get(project) : undefined;
+    if (!project) {
+      setHarnesses([]);
+      setReady(true);
+      setError(false);
+    } else if (cached) {
+      setHarnesses(cached);
+      setError(false);
+      setReady(true);
+    } else {
+      setHarnesses([]);
+      setReady(false);
+      setError(false);
+    }
     refresh("mount");
-    const onFocus = () => refresh("focus");
+    const onFocus = () => {
+      if (!cancelled) refresh("focus");
+    };
     window.addEventListener("focus", onFocus);
     const listener = () => {
-      if (lastGood && lastGood.project === projectUrl()) {
-        setHarnesses(lastGood.list);
-        setError(false);
-        setReady(true);
-      }
+      if (cancelled) return;
+      if (!shouldAcceptHarnessCatalog(project, projectUrl())) return;
+      const list = lastGoodByProject.get(project);
+      if (!list) return;
+      setHarnesses(list);
+      setError(false);
+      setReady(true);
     };
     listeners.add(listener);
     return () => {
+      cancelled = true;
       window.removeEventListener("focus", onFocus);
       listeners.delete(listener);
     };

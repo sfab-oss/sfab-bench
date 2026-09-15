@@ -1,4 +1,4 @@
-import { loginCommandFromStatus } from "@/chat/model-picker";
+import { loginHintCopy } from "@/chat/model-picker";
 import { CommandBlock } from "@/components/ui/command-block";
 import { Button } from "@/components/ui/button";
 import type { HarnessInfo } from "@/hooks/useHarnesses";
@@ -10,14 +10,12 @@ export function ProviderLoginHint({
   info: HarnessInfo;
   onCheckAgain: () => void;
 }) {
-  const command = loginCommandFromStatus({ status: info.status, detail: info.detail });
+  const copy = loginHintCopy({ label: info.label, status: info.status, detail: info.detail });
   return (
     <div className="flex flex-col gap-1.5">
-      {command ? (
-        <CommandBlock command={command} />
-      ) : (
-        <p className="text-xs text-amber-800 dark:text-amber-400">{info.detail ?? info.status}</p>
-      )}
+      <p className="text-xs text-amber-800 dark:text-amber-400">{copy.headline}</p>
+      {copy.command ? <CommandBlock command={copy.command} /> : null}
+      {copy.secondary ? <p className="text-[11px] text-muted-foreground">{copy.secondary}</p> : null}
       <Button
         type="button"
         variant="ghost"

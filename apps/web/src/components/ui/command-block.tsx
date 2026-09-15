@@ -7,21 +7,28 @@ import { cn } from "@/lib/utils";
 export function CommandBlock({ command, className }: { command: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<number | null>(null);
+  const commandRef = useRef(command);
+  commandRef.current = command;
 
   useEffect(() => {
+    setCopied(false);
+    if (timer.current != null) window.clearTimeout(timer.current);
     return () => {
       if (timer.current != null) window.clearTimeout(timer.current);
     };
-  }, []);
+  }, [command]);
 
   const copy = () => {
-    void navigator.clipboard.writeText(command).then(
+    const snapshot = command;
+    void navigator.clipboard.writeText(snapshot).then(
       () => {
-        setCopied(true);
+        if (commandRef.current !== snapshot) return;
         if (timer.current != null) window.clearTimeout(timer.current);
+        setCopied(true);
         timer.current = window.setTimeout(() => setCopied(false), 1500);
       },
       () => {
+        if (commandRef.current !== snapshot) return;
         setCopied(false);
       },
     );

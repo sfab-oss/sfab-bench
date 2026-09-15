@@ -4,6 +4,7 @@ import {
   groupPickerModels,
   HARNESS_REFETCH_THROTTLE_MS,
   loginCommandFromStatus,
+  loginHintCopy,
   MAX_MODEL_FAVORITES,
   mergeUnavailableSelection,
   modelDisplayName,
@@ -11,6 +12,7 @@ import {
   providerLoginSendReason,
   readModelFavorites,
   serializeModelFavorites,
+  shouldAcceptHarnessCatalog,
   toggleModelFavorite,
 } from "./model-picker";
 
@@ -45,6 +47,43 @@ expect(
 );
 expect(loginCommandFromStatus({ status: "ready", detail: "Run `codex login`." }) === null, "ready has no command");
 expect(loginCommandFromStatus({ status: "needs-auth" }) === null, "needs-auth without detail");
+
+const codexHint = loginHintCopy({
+  label: "Codex",
+  status: "needs-auth",
+  detail: "Run `codex login` on the Mac, or set OPENAI_API_KEY.",
+});
+expect(codexHint.headline === "Codex isn't signed in. Run this on the Mac, then check again.", "needs-auth headline");
+expect(codexHint.command === "codex login", "needs-auth command");
+expect(codexHint.secondary === "or set OPENAI_API_KEY.", "needs-auth keeps env alternative");
+
+const cursorHint = loginHintCopy({
+  label: "Cursor",
+  status: "needs-auth",
+  detail: "Run `agent login` on the Mac, or set CURSOR_API_KEY.",
+});
+expect(cursorHint.secondary === "or set CURSOR_API_KEY.", "cursor env alternative");
+
+const grokHint = loginHintCopy({
+  label: "Grok",
+  status: "needs-auth",
+  detail: "Run `grok login` on the Mac, or set XAI_API_KEY.",
+});
+expect(grokHint.secondary === "or set XAI_API_KEY.", "grok env alternative");
+
+const missingHint = loginHintCopy({
+  label: "OpenCode",
+  status: "missing-cli",
+  detail: "OpenCode is not connected. Install the CLI.",
+});
+expect(missingHint.command === null, "missing-cli without backtick");
+expect(missingHint.headline === "OpenCode is not connected. Install the CLI.", "missing-cli uses server detail");
+expect(missingHint.secondary === null, "missing-cli without command has no remainder");
+
+expect(shouldAcceptHarnessCatalog("/abs/a", "/abs/a"), "same folder is current");
+expect(shouldAcceptHarnessCatalog("/abs/a", "/abs/b") === false, "folder A must not land on B");
+expect(shouldAcceptHarnessCatalog("", "/abs/b") === false, "empty request is stale");
+expect(shouldAcceptHarnessCatalog("/abs/a", "") === false, "empty tab is stale");
 
 expect(
   providerLoginSendReason({

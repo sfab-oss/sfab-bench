@@ -33,6 +33,56 @@ export function loginCommandFromStatus(input: { status: string; detail?: string 
   return command || null;
 }
 
+/** Drop the `Run \`cmd\` on the Mac` clause; keep env-var alternatives, never values. */
+export function loginDetailSecondary(detail: string | undefined, command: string | null): string | null {
+  if (!detail?.trim()) return null;
+  let rest = detail.trim();
+  if (command) {
+    const tick = `\`${command}\``;
+    const at = rest.indexOf(tick);
+    if (at >= 0) rest = rest.slice(at + tick.length);
+  }
+  rest = rest.replace(/^[\s,.]*(?:on the Mac)?[\s,.]*/i, "").trim();
+  return rest || null;
+}
+
+export function loginHintCopy(input: { label: string; status: string; detail?: string }): {
+  headline: string;
+  command: string | null;
+  secondary: string | null;
+} {
+  const command = loginCommandFromStatus(input);
+  const secondary = loginDetailSecondary(input.detail, command);
+  if (input.status === "needs-auth") {
+    return {
+      headline: command
+        ? `${input.label} isn't signed in. Run this on the Mac, then check again.`
+        : `${input.label} isn't signed in.`,
+      command,
+      secondary,
+    };
+  }
+  if (input.status === "missing-cli") {
+    return {
+      headline: command
+        ? `${input.label} CLI isn't installed. Run this on the Mac, then check again.`
+        : input.detail?.trim() || `${input.label} CLI isn't installed. Install it on the Mac, then check again.`,
+      command,
+      secondary: command ? secondary : null,
+    };
+  }
+  return {
+    headline: input.detail?.trim() || `${input.label} is not ready`,
+    command,
+    secondary: command ? secondary : null,
+  };
+}
+
+/** Ignore a catalog response whose folder is no longer the tab's `?project=`. */
+export function shouldAcceptHarnessCatalog(requestProject: string, currentProject: string): boolean {
+  return requestProject.length > 0 && requestProject === currentProject;
+}
+
 export function providerLoginSendReason(input: {
   label: string;
   status: string;
