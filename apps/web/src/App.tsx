@@ -1,5 +1,5 @@
 import { Box, PanelRight, Scan } from "lucide-react";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { LiveDot } from "@/components/brand/LiveDot";
@@ -21,6 +21,7 @@ import { PartTree } from "@/components/PartTree";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Toolbar } from "@/components/Toolbar";
 import { Button } from "@/components/ui/button";
+import { ChatSheet } from "@/components/ui/sheet";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { useCatalog } from "@/hooks/useCatalog";
@@ -30,6 +31,15 @@ import { ProjectSessionProvider, useProjectSession } from "@/hooks/useProjectSes
 import { fileLabel } from "@/cad/loadCadReview";
 import { fetchMe, jsonApi, type MePrincipal } from "@/lib/api";
 import { filesRailToggleTitle, isMacPlatform } from "@/lib/files-rail";
+import {
+  chatLayoutWidth,
+  detailPanelWidth,
+  fitInsets,
+  isCompactChat,
+  overlayLayout,
+  setLiveFitInsets,
+  toolbarLayout,
+} from "@/lib/layout";
 import { displayLoadError, isUnavailableFolder, loadCardCopy } from "@/lib/load-copy";
 import { redeemFragmentToken } from "@/lib/pairing";
 import { folderName } from "@/lib/project";
@@ -40,17 +50,35 @@ import { enterAR, enterVR } from "@/xrStore";
 
 const BOOT_ME_TIMEOUT_MS = 4_000;
 
-function ChatToggle() {
+function useWindowWidth() {
+  const [width, setWidth] = useState(() => (typeof window === "undefined" ? 1280 : window.innerWidth));
+  useEffect(() => {
+    const onResize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return width;
+}
+
+function ChatToggle({
+  compact,
+  buttonRef,
+}: {
+  compact: boolean;
+  buttonRef: RefObject<HTMLButtonElement | null>;
+}) {
   const setChatOpen = useStore((s) => s.setChatOpen);
+  const setCompactChatOpen = useStore((s) => s.setCompactChatOpen);
   return (
     <div className="pointer-events-auto rounded-xl border border-border bg-card/95 shadow-lg">
       <Button
+        ref={buttonRef}
         type="button"
         variant="ghost"
         size="icon-sm"
         className="h-9 w-9"
         title="Show chat"
-        onClick={() => setChatOpen(true)}
+        onClick={() => (compact ? setCompactChatOpen(true) : setChatOpen(true))}
       >
         <PanelRight />
         <span className="sr-only">Show chat</span>
@@ -73,7 +101,19 @@ function EnterXr() {
   );
 }
 
-function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
+function Overlay({
+  folder,
+  canvasWidth,
+  canvasHeight,
+  compactChat,
+  chatToggleRef,
+}: {
+  folder: ReturnType<typeof useOpenFolder>;
+  canvasWidth: number;
+  canvasHeight: number;
+  compactChat: boolean;
+  chatToggleRef: RefObject<HTMLButtonElement | null>;
+}) {
   const { review, progress, error, selectedId, fit, url, title, loadModel, sceneCrash } = useStore(
     useShallow((s) => ({
       review: s.review,
@@ -93,6 +133,11 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
   const treeOpen = useStore((s) => s.treeOpen);
   const setTreeOpen = useStore((s) => s.setTreeOpen);
   const chatOpen = useStore((s) => s.chatOpen);
+  const compactChatOpen = useStore((s) => s.compactChatOpen);
+  const partsOpen = useStore((s) => s.partsOpen);
+  const setPartsOpen = useStore((s) => s.setPartsOpen);
+  const tool = useStore((s) => s.tool);
+  const pickedRef = useStore((s) => s.pickedRef);
   const switching = useStore((s) => s.switching);
   const folderGone = isUnavailableFolder(catalogError);
   const load = progress !== null ? loadCardCopy({ title, url, progress }) : null;
@@ -108,6 +153,38 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
     folderGone,
   });
   const toolbarVisible = Boolean(review) || progress !== null;
+  const [partsForceExpand, setPartsForceExpand] = useState(false);
+  const overlays = overlayLayout(canvasWidth);
+  useEffect(() => {
+    if (!overlays.autoCollapseParts) setPartsForceExpand(false);
+  }, [overlays.autoCollapseParts]);
+  const partsExpanded = Boolean(review) && partsOpen && (!overlays.autoCollapseParts || partsForceExpand);
+  const partsChip = Boolean(review) && !partsExpanded;
+  const part = selectedId !== null ? review?.parts[selectedId] : undefined;
+  const detailVisible = Boolean(review) && (tool === "measure" || Boolean(part) || Boolean(pickedRef));
+  const detailWidth = detailVisible
+    ? detailPanelWidth(canvasWidth, overlays.detailCompact, partsChip)
+    : 0;
+  const showChatToggle = Boolean(project.path) && (compactChat ? !compactChatOpen : !chatOpen);
+  const leftReserve = treeOpen ? 12 : 52;
+  const rightReserve = 12 + (showChatToggle ? 44 : 0);
+  const toolbar = toolbarLayout({ canvasWidth, leftReserve, rightReserve });
+
+  useLayoutEffect(() => {
+    if (session) {
+      setLiveFitInsets({ left: 0, right: 0, top: 0, bottom: 0 });
+      return;
+    }
+    setLiveFitInsets(
+      fitInsets({
+        partsExpanded,
+        partsChip,
+        detailVisible,
+        detailWidth,
+      }),
+    );
+  }, [session, partsExpanded, partsChip, detailVisible, detailWidth]);
+
   if (switching) {
     return (
       <div className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-background text-foreground">
@@ -141,6 +218,8 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
           ) : null}
           {toolbarVisible ? (
             <Toolbar
+              left={toolbar.left}
+              top={toolbar.top}
               onHome={() => {
                 if (review) fit?.(review.root);
               }}
@@ -151,11 +230,22 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
               }}
             />
           ) : null}
-          <PartTree />
-          <DetailPanel />
+          <PartTree
+            canvasHeight={canvasHeight}
+            expanded={partsExpanded}
+            onCollapse={() => {
+              setPartsOpen(false);
+              setPartsForceExpand(false);
+            }}
+            onExpand={() => {
+              setPartsOpen(true);
+              setPartsForceExpand(true);
+            }}
+          />
+          <DetailPanel canvasHeight={canvasHeight} compact={overlays.detailCompact} width={detailWidth} />
           <div className="pointer-events-none absolute top-4 right-3 z-10 flex items-start gap-2">
             <EnterXr />
-            {!chatOpen && project.path ? <ChatToggle /> : null}
+            {showChatToggle ? <ChatToggle buttonRef={chatToggleRef} compact={compactChat} /> : null}
           </div>
         </>
       )}
@@ -169,7 +259,7 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
           ) : scene === "pick-file" ? (
             <p className="text-xs text-muted-foreground">Pick a STEP or GLB from Files</p>
           ) : (
-            <div className="pointer-events-auto flex w-80 max-w-[calc(100%-2rem)] flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-card/80 px-6 py-5 text-center shadow-sm">
+            <div className="pointer-events-auto mx-4 flex w-full max-w-80 flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-card/80 px-6 py-5 text-center shadow-sm">
               {scene === "welcome-card" ? (
                 <>
                   <Lockup />
@@ -211,7 +301,7 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
         </div>
       )}
       {progress !== null && load && !sceneCrash && (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 mx-auto w-72 -translate-y-1/2 rounded-xl border border-border bg-card/95 p-4 text-center shadow-lg">
+        <div className="pointer-events-none absolute inset-x-4 top-1/2 z-20 mx-auto w-full max-w-72 -translate-y-1/2 rounded-xl border border-border bg-card/95 p-4 text-center shadow-lg">
           <strong className="inline-flex items-center gap-2 text-sm">
             <LiveDot />
             {load.title}
@@ -227,7 +317,7 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
         </div>
       )}
       {error && !sceneCrash && (
-        <div className="pointer-events-auto absolute inset-x-0 top-1/2 z-20 mx-auto w-80 -translate-y-1/2 rounded-xl border border-destructive bg-card p-4 text-sm shadow-lg">
+        <div className="pointer-events-auto absolute inset-x-4 top-1/2 z-20 mx-auto w-full max-w-80 -translate-y-1/2 rounded-xl border border-destructive bg-card p-4 text-sm shadow-lg">
           <strong>Couldn&apos;t open {title}</strong>
           <div className="mt-1 text-muted-foreground">{displayLoadError(error, project.path)}</div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -241,7 +331,7 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
         </div>
       )}
       {sceneCrash ? (
-        <div className="pointer-events-auto absolute inset-x-0 top-1/2 z-30 mx-auto flex justify-center">
+        <div className="pointer-events-auto absolute inset-x-4 top-1/2 z-30 mx-auto flex max-w-80 justify-center">
           <CrashCard error={sceneCrash.error} onRetry={sceneCrash.reset} />
         </div>
       ) : null}
@@ -267,6 +357,33 @@ function ViewerShell({ host }: { host: boolean }) {
   const projectPath = useProjectSession().project.path;
   const hasProject = Boolean(projectPath);
   const chatWidth = useStore((s) => s.chatWidth);
+  const chatOpen = useStore((s) => s.chatOpen);
+  const setChatOpen = useStore((s) => s.setChatOpen);
+  const compactChatOpen = useStore((s) => s.compactChatOpen);
+  const setCompactChatOpen = useStore((s) => s.setCompactChatOpen);
+  const windowWidth = useWindowWidth();
+  const compactChat = isCompactChat(windowWidth, treeOpen);
+  const layoutWidth = chatLayoutWidth(chatWidth, windowWidth, treeOpen);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const chatToggleRef = useRef<HTMLButtonElement>(null);
+  const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    if (!compactChat) setCompactChatOpen(false);
+  }, [compactChat, setCompactChatOpen]);
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (!rect) return;
+      setCanvasSize({ w: rect.width, h: rect.height });
+    });
+    ro.observe(el);
+    setCanvasSize({ w: el.clientWidth, h: el.clientHeight });
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const file = url ? fileLabel(url) : "";
@@ -287,7 +404,7 @@ function ViewerShell({ host }: { host: boolean }) {
     >
       {!session ? <DesktopSidebar host={host} folder={folder} /> : null}
       <SidebarInset className="min-h-0 overflow-hidden">
-        <div className="relative min-h-0 min-w-0 flex-1">
+        <div ref={canvasRef} className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           <RenderErrorBoundary
             resetKeys={[url]}
             fallback={({ error, reset }) => (
@@ -298,7 +415,13 @@ function ViewerShell({ host }: { host: boolean }) {
           >
             <ViewerCanvas />
           </RenderErrorBoundary>
-          <Overlay folder={folder} />
+          <Overlay
+            canvasHeight={canvasSize.h}
+            canvasWidth={canvasSize.w}
+            chatToggleRef={chatToggleRef}
+            compactChat={compactChat}
+            folder={folder}
+          />
         </div>
       </SidebarInset>
       {!session && hasProject ? (
@@ -307,13 +430,24 @@ function ViewerShell({ host }: { host: boolean }) {
           fallback={({ error, reset }) => (
             <aside
               className="flex h-full shrink-0 items-center justify-center border-l border-border bg-background p-4"
-              style={{ width: chatWidth }}
+              style={{ width: layoutWidth }}
             >
               <CrashCard error={error} onRetry={reset} />
             </aside>
           )}
         >
-          <ChatPanel />
+          {compactChat ? (
+            <ChatSheet
+              open={compactChatOpen}
+              toggleRef={chatToggleRef}
+              width={layoutWidth}
+              onClose={() => setCompactChatOpen(false)}
+            >
+              <ChatPanel embedded width={layoutWidth} onClose={() => setCompactChatOpen(false)} />
+            </ChatSheet>
+          ) : (
+            <ChatPanel open={chatOpen} width={layoutWidth} onClose={() => setChatOpen(false)} />
+          )}
         </RenderErrorBoundary>
       ) : null}
       <BrowseFolderDialog open={folder.dialogOpen} onOpenChange={folder.setDialogOpen} />

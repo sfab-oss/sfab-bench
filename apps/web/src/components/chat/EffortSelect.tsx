@@ -21,7 +21,7 @@ export function EffortSelect() {
         if (value && isChatEffort(value)) setChatEffort(value);
       }}
     >
-      <SelectTrigger aria-label="Reasoning effort">
+      <SelectTrigger aria-label="Reasoning effort" className="max-w-20 min-w-0 @[360px]/chat:max-w-none">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

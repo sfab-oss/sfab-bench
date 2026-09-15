@@ -181,7 +181,7 @@ function ChatInputInner({
       <InputGroupAddon
         align="block-end"
         aria-hidden={voice.active}
-        className={cn("pt-1", voice.active && "invisible pointer-events-none")}
+        className={cn("flex-wrap gap-y-1 pt-1", voice.active && "invisible pointer-events-none")}
       >
         <ModelPicker />
         <EffortSelect />
@@ -255,8 +255,8 @@ export function GalleryChatInput({
   const prompt = attached ? askUserComposerPlaceholder(activeQuestion ?? pendingAsk?.input.questions[0]) : placeholder;
 
   return (
-    <div className="relative bottom-0 z-10 w-full bg-background pt-2">
-      <div className="mx-auto w-full p-2 @[500px]:px-4 @[500px]:pb-4 md:max-w-3xl @[500px]:md:pb-6">
+    <div className="relative bottom-0 z-10 w-full min-w-0 overflow-x-hidden bg-background pt-2" data-chat-composer>
+      <div className="mx-auto w-full min-w-0 p-2 @[360px]:px-4 @[360px]:pb-4 md:max-w-3xl @[500px]:md:pb-6">
         <div
           className={cn(
             attached && "overflow-hidden rounded-2xl border border-input shadow-xs dark:bg-input/30",

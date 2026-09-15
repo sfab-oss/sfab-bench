@@ -35,13 +35,22 @@ import {
 } from "@/components/ui/message-scroller";
 import { loadHarnesses } from "@/hooks/useHarnesses";
 import { jsonApi } from "@/lib/api";
+import { CHAT_DEFAULT_WIDTH, clampChatDrag } from "@/lib/layout";
 import { cn } from "@/lib/utils";
-import { CHAT_MAX_WIDTH, CHAT_MIN_WIDTH, useStore } from "@/state/store";
+import { useStore } from "@/state/store";
 
-export function ChatPanel() {
-  const chatOpen = useStore((s) => s.chatOpen);
-  const setChatOpen = useStore((s) => s.setChatOpen);
-  const width = useStore((s) => s.chatWidth);
+export function ChatPanel({
+  width,
+  onClose,
+  open = true,
+  embedded = false,
+}: {
+  width: number;
+  onClose: () => void;
+  open?: boolean;
+  embedded?: boolean;
+}) {
+  const treeOpen = useStore((s) => s.treeOpen);
   const setWidth = useStore((s) => s.setChatWidth);
   const [resizing, setResizing] = useState(false);
   const [live, setLive] = useState(false);
@@ -51,13 +60,20 @@ export function ChatPanel() {
     void loadHarnesses();
   }, []);
 
+  const persistWidth = useCallback(
+    (next: number) => {
+      setWidth(clampChatDrag(next, window.innerWidth, treeOpen));
+    },
+    [setWidth, treeOpen],
+  );
+
   const onResizeDown = (ev: ReactMouseEvent) => {
     ev.preventDefault();
     setResizing(true);
     const startX = ev.clientX;
     const startW = width;
     const move = (e: MouseEvent) => {
-      setWidth(Math.max(CHAT_MIN_WIDTH, Math.min(CHAT_MAX_WIDTH, startW + (startX - e.clientX))));
+      persistWidth(startW + (startX - e.clientX));
     };
     const up = () => {
       setResizing(false);
@@ -77,17 +93,23 @@ export function ChatPanel() {
   return (
     <aside
       className={cn(
-        "relative flex h-full shrink-0 flex-col border-l border-border bg-background",
-        !chatOpen && "hidden",
+        "@container/chat relative flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden bg-background",
+        embedded ? "border-0" : "shrink-0 border-l border-border",
+        !embedded && !open && "hidden",
       )}
-      style={{ width }}
+      style={embedded ? undefined : { width }}
     >
       <div
         className={cn(
           "absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize bg-transparent hover:bg-border",
           resizing && "bg-muted-foreground",
         )}
+        title="Drag to resize chat. Double-click to reset."
         onMouseDown={onResizeDown}
+        onDoubleClick={(ev) => {
+          ev.preventDefault();
+          persistWidth(CHAT_DEFAULT_WIDTH);
+        }}
       />
       <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-2">
         <Button
@@ -96,7 +118,7 @@ export function ChatPanel() {
           size="icon-sm"
           className="size-7"
           title="Hide chat"
-          onClick={() => setChatOpen(false)}
+          onClick={onClose}
         >
           <PanelRight />
           <span className="sr-only">Hide chat</span>

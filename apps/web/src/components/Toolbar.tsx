@@ -8,9 +8,11 @@ import { cn } from "@/lib/utils";
 type Props = {
   onHome: () => void;
   onFit: () => void;
+  top: number;
+  left: number;
 };
 
-export function Toolbar({ onHome, onFit }: Props) {
+export function Toolbar({ onHome, onFit, top, left }: Props) {
   const {
     review,
     selectedId,
@@ -33,7 +35,10 @@ export function Toolbar({ onHome, onFit }: Props) {
     })),
   );
   return (
-    <div className="pointer-events-auto absolute top-4 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 rounded-xl border border-border bg-card/95 p-1 shadow-lg">
+    <div
+      className="pointer-events-auto absolute z-20 flex gap-0.5 rounded-xl border border-border bg-card/95 p-1 shadow-lg"
+      style={{ top, left }}
+    >
       <Button type="button" variant="secondary" size="sm" className="h-9 w-9 p-0" title="Frame whole model" onClick={onHome}>
         <Home />
       </Button>
