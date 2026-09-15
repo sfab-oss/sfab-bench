@@ -114,10 +114,14 @@ export function ChatPanel({
       return;
     }
     if (wasCompactOpen && compact && !open) {
-      composerRef.current?.cancelVoice();
       toggleRef?.current?.focus();
     }
   }, [compact, open, toggleRef]);
+
+  // Hidden chat stays mounted (docked or compact), so stop any recording when it closes.
+  useEffect(() => {
+    if (!open) composerRef.current?.cancelVoice();
+  }, [open]);
 
   useEffect(() => {
     if (!compact || !open) return;
