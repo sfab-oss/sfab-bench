@@ -6,6 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 import { LiveDot } from "@/components/brand/LiveDot";
 import { Lockup } from "@/components/brand/Lockup";
 import { ChatPanel } from "@/components/ChatPanel";
+import { CloseFolderDialog } from "@/components/CloseFolderDialog";
 import { CommandPalette } from "@/components/CommandPalette";
 import { ViewerChatProvider, useViewerChat } from "@/components/chat/useViewerChat";
 import { CrashCard } from "@/components/CrashCard";
@@ -27,6 +28,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { Spinner } from "@/components/ui/spinner";
 import { ToastProvider, Toasts } from "@/components/ui/toast";
 import { useCatalog, type CatalogState } from "@/hooks/useCatalog";
+import { useMotionReady } from "@/hooks/useMotionReady";
 import { useXrSession } from "@/hooks/useXrSession";
 import { useXrSupport } from "@/hooks/useXrSupport";
 import { ProjectSessionProvider, useProjectSession } from "@/hooks/useProjectSession";
@@ -522,6 +524,7 @@ function ViewerShell({ host }: { host: boolean }) {
         </RenderErrorBoundary>
       ) : null}
       <BrowseFolderDialog open={folder.dialogOpen} onOpenChange={folder.setDialogOpen} />
+      <CloseFolderDialog />
       <CommandPalette catalogFiles={catalog.files} compactChat={compactChat} folder={folder} />
       {!session ? <Toasts offsetRight={toastOffsetRight} pinLeft={toastPinLeft} /> : null}
     </SidebarProvider>
@@ -564,6 +567,7 @@ export function App() {
   const [host, setHost] = useState(false);
   const [you, setYou] = useState<{ id: string; label: string }>({ id: "loopback", label: "Mac" });
   const [bootStuck, setBootStuck] = useState(false);
+  useMotionReady(!ready ? "boot" : authed ? "workbench" : "pair");
 
   useEffect(() => {
     let cancelled = false;

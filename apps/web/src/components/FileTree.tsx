@@ -1,5 +1,5 @@
-import { ChevronRight, FileBox, Folder } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight, EllipsisVertical, FileBox, Folder } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
 import {
   Collapsible,
@@ -7,20 +7,28 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   SidebarGroup,
   SidebarGroupAction,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
+import { showToast } from "@/components/ui/toast";
 import { displayLoadError } from "@/lib/load-copy";
 import {
   catalogEmptyReason,
+  clampContextMenuPosition,
   defaultExpandedDirPaths,
   findFileTreeProject,
   loadFileTreeProjects,
@@ -32,6 +40,7 @@ import {
   type CatalogKindFilter,
   type FileTreeRevealKey,
 } from "@/lib/files-rail";
+import { copyText } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import {
   catalogAncestors,
@@ -49,19 +58,28 @@ function fileName(path: string) {
   return path.split("/").filter(Boolean).pop() ?? path;
 }
 
-function sameMembers(a: string[], b: string[]) {
-  if (a.length !== b.length) return false;
-  const other = new Set(b);
-  return a.every((path) => other.has(path));
+async function copyRelativePath(path: string) {
+  const ok = await copyText(path);
+  if (ok) showToast({ type: "success", title: "Copied" });
+  else showToast({ type: "error", title: "Couldn't copy path" });
 }
 
-function topLevelDirPaths(files: CatalogEntry[]) {
-  return catalogTree(files)
-    .filter((node): node is Extract<CatalogNode, { type: "dir" }> => node.type === "dir")
-    .map((node) => node.path);
+function CopyPathItem({ path, onDone }: { path: string; onDone?: () => void }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className="flex w-full rounded-md px-2 py-1.5 text-left text-sm text-popover-foreground hover:bg-accent"
+      onClick={() => {
+        void copyRelativePath(path).then(() => onDone?.());
+      }}
+    >
+      Copy relative path
+    </button>
+  );
 }
 
-function FileButton({
+function FileRow({
   node,
   current,
   onPick,
@@ -72,6 +90,8 @@ function FileButton({
   onPick: (path: string) => void;
   nested: boolean;
 }) {
+  const [menu, setMenu] = useState<{ left: number; top: number } | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const active = node.path === current;
   const name = node.name || fileName(node.path);
   const inner = (
@@ -84,12 +104,97 @@ function FileButton({
     isActive: active,
     title: node.path,
     onClick: () => onPick(node.path),
-    className: "text-sidebar-foreground [&>svg]:text-sidebar-foreground",
+    onContextMenu: (event: MouseEvent) => {
+      event.preventDefault();
+      setActionsOpen(false);
+      setMenu(
+        clampContextMenuPosition(event.clientX, event.clientY, {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        }),
+      );
+    },
+    className: "pr-8 text-sidebar-foreground [&>svg]:text-sidebar-foreground",
   };
-  if (nested) {
-    return <SidebarMenuSubButton {...shared}>{inner}</SidebarMenuSubButton>;
-  }
-  return <SidebarMenuButton {...shared}>{inner}</SidebarMenuButton>;
+  const Item = nested ? SidebarMenuSubItem : SidebarMenuItem;
+  return (
+    <Item>
+      {nested ? (
+        <SidebarMenuSubButton {...shared}>{inner}</SidebarMenuSubButton>
+      ) : (
+        <SidebarMenuButton {...shared}>{inner}</SidebarMenuButton>
+      )}
+      <Popover
+        open={actionsOpen}
+        onOpenChange={(next) => {
+          setActionsOpen(next);
+          if (next) setMenu(null);
+        }}
+      >
+        <PopoverTrigger
+          render={
+            <SidebarMenuAction
+              showOnHover
+              title="File actions"
+              aria-label="File actions"
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+            />
+          }
+        >
+          <EllipsisVertical />
+        </PopoverTrigger>
+        <PopoverContent align="end" side="bottom" className="w-48 p-1">
+          <CopyPathItem path={node.path} onDone={() => setActionsOpen(false)} />
+        </PopoverContent>
+      </Popover>
+      {menu ? (
+        <>
+          <FileContextDismiss open onClose={() => setMenu(null)} />
+          <div
+            role="menu"
+            className="fixed z-50 w-48 rounded-md border border-border bg-popover p-1 shadow-md"
+            style={{ left: menu.left, top: menu.top }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <CopyPathItem path={node.path} onDone={() => setMenu(null)} />
+          </div>
+        </>
+      ) : null}
+    </Item>
+  );
+}
+
+function FileContextDismiss({ open, onClose }: { open: boolean; onClose: () => void }) {
+  useEffect(() => {
+    if (!open) return;
+    const close = () => onClose();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    const id = window.setTimeout(() => {
+      window.addEventListener("mousedown", close);
+      window.addEventListener("keydown", onKey);
+    }, 0);
+    return () => {
+      window.clearTimeout(id);
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+  return null;
+}
+
+function sameMembers(a: string[], b: string[]) {
+  if (a.length !== b.length) return false;
+  const other = new Set(b);
+  return a.every((path) => other.has(path));
+}
+
+function topLevelDirPaths(files: CatalogEntry[]) {
+  return catalogTree(files)
+    .filter((node): node is Extract<CatalogNode, { type: "dir" }> => node.type === "dir")
+    .map((node) => node.path);
 }
 
 function Tree({
@@ -108,12 +213,7 @@ function Tree({
   nested: boolean;
 }) {
   if (node.type === "file") {
-    const Item = nested ? SidebarMenuSubItem : SidebarMenuItem;
-    return (
-      <Item>
-        <FileButton node={node} current={current} onPick={onPick} nested={nested} />
-      </Item>
-    );
+    return <FileRow node={node} current={current} onPick={onPick} nested={nested} />;
   }
 
   const open = expanded.has(node.path);
@@ -346,20 +446,19 @@ export function FileTree({
           <SidebarGroupContent className="max-h-48 overflow-y-auto">
             <SidebarMenu>
               {recentRows.map((row) => (
-                <SidebarMenuItem key={`recent-${row.path}`}>
-                  <FileButton
-                    node={{
-                      type: "file",
-                      name: fileName(row.path),
-                      path: row.path,
-                      kind: row.kind,
-                      entry: row,
-                    }}
-                    current={current}
-                    onPick={onPick}
-                    nested={false}
-                  />
-                </SidebarMenuItem>
+                <FileRow
+                  key={`recent-${row.path}`}
+                  node={{
+                    type: "file",
+                    name: fileName(row.path),
+                    path: row.path,
+                    kind: row.kind,
+                    entry: row,
+                  }}
+                  current={current}
+                  onPick={onPick}
+                  nested={false}
+                />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>

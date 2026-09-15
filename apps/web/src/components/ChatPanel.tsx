@@ -273,13 +273,16 @@ export function ChatPanel({
 
   return (
     <>
-      {compact && open ? (
+      {compact ? (
         <button
           type="button"
           tabIndex={-1}
           aria-hidden="true"
           aria-label="Close chat"
-          className="fixed inset-0 z-40 bg-black/30"
+          className={cn(
+            "fixed inset-0 z-40 bg-black/30 transition-opacity duration-200",
+            open ? "opacity-100" : "pointer-events-none opacity-0",
+          )}
           onClick={onClose}
         />
       ) : null}
@@ -288,11 +291,17 @@ export function ChatPanel({
         role={compact && open ? "dialog" : undefined}
         aria-modal={compact && open ? true : undefined}
         aria-label="Assistant"
-        tabIndex={compact && open ? -1 : undefined}
+        aria-hidden={compact && !open ? true : undefined}
+        inert={compact && !open ? true : undefined}
         className={cn(
           "@container/chat flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden border-l border-border bg-background",
-          compact ? "fixed inset-y-0 right-0 z-50 max-w-[90vw]" : "relative shrink-0",
-          !open && "hidden",
+          compact
+            ? cn(
+                "fixed inset-y-0 right-0 z-50 max-w-[90vw] transition-transform duration-200 ease-out",
+                open ? "translate-x-0" : "pointer-events-none translate-x-full",
+              )
+            : "relative shrink-0",
+          !compact && !open && "hidden",
         )}
         style={{ width }}
       >

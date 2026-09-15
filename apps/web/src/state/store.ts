@@ -9,6 +9,7 @@ import { fileLabel, loadCadReview, modelUrl, syncFileQuery } from "@/cad/loadCad
 import { isAncestor, type CadReview } from "@/cad/review";
 import { CHAT_DEFAULT_WIDTH, clampStoredChatWidth } from "@/lib/layout";
 import { projectUrl } from "@/lib/project-query";
+import { invalidateSceneNow } from "@/scene/invalidate";
 import {
   DEFAULT_CHAT_EFFORT,
   DEFAULT_HARNESS,
@@ -370,6 +371,7 @@ export const store = createStore<State>()(
     if (hoveredId === id) return;
     hoveredId = id;
     apply(get());
+    invalidateSceneNow();
   },
   setVisible: (id, visible) => {
     const { review, hiddenIds } = get();

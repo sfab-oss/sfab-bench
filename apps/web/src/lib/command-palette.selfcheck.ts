@@ -131,6 +131,7 @@ const full = buildCommands({
 expect(full.some((c) => c.id === "action:open-folder" && c.title === "Open folder…" && c.shortcut === "⌘O"), "open folder");
 expect(full.some((c) => c.id === "action:toggle-files" && c.title === "Hide files" && c.shortcut === "⌘B"), "hide files");
 expect(full.some((c) => c.id === "action:toggle-chat" && c.title === "Show chat"), "show chat");
+expect(full.some((c) => c.id === "action:refresh-files" && c.title === "Refresh files"), "refresh files");
 expect(full.some((c) => c.id === "action:new-chat"), "new chat");
 expect(full.some((c) => c.id === "action:settings"), "settings");
 expect(full.some((c) => c.id === "action:enter-quest"), "enter quest");
@@ -186,6 +187,7 @@ const guest = buildCommands({
 expect(guest.some((c) => c.id === "action:open-folder") === false, "guest cannot open folder");
 expect(guest.some((c) => c.id === "action:enter-quest") === false, "guest hides quest");
 expect(guest.some((c) => c.id === "action:close-folder") === false, "no folder to close");
+expect(guest.some((c) => c.id === "action:refresh-files") === false, "no files without folder");
 expect(guest.some((c) => c.id === "action:new-chat") === false, "no chat without folder");
 expect(guest.some((c) => c.id === "action:frame-model") === false, "no model to frame");
 expect(guest.some((c) => c.id === "action:toggle-files" && c.title === "Show files" && c.shortcut === "Ctrl+B"), "guest files");

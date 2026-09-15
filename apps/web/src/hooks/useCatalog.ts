@@ -4,6 +4,7 @@ import { showNetworkErrorToast } from "@/components/ui/toast";
 import { jsonApi } from "@/lib/api";
 import { INITIAL_FAILURE_STREAK, noteFailureStreak, suppressNetworkFailureToast } from "@/lib/feedback";
 import { messageFromHttpBody } from "@/lib/load-copy";
+import { REFRESH_FILES_EVENT } from "@/lib/motion";
 import type { CatalogEntry } from "@/lib/viewer-snapshot";
 import { useProjectSession } from "@/hooks/useProjectSession";
 
@@ -12,7 +13,8 @@ export type CatalogState = {
   revision: number;
   error: string | null;
   ready: boolean;
-  reload: () => void;
+  refreshing: boolean;
+  reload: (opts?: { explicit?: boolean }) => void;
 };
 
 export function useCatalog(enabled = true): CatalogState {
@@ -20,20 +22,23 @@ export function useCatalog(enabled = true): CatalogState {
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const projectPath = useProjectSession().project.path;
   const streakRef = useRef(INITIAL_FAILURE_STREAK);
   useEffect(() => {
     streakRef.current = INITIAL_FAILURE_STREAK;
   }, [projectPath]);
-  const reload = useCallback(() => {
+  const reload = useCallback((opts?: { explicit?: boolean }) => {
     if (!enabled || !projectPath) {
       streakRef.current = INITIAL_FAILURE_STREAK;
       setFiles([]);
       setRevision(0);
       setError(null);
       setReady(true);
+      setRefreshing(false);
       return;
     }
+    if (opts?.explicit) setRefreshing(true);
     void jsonApi.catalog
       .$get()
       .then(async (res) => {
@@ -63,6 +68,9 @@ export function useCatalog(enabled = true): CatalogState {
           setError(message);
         }
         setReady(true);
+      })
+      .finally(() => {
+        if (opts?.explicit) setRefreshing(false);
       });
   }, [enabled, projectPath]);
   useEffect(() => {
@@ -71,13 +79,18 @@ export function useCatalog(enabled = true): CatalogState {
   useEffect(() => {
     reload();
     const onProject = () => reload();
+    const onRefresh = () => reload({ explicit: true });
     window.addEventListener("sfab-project", onProject);
-    return () => window.removeEventListener("sfab-project", onProject);
+    window.addEventListener(REFRESH_FILES_EVENT, onRefresh);
+    return () => {
+      window.removeEventListener("sfab-project", onProject);
+      window.removeEventListener(REFRESH_FILES_EVENT, onRefresh);
+    };
   }, [reload]);
   useEffect(() => {
     if (!enabled) return;
     const id = window.setInterval(reload, 3000);
     return () => window.clearInterval(id);
   }, [enabled, reload]);
-  return { files, revision, error, ready, reload };
+  return { files, revision, error, ready, refreshing, reload };
 }
