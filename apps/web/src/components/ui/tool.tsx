@@ -93,8 +93,13 @@ export function ToolHeader({
 }: ToolHeaderProps) {
   const toolName = title ?? type.split("-").slice(1).join("-");
   const label = toolTitle(toolName, input);
-  const isRunning = state === "input-available" || state === "input-streaming";
-  const isError = state === "output-error" || state === "output-denied";
+  const isRunning =
+    state === "input-available" ||
+    state === "input-streaming" ||
+    state === "approval-responded";
+  const needsApproval = state === "approval-requested";
+  const isDenied = state === "output-denied";
+  const isError = state === "output-error";
 
   return (
     <CollapsibleTrigger
@@ -105,11 +110,22 @@ export function ToolHeader({
       data-slot="tool-header"
       {...props}
     >
-      <span className={cn("truncate", isRunning && "animate-pulse")}>
+      <span
+        className={cn(
+          "truncate",
+          (isRunning || needsApproval) && "animate-pulse"
+        )}
+      >
         {label}
       </span>
+      {needsApproval ? (
+        <span className="shrink-0 text-xs">Needs approval</span>
+      ) : null}
+      {isDenied ? (
+        <span className="shrink-0 text-destructive text-xs">Denied</span>
+      ) : null}
       {isError ? (
-        <span className="shrink-0 text-error text-xs">Error</span>
+        <span className="shrink-0 text-destructive text-xs">Error</span>
       ) : null}
       <ChevronDownIcon className="size-3.5 shrink-0 -rotate-90 transition-transform group-data-[panel-open]:rotate-0" />
     </CollapsibleTrigger>
@@ -194,7 +210,7 @@ export function ToolOutput({
     <div
       className={cn(
         "flex flex-col gap-0.5 overflow-x-auto text-xs",
-        errorText ? "text-error" : "text-foreground",
+        errorText ? "text-destructive" : "text-foreground",
         className
       )}
       data-slot="tool-output"
@@ -207,3 +223,4 @@ export function ToolOutput({
     </div>
   );
 }
+
