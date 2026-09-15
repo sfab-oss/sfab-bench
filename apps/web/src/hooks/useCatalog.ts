@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { showToast } from "@/components/ui/toast";
+import { showNetworkErrorToast } from "@/components/ui/toast";
 import { jsonApi } from "@/lib/api";
-import { INITIAL_FAILURE_STREAK, noteFailureStreak } from "@/lib/feedback";
+import { INITIAL_FAILURE_STREAK, noteFailureStreak, suppressNetworkFailureToast } from "@/lib/feedback";
 import { messageFromHttpBody } from "@/lib/load-copy";
 import type { CatalogEntry } from "@/lib/viewer-snapshot";
 import { useProjectSession } from "@/hooks/useProjectSession";
@@ -52,10 +52,12 @@ export function useCatalog(enabled = true): CatalogState {
       })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
-        const { next, toast } = noteFailureStreak(streakRef.current, false);
+        const { next, toast } = noteFailureStreak(streakRef.current, false, {
+          suppressToast: suppressNetworkFailureToast(),
+        });
         streakRef.current = next;
         if (toast) {
-          showToast({ type: "error", title: "Couldn't refresh files", description: message });
+          showNetworkErrorToast({ title: "Couldn't refresh files", description: message });
         }
         if (!next.hadSuccess) {
           setError(message);

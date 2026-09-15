@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import { jsonApi } from "@/lib/api";
-import { showToast } from "@/components/ui/toast";
+import { showNetworkErrorToast } from "@/components/ui/toast";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import {
   DEFAULT_CHAT_EFFORT,
@@ -122,7 +122,7 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
       try {
         const res = await jsonApi.threads[":id"].$get({ param: { id } });
         if (!res.ok) {
-          showToast({ type: "error", title: "Couldn't open that chat" });
+          showNetworkErrorToast({ title: "Couldn't open that chat" });
           return;
         }
         const body = (await res.json()) as { thread?: ThreadRow; messages?: GalleryChatMessage[] };
@@ -132,7 +132,7 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
         writeSavedThread(projectPath, id);
         await refreshThreads();
       } catch {
-        showToast({ type: "error", title: "Couldn't open that chat" });
+        showNetworkErrorToast({ title: "Couldn't open that chat" });
       }
     },
     [projectPath, refreshThreads],
@@ -143,7 +143,7 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
     try {
       const res = await jsonApi.threads.$post();
       if (!res.ok) {
-        showToast({ type: "error", title: "Couldn't start a new chat" });
+        showNetworkErrorToast({ title: "Couldn't start a new chat" });
         return;
       }
       const row = (await res.json()) as ThreadRow;
@@ -153,7 +153,7 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
       writeSavedThread(projectPath, row.id);
       await refreshThreads();
     } catch {
-      showToast({ type: "error", title: "Couldn't start a new chat" });
+      showNetworkErrorToast({ title: "Couldn't start a new chat" });
     }
   }, [projectPath, refreshThreads]);
 
@@ -241,23 +241,10 @@ export function useViewerChat() {
 
 export function persistThread(threadId: string, messages: GalleryChatMessage[]) {
   if (!shouldPersistMessages(messages)) return Promise.resolve();
-  return jsonApi.threads[":id"]
-    .$put({
-      param: { id: threadId },
-      json: { messages },
-    })
-    .then(
-      (res) => {
-        if (!res.ok) {
-          showToast({ type: "error", title: "Couldn't save this chat" });
-        }
-        return res;
-      },
-      () => {
-        showToast({ type: "error", title: "Couldn't save this chat" });
-        return { ok: false as const };
-      },
-    );
+  return jsonApi.threads[":id"].$put({
+    param: { id: threadId },
+    json: { messages },
+  });
 }
 
 /** GET messages without opening the thread. `null` if the fetch failed. */

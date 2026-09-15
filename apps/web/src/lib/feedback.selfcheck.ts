@@ -15,6 +15,7 @@ import {
   mixErrorText,
   noteFailureStreak,
   reduceConnection,
+  suppressNetworkFailureToast,
   CANVAS_DARK,
   CANVAS_LIGHT,
 } from "./feedback";
@@ -89,6 +90,16 @@ expect(streakHold.toast === false, "same streak does not re-toast");
 const recovered = noteFailureStreak(streakHold.next, true);
 expect(recovered.next.failing === false, "success clears the streak");
 expect(noteFailureStreak(recovered.next, false).toast, "a new streak toasts again");
+
+expect(suppressNetworkFailureToast("connected") === false, "connected allows network toasts");
+expect(suppressNetworkFailureToast("connecting") === false, "connecting allows network toasts");
+expect(suppressNetworkFailureToast("reconnecting"), "reconnecting suppresses network toasts");
+expect(suppressNetworkFailureToast("offline"), "offline suppresses network toasts");
+
+const outageHold = noteFailureStreak(firstOk.next, false, { suppressToast: true });
+expect(outageHold.toast === false, "outage does not consume the catalog toast");
+expect(outageHold.next.failing === false, "streak stays open during outage");
+expect(noteFailureStreak(outageHold.next, false).toast, "still-failing after reconnect toasts");
 
 const idle = INITIAL_CHAT_TURN_FLAGS;
 expect(hiddenChatNotice(true, idle, idle) === null, "no notice without a transition");

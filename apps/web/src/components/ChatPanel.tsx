@@ -25,7 +25,7 @@ import { LiveDot } from "@/components/brand/LiveDot";
 import { CrashCard } from "@/components/CrashCard";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Button } from "@/components/ui/button";
-import { showToast } from "@/components/ui/toast";
+import { showNetworkErrorToast, showToast } from "@/components/ui/toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -534,10 +534,18 @@ function ChatSession({
       turnErrorRef.current = null;
       const toSave = finishPersistMessages(next as GalleryChatMessage[], isError, text);
       if (!toSave) return;
-      void persistThread(threadId, toSave).then((res) => {
-        if (res && "ok" in res && res.ok === false) return;
-        onPersist();
-      });
+      void persistThread(threadId, toSave).then(
+        (res) => {
+          if (res && "ok" in res && res.ok === false) {
+            showNetworkErrorToast({ title: "Couldn't save this chat" });
+            return;
+          }
+          onPersist();
+        },
+        () => {
+          showNetworkErrorToast({ title: "Couldn't save this chat" });
+        },
+      );
     },
   });
   const busy = status === "submitted" || status === "streaming";
@@ -549,10 +557,10 @@ function ChatSession({
     stop();
     void jsonApi["chat"].stop.$post().then(
       (res) => {
-        if (!res.ok) showToast({ type: "error", title: "Couldn't stop the reply" });
+        if (!res.ok) showNetworkErrorToast({ title: "Couldn't stop the reply" });
       },
       () => {
-        showToast({ type: "error", title: "Couldn't stop the reply" });
+        showNetworkErrorToast({ title: "Couldn't stop the reply" });
       },
     );
   }, [stop]);

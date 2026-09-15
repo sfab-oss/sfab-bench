@@ -1,8 +1,9 @@
 import { Toast } from "@base-ui/react/toast";
 import { Check, CircleAlert, CircleCheck, Copy, Info, X } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import { suppressNetworkFailureToast } from "@/lib/feedback";
 import { copyText } from "@/lib/settings";
 import { projectUrl } from "@/lib/project-query";
 import { redact } from "@/lib/redact";
@@ -55,6 +56,12 @@ export function closeToast(id: string) {
   toastManager.close(id);
 }
 
+/** Error toast for fetch/HTTP failures. Quiet while the Mac session is down. */
+export function showNetworkErrorToast(opts: { title: string; description?: string }) {
+  if (suppressNetworkFailureToast()) return;
+  showToast({ type: "error", title: opts.title, description: opts.description });
+}
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <Toast.Provider limit={3} timeout={SUCCESS_INFO_TIMEOUT_MS} toastManager={toastManager}>
@@ -65,6 +72,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 function CopyErrorButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef(0);
+  useEffect(() => {
+    return () => {
+      if (copiedTimer.current) window.clearTimeout(copiedTimer.current);
+    };
+  }, []);
   return (
     <Button
       type="button"
@@ -76,7 +89,8 @@ function CopyErrorButton({ text }: { text: string }) {
         void copyText(text).then((ok) => {
           if (!ok) return;
           setCopied(true);
-          window.setTimeout(() => setCopied(false), 1500);
+          if (copiedTimer.current) window.clearTimeout(copiedTimer.current);
+          copiedTimer.current = window.setTimeout(() => setCopied(false), 1500);
         });
       }}
     >

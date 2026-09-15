@@ -103,15 +103,35 @@ export function connectionDotVisible(phase: ConnectionPhase): boolean {
   return phase === "reconnecting" || phase === "offline";
 }
 
+let currentConnectionPhase: ConnectionPhase = INITIAL_CONNECTION_STATE.phase;
+
+/** Latest WS phase for toast gating (set from `useProjectSession`). */
+export function setLiveConnectionPhase(phase: ConnectionPhase): void {
+  currentConnectionPhase = phase;
+}
+
+export function liveConnectionPhase(): ConnectionPhase {
+  return currentConnectionPhase;
+}
+
+export function suppressNetworkFailureToast(phase: ConnectionPhase = currentConnectionPhase): boolean {
+  return phase === "reconnecting" || phase === "offline";
+}
+
 export type FailureStreak = { hadSuccess: boolean; failing: boolean };
 
 export const INITIAL_FAILURE_STREAK: FailureStreak = { hadSuccess: false, failing: false };
 
 /** Toast a repeating poll only after a success, and only once per failure streak. */
-export function noteFailureStreak(prev: FailureStreak, ok: boolean): { next: FailureStreak; toast: boolean } {
+export function noteFailureStreak(
+  prev: FailureStreak,
+  ok: boolean,
+  opts?: { suppressToast?: boolean },
+): { next: FailureStreak; toast: boolean } {
   if (ok) return { next: { hadSuccess: true, failing: false }, toast: false };
   if (!prev.hadSuccess) return { next: prev, toast: false };
   if (prev.failing) return { next: prev, toast: false };
+  if (opts?.suppressToast) return { next: prev, toast: false };
   return { next: { hadSuccess: true, failing: true }, toast: true };
 }
 

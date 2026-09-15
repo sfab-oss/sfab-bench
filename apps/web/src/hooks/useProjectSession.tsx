@@ -6,6 +6,7 @@ import {
   CONNECTION_RETRY_MS,
   INITIAL_CONNECTION_STATE,
   reduceConnection,
+  setLiveConnectionPhase,
   type ConnectionEvent,
   type ConnectionPhase,
   type ConnectionState,
@@ -158,12 +159,15 @@ export function ProjectSessionProvider({
     let ws: WebSocket | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
     let current = INITIAL_CONNECTION_STATE;
+    setLiveConnectionPhase(current.phase);
 
     const applyConnection = (event: ConnectionEvent) => {
       const { state, notice } = reduceConnection(current, event);
       current = state;
+      setLiveConnectionPhase(state.phase);
       setConnection(state);
       if (notice === "lost") {
+        closeToast("connection-reconnected");
         showToast({
           id: "connection-lost",
           type: "info",
@@ -172,7 +176,7 @@ export function ProjectSessionProvider({
       } else if (notice === "reconnected") {
         closeToast("connection-lost");
         closeToast("connection-offline");
-        showToast({ type: "success", title: "Reconnected" });
+        showToast({ id: "connection-reconnected", type: "success", title: "Reconnected" });
       } else if (notice === "reload") {
         closeToast("connection-lost");
         showToast({
