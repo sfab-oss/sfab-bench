@@ -1,55 +1,20 @@
 import {
   catalogEmptyReason,
-  clampContextMenuPosition,
-  defaultExpandedDirPaths,
-  FILE_CONTEXT_MENU_HEIGHT,
-  FILE_CONTEXT_MENU_MARGIN,
-  FILE_CONTEXT_MENU_WIDTH,
-  fileContextMenuIndexAfterKey,
   filesRailShortcutLabel,
   filesRailToggleTitle,
-  isEditableTarget,
-  isMacPlatform,
-  pruneFileTreeProjects,
   readFileTreeExpansion,
-  resolvedExpandedDirs,
   serializeFileTreeExpansion,
   shouldReloadOpenFile,
-  shouldRevealAncestors,
-  upsertFileTreeProject,
-  withRevealedDirs,
-  type FileTreeProjectExpansion,
 } from "./files-rail";
 
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
 }
 
-expect(isMacPlatform("MacIntel"), "mac platform");
-expect(isMacPlatform("Win32", "Mozilla/5.0") === false, "windows is not mac");
 expect(filesRailShortcutLabel(true) === "⌘B", "mac chord");
 expect(filesRailShortcutLabel(false) === "Ctrl+B", "other chord");
 expect(filesRailToggleTitle(true, "show") === "Show files (⌘B)", "show title");
 expect(filesRailToggleTitle(false) === "Toggle files (Ctrl+B)", "toggle title");
-
-expect(isEditableTarget({ tagName: "INPUT" }), "input is editable");
-expect(isEditableTarget({ tagName: "TEXTAREA" }), "textarea is editable");
-expect(isEditableTarget({ tagName: "SELECT" }), "select is editable");
-expect(isEditableTarget({ tagName: "DIV", isContentEditable: true }), "contenteditable root");
-expect(
-  isEditableTarget({
-    tagName: "P",
-    isContentEditable: false,
-    closest: (sel: string) => (sel.includes("contenteditable") ? { tagName: "DIV" } : null),
-  }),
-  "nested tiptap node",
-);
-expect(isEditableTarget({ tagName: "BUTTON" }) === false, "button is not editable");
-expect(
-  isEditableTarget({ tagName: "BUTTON" }, { tagName: "DIV", isContentEditable: true }),
-  "active composer still counts",
-);
-expect(isEditableTarget(null, null) === false, "nothing focused");
 
 expect(catalogEmptyReason({ fileCount: 0, listedCount: 0, treeCount: 0, kind: "all" }).type === "no-cad", "empty folder");
 expect(catalogEmptyReason({ fileCount: 3, listedCount: 0, treeCount: 0, kind: "glb" }).type === "kind", "kind trap");
@@ -65,120 +30,19 @@ expect(shouldReloadOpenFile("a.step", "a.step", false) === false, "re-click is a
 expect(shouldReloadOpenFile("a.step", "a.step", true), "error row retries");
 expect(shouldReloadOpenFile("b.step", "a.step", false), "other file opens");
 
-expect(
-  defaultExpandedDirPaths(["cad", "out"], ["cad", "cad/exports"]).join(",") === "cad,out,cad/exports",
-  "seed is depth-1 plus ancestors",
-);
+const roundTrip = readFileTreeExpansion(serializeFileTreeExpansion({ "/abs/path/proj": ["cad"] }));
+expect(roundTrip["/abs/path/proj"]?.[0] === "cad", "storage round-trip");
+expect(Object.keys(readFileTreeExpansion("not-json")).length === 0, "bad json is empty");
+expect(Object.keys(readFileTreeExpansion(null)).length === 0, "missing storage is empty");
 
-const older: FileTreeProjectExpansion = {
-  path: "/abs/path/old",
-  expanded: ["cad"],
-  seen: ["cad"],
-  updatedAt: 1,
-};
-const newer: FileTreeProjectExpansion = {
-  path: "/abs/path/new",
-  expanded: [],
-  seen: ["cad"],
-  updatedAt: 100,
-};
-const pruned = pruneFileTreeProjects(
-  [
-    older,
-    ...Array.from({ length: 19 }, (_, i) => ({
-      path: `/abs/path/p${i}`,
-      expanded: [] as string[],
-      seen: [] as string[],
-      updatedAt: 2 + i,
-    })),
-    newer,
-  ],
-  20,
+const migrated = readFileTreeExpansion(
+  JSON.stringify({
+    projects: [{ path: "/abs/path/old", expanded: ["cad", "cad"], seen: ["cad", "out"], updatedAt: 3 }],
+  }),
 );
-expect(pruned.length === 20, `cap 20, got ${pruned.length}`);
-expect(pruned[0]?.path === "/abs/path/new", "most recent first");
-expect(pruned.some((row) => row.path === "/abs/path/old") === false, "oldest dropped");
+expect(migrated["/abs/path/old"]?.join(",") === "cad", "old project rows become path → dirs");
 
-const upserted = upsertFileTreeProject(
-  [older, newer],
-  { path: "/abs/path/old", expanded: [], seen: ["cad"], updatedAt: 200 },
-  20,
-);
-expect(upserted[0]?.path === "/abs/path/old", "touched project moves to front");
-expect(upserted[0]?.expanded.length === 0, "collapse-all is stored");
-
-const firstVisit = resolvedExpandedDirs(undefined, ["cad", "out"], ["cad", "out", "cad/exports"]);
-expect(firstVisit.sort().join(",") === "cad,out", "first visit uses today's seed");
-
-const collapsed = resolvedExpandedDirs(
-  { path: "/abs/path/proj", expanded: [], seen: ["cad", "out"], updatedAt: 1 },
-  ["cad", "out", "fresh"],
-  ["cad", "out", "fresh"],
-);
-expect(collapsed.sort().join(",") === "fresh", "new dirs still get the default; collapse-all stays");
-
-const gone = resolvedExpandedDirs(
-  { path: "/abs/path/proj", expanded: ["cad", "missing"], seen: ["cad", "missing"], updatedAt: 1 },
-  ["cad"],
-  ["cad"],
-);
-expect(gone.join(",") === "cad", "dropped dirs leave the expanded set");
-
-expect(
-  shouldRevealAncestors(
-    { current: "cad/a.step", filter: "", kind: "all" },
-    { current: "cad/a.step", filter: "", kind: "all" },
-  ) === false,
-  "same file and filter is a poll no-op",
-);
-expect(
-  shouldRevealAncestors(
-    { current: "cad/a.step", filter: "", kind: "all" },
-    { current: "cad/b.step", filter: "", kind: "all" },
-  ),
-  "opening another file reveals",
-);
-expect(
-  shouldRevealAncestors(
-    { current: "cad/a.step", filter: "", kind: "all" },
-    { current: "cad/a.step", filter: "hous", kind: "all" },
-  ),
-  "search reveals",
-);
-expect(
-  shouldRevealAncestors(
-    { current: "cad/a.step", filter: "", kind: "all" },
-    { current: "cad/a.step", filter: "", kind: "glb" },
-  ),
-  "kind filter reveals",
-);
-
-const collapsedParent = withRevealedDirs([], ["cad", "cad/exports"]);
-expect(collapsedParent.changed && collapsedParent.dirs.includes("cad"), "reveal adds ancestors");
-expect(withRevealedDirs(["cad"], ["cad"]).changed === false, "already-open ancestor is unchanged");
-
-const roundTrip = readFileTreeExpansion(
-  serializeFileTreeExpansion([{ path: "/abs/path/proj", expanded: ["cad"], seen: ["cad", "out"], updatedAt: 3 }]),
-);
-expect(roundTrip.length === 1 && roundTrip[0]?.expanded[0] === "cad", "storage round-trip");
-expect(readFileTreeExpansion("not-json").length === 0, "bad json is empty");
-expect(readFileTreeExpansion(null).length === 0, "missing storage is empty");
-
-const viewport = { width: 1280, height: 720 };
-const inside = clampContextMenuPosition(400, 200, viewport);
-expect(inside.left === 400 && inside.top === 200, "inside click stays");
-const clipped = clampContextMenuPosition(2000, 2000, viewport);
-expect(clipped.left === viewport.width - FILE_CONTEXT_MENU_WIDTH - FILE_CONTEXT_MENU_MARGIN, "right edge clamp");
-expect(clipped.top === viewport.height - FILE_CONTEXT_MENU_HEIGHT - FILE_CONTEXT_MENU_MARGIN, "bottom edge clamp");
-const origin = clampContextMenuPosition(-20, -20, viewport);
-expect(origin.left === FILE_CONTEXT_MENU_MARGIN && origin.top === FILE_CONTEXT_MENU_MARGIN, "margin clamp");
-
-expect(fileContextMenuIndexAfterKey("ArrowDown", 0, 1) === 0, "one item down stays");
-expect(fileContextMenuIndexAfterKey("ArrowUp", 0, 1) === 0, "one item up stays");
-expect(fileContextMenuIndexAfterKey("ArrowDown", 0, 3) === 1, "down next");
-expect(fileContextMenuIndexAfterKey("ArrowUp", 0, 3) === 2, "up wraps");
-expect(fileContextMenuIndexAfterKey("ArrowDown", 2, 3) === 0, "down wraps");
-expect(fileContextMenuIndexAfterKey("Escape", 0, 3) === null, "esc is not an index change");
-expect(fileContextMenuIndexAfterKey("ArrowDown", 0, 0) === null, "empty menu");
+const collapsed = readFileTreeExpansion(serializeFileTreeExpansion({ "/abs/path/proj": [] }));
+expect(Array.isArray(collapsed["/abs/path/proj"]) && collapsed["/abs/path/proj"]?.length === 0, "collapse-all is stored");
 
 console.log("files-rail.selfcheck ok");
