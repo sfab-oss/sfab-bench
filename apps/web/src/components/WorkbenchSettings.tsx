@@ -1,133 +1,132 @@
 import { Headset, Settings } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
-import { AppearancePicker } from "@/components/theme/theme-toggle";
+import { AboutSection } from "@/components/settings/AboutSection";
+import { AppearanceSection } from "@/components/settings/AppearanceSection";
+import { ProvidersSection } from "@/components/settings/ProvidersSection";
+import { ShortcutsSection } from "@/components/settings/ShortcutsSection";
+import { VoiceSection } from "@/components/settings/VoiceSection";
 import { QuestJoinPanel } from "@/components/QuestJoinPanel";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
-import { jsonApi } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
-type SttSource = "settings" | "env" | null;
+type SettingsSectionId = "appearance" | "voice" | "providers" | "shortcuts" | "about";
 
-function VoiceKeyFields() {
-  const [draft, setDraft] = useState("");
-  const [source, setSource] = useState<SttSource>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = () =>
-    jsonApi.settings.stt.$get().then(async (res) => {
-      if (!res.ok) return;
-      const body = (await res.json()) as { source?: SttSource };
-      setSource(body.source ?? null);
-    });
-
-  useEffect(() => {
-    void load();
-  }, []);
-
-  const save = (apiKey: string) => {
-    setBusy(true);
-    setError(null);
-    void jsonApi.settings.stt
-      .$put({ json: { apiKey } })
-      .then(async (res) => {
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error || res.statusText);
-        }
-        const body = (await res.json()) as { source?: SttSource };
-        setSource(body.source ?? null);
-        setDraft("");
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => setBusy(false));
-  };
-
-  const hint =
-    source === "settings"
-      ? "Saved on this Mac."
-      : source === "env"
-        ? "Using an env var on this Mac."
-        : "Needed for the mic. Chat still uses Mac logins.";
-
-  return (
-    <div className="space-y-1.5 px-1">
-      <div className="text-xs font-medium text-muted-foreground">Voice</div>
-      <Input
-        autoComplete="off"
-        disabled={busy}
-        onChange={(e) => setDraft(e.target.value)}
-        placeholder={source ? "••••••••" : "AI Gateway key"}
-        spellCheck={false}
-        type="password"
-        value={draft}
-      />
-      <div className="flex gap-1">
-        <Button
-          className="h-7 px-2 text-xs"
-          disabled={busy || !draft.trim()}
-          onClick={() => save(draft)}
-          size="sm"
-          type="button"
-        >
-          Save
-        </Button>
-        {source === "settings" ? (
-          <Button
-            className="h-7 px-2 text-xs"
-            disabled={busy}
-            onClick={() => save("")}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            Clear
-          </Button>
-        ) : null}
-      </div>
-      <p className="text-[11px] leading-snug text-muted-foreground">{hint}</p>
-      {error ? <p className="text-[11px] text-destructive">{error}</p> : null}
-    </div>
-  );
+function SectionHeading({ children }: { children: ReactNode }) {
+  return <h2 className="mb-2 text-sm font-medium sm:sr-only">{children}</h2>;
 }
 
 export function WorkbenchSettings({ host }: { host: boolean }) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [questOpen, setQuestOpen] = useState(false);
+  const [pendingQuest, setPendingQuest] = useState(false);
+  const [section, setSection] = useState<SettingsSectionId>("appearance");
+
+  useEffect(() => {
+    if (settingsOpen || !pendingQuest) return;
+    setPendingQuest(false);
+    setQuestOpen(true);
+  }, [pendingQuest, settingsOpen]);
+
+  const sections: { id: SettingsSectionId; label: string; hostOnly?: boolean }[] = [
+    { id: "appearance", label: "Appearance" },
+    { id: "voice", label: "Voice", hostOnly: true },
+    { id: "providers", label: "Providers" },
+    { id: "shortcuts", label: "Shortcuts" },
+    { id: "about", label: "About" },
+  ];
+  const visible = sections.filter((row) => (row.hostOnly ? host : true));
+
+  const pane = (id: SettingsSectionId) => {
+    const active = section === id;
+    return cn(active ? "block" : "max-sm:block sm:hidden");
+  };
 
   return (
     <>
       <SidebarMenu>
         <SidebarMenuItem>
-          <Popover>
-            <PopoverTrigger render={<SidebarMenuButton />}>
+          <Dialog
+            open={settingsOpen}
+            onOpenChange={(open) => {
+              setSettingsOpen(open);
+              if (open) setSection("appearance");
+            }}
+          >
+            <DialogTrigger render={<SidebarMenuButton />}>
               <Settings />
               Settings
-            </PopoverTrigger>
-            <PopoverContent side="top" align="start" className="w-72 p-2">
-              <div className="px-1 pb-1.5 text-xs font-medium text-muted-foreground">Appearance</div>
-              <AppearancePicker />
+            </DialogTrigger>
+            <DialogContent className="flex h-[min(40rem,calc(100dvh-2rem))] max-h-[min(40rem,calc(100dvh-2rem))] max-w-3xl flex-col gap-0 p-0 sm:max-w-3xl">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3 pr-10">
+                <DialogTitle className="pr-0">Settings</DialogTitle>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
+                <nav
+                  aria-label="Settings sections"
+                  className="hidden shrink-0 flex-col gap-0.5 border-border p-2 sm:flex sm:w-44 sm:border-r"
+                >
+                  {visible.map((row) => (
+                    <button
+                      key={row.id}
+                      type="button"
+                      aria-current={section === row.id ? "page" : undefined}
+                      className={cn(
+                        "rounded-md px-2 py-1.5 text-left text-sm",
+                        section === row.id ? "bg-accent text-accent-foreground" : "hover:bg-accent/70",
+                      )}
+                      onClick={() => setSection(row.id)}
+                    >
+                      {row.label}
+                    </button>
+                  ))}
+                </nav>
+                <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                  <section className={pane("appearance")}>
+                    <SectionHeading>Appearance</SectionHeading>
+                    <AppearanceSection />
+                  </section>
+                  {host ? (
+                    <section className={cn("max-sm:mt-6", pane("voice"))}>
+                      <SectionHeading>Voice</SectionHeading>
+                      <VoiceSection />
+                    </section>
+                  ) : null}
+                  <section className={cn("max-sm:mt-6", pane("providers"))}>
+                    <SectionHeading>Providers</SectionHeading>
+                    <ProvidersSection />
+                  </section>
+                  <section className={cn("max-sm:mt-6", pane("shortcuts"))}>
+                    <SectionHeading>Shortcuts</SectionHeading>
+                    <ShortcutsSection />
+                  </section>
+                  <section className={cn("max-sm:mt-6", pane("about"))}>
+                    <SectionHeading>About</SectionHeading>
+                    <AboutSection host={host} />
+                  </section>
+                </div>
+              </div>
               {host ? (
-                <>
-                  <Separator className="my-2" />
-                  <VoiceKeyFields />
-                  <Separator className="my-2" />
-                  <PopoverClose
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
-                    onClick={() => setQuestOpen(true)}
+                <div className="border-t border-border px-4 py-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 px-2"
+                    onClick={() => {
+                      setPendingQuest(true);
+                      setSettingsOpen(false);
+                    }}
                   >
-                    <Headset className="size-4 shrink-0" />
+                    <Headset />
                     Enter Quest
-                  </PopoverClose>
-                </>
+                  </Button>
+                </div>
               ) : null}
-            </PopoverContent>
-          </Popover>
+            </DialogContent>
+          </Dialog>
         </SidebarMenuItem>
       </SidebarMenu>
       {host ? <QuestJoinPanel open={questOpen} onOpenChange={setQuestOpen} showTrigger={false} /> : null}

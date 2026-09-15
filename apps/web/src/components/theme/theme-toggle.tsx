@@ -47,7 +47,7 @@ export function AppearancePicker({ className }: { className?: string }) {
       >
         <SelectValue />
       </SelectTrigger>
-      <SelectContent align="start" side="top" className="min-w-40">
+      <SelectContent align="start" side="bottom" className="min-w-40">
         {THEMES.map(({ value, label }) => (
           <SelectItem key={value} value={value} className="text-sm">
             {label}

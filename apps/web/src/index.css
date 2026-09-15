@@ -4,69 +4,119 @@
 
 :root {
   --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --foreground-raw: oklch(0.145 0 0);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground-raw: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --popover-foreground-raw: oklch(0.145 0 0);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground-raw: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border-raw: oklch(0.922 0 0);
+  --input-raw: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-foreground-raw: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-border-raw: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   /* Viewport / Electron chrome — hex so Three.js can paint it. */
   --studio: #eeeff1;
   /* SFab identity accent — rosa mexicano. Theme-independent; never a CTA. */
   --brand: #e4007c;
   --brand-foreground: #000000;
+  --appearance-contrast-base: 100%;
+  --appearance-contrast-boost: 0%;
+  --appearance-contrast-border-boost: 0%;
+  --appearance-contrast-target: black;
+  --ui-text-scale: 1;
 }
 
 .dark {
   --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
+  --foreground-raw: oklch(0.985 0 0);
   --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
+  --card-foreground-raw: oklch(0.985 0 0);
   --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  --popover-foreground-raw: oklch(0.985 0 0);
   --primary: oklch(0.985 0 0);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  --muted-foreground-raw: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.396 0.141 25.723);
   --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
+  --border-raw: oklch(0.269 0 0);
+  --input-raw: oklch(0.269 0 0);
   --ring: oklch(0.556 0 0);
   --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-foreground-raw: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-border-raw: oklch(0.269 0 0);
   --sidebar-ring: oklch(0.439 0 0);
   --studio: #1a1d21;
+  --appearance-contrast-target: white;
+}
+
+:root,
+.dark {
+  --foreground: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--foreground-raw) var(--appearance-contrast-base), var(--background)),
+    var(--appearance-contrast-target) var(--appearance-contrast-boost)
+  );
+  --card-foreground: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--card-foreground-raw) var(--appearance-contrast-base), var(--card)),
+    var(--appearance-contrast-target) var(--appearance-contrast-boost)
+  );
+  --popover-foreground: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--popover-foreground-raw) var(--appearance-contrast-base), var(--popover)),
+    var(--appearance-contrast-target) var(--appearance-contrast-boost)
+  );
+  --muted-foreground: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--muted-foreground-raw) var(--appearance-contrast-base), var(--background)),
+    var(--appearance-contrast-target) var(--appearance-contrast-boost)
+  );
+  --border: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--border-raw) var(--appearance-contrast-base), transparent),
+    var(--foreground-raw) var(--appearance-contrast-border-boost)
+  );
+  --input: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--input-raw) var(--appearance-contrast-base), transparent),
+    var(--foreground-raw) var(--appearance-contrast-border-boost)
+  );
+  --sidebar-foreground: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--sidebar-foreground-raw) var(--appearance-contrast-base), var(--sidebar)),
+    var(--appearance-contrast-target) var(--appearance-contrast-boost)
+  );
+  --sidebar-border: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--sidebar-border-raw) var(--appearance-contrast-base), transparent),
+    var(--sidebar-foreground-raw) var(--appearance-contrast-border-boost)
+  );
 }
 
 @theme inline {
@@ -104,6 +154,14 @@
   --color-studio: var(--studio);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --text-xs: calc(0.75rem * var(--ui-text-scale));
+  --text-sm: calc(0.875rem * var(--ui-text-scale));
+  --text-base: calc(1rem * var(--ui-text-scale));
+  --text-lg: calc(1.125rem * var(--ui-text-scale));
+  --text-xl: calc(1.25rem * var(--ui-text-scale));
+  --text-2xl: calc(1.5rem * var(--ui-text-scale));
+  --text-3xl: calc(1.875rem * var(--ui-text-scale));
+  --text-4xl: calc(2.25rem * var(--ui-text-scale));
 }
 
 ::selection {
@@ -133,4 +191,8 @@ body,
   background: var(--studio);
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  font-size: calc(1rem * var(--ui-text-scale, 1));
 }
