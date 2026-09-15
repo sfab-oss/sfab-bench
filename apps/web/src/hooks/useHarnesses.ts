@@ -35,6 +35,18 @@ const lastGoodByProject = new Map<string, HarnessInfo[]>();
 const inflightByProject = new Map<string, Promise<HarnessInfo[]>>();
 const lastStartedAtByProject = new Map<string, number>();
 const listeners = new Set<() => void>();
+// Tabs can wander through many folders; keep the most recent ones only.
+const MAX_CACHED_PROJECTS = 20;
+
+function rememberProject<T>(map: Map<string, T>, project: string, value: T) {
+  map.delete(project);
+  map.set(project, value);
+  while (map.size > MAX_CACHED_PROJECTS) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
+}
 
 function notifyHarnesses() {
   for (const listener of listeners) listener();
@@ -51,7 +63,7 @@ export function loadHarnesses(): Promise<HarnessInfo[]> {
   if (!project) return Promise.resolve([]);
   const pending = inflightByProject.get(project);
   if (pending) return pending;
-  lastStartedAtByProject.set(project, Date.now());
+  rememberProject(lastStartedAtByProject, project, Date.now());
   const promise = apiFetch("/api/harnesses", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : Promise.reject(new Error("harnesses"))))
     .then((body) => {
@@ -61,7 +73,7 @@ export function loadHarnesses(): Promise<HarnessInfo[]> {
         list: fetched,
         lastGood: lastGoodByProject.get(project) ?? null,
       });
-      lastGoodByProject.set(project, applied.list);
+      rememberProject(lastGoodByProject, project, applied.list);
       if (shouldAcceptHarnessCatalog(project, projectUrl())) notifyHarnesses();
       return applied.list;
     })
@@ -70,7 +82,7 @@ export function loadHarnesses(): Promise<HarnessInfo[]> {
         ok: false,
         lastGood: lastGoodByProject.get(project) ?? null,
       });
-      if (!applied.error) lastGoodByProject.set(project, applied.list);
+      if (!applied.error) rememberProject(lastGoodByProject, project, applied.list);
       if (shouldAcceptHarnessCatalog(project, projectUrl())) notifyHarnesses();
       if (!applied.error) return applied.list;
       throw err;

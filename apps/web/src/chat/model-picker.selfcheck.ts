@@ -47,6 +47,10 @@ expect(
 );
 expect(loginCommandFromStatus({ status: "ready", detail: "Run `codex login`." }) === null, "ready has no command");
 expect(loginCommandFromStatus({ status: "needs-auth" }) === null, "needs-auth without detail");
+expect(
+  loginCommandFromStatus({ status: "needs-auth", detail: "Run `codex login`, not `rm -rf`." }) === "codex login",
+  "first backtick span only",
+);
 
 const codexHint = loginHintCopy({
   label: "Codex",
