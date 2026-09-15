@@ -10,7 +10,9 @@ import {
   resolvedExpandedDirs,
   serializeFileTreeExpansion,
   shouldReloadOpenFile,
+  shouldRevealAncestors,
   upsertFileTreeProject,
+  withRevealedDirs,
   type FileTreeProjectExpansion,
 } from "./files-rail";
 
@@ -116,6 +118,39 @@ const gone = resolvedExpandedDirs(
   ["cad"],
 );
 expect(gone.join(",") === "cad", "dropped dirs leave the expanded set");
+
+expect(
+  shouldRevealAncestors(
+    { current: "cad/a.step", filter: "", kind: "all" },
+    { current: "cad/a.step", filter: "", kind: "all" },
+  ) === false,
+  "same file and filter is a poll no-op",
+);
+expect(
+  shouldRevealAncestors(
+    { current: "cad/a.step", filter: "", kind: "all" },
+    { current: "cad/b.step", filter: "", kind: "all" },
+  ),
+  "opening another file reveals",
+);
+expect(
+  shouldRevealAncestors(
+    { current: "cad/a.step", filter: "", kind: "all" },
+    { current: "cad/a.step", filter: "hous", kind: "all" },
+  ),
+  "search reveals",
+);
+expect(
+  shouldRevealAncestors(
+    { current: "cad/a.step", filter: "", kind: "all" },
+    { current: "cad/a.step", filter: "", kind: "glb" },
+  ),
+  "kind filter reveals",
+);
+
+const collapsedParent = withRevealedDirs([], ["cad", "cad/exports"]);
+expect(collapsedParent.changed && collapsedParent.dirs.includes("cad"), "reveal adds ancestors");
+expect(withRevealedDirs(["cad"], ["cad"]).changed === false, "already-open ancestor is unchanged");
 
 const roundTrip = readFileTreeExpansion(
   serializeFileTreeExpansion([{ path: "/abs/path/proj", expanded: ["cad"], seen: ["cad", "out"], updatedAt: 3 }]),

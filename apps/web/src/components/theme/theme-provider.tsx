@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -49,6 +50,17 @@ function applyAppearance(resolved: Appearance) {
   root.style.colorScheme = resolved;
 }
 
+function disableTransitionsThen(apply: () => void) {
+  const style = document.createElement("style");
+  style.textContent = "*,*::before,*::after{transition:none!important}";
+  document.head.appendChild(style);
+  apply();
+  window.getComputedStyle(document.body);
+  requestAnimationFrame(() => {
+    style.remove();
+  });
+}
+
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
@@ -63,6 +75,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     typeof window === "undefined" ? "light" : systemAppearance(),
   );
   const resolvedTheme: Appearance = theme === "system" ? system : theme;
+  const lastResolved = useRef<Appearance | null>(null);
 
   const setTheme = useCallback((next: string) => {
     if (!isThemePreference(next)) return;
@@ -75,11 +88,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    applyAppearance(resolvedTheme);
-    store.getState().setAppearance(resolvedTheme);
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", STUDIO_HEX[resolvedTheme]);
-    desktopBridge()?.setTheme?.(theme);
+    const paint = () => {
+      applyAppearance(resolvedTheme);
+      store.getState().setAppearance(resolvedTheme);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", STUDIO_HEX[resolvedTheme]);
+      desktopBridge()?.setTheme?.(theme);
+    };
+    if (lastResolved.current === resolvedTheme) {
+      desktopBridge()?.setTheme?.(theme);
+      return;
+    }
+    const skipTransition = lastResolved.current !== null;
+    lastResolved.current = resolvedTheme;
+    if (skipTransition) disableTransitionsThen(paint);
+    else paint();
   }, [theme, resolvedTheme]);
 
   useEffect(() => {

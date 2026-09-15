@@ -82,6 +82,29 @@ export function defaultExpandedDirPaths(topLevelDirPaths: string[], ancestorPath
   return unique([...topLevelDirPaths, ...ancestorPaths]);
 }
 
+export type FileTreeRevealKey = {
+  current: string;
+  filter: string;
+  kind: CatalogKindFilter;
+};
+
+/** Polls reuse the same key; only a real file / filter change should un-collapse. */
+export function shouldRevealAncestors(prev: FileTreeRevealKey, next: FileTreeRevealKey): boolean {
+  return prev.current !== next.current || prev.filter !== next.filter || prev.kind !== next.kind;
+}
+
+export function withRevealedDirs(expanded: string[], extra: string[]): { dirs: string[]; changed: boolean } {
+  const next = new Set(expanded);
+  let changed = false;
+  for (const path of extra) {
+    if (!next.has(path)) {
+      next.add(path);
+      changed = true;
+    }
+  }
+  return { dirs: changed ? [...next] : expanded, changed };
+}
+
 export function pruneFileTreeProjects(
   projects: FileTreeProjectExpansion[],
   max = FILE_TREE_EXPANSION_MAX,

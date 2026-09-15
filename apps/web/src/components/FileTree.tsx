@@ -26,7 +26,10 @@ import {
   saveFileTreeProjects,
   upsertFileTreeProject,
   resolvedExpandedDirs,
+  shouldRevealAncestors,
+  withRevealedDirs,
   type CatalogKindFilter,
+  type FileTreeRevealKey,
 } from "@/lib/files-rail";
 import { cn } from "@/lib/utils";
 import {
@@ -237,8 +240,17 @@ export function FileTree({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const expandedRef = useRef(expanded);
   expandedRef.current = expanded;
+  const filesRef = useRef(files);
+  filesRef.current = files;
+  const currentRef = useRef(current);
+  currentRef.current = current;
   const seenRef = useRef<string[]>([]);
   const seeded = useRef(false);
+  const revealKeyRef = useRef<FileTreeRevealKey>({ current, filter, kind });
+  const catalogKey = useMemo(
+    () => [...files].map((file) => file.path).sort().join("\0"),
+    [files],
+  );
 
   const persist = useCallback((next: Set<string>, seen: string[]) => {
     seenRef.current = seen;
@@ -252,10 +264,13 @@ export function FileTree({
     );
   }, [projectPath]);
 
+  const seenDirs = () => (seenRef.current.length ? seenRef.current : catalogDirPaths(catalogTree(filesRef.current)));
+
   useEffect(() => {
-    if (!ready || error || files.length === 0) return;
-    const allDirs = catalogDirPaths(catalogTree(files));
-    const defaults = defaultExpandedDirPaths(topLevelDirPaths(files), catalogAncestors(current));
+    const listed = filesRef.current;
+    if (!ready || error || listed.length === 0) return;
+    const allDirs = catalogDirPaths(catalogTree(listed));
+    const defaults = defaultExpandedDirPaths(topLevelDirPaths(listed), catalogAncestors(currentRef.current));
     const stored = seeded.current
       ? { path: projectPath, expanded: [...expandedRef.current], seen: seenRef.current, updatedAt: 0 }
       : findFileTreeProject(loadFileTreeProjects(), projectPath);
@@ -265,49 +280,35 @@ export function FileTree({
     const next = new Set(resolved);
     setExpanded(next);
     persist(next, allDirs);
-  }, [files, projectPath, ready, error, current, persist]);
+  }, [catalogKey, projectPath, ready, error, persist]);
 
   useEffect(() => {
-    if (!ready || error) return;
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      let changed = false;
-      for (const path of catalogAncestors(current)) {
-        if (!next.has(path)) {
-          next.add(path);
-          changed = true;
+    if (!ready || error || !seeded.current) return;
+    const nextKey: FileTreeRevealKey = { current, filter, kind };
+    if (!shouldRevealAncestors(revealKeyRef.current, nextKey)) return;
+    revealKeyRef.current = nextKey;
+    const extra: string[] = [...catalogAncestors(current)];
+    const q = filter.trim().toLowerCase();
+    if (q) {
+      for (const file of filesRef.current) {
+        if (catalogLabel(file.path).toLowerCase().includes(q) || file.path.toLowerCase().includes(q)) {
+          extra.push(...catalogAncestors(file.path));
         }
       }
-      const q = filter.trim().toLowerCase();
-      if (q) {
-        for (const file of files) {
-          if (catalogLabel(file.path).toLowerCase().includes(q) || file.path.toLowerCase().includes(q)) {
-            for (const path of catalogAncestors(file.path)) {
-              if (!next.has(path)) {
-                next.add(path);
-                changed = true;
-              }
-            }
-          }
-        }
-      }
-      if (changed && seeded.current) {
-        persist(next, seenRef.current.length ? seenRef.current : catalogDirPaths(catalogTree(files)));
-      }
-      return changed ? next : prev;
-    });
-  }, [current, filter, files, projectPath, ready, error, persist]);
-
-  const seenDirs = () => (seenRef.current.length ? seenRef.current : catalogDirPaths(catalogTree(files)));
+    }
+    const { dirs, changed } = withRevealedDirs([...expandedRef.current], extra);
+    if (!changed) return;
+    const next = new Set(dirs);
+    setExpanded(next);
+    persist(next, seenDirs());
+  }, [current, filter, kind, ready, error, persist]);
 
   const setExpandedFromToggle = (path: string, nextOpen: boolean) => {
-    setExpanded((prev) => {
-      const copy = new Set(prev);
-      if (nextOpen) copy.add(path);
-      else copy.delete(path);
-      persist(copy, seenDirs());
-      return copy;
-    });
+    const copy = new Set(expandedRef.current);
+    if (nextOpen) copy.add(path);
+    else copy.delete(path);
+    setExpanded(copy);
+    persist(copy, seenDirs());
   };
 
   const collapseAll = () => {

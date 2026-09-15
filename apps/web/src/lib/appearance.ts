@@ -14,7 +14,7 @@ export function readDomAppearance(): Appearance {
 
 let apply: ((next: Appearance) => void) | null = null;
 
-/** ThemeSync registers next-themes `setTheme` so XR (inside the R3F tree) can flip CSS too. */
+/** ThemeProvider registers `setTheme` so XR (inside the R3F tree) can flip CSS too. */
 export function bindThemeApplier(fn: ((next: Appearance) => void) | null) {
   apply = fn;
 }
