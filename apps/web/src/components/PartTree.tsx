@@ -4,13 +4,12 @@ import type { Object3D } from "three";
 import { useShallow } from "zustand/react/shallow";
 
 import type { CadPart, CadReview } from "@/cad/review";
-import { namedKids, treeTops } from "@/cad/tree";
 import { CrashCard } from "@/components/CrashCard";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { disambiguateSiblingNames, partDisplayName, partLabelFileStem } from "@/lib/part-label";
-import { filterPartTree, type PartTreeItem } from "@/lib/part-tree";
+import { filterPartTree, siblingRows, type PartTreeItem } from "@/lib/part-tree";
 import { overlayMaxHeight } from "@/lib/layout";
 import { useStore } from "@/state/store";
 import { cn } from "@/lib/utils";
@@ -22,23 +21,19 @@ function partKey(part: CadPart): string {
 }
 
 function rowsFromObjs(
-  objs: Object3D[],
+  parent: Object3D | null,
   review: CadReview,
   fileStem: string | undefined,
 ): TreeRow[] {
   const mapped: TreeRow[] = [];
-  for (const obj of objs) {
+  for (const obj of siblingRows(review, parent)) {
     const part = review.partByObject.get(obj);
-    const kids = rowsFromObjs(namedKids(obj, review), review, fileStem);
-    if (!part) {
-      mapped.push(...kids);
-      continue;
-    }
+    if (!part) continue;
     mapped.push({
       key: partKey(part),
       rawName: part.name,
       displayName: partDisplayName(part, part.cadRef, fileStem),
-      children: kids,
+      children: rowsFromObjs(obj, review, fileStem),
       obj,
       part,
     });
@@ -145,7 +140,7 @@ function ModelTreeBody() {
   );
 
   const forest = useMemo(
-    () => (review ? rowsFromObjs(treeTops(review), review, fileStem) : []),
+    () => (review ? rowsFromObjs(null, review, fileStem) : []),
     [review, fileStem],
   );
   const q = filter.trim();

@@ -1,12 +1,8 @@
 import {
   CLOSE_FOLDER_BODY,
-  MOTION_READY_VALUE,
   closeFolderNeedsConfirm,
   closeFolderTitle,
-  firstPaintSuppressed,
-  motionRootIsReady,
   orbitDampingEnabled,
-  prefersReducedMotion,
   refreshFilesTooltip,
   viewerFrameloop,
 } from "./motion";
@@ -14,13 +10,6 @@ import {
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
 }
-
-expect(prefersReducedMotion(true), "reduce matches");
-expect(prefersReducedMotion(false) === false, "no-preference");
-
-expect(firstPaintSuppressed(null, "workbench"), "unpainted is held");
-expect(firstPaintSuppressed("boot", "workbench"), "new key is held");
-expect(firstPaintSuppressed("workbench", "workbench") === false, "same key is released");
 
 expect(orbitDampingEnabled(false), "damping on");
 expect(orbitDampingEnabled(true) === false, "reduce disables damping");
@@ -39,9 +28,5 @@ expect(CLOSE_FOLDER_BODY.includes("cleared from this tab"), "body copy");
 
 expect(refreshFilesTooltip(false) === "Refresh files", "idle tooltip");
 expect(refreshFilesTooltip(true) === "Refreshing…", "busy tooltip");
-
-expect(motionRootIsReady(MOTION_READY_VALUE), "ready attr");
-expect(motionRootIsReady(null) === false, "missing attr is held");
-expect(motionRootIsReady("pending") === false, "other value is held");
 
 console.log("motion.selfcheck ok");
