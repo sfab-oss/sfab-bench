@@ -1,6 +1,6 @@
 import type { ChatStatus } from "ai";
 import { Hash, Mic } from "lucide-react";
-import { useEffect, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject, type Ref, type RefObject } from "react";
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject, type Ref, type RefObject } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   askUserComposerPlaceholder,
@@ -39,7 +39,7 @@ import { useHarnesses } from "@/hooks/useHarnesses";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { HARNESS_LABEL } from "@/lib/harness";
 import { partLabelFileStem } from "@/lib/part-label";
-import { compactChatSheetOpen, escBelongsTo, probeEscLayers } from "@/lib/shortcuts";
+import { compactChatSheetOpen, escBelongsTo, isEditableTarget, probeEscLayers } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
 import { EffortSelect } from "./EffortSelect";
@@ -85,6 +85,13 @@ function PartMentionRow({ item }: { item: CadMentionItem }) {
   );
 }
 
+function outsideChatEditableHasFocus(root: Element | null): boolean {
+  const active = document.activeElement;
+  if (!isEditableTarget(active)) return false;
+  if (active instanceof Node && root?.contains(active)) return false;
+  return true;
+}
+
 function ChatInputInner({
   disabled,
   onStop,
@@ -119,7 +126,10 @@ function ChatInputInner({
   catalog: HarnessCatalog;
 }) {
   const draftTouchedRef = useRef(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const [draftText, setDraftText] = useState(() => getSessionDraft(threadId));
+  const draftTextRef = useRef(draftText);
+  draftTextRef.current = draftText;
   const { review, selectedId, title } = useStore(
     useShallow((s) => ({
       review: s.review,
@@ -197,17 +207,55 @@ function ChatInputInner({
     const cur = inputRef.current?.getText() ?? "";
     if (cur.trim()) return;
     inputRef.current?.setText(restorePrompt);
-    inputRef.current?.focus();
     setDraftText(restorePrompt);
     captureSessionDraft(threadId, restorePrompt);
+    if (outsideChatEditableHasFocus(wrapRef.current)) return;
+    inputRef.current?.focus();
   }, [inputRef, restorePrompt, threadId]);
 
-  const syncDraft = () => {
+  const syncDraft = useCallback(() => {
     const text = inputRef.current?.getText() ?? "";
     if (text) draftTouchedRef.current = true;
     if (text || draftTouchedRef.current) captureSessionDraft(threadId, text);
     setDraftText(text);
-  };
+  }, [inputRef, threadId]);
+
+  useEffect(() => {
+    return () => {
+      const live = inputRef.current?.getText();
+      const text = live || draftTextRef.current;
+      if (text || draftTouchedRef.current) captureSessionDraft(threadId, text);
+    };
+  }, [inputRef, threadId]);
+
+  useEffect(() => {
+    const onPointerUp = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest("[data-mention-list]")) return;
+      requestAnimationFrame(syncDraft);
+    };
+    document.addEventListener("pointerup", onPointerUp);
+    return () => document.removeEventListener("pointerup", onPointerUp);
+  }, [syncDraft]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer = 0;
+    const started = Date.now();
+    const tryFocus = () => {
+      if (cancelled) return;
+      if (outsideChatEditableHasFocus(wrapRef.current)) return;
+      inputRef.current?.focus();
+      if (wrapRef.current?.contains(document.activeElement)) return;
+      if (Date.now() - started > 3000) return;
+      timer = window.setTimeout(tryFocus, 16);
+    };
+    tryFocus();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [inputRef, threadId]);
 
   const reason = sendDisabledReason({
     loadingModel,
@@ -229,7 +277,7 @@ function ChatInputInner({
   );
 
   return (
-    <div className="w-full">
+    <div className="w-full" ref={wrapRef}>
       <ChatInput
         className={attached ? "rounded-none border-0 bg-transparent shadow-none dark:bg-transparent" : "rounded-2xl"}
         defaultValue={getSessionDraft(threadId)}
@@ -237,6 +285,7 @@ function ChatInputInner({
         mentions={mentions}
         onBlur={syncDraft}
         onInput={syncDraft}
+        onKeyUp={syncDraft}
         onStop={onStop}
         onSubmit={(parsed, { clear, focus }) => {
           if (voice.active) return;
@@ -253,7 +302,6 @@ function ChatInputInner({
         status={submitStatus}
       >
       <ChatInputEditor
-        autoFocus
         className={voice.active ? "invisible pointer-events-none" : undefined}
         placeholder={placeholder}
       />

@@ -1,8 +1,9 @@
 /**
  * Local patches vs simple-ai `ui/chat-input`:
  * - Esc destroys the suggestion renderer so Enter cannot pick from a hidden list.
- * - `data-mention-list` on the popup mount node (Esc-layer probe); z-index 70 above the compact sheet.
- * - Mention parse/`renderText` emits node id so chips send `#o…` refs, not labels.
+ * - `data-mention-list` on the popup mount node (Esc-layer probe).
+ * - Mention parse/`renderText` emits node id so chips send `#o…` refs, not labels
+ *   (`setText`/`getText` are plain text, so the ref must live in the text).
  * - `allowSpaces` / `queryCloses` on MentionConfig so `#` queries can include spaces.
  * - Mention option `onMouseDown` preventDefault so click selects before the editor blurs.
  */
@@ -268,9 +269,6 @@ function createMentionSuggestion(
             },
             editor: props.editor,
           });
-          // The mount wrapper is the positioned element (appended to body,
-          // position:absolute). Stack above the compact chat overlay (z-50).
-          component.element.style.zIndex = "70";
           component.element.dataset.mentionList = "";
           unmount = props.mount(component.element);
         },

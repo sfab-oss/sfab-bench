@@ -151,6 +151,11 @@ body {
   font-size: calc(1rem * var(--ui-text-scale, 1));
 }
 
+/* Mention popup is portaled to body; stack above the compact chat sheet (z-50). */
+[data-mention-list] {
+  z-index: 70;
+}
+
 /* Restored chrome must already be in its end state; user actions may animate after. */
 html:not([data-motion="ready"]) *,
 html:not([data-motion="ready"]) *::before,
