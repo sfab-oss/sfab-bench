@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { filesRailToggleTitle, isEditableTarget, isMacPlatform } from "@/lib/files-rail";
 import { cn } from "@/lib/utils";
 
 const SIDEBAR_WIDTH = "19rem";
@@ -62,10 +63,10 @@ function SidebarProvider({
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        toggleSidebar();
-      }
+      if (event.key !== SIDEBAR_KEYBOARD_SHORTCUT || !(event.metaKey || event.ctrlKey)) return;
+      if (isEditableTarget(event.target, document.activeElement)) return;
+      event.preventDefault();
+      toggleSidebar();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -166,7 +167,12 @@ function Sidebar({
   );
 }
 
-function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<typeof Button>) {
+function filesRailShortcutIsMac() {
+  if (typeof navigator === "undefined") return false;
+  return isMacPlatform(navigator.platform, navigator.userAgent);
+}
+
+function SidebarTrigger({ className, onClick, title, ...props }: React.ComponentProps<typeof Button>) {
   const { toggleSidebar } = useSidebar();
   return (
     <Button
@@ -176,28 +182,29 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
       variant="ghost"
       size="icon-sm"
       className={cn("size-7", className)}
+      {...props}
+      title={title ?? filesRailToggleTitle(filesRailShortcutIsMac())}
       onClick={(event) => {
         onClick?.(event);
         toggleSidebar();
       }}
-      {...props}
     >
       <PanelLeft className="rtl:rotate-180" />
-      <span className="sr-only">Toggle Sidebar</span>
+      <span className="sr-only">Toggle files</span>
     </Button>
   );
 }
 
-function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
+function SidebarRail({ className, title, ...props }: React.ComponentProps<"button">) {
   const { toggleSidebar } = useSidebar();
   return (
     <button
       type="button"
       data-sidebar="rail"
-      aria-label="Toggle Sidebar"
+      aria-label={title ?? filesRailToggleTitle(filesRailShortcutIsMac())}
       tabIndex={-1}
       onClick={toggleSidebar}
-      title="Toggle Sidebar"
+      title={title ?? filesRailToggleTitle(filesRailShortcutIsMac())}
       className={cn(
         "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-px after:bg-transparent hover:after:bg-sidebar-border group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex",
         "[[data-side=left]_&]:cursor-w-resize [[data-side=right]_&]:cursor-e-resize",

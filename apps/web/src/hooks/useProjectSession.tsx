@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { jsonApi, getDeviceToken } from "@/lib/api";
+import { shouldReloadOpenFile } from "@/lib/files-rail";
 import { registerAndOpenTab } from "@/lib/project";
 import { projectUrl } from "@/lib/project-query";
 import type { ProjectSession, SessionClient, SessionEvent, SessionSnapshot } from "@/lib/session";
@@ -162,8 +163,11 @@ export function ProjectSessionProvider({
     };
   }, [applySnapshot, adoptTab]);
 
-  const setDoc = useCallback(async (file: string | null, _reload = false) => {
-    await store.getState().loadModel(file ?? "");
+  const setDoc = useCallback(async (file: string | null, reload = false) => {
+    const { url, error, loadModel } = store.getState();
+    const next = file ?? "";
+    if (!reload && next && !shouldReloadOpenFile(next, url, Boolean(error))) return;
+    await loadModel(next);
     if (file) {
       void jsonApi.recents.$post({ json: { path: file } });
     }

@@ -1,7 +1,7 @@
 import { Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
 
+import { useTheme, type ThemePreference } from "@/components/theme/theme-provider";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -11,9 +11,7 @@ const THEMES = [
   { value: "system", label: "System" },
 ] as const;
 
-type ThemePreference = (typeof THEMES)[number]["value"];
-
-function isThemePreference(value: string | null): value is ThemePreference {
+function isThemePreference(value: string | null | undefined): value is ThemePreference {
   return value === "light" || value === "dark" || value === "system";
 }
 

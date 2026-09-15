@@ -56,6 +56,7 @@ export function DesktopSidebar({ host, folder }: { host: boolean; folder: OpenFo
         {hasProject ? (
           <FileTree
             key={project.path}
+            projectPath={project.path}
             files={files}
             current={url}
             filter={filter}
@@ -63,6 +64,7 @@ export function DesktopSidebar({ host, folder }: { host: boolean; folder: OpenFo
             error={error}
             ready={ready}
             onPick={(path) => void setDoc(path)}
+            onClearSearch={() => setFilter("")}
           />
         ) : (
           <EmptyFolderRail folder={folder} />

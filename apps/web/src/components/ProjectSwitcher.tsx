@@ -1,6 +1,7 @@
 import { Check, ChevronDown, Folder, FolderOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { StartTruncatedPath } from "@/components/StartTruncatedPath";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   fetchProject,
@@ -107,9 +108,11 @@ export function ProjectSwitcher({
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm text-foreground">{row.name}</span>
-                      <span className="block truncate font-mono text-[11px] text-muted-foreground">
-                        {shortPath(row.path)}
-                      </span>
+                      <StartTruncatedPath
+                        path={shortPath(row.path)}
+                        title={row.path}
+                        className="font-mono text-[11px] text-muted-foreground"
+                      />
                     </span>
                   </button>
                 </li>
