@@ -1,6 +1,5 @@
 import { Box, PanelRight, Scan } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
-import { Vector3 } from "three";
 import { useShallow } from "zustand/react/shallow";
 
 import { LiveDot } from "@/components/brand/LiveDot";
@@ -33,7 +32,7 @@ import { useXrSession } from "@/hooks/useXrSession";
 import { useXrSupport } from "@/hooks/useXrSupport";
 import { ProjectSessionProvider, useProjectSession } from "@/hooks/useProjectSession";
 import { fileLabel } from "@/cad/loadCadReview";
-import { frameFitObject } from "@/cad/review";
+import { fitDirectionFor, frameFitObject, homeFitDirection } from "@/cad/review";
 import { fetchMe, jsonApi, type MePrincipal } from "@/lib/api";
 import { filesRailToggleTitle, isMacPlatform } from "@/lib/files-rail";
 import {
@@ -235,7 +234,7 @@ function Overlay({
     }
     if (cameraMoved || canvasWidth < 2 || canvasHeight < 2 || !fit) return;
     if (settledFitUrl.current === url) return;
-    fit(review.root, new Vector3(0.6, 0.5, 0.7));
+    fit(review.root, homeFitDirection());
     settledFitUrl.current = url;
   }, [
     session,
@@ -288,11 +287,11 @@ function Overlay({
               top={toolbar.top}
               onHome={() => {
                 const obj = frameFitObject(review, selectedId, "model");
-                if (obj) fit?.(obj);
+                if (obj) fit?.(obj, fitDirectionFor("model"));
               }}
               onFit={() => {
                 const obj = frameFitObject(review, selectedId, "selection");
-                if (obj) fit?.(obj);
+                if (obj) fit?.(obj, fitDirectionFor("selection"));
               }}
             />
           ) : null}

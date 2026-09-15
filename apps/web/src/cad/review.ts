@@ -20,6 +20,18 @@ export type CadReview = {
   showAll: () => void;
 };
 
+/** View direction for a fresh load and Toolbar Home. Frame-selection omits this. */
+export const FIT_HOME_DIR = [0.6, 0.5, 0.7] as const;
+
+export function homeFitDirection(): THREE.Vector3 {
+  return new THREE.Vector3(FIT_HOME_DIR[0], FIT_HOME_DIR[1], FIT_HOME_DIR[2]);
+}
+
+/** Home/load pass a direction; "zoom to" selection keeps the current view. */
+export function fitDirectionFor(scope: "model" | "selection"): THREE.Vector3 | undefined {
+  return scope === "model" ? homeFitDirection() : undefined;
+}
+
 /** Object the camera should frame — whole model, or the selected part when there is one. */
 export function frameFitObject<T>(
   review: { root: T; parts: Array<{ object: T } | undefined> } | null | undefined,
