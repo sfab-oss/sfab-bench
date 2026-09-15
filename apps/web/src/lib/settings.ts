@@ -8,11 +8,14 @@ export const TEXT_SIZE_STORAGE_KEY = "sfab-bench.text-size";
 
 export type TextSize = "small" | "default" | "large";
 
+/** Multiplier for `--ui-text-scale`. Does not change `html` font-size / rem layout. */
 export const TEXT_SIZE_SCALE: Record<TextSize, string> = {
-  small: "87.5%",
-  default: "100%",
-  large: "112.5%",
+  small: "0.875",
+  default: "1",
+  large: "1.125",
 };
+
+export const UI_TEXT_SCALE_VAR = "--ui-text-scale";
 
 export type ContrastCssVars = {
   "--appearance-contrast-base": string;
@@ -44,7 +47,7 @@ export function contrastCssVars(contrast: number): ContrastCssVars {
   };
 }
 
-export function textSizeFontSize(size: TextSize): string {
+export function textSizeScale(size: TextSize): string {
   return TEXT_SIZE_SCALE[parseTextSize(size)];
 }
 
@@ -52,7 +55,6 @@ export type StyleTarget = {
   style: {
     setProperty: (name: string, value: string) => void;
     removeProperty: (name: string) => void;
-    fontSize: string;
   };
 };
 
@@ -66,11 +68,20 @@ export function applyContrastVars(root: StyleTarget, contrast: number): void {
 export function applyTextSize(root: StyleTarget, size: TextSize): void {
   const parsed = parseTextSize(size);
   if (parsed === "default") {
-    root.style.removeProperty("font-size");
-    root.style.fontSize = "";
+    root.style.removeProperty(UI_TEXT_SCALE_VAR);
     return;
   }
-  root.style.fontSize = textSizeFontSize(parsed);
+  root.style.setProperty(UI_TEXT_SCALE_VAR, textSizeScale(parsed));
+}
+
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (!navigator.clipboard?.writeText) return false;
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function harnessStatusLabel(status: string): string {
@@ -94,6 +105,7 @@ export const SETTINGS_SHORTCUTS: readonly ShortcutSpec[] = [
   { action: "New line", keys: ["Shift", "Enter"] },
   { action: "Recall previous prompt", keys: ["↑"] },
   { action: "Mention a part", keys: ["#"] },
+  { action: "Choose an answer", keys: ["1–9"] },
   { action: "Cancel voice, close mention, or close a dialog", keys: ["Esc"] },
 ];
 

@@ -41,6 +41,27 @@
         } catch (_) {}
       })();
     </script>
+    <!-- Clamp/mapping duplicated from src/lib/settings.ts so the first paint matches React. -->
+    <script>
+      (function () {
+        try {
+          var root = document.documentElement.style;
+          var contrastRaw = Number(localStorage.getItem("sfab-bench.contrast"));
+          var contrast = Number.isFinite(contrastRaw)
+            ? Math.min(130, Math.max(90, Math.round(contrastRaw)))
+            : 100;
+          root.setProperty("--appearance-contrast-base", Math.min(contrast, 100) + "%");
+          root.setProperty("--appearance-contrast-boost", Math.max(contrast - 100, 0) + "%");
+          root.setProperty(
+            "--appearance-contrast-border-boost",
+            Math.max(contrast - 100, 0) / 4 + "%",
+          );
+          var size = localStorage.getItem("sfab-bench.text-size");
+          if (size === "small") root.setProperty("--ui-text-scale", "0.875");
+          else if (size === "large") root.setProperty("--ui-text-scale", "1.125");
+        } catch (_) {}
+      })();
+    </script>
 
     <meta property="og:type" content="website" />
     <meta property="og:title" content="sfab-bench" />

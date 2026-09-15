@@ -10,7 +10,7 @@ import {
   harnessStatusLabel,
   parseContrast,
   parseTextSize,
-  textSizeFontSize,
+  textSizeScale,
 } from "./settings";
 
 function expect(cond: boolean, label: string) {
@@ -44,7 +44,6 @@ expect(mid["--appearance-contrast-base"] === "100%" && mid["--appearance-contras
 const calls: string[][] = [];
 const root = {
   style: {
-    fontSize: "",
     setProperty(name: string, value: string) {
       calls.push([name, value]);
     },
@@ -63,14 +62,14 @@ expect(calls[1]?.[1] === "20%", "apply writes boost");
 expect(parseTextSize("small") === "small", "small size");
 expect(parseTextSize("large") === "large", "large size");
 expect(parseTextSize("huge") === "default", "unknown size");
-expect(textSizeFontSize("small") === "87.5%", "small scale");
-expect(textSizeFontSize("default") === "100%", "default scale");
-expect(textSizeFontSize("large") === "112.5%", "large scale");
+expect(textSizeScale("small") === "0.875", "small scale");
+expect(textSizeScale("default") === "1", "default scale");
+expect(textSizeScale("large") === "1.125", "large scale");
 
 applyTextSize(root, "large");
-expect(root.style.fontSize === "112.5%", "large font-size");
+expect(calls.some((c) => c[0] === "--ui-text-scale" && c[1] === "1.125"), "large writes chrome scale");
 applyTextSize(root, "default");
-expect(root.style.fontSize === "", "default clears inline size");
+expect(calls.some((c) => c[0] === "remove" && c[1] === "--ui-text-scale"), "default clears chrome scale");
 
 expect(harnessStatusLabel("ready") === "Ready", "ready label");
 expect(harnessStatusLabel("needs-auth") === "Needs login", "auth label");
@@ -83,6 +82,7 @@ expect(formatShortcutChips(["Mod", "O"], false).join(" ") === "Ctrl O", "other o
 expect(formatShortcutChips(["Shift", "Enter"], true).join("+") === "Shift+Enter", "newline chips");
 expect(SETTINGS_SHORTCUTS.some((row) => row.keys.includes("Mod") && row.keys.includes("B")), "files shortcut");
 expect(SETTINGS_SHORTCUTS.some((row) => row.keys.includes("#")), "mention shortcut");
+expect(SETTINGS_SHORTCUTS.some((row) => row.keys.includes("1–9")), "ask-user digits");
 expect(SETTINGS_SHORTCUTS.some((row) => row.keys.includes("Esc")), "esc shortcut");
 
 const report = formatDebugReport({

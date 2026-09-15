@@ -40,6 +40,7 @@
   --appearance-contrast-boost: 0%;
   --appearance-contrast-border-boost: 0%;
   --appearance-contrast-target: black;
+  --ui-text-scale: 1;
 }
 
 .dark {
@@ -153,6 +154,14 @@
   --color-studio: var(--studio);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --text-xs: calc(0.75rem * var(--ui-text-scale));
+  --text-sm: calc(0.875rem * var(--ui-text-scale));
+  --text-base: calc(1rem * var(--ui-text-scale));
+  --text-lg: calc(1.125rem * var(--ui-text-scale));
+  --text-xl: calc(1.25rem * var(--ui-text-scale));
+  --text-2xl: calc(1.5rem * var(--ui-text-scale));
+  --text-3xl: calc(1.875rem * var(--ui-text-scale));
+  --text-4xl: calc(2.25rem * var(--ui-text-scale));
 }
 
 ::selection {
@@ -182,4 +191,8 @@ body,
   background: var(--studio);
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  font-size: calc(1rem * var(--ui-text-scale, 1));
 }
