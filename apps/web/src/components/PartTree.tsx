@@ -1,41 +1,76 @@
 import { ChevronDown, ChevronRight, ListTree, PanelLeftClose } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Object3D } from "three";
 import { useShallow } from "zustand/react/shallow";
 
+import type { CadPart, CadReview } from "@/cad/review";
 import { namedKids, treeTops } from "@/cad/tree";
 import { CrashCard } from "@/components/CrashCard";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useOpenOnSelect } from "@/hooks/useTreeNode";
+import { disambiguateSiblingNames, fileStemFromLabel, partDisplayName } from "@/lib/part-label";
+import { filterPartTree, type PartTreeItem } from "@/lib/part-tree";
 import { useStore } from "@/state/store";
 import { cn } from "@/lib/utils";
 
-function Node({ obj }: { obj: Object3D }) {
-  const { review, selectedId, select, isolate, setVisible, hiddenIds } = useStore(
+type TreeRow = PartTreeItem & { obj: Object3D; part: CadPart };
+
+function partKey(part: CadPart): string {
+  return part.cadRef ?? `id:${part.id}`;
+}
+
+function rowsFromObjs(
+  objs: Object3D[],
+  review: CadReview,
+  fileStem: string | undefined,
+): TreeRow[] {
+  const mapped: TreeRow[] = [];
+  for (const obj of objs) {
+    const part = review.partByObject.get(obj);
+    const kids = rowsFromObjs(namedKids(obj, review), review, fileStem);
+    if (!part) {
+      mapped.push(...kids);
+      continue;
+    }
+    mapped.push({
+      key: partKey(part),
+      rawName: part.name,
+      displayName: partDisplayName(part, part.cadRef, fileStem),
+      children: kids,
+      obj,
+      part,
+    });
+  }
+  const labels = disambiguateSiblingNames(
+    mapped.map((row) => ({ key: row.key, display: row.displayName, ref: row.part.cadRef })),
+  );
+  return mapped.map((row) => ({ ...row, displayName: labels.get(row.key) ?? row.displayName }));
+}
+
+function Node({
+  row,
+  openKeys,
+  onToggle,
+}: {
+  row: TreeRow;
+  openKeys: Set<string>;
+  onToggle: (key: string) => void;
+}) {
+  const { selectedId, select, isolate, fit, setVisible, hiddenIds } = useStore(
     useShallow((s) => ({
-      review: s.review,
       selectedId: s.selectedId,
       select: s.select,
       isolate: s.isolate,
+      fit: s.fit,
       setVisible: s.setVisible,
       hiddenIds: s.hiddenIds,
     })),
   );
-  const part = review?.partByObject.get(obj);
-  const kids = review ? namedKids(obj, review) : [];
-  const [open, setOpen] = useOpenOnSelect(obj);
-  if (!review || !part) {
-    return (
-      <>
-        {kids.map((child) => (
-          <Node key={child.uuid} obj={child} />
-        ))}
-      </>
-    );
-  }
+  const kids = row.children as TreeRow[];
+  const part = row.part;
   const selected = selectedId === part.id;
+  const open = openKeys.has(row.key);
   return (
     <div>
       <div
@@ -44,14 +79,17 @@ function Node({ obj }: { obj: Object3D }) {
           selected ? "bg-accent font-medium text-accent-foreground" : "text-foreground hover:bg-accent/60",
         )}
         onClick={() => select(part.id)}
-        onDoubleClick={() => isolate(part.id)}
+        onDoubleClick={() => {
+          isolate(part.id);
+          fit?.(part.object);
+        }}
       >
         <button
           type="button"
           className="grid h-5 w-5 shrink-0 place-items-center text-muted-foreground"
           onClick={(ev) => {
             ev.stopPropagation();
-            if (kids.length) setOpen((v) => !v);
+            if (kids.length) onToggle(row.key);
           }}
         >
           {kids.length ? open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" /> : null}
@@ -64,12 +102,14 @@ function Node({ obj }: { obj: Object3D }) {
           onChange={(ev) => setVisible(part.id, ev.target.checked)}
         />
         <span className="size-2.5 shrink-0 rounded-[2px] border border-border" style={{ background: part.color }} />
-        <span className="min-w-0 flex-1 truncate">{part.name}</span>
+        <span className="min-w-0 flex-1 truncate" title={part.name}>
+          {row.displayName}
+        </span>
       </div>
       {open && kids.length > 0 && (
         <div className="ml-3 border-l border-border pl-1">
           {kids.map((child) => (
-            <Node key={child.uuid} obj={child} />
+            <Node key={child.key} row={child} openKeys={openKeys} onToggle={onToggle} />
           ))}
         </div>
       )}
@@ -78,12 +118,86 @@ function Node({ obj }: { obj: Object3D }) {
 }
 
 function ModelTreeBody() {
-  const { review } = useStore(useShallow((s) => ({ review: s.review })));
+  const { review, title, selectedId } = useStore(
+    useShallow((s) => ({
+      review: s.review,
+      title: s.title,
+      selectedId: s.selectedId,
+    })),
+  );
   const [filter, setFilter] = useState("");
-  const [collapseKey, setCollapseKey] = useState(0);
-  const tops = useMemo(() => (review ? treeTops(review) : []), [review]);
-  const q = filter.trim().toLowerCase();
+  const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set());
+  const openKeysRef = useRef(openKeys);
+  openKeysRef.current = openKeys;
+  const savedOpenKeys = useRef<Set<string> | null>(null);
+
+  const fileStem = useMemo(() => {
+    if (!review || review.parts.length !== 1) return undefined;
+    const stem = fileStemFromLabel(title);
+    return stem || undefined;
+  }, [review, title]);
+
+  const forest = useMemo(
+    () => (review ? rowsFromObjs(treeTops(review), review, fileStem) : []),
+    [review, fileStem],
+  );
+  const q = filter.trim();
+  const filtered = useMemo(() => filterPartTree(forest, q), [forest, q]);
+  const shown = q ? filtered.nodes : forest;
+  const expandKey = filtered.expandKeys.join("\0");
+
+  useEffect(() => {
+    if (q) {
+      if (savedOpenKeys.current === null) savedOpenKeys.current = new Set(openKeysRef.current);
+      setOpenKeys((prev) => {
+        const next = new Set(prev);
+        for (const key of expandKey ? expandKey.split("\0") : []) next.add(key);
+        return next;
+      });
+      return;
+    }
+    if (savedOpenKeys.current) {
+      setOpenKeys(savedOpenKeys.current);
+      savedOpenKeys.current = null;
+    }
+  }, [q, expandKey]);
+
+  useEffect(() => {
+    if (!review || selectedId === null) return;
+    const selected = review.parts[selectedId]?.object;
+    if (!selected) return;
+    const keys: string[] = [];
+    let cur: Object3D | null = selected.parent;
+    while (cur) {
+      const part = review.partByObject.get(cur);
+      if (part) keys.push(partKey(part));
+      cur = cur.parent;
+    }
+    if (!keys.length) return;
+    setOpenKeys((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const key of keys) {
+        if (!next.has(key)) {
+          next.add(key);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [review, selectedId]);
+
   if (!review) return null;
+
+  const toggle = (key: string) => {
+    setOpenKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   return (
     <>
       <div className="flex items-center gap-2 px-3 pt-2">
@@ -96,23 +210,28 @@ function ModelTreeBody() {
         <button
           type="button"
           className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground"
-          onClick={() => setCollapseKey((k) => k + 1)}
+          onClick={() => setOpenKeys(new Set())}
         >
           Collapse
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-auto px-2 py-2">
-        <div key={collapseKey}>
-          {tops
-            .filter((obj) => {
-              if (!q) return true;
-              const part = review.partByObject.get(obj);
-              return (part?.name ?? obj.name).toLowerCase().includes(q);
-            })
-            .map((obj) => (
-              <Node key={obj.uuid} obj={obj} />
-            ))}
-        </div>
+        {q && shown.length === 0 ? (
+          <p className="px-1 py-1 text-xs text-muted-foreground">
+            No parts match.{" "}
+            <button
+              type="button"
+              className="font-medium text-foreground hover:underline"
+              onClick={() => setFilter("")}
+            >
+              Clear
+            </button>
+          </p>
+        ) : (
+          (shown as TreeRow[]).map((row) => (
+            <Node key={row.key} row={row} openKeys={openKeys} onToggle={toggle} />
+          ))
+        )}
       </div>
     </>
   );
@@ -135,10 +254,11 @@ export function PartTree() {
 }
 
 function PartTreeBody() {
-  const { review, title, partsOpen, setPartsOpen } = useStore(
+  const { review, title, url, partsOpen, setPartsOpen } = useStore(
     useShallow((s) => ({
       review: s.review,
       title: s.title,
+      url: s.url,
       partsOpen: s.partsOpen,
       setPartsOpen: s.setPartsOpen,
     })),
@@ -178,7 +298,7 @@ function PartTreeBody() {
           <PanelLeftClose />
         </Button>
       </header>
-      <ModelTreeBody />
+      <ModelTreeBody key={url} />
     </aside>
   );
 }
