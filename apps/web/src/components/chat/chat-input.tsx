@@ -1,6 +1,6 @@
 import type { ChatStatus } from "ai";
 import { Hash, Mic } from "lucide-react";
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject, type Ref, type RefObject } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject, type Ref, type RefObject } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   askUserComposerPlaceholder,
@@ -213,12 +213,12 @@ function ChatInputInner({
     inputRef.current?.focus();
   }, [inputRef, restorePrompt, threadId]);
 
-  const syncDraft = useCallback(() => {
+  const syncDraft = () => {
     const text = inputRef.current?.getText() ?? "";
     if (text) draftTouchedRef.current = true;
     if (text || draftTouchedRef.current) captureSessionDraft(threadId, text);
     setDraftText(text);
-  }, [inputRef, threadId]);
+  };
 
   useEffect(() => {
     return () => {
@@ -227,16 +227,6 @@ function ChatInputInner({
       if (text || draftTouchedRef.current) captureSessionDraft(threadId, text);
     };
   }, [inputRef, threadId]);
-
-  useEffect(() => {
-    const onPointerUp = (event: Event) => {
-      const target = event.target;
-      if (!(target instanceof Element) || !target.closest("[data-mention-list]")) return;
-      requestAnimationFrame(syncDraft);
-    };
-    document.addEventListener("pointerup", onPointerUp);
-    return () => document.removeEventListener("pointerup", onPointerUp);
-  }, [syncDraft]);
 
   useEffect(() => {
     let cancelled = false;
@@ -285,7 +275,6 @@ function ChatInputInner({
         mentions={mentions}
         onBlur={syncDraft}
         onInput={syncDraft}
-        onKeyUp={syncDraft}
         onStop={onStop}
         onSubmit={(parsed, { clear, focus }) => {
           if (voice.active) return;
