@@ -4,6 +4,7 @@ import { Folder } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { StartTruncatedPath } from "@/components/StartTruncatedPath";
 import { desktopBridge } from "@/lib/desktop";
 import {
   browsePath,
@@ -37,7 +38,11 @@ export function RecentFolders({
             onClick={() => onPick(row.path)}
           >
             <span className="text-sm text-foreground">{row.name}</span>
-            <span className="w-full truncate font-mono text-[11px] text-muted-foreground">{shortPath(row.path)}</span>
+            <StartTruncatedPath
+              path={shortPath(row.path)}
+              title={row.path}
+              className="w-full font-mono text-[11px] text-muted-foreground"
+            />
           </button>
         </li>
       ))}

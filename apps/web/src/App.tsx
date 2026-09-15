@@ -19,6 +19,7 @@ import { useXrSession } from "@/hooks/useXrSession";
 import { useXrSupport } from "@/hooks/useXrSupport";
 import { ProjectSessionProvider, useProjectSession } from "@/hooks/useProjectSession";
 import { fetchMe, type MePrincipal } from "@/lib/api";
+import { filesRailToggleTitle, isMacPlatform } from "@/lib/files-rail";
 import { redeemFragmentToken } from "@/lib/pairing";
 import { ViewerCanvas } from "@/scene/ViewerCanvas";
 import { useStore } from "@/state/store";
@@ -91,7 +92,10 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
         <>
           {!treeOpen ? (
             <div className="pointer-events-auto absolute top-4 left-3 z-10 rounded-xl border border-border bg-card/95 shadow-lg">
-              <SidebarTrigger className="h-9 w-9" title="Show files" />
+              <SidebarTrigger
+                className="h-9 w-9"
+                title={filesRailToggleTitle(isMacPlatform(navigator.platform, navigator.userAgent), "show")}
+              />
             </div>
           ) : null}
           <Toolbar
