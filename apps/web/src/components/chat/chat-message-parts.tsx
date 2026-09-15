@@ -12,6 +12,7 @@ import {
   isAskUserQuestionsPart,
   parseAskUserQuestionsInput,
 } from "@/chat/ask-user-questions";
+import { resolveCadRef, splitCadRefSegments } from "@/chat/cad-refs";
 import { turnErrorText } from "@/chat/persist-thread";
 import { AskUserAnsweredCard } from "@/components/chat/AskUserQuestionsPanel";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -40,9 +41,41 @@ import {
   WorkedContent,
   WorkedTrigger,
 } from "@/components/ui/worked";
+import { partLabelFileStem } from "@/lib/part-label";
 import { cn } from "@/lib/utils";
+import { useStore } from "@/state/store";
 import type { AIDataPart } from "./ai-types";
 import type { GalleryChatMessage } from "./mock-chat-messages";
+
+function CadRefChip({ token }: { token: string }) {
+  const label = useStore((s) => {
+    const parts = s.review?.parts ?? [];
+    return resolveCadRef(token, parts, partLabelFileStem(parts.length, s.title))?.label ?? null;
+  });
+  const selectByRef = useStore((s) => s.selectByRef);
+
+  if (!label) {
+    return (
+      <span
+        className="mx-0.5 inline-flex align-middle rounded-sm bg-muted px-1 py-0.5 text-sm text-muted-foreground"
+        title="Not in the open model"
+      >
+        {token}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      className="mx-0.5 inline-flex align-middle rounded-sm bg-primary/15 px-1 py-0.5 text-sm font-medium text-primary hover:bg-primary/25"
+      onClick={() => selectByRef(token)}
+      title={token}
+      type="button"
+    >
+      {label}
+    </button>
+  );
+}
 
 function MarkdownBody({
   children,
@@ -51,15 +84,32 @@ function MarkdownBody({
   children: string;
   className?: string;
 }) {
+  const segments = splitCadRefSegments(children, { skipCode: true });
+  const streamClass = cn(
+    "size-full text-base [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+    className
+  );
+  if (!segments.some((segment) => segment.type === "ref")) {
+    return <Streamdown className={streamClass}>{children}</Streamdown>;
+  }
+
   return (
-    <Streamdown
-      className={cn(
-        "size-full text-base [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-        className
-      )}
-    >
-      {children}
-    </Streamdown>
+    <div className={streamClass}>
+      {segments.map((segment, index) => {
+        if (segment.type === "ref") {
+          return <CadRefChip key={`ref-${index}-${segment.ref}`} token={segment.ref} />;
+        }
+        if (!segment.text) return null;
+        if (!segment.text.trim()) {
+          return <span key={`space-${index}`}>{segment.text}</span>;
+        }
+        return (
+          <Streamdown className="inline [&>p]:my-0 [&>p]:inline" key={`text-${index}`}>
+            {segment.text}
+          </Streamdown>
+        );
+      })}
+    </div>
   );
 }
 
