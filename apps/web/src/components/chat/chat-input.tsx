@@ -224,6 +224,13 @@ function ChatInputInner({
     inputRef.current?.focus();
   }, [inputRef, restorePrompt, threadId]);
 
+  // A draft restored before the model loaded has plain `#o…` refs; turn them into chips once parts arrive.
+  useEffect(() => {
+    if (!hasCadParts) return;
+    const text = inputRef.current?.getText() ?? "";
+    if (parseCadRefs(text).length > 0) inputRef.current?.setText(text);
+  }, [hasCadParts, inputRef]);
+
   const syncDraft = () => {
     const text = inputRef.current?.getText() ?? "";
     if (text) draftTouchedRef.current = true;

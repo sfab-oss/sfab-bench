@@ -175,7 +175,11 @@ function inlineFromText(
     }
     content.push({
       type: `${hit.key}-mention`,
-      attrs: { id: hit.item.id, label: hit.item.name },
+      attrs: {
+        id: hit.item.id,
+        label: hit.item.name,
+        mentionSuggestionChar: mentions?.[hit.key]?.trigger,
+      },
     });
     if (selectedItems) {
       if (!selectedItems[hit.key]) {
