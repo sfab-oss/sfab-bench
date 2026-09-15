@@ -52,7 +52,7 @@ function usePaletteOwners(): PaletteOwners {
 }
 
 function probeOpenModals(): ModalProbe[] {
-  return Array.from(document.querySelectorAll("[data-slot='dialog-content']")).map((el) => ({
+  return Array.from(document.querySelectorAll("[data-slot='dialog-content'], [data-slot='alert-dialog-content']")).map((el) => ({
     palette: Boolean(el.closest("[data-command-palette]")),
     ending: el.hasAttribute("data-ending-style"),
   }));
