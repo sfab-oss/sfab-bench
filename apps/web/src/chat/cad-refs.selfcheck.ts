@@ -177,4 +177,10 @@ expect(cadRefFromHref(cadRefHref("#o1.2.1")) === "#o1.2.1", "href round-trips");
 expect(cadRefFromHref("https://example.com/#cad-ref:o1.1") === "#o1.1", "absolute hash still parses");
 expect(cadRefFromHref("#heading") === null, "plain fragment is not a cad ref");
 
+const referenceStyle = "Click [see #o1.1][post] then #o1.2\n\n[post]: #o1.1";
+const referenceLinked = linkifyCadRefsInMarkdown(referenceStyle);
+expect(referenceLinked.includes("[see #o1.1][post]"), "reference link text is not rewritten");
+expect(referenceLinked.includes("[post]: #o1.1"), "link definition line is not rewritten");
+expect(referenceLinked.includes("[#o1.2](#cad-ref:o1.2)"), "prose after a reference link still linkifies");
+
 console.log("cad-refs.selfcheck ok");

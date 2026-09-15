@@ -23,10 +23,6 @@ export type CadRefHit = {
   ref: string;
 };
 
-export type CadRefSegment =
-  | { type: "text"; text: string }
-  | { type: "ref"; ref: string };
-
 export type CadMentionCatalogPart = {
   name: string;
   cadRef: string;
@@ -136,10 +132,16 @@ function markdownCodeRanges(text: string): CodeRange[] {
 
 function markdownLinkRanges(text: string): CodeRange[] {
   const ranges: CodeRange[] = [];
-  const re = /\[[^\]\n]*\]\([^)]*\)/g;
-  for (const match of text.matchAll(re)) {
-    const start = match.index ?? 0;
-    ranges.push({ start, end: start + match[0].length });
+  const patterns = [
+    /\[[^\]\n]*\]\([^)]*\)/g,
+    /\[[^\]\n]*\]\[[^\]\n]*\]/g,
+    /^\[[^\]\n]+\]:[ \t]+\S+/gm,
+  ];
+  for (const re of patterns) {
+    for (const match of text.matchAll(re)) {
+      const start = match.index ?? 0;
+      ranges.push({ start, end: start + match[0].length });
+    }
   }
   return ranges;
 }
@@ -158,29 +160,6 @@ export function parseCadRefs(text: string): CadRefHit[] {
     hits.push({ start, end: start + ref.length, ref });
   }
   return hits;
-}
-
-export function splitCadRefSegments(
-  text: string,
-  options?: { skipCode?: boolean },
-): CadRefSegment[] {
-  const skipCode = options?.skipCode ?? false;
-  const protectedRanges = skipCode ? markdownCodeRanges(text) : [];
-  const hits = parseCadRefs(text).filter((hit) => !overlaps(hit, protectedRanges));
-  const segments: CadRefSegment[] = [];
-  let cursor = 0;
-  for (const hit of hits) {
-    if (hit.start < cursor) continue;
-    if (hit.start > cursor) {
-      segments.push({ type: "text", text: text.slice(cursor, hit.start) });
-    }
-    segments.push({ type: "ref", ref: hit.ref });
-    cursor = hit.end;
-  }
-  if (cursor < text.length) {
-    segments.push({ type: "text", text: text.slice(cursor) });
-  }
-  return segments;
 }
 
 /** Wrap prose refs as markdown links so one markdown render can keep lists/emphasis. */

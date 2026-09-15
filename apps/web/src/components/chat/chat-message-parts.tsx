@@ -78,21 +78,41 @@ function CadRefChip({ token }: { token: string }) {
   );
 }
 
-function CadRefAnchor({
+type MarkdownAnchorProps = ComponentProps<"a"> & { node?: unknown };
+
+/**
+ * Streamdown's default `MarkdownA` is not exported. This matches its
+ * linkSafety-off `<a>` fallback (`rel="noreferrer" target="_blank"` plus
+ * the `wrap-anywhere font-medium text-primary underline` classes). The
+ * default-on linkSafety path (button + confirmation modal) cannot be reused.
+ */
+function StreamdownMarkdownA({
   href,
+  className,
   children,
   node: _node,
   ...props
-}: ComponentProps<"a"> & { node?: unknown }) {
-  const token = cadRefFromHref(href);
-  if (!token) {
-    return (
-      <a href={href} {...props}>
-        {children}
-      </a>
-    );
+}: MarkdownAnchorProps) {
+  return (
+    <a
+      {...props}
+      className={cn("wrap-anywhere font-medium text-primary underline", className)}
+      data-streamdown="link"
+      href={href}
+      rel="noreferrer"
+      target="_blank"
+    >
+      {children}
+    </a>
+  );
+}
+
+function CadRefAnchor(props: MarkdownAnchorProps) {
+  const token = cadRefFromHref(props.href);
+  if (token) {
+    return <CadRefChip token={token} />;
   }
-  return <CadRefChip token={token} />;
+  return <StreamdownMarkdownA {...props} />;
 }
 
 function MarkdownBody({
