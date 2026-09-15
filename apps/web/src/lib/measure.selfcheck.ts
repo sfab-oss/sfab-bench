@@ -1,9 +1,15 @@
 import { FIT_HOME_DIR, fitDirectionFor, frameFitObject, homeFitDirection } from "../cad/review";
 import {
+  MEASURE_DESKTOP_CLEAR_PX,
   MEASURE_DESKTOP_SPHERE_PX,
   MEASURE_DESKTOP_TEXT_PX,
+  MEASURE_LABEL_FONT_SIZE,
+  MEASURE_LABEL_LINE_HEIGHT,
   MEASURE_LABEL_OFFSET_Y,
+  MEASURE_LABEL_PAD_Y,
+  MEASURE_LABEL_PIXEL_SIZE,
   MEASURE_SPHERE_RADIUS,
+  measureDesktopLabelOffsetY,
   measureNativeLabelHeight,
   measureNativeTextHeight,
   measureScreenScale,
@@ -52,6 +58,16 @@ const labelScale = measureScreenScale(textH, MEASURE_DESKTOP_TEXT_PX, 1, 90, 100
 expect(Math.abs(labelScale - 25) < 1e-12, "13.5px text at 0.02 m/px");
 
 const halfLabel = measureNativeLabelHeight() / 2;
-expect(MEASURE_LABEL_OFFSET_Y > halfLabel, "offset clears the line at any zoom");
+expect(MEASURE_LABEL_OFFSET_Y === 0.014, "XR native offset frozen");
+expect(MEASURE_LABEL_OFFSET_Y > halfLabel, "XR offset still clears the native chip");
+expect(MEASURE_DESKTOP_CLEAR_PX >= 6 && MEASURE_DESKTOP_CLEAR_PX <= 8, "desktop clearance 6–8 CSS px");
+const deskOffset = measureDesktopLabelOffsetY();
+expect(deskOffset > MEASURE_LABEL_OFFSET_Y, "desktop chip sits higher than XR native");
+const deskHalf =
+  ((MEASURE_LABEL_FONT_SIZE * MEASURE_LABEL_LINE_HEIGHT + MEASURE_LABEL_PAD_Y * 2) * MEASURE_LABEL_PIXEL_SIZE) / 2;
+const deskClearPx = ((deskOffset - deskHalf) * MEASURE_DESKTOP_TEXT_PX) / measureNativeTextHeight();
+expect(Math.abs(deskClearPx - MEASURE_DESKTOP_CLEAR_PX) < 1e-9, "desktop gap is half line-box + 8px");
+const contentGapPx = ((deskOffset - halfLabel) * MEASURE_DESKTOP_TEXT_PX) / measureNativeTextHeight();
+expect(contentGapPx >= 6, "content-box bottom still clears the midpoint");
 
 console.log("measure.selfcheck ok");

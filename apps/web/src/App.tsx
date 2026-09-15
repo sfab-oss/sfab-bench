@@ -38,6 +38,7 @@ import { filesRailToggleTitle, isMacPlatform } from "@/lib/files-rail";
 import {
   chatLayoutWidth,
   detailPanelWidth,
+  fitCardsReady,
   fitInsets,
   isCompactChat,
   overlayLayout,
@@ -139,6 +140,23 @@ function EnterXr() {
   );
 }
 
+function useOverlayCardHeight(): [number, (el: HTMLElement | null) => void] {
+  const [el, setEl] = useState<HTMLElement | null>(null);
+  const [height, setHeight] = useState(0);
+  useLayoutEffect(() => {
+    if (!el) {
+      setHeight(0);
+      return;
+    }
+    const read = () => setHeight(Math.round(el.getBoundingClientRect().height));
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el]);
+  return [height, setEl];
+}
+
 function Overlay({
   folder,
   catalog,
@@ -214,6 +232,8 @@ function Overlay({
   const toolbar = toolbarLayout({ canvasWidth, leftReserve, rightReserve });
   const cameraMoved = useStore((s) => s.cameraMoved);
   const settledFitUrl = useRef<string | null>(null);
+  const [partsHeight, setPartsCard] = useOverlayCardHeight();
+  const [detailHeight, setDetailCard] = useOverlayCardHeight();
 
   useLayoutEffect(() => {
     if (session) {
@@ -226,6 +246,10 @@ function Overlay({
         partsChip,
         detailVisible,
         detailWidth,
+        partsHeight,
+        detailHeight,
+        canvasWidth,
+        canvasHeight,
       }),
     );
     if (!review) {
@@ -234,6 +258,17 @@ function Overlay({
     }
     if (cameraMoved || canvasWidth < 2 || canvasHeight < 2 || !fit) return;
     if (settledFitUrl.current === url) return;
+    if (
+      !fitCardsReady({
+        partsExpanded,
+        partsChip,
+        detailVisible,
+        partsHeight,
+        detailHeight,
+      })
+    ) {
+      return;
+    }
     fit(review.root, homeFitDirection());
     settledFitUrl.current = url;
   }, [
@@ -242,6 +277,8 @@ function Overlay({
     partsChip,
     detailVisible,
     detailWidth,
+    partsHeight,
+    detailHeight,
     review,
     cameraMoved,
     canvasWidth,
@@ -297,6 +334,7 @@ function Overlay({
           ) : null}
           <PartTree
             canvasHeight={canvasHeight}
+            cardRef={setPartsCard}
             expanded={partsExpanded}
             onCollapse={() => {
               setPartsOpen(false);
@@ -307,7 +345,12 @@ function Overlay({
               setPartsForceExpand(true);
             }}
           />
-          <DetailPanel canvasHeight={canvasHeight} compact={overlays.detailCompact} width={detailWidth} />
+          <DetailPanel
+            canvasHeight={canvasHeight}
+            cardRef={setDetailCard}
+            compact={overlays.detailCompact}
+            width={detailWidth}
+          />
           <div className="pointer-events-none absolute top-4 right-3 z-10 flex items-start gap-2">
             <EnterXr />
             {project.path ? (

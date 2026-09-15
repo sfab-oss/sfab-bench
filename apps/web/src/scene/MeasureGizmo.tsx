@@ -15,6 +15,7 @@ import {
   MEASURE_SPHERE_RADIUS,
   formatMm,
   measureDelta,
+  measureDesktopLabelOffsetY,
   measureNativeTextHeight,
   measureScreenScale,
 } from "@/lib/measure";
@@ -48,6 +49,7 @@ export function MeasureGizmo() {
   const aRef = useRef<THREE.Mesh>(null);
   const bRef = useRef<THREE.Mesh>(null);
   const labelRef = useRef<THREE.Group>(null);
+  const labelOffsetRef = useRef<THREE.Group>(null);
   const a = measure.a?.point;
   const b = measure.b?.point;
   const delta = measureDelta(measure.a, measure.b);
@@ -64,6 +66,9 @@ export function MeasureGizmo() {
     pin(aRef.current, MEASURE_SPHERE_RADIUS * 2, MEASURE_DESKTOP_SPHERE_PX);
     pin(bRef.current, MEASURE_SPHERE_RADIUS * 2, MEASURE_DESKTOP_SPHERE_PX);
     pin(labelRef.current, measureNativeTextHeight(), MEASURE_DESKTOP_TEXT_PX);
+    if (labelOffsetRef.current) {
+      labelOffsetRef.current.position.y = inXr ? MEASURE_LABEL_OFFSET_Y : measureDesktopLabelOffsetY();
+    }
   });
   return (
     <group>
@@ -87,7 +92,7 @@ export function MeasureGizmo() {
         // Offset lives under the pin so it stays clear of the line at any zoom.
         <group ref={labelRef} position={mid}>
           <Billboard>
-            <group position={[0, MEASURE_LABEL_OFFSET_Y, 0]} renderOrder={21}>
+            <group ref={labelOffsetRef} position={[0, MEASURE_LABEL_OFFSET_Y, 0]} renderOrder={21}>
               <Container
                 pixelSize={MEASURE_LABEL_PIXEL_SIZE}
                 paddingX={10}

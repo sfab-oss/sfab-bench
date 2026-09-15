@@ -6,6 +6,10 @@ export const MEASURE_LABEL_PIXEL_SIZE = 0.0006;
 export const MEASURE_LABEL_FONT_SIZE = 18;
 export const MEASURE_LABEL_PAD_Y = 5;
 export const MEASURE_LABEL_OFFSET_Y = 0.014;
+/** uikit Text line box vs fontSize — desktop offset only, so the pill clears the line. */
+export const MEASURE_LABEL_LINE_HEIGHT = 1.2;
+/** Desktop: pill bottom above the midpoint, CSS pixels. */
+export const MEASURE_DESKTOP_CLEAR_PX = 8;
 
 /** Desktop on-screen targets (CSS pixels): text ~13–14, sphere diameter ~8–10. */
 export const MEASURE_DESKTOP_TEXT_PX = 13.5;
@@ -17,6 +21,14 @@ export function measureNativeTextHeight(): number {
 
 export function measureNativeLabelHeight(): number {
   return (MEASURE_LABEL_FONT_SIZE + MEASURE_LABEL_PAD_Y * 2) * MEASURE_LABEL_PIXEL_SIZE;
+}
+
+/** Native local Y of the desktop chip origin (half line-box + clearance). XR keeps 0.014. */
+export function measureDesktopLabelOffsetY(): number {
+  const half =
+    ((MEASURE_LABEL_FONT_SIZE * MEASURE_LABEL_LINE_HEIGHT + MEASURE_LABEL_PAD_Y * 2) * MEASURE_LABEL_PIXEL_SIZE) / 2;
+  const clear = (measureNativeTextHeight() * MEASURE_DESKTOP_CLEAR_PX) / MEASURE_DESKTOP_TEXT_PX;
+  return half + clear;
 }
 
 /** Vertical world metres per CSS pixel at `distance` for a perspective camera. */
