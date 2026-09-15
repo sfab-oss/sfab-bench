@@ -1,9 +1,38 @@
+import type { Object3D } from "three";
+
+import type { CadReview } from "@/cad/review";
+import { namedKids, treeTops } from "@/cad/tree";
+
 export type PartTreeItem = {
   key: string;
   rawName: string;
   displayName: string;
   children: PartTreeItem[];
 };
+
+function hoistUnnamed(objs: Object3D[], review: CadReview): Object3D[] {
+  const out: Object3D[] = [];
+  for (const obj of objs) {
+    if (review.partByObject.has(obj)) out.push(obj);
+    else out.push(...hoistUnnamed(namedKids(obj, review), review));
+  }
+  return out;
+}
+
+/**
+ * Part children of `parent`, hoisting unnamed GLB wrappers so the model tree
+ * and Selection panel share the same `(1.2)` suffixes.
+ */
+export function siblingRows(review: CadReview, parent: Object3D | null | undefined): Object3D[] {
+  let level = parent ?? null;
+  while (level && !review.partByObject.has(level) && level !== review.root) {
+    const up = level.parent;
+    if (!up) break;
+    level = up;
+  }
+  if (!level || level === review.root) return hoistUnnamed(treeTops(review), review);
+  return hoistUnnamed(namedKids(level, review), review);
+}
 
 export function partQueryHits(rawName: string, displayName: string, query: string): boolean {
   const q = query.trim().toLowerCase();

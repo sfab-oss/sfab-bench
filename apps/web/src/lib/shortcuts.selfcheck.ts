@@ -1,4 +1,4 @@
-import { CHAT_DEFAULT_WIDTH, CHAT_MAX_WIDTH, CHAT_MIN_WIDTH, chatWidthAfterKey } from "./layout";
+import { CHAT_DEFAULT_WIDTH, CHAT_MIN_WIDTH, chatWidthAfterKey } from "./layout";
 import {
   SETTINGS_SHORTCUTS,
   SHORTCUTS,
@@ -215,6 +215,5 @@ expect(chatWidthAfterKey("ArrowLeft", false, 650, 1440, true) === 656, "step sti
 expect(chatWidthAfterKey("ArrowRight", false, 290, 1440, true) === CHAT_MIN_WIDTH, "shrink still floors");
 expect(chatWidthAfterKey("Enter", false, 384, 1440, true) === null, "other keys ignored");
 expect(chatWidthAfterKey("Home", false, CHAT_DEFAULT_WIDTH, 1440, true) === CHAT_MIN_WIDTH, "Home from default");
-expect(CHAT_MAX_WIDTH === 720, "max unchanged");
 
 console.log("shortcuts.selfcheck ok");

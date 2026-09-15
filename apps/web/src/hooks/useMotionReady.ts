@@ -1,12 +1,6 @@
 import { useEffect, useState } from "react";
 
-import {
-  MOTION_READY_ATTR,
-  MOTION_READY_VALUE,
-  REDUCED_MOTION_QUERY,
-  firstPaintSuppressed,
-  prefersReducedMotion,
-} from "@/lib/motion";
+import { MOTION_READY_ATTR, MOTION_READY_VALUE, REDUCED_MOTION_QUERY } from "@/lib/motion";
 
 function readReducedMotion(): boolean {
   if (typeof window === "undefined") return false;
@@ -14,17 +8,13 @@ function readReducedMotion(): boolean {
 }
 
 /** Hold CSS transitions until two frames after this surface painted. */
-export function useMotionReady(navigationKey: string): boolean {
-  const [paintedKey, setPaintedKey] = useState<string | null>(null);
-  const held = firstPaintSuppressed(paintedKey, navigationKey);
-
+export function useMotionReady(navigationKey: string) {
   useEffect(() => {
     const root = document.documentElement;
     root.removeAttribute(MOTION_READY_ATTR);
     let releaseFrame = 0;
     const paintFrame = window.requestAnimationFrame(() => {
       releaseFrame = window.requestAnimationFrame(() => {
-        setPaintedKey(navigationKey);
         root.setAttribute(MOTION_READY_ATTR, MOTION_READY_VALUE);
       });
     });
@@ -33,8 +23,6 @@ export function useMotionReady(navigationKey: string): boolean {
       window.cancelAnimationFrame(releaseFrame);
     };
   }, [navigationKey]);
-
-  return held;
 }
 
 export function usePrefersReducedMotion(): boolean {
@@ -42,7 +30,7 @@ export function usePrefersReducedMotion(): boolean {
 
   useEffect(() => {
     const mq = window.matchMedia(REDUCED_MOTION_QUERY);
-    const onChange = () => setReduce(prefersReducedMotion(mq.matches));
+    const onChange = () => setReduce(mq.matches);
     onChange();
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);

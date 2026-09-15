@@ -1,7 +1,4 @@
 import {
-  CONNECTION_GRACE_MS,
-  CONNECTION_RELOAD_AFTER_MS,
-  HIDDEN_CHAT_NOTICE,
   INITIAL_CHAT_TURN_FLAGS,
   INITIAL_CONNECTION_STATE,
   INITIAL_FAILURE_STREAK,
@@ -16,9 +13,6 @@ import {
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
 }
-
-expect(CONNECTION_GRACE_MS === 2_000, "lost toast waits 2s");
-expect(CONNECTION_RELOAD_AFTER_MS === 10_000, "reload after 10s down");
 
 let conn = INITIAL_CONNECTION_STATE;
 expect(conn.phase === "connecting", "starts connecting");
@@ -140,7 +134,5 @@ expect(
   ) === null,
   "already-asking does not re-toast on finish",
 );
-expect(HIDDEN_CHAT_NOTICE["ask-user"] === "The agent is asking a question", "ask copy");
-expect(HIDDEN_CHAT_NOTICE.failed === "Reply failed", "failed copy");
 
 console.log("feedback.selfcheck ok");

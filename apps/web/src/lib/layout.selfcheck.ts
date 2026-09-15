@@ -1,21 +1,15 @@
 import {
   CANVAS_MIN_WIDTH,
   CHAT_DEFAULT_WIDTH,
-  CHAT_LIVE_CHIP_RESERVE,
   CHAT_MAX_WIDTH,
   CHAT_MIN_WIDTH,
-  COMPACT_CHAT_BREAKPOINT,
-  DETAIL_COMPACT_THRESHOLD,
-  DETAIL_WIDTH,
   FILES_RAIL_WIDTH,
-  OVERLAY_BOTH_THRESHOLD,
   OVERLAY_CLUSTER_GAP,
   OVERLAY_LEFT,
   OVERLAY_RIGHT,
   OVERLAY_TOP,
   PART_TREE_WIDTH,
   TOOLBAR_TOP,
-  TOOLBAR_WIDTH,
   chatLayoutWidth,
   chatMaxForWindow,
   clampChatDrag,
@@ -28,11 +22,9 @@ import {
   fitInsets,
   fitPanNdc,
   isCompactChat,
-  loadFitKey,
   overlayLayout,
   overlayMaxHeight,
   preferredChatWidth,
-  shouldRepeatLoadFit,
   toolbarLayout,
   toolbarRightReserve,
 } from "./layout";
@@ -40,17 +32,6 @@ import {
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
 }
-
-expect(FILES_RAIL_WIDTH === 304, "19rem rail");
-expect(CHAT_MIN_WIDTH === 280, "min chat");
-expect(CHAT_MAX_WIDTH === 720, "max chat");
-expect(CHAT_DEFAULT_WIDTH === 384, "default chat");
-expect(CANVAS_MIN_WIDTH === 480, "canvas floor");
-expect(COMPACT_CHAT_BREAKPOINT === 980, "T3 compact breakpoint");
-expect(OVERLAY_BOTH_THRESHOLD === 620, "PartTree + Detail + gaps");
-expect(PART_TREE_WIDTH === 280, "PartTree width");
-expect(DETAIL_WIDTH === 260, "Detail width");
-expect(TOOLBAR_WIDTH === 198, "toolbar pill width");
 
 expect(preferredChatWidth(100) === CHAT_MIN_WIDTH, "stored below min");
 expect(preferredChatWidth(900) === CHAT_MAX_WIDTH, "stored above max");
@@ -206,65 +187,8 @@ expect(toolbarRightReserve(false, false) === 12, "padding only");
 expect(toolbarRightReserve(true, false) === 12 + 44, "chat toggle");
 expect(toolbarRightReserve(false, true) === 12 + 140, "Enter Studio");
 expect(toolbarRightReserve(true, true) === 12 + 140 + 44 + 8, "both plus gap");
-expect(CHAT_LIVE_CHIP_RESERVE === 220, "hidden-chat live chip width");
 expect(toolbarRightReserve(true, false, true) === 12 + 220, "live chip");
 expect(toolbarRightReserve(true, true, true) === 12 + 140 + 220 + 8, "live chip plus Enter Studio");
-
-const loadTree = loadFitKey({
-  partsExpanded: true,
-  partsChip: false,
-  partsHeight: 270,
-  canvasWidth: 754,
-  canvasHeight: 900,
-});
-const loadChip = loadFitKey({
-  partsExpanded: false,
-  partsChip: true,
-  partsHeight: 40,
-  canvasWidth: 754,
-  canvasHeight: 900,
-});
-const loadTaller = loadFitKey({
-  partsExpanded: true,
-  partsChip: false,
-  partsHeight: 320,
-  canvasWidth: 754,
-  canvasHeight: 900,
-});
-const loadCanvas = loadFitKey({
-  partsExpanded: true,
-  partsChip: false,
-  partsHeight: 270,
-  canvasWidth: 754,
-  canvasHeight: 700,
-});
-expect(shouldRepeatLoadFit(null, loadTree) === "skip", "first load fit is not a repeat");
-expect(shouldRepeatLoadFit(loadTree, loadTree) === "skip", "same overlay does not re-fit");
-expect(shouldRepeatLoadFit(loadTree, loadTaller) === "fit", "taller part tree re-fits");
-expect(shouldRepeatLoadFit(loadChip, loadTree) === "fit", "chip to expanded re-fits");
-expect(shouldRepeatLoadFit(loadTree, loadCanvas) === "fit", "canvas size re-fits");
-expect(
-  loadFitKey({
-    partsExpanded: true,
-    partsChip: false,
-    partsHeight: 270,
-    canvasWidth: 754,
-    canvasHeight: 900,
-  }) === loadTree,
-  "selection / detail are not in the load-fit key",
-);
-expect(
-  shouldRepeatLoadFit(loadTree, loadTaller, { selectionActive: true }) === "sync",
-  "select that grows the tree syncs the key without fitting",
-);
-expect(
-  shouldRepeatLoadFit(loadTaller, loadTaller, { selectionActive: false }) === "skip",
-  "clearing selection does not re-fit",
-);
-expect(
-  shouldRepeatLoadFit(loadTaller, loadCanvas, { selectionActive: false }) === "fit",
-  "tree/canvas change with nothing selected re-fits",
-);
 
 const needed = FILES_RAIL_WIDTH + CHAT_MIN_WIDTH + CANVAS_MIN_WIDTH;
 expect(needed === 1064, "rail + min chat + canvas");

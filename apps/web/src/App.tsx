@@ -1,22 +1,16 @@
 import { Box, PanelRight, Scan } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { LiveDot } from "@/components/brand/LiveDot";
-import { Lockup } from "@/components/brand/Lockup";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CloseFolderDialog } from "@/components/CloseFolderDialog";
 import { CommandPalette } from "@/components/CommandPalette";
 import { ViewerChatProvider, useViewerChat } from "@/components/chat/useViewerChat";
 import { CrashCard } from "@/components/CrashCard";
-import {
-  BrowseFolderDialog,
-  OpenFolderButton,
-  RecentFiles,
-  WelcomeFolders,
-  useOpenFolder,
-} from "@/components/OpenFolder";
+import { BrowseFolderDialog, useOpenFolder } from "@/components/OpenFolder";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
+import { EmptyScene } from "@/components/EmptyScene";
 import { DetailPanel } from "@/components/DetailPanel";
 import { PairPage } from "@/components/PairPage";
 import { PartTree } from "@/components/PartTree";
@@ -26,26 +20,22 @@ import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { ToastProvider, Toasts } from "@/components/ui/toast";
+import { useCanvasFit } from "@/hooks/useCanvasFit";
 import { useCatalog, type CatalogState } from "@/hooks/useCatalog";
 import { useMotionReady } from "@/hooks/useMotionReady";
 import { useXrSession } from "@/hooks/useXrSession";
 import { useXrSupport } from "@/hooks/useXrSupport";
 import { ProjectSessionProvider, useProjectSession } from "@/hooks/useProjectSession";
 import { fileLabel } from "@/cad/loadCadReview";
-import { fitDirectionFor, frameFitObject, homeFitDirection } from "@/cad/review";
+import { fitDirectionFor, frameFitObject } from "@/cad/review";
 import { fetchMe, jsonApi, type MePrincipal } from "@/lib/api";
 import { filesRailToggleTitle } from "@/lib/files-rail";
 import { isMacPlatform } from "@/lib/shortcuts";
 import {
   chatLayoutWidth,
   detailPanelWidth,
-  fitCardsReady,
-  fitInsets,
   isCompactChat,
-  loadFitKey,
   overlayLayout,
-  setLiveFitInsets,
-  shouldRepeatLoadFit,
   toolbarLayout,
   toolbarRightReserve,
 } from "@/lib/layout";
@@ -53,7 +43,6 @@ import { displayLoadError, isUnavailableFolder, loadCardCopy } from "@/lib/load-
 import { redeemFragmentToken } from "@/lib/pairing";
 import { folderName } from "@/lib/project";
 import { PRODUCT_TITLE, documentTitle, emptySceneKind } from "@/lib/welcome";
-import { invalidateSceneNow } from "@/scene/invalidate";
 import { ViewerCanvas } from "@/scene/ViewerCanvas";
 import { useStore } from "@/state/store";
 import { enterAR, enterVR } from "@/xrStore";
@@ -152,23 +141,6 @@ function EnterXr() {
   );
 }
 
-function useOverlayCardHeight(): [number, (el: HTMLElement | null) => void] {
-  const [el, setEl] = useState<HTMLElement | null>(null);
-  const [height, setHeight] = useState(0);
-  useLayoutEffect(() => {
-    if (!el) {
-      setHeight(0);
-      return;
-    }
-    const read = () => setHeight(Math.round(el.getBoundingClientRect().height));
-    read();
-    const ro = new ResizeObserver(read);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [el]);
-  return [height, setEl];
-}
-
 function Overlay({
   folder,
   catalog,
@@ -198,10 +170,9 @@ function Overlay({
     })),
   );
   const session = useXrSession();
-  const { project, setDoc, fileRecents } = useProjectSession();
+  const { project } = useProjectSession();
   const { files, ready: catalogReady, error: catalogError } = catalog;
   const treeOpen = useStore((s) => s.treeOpen);
-  const setTreeOpen = useStore((s) => s.setTreeOpen);
   const chatOpen = useStore((s) => s.chatOpen);
   const compactChatOpen = useStore((s) => s.compactChatOpen);
   const partsOpen = useStore((s) => s.partsOpen);
@@ -243,82 +214,19 @@ function Overlay({
   const rightReserve = toolbarRightReserve(showChatToggle, Boolean(enterXr), showChatToggle && tabStreaming);
   const toolbar = toolbarLayout({ canvasWidth, leftReserve, rightReserve });
   const cameraMoved = useStore((s) => s.cameraMoved);
-  const settledFitUrl = useRef<string | null>(null);
-  const settledLoadFitKey = useRef<string | null>(null);
-  const [partsHeight, setPartsCard] = useOverlayCardHeight();
-  const [detailHeight, setDetailCard] = useOverlayCardHeight();
-
-  useLayoutEffect(() => {
-    if (session) {
-      setLiveFitInsets({ left: 0, right: 0, top: 0, bottom: 0 });
-      return;
-    }
-    setLiveFitInsets(
-      fitInsets({
-        partsExpanded,
-        partsChip,
-        detailVisible,
-        detailWidth,
-        partsHeight,
-        detailHeight,
-        canvasWidth,
-        canvasHeight,
-      }),
-    );
-    if (!review) {
-      settledFitUrl.current = null;
-      settledLoadFitKey.current = null;
-      return;
-    }
-    if (cameraMoved || canvasWidth < 2 || canvasHeight < 2 || !fit) return;
-    const nextKey = loadFitKey({
-      partsExpanded,
-      partsChip,
-      partsHeight,
-      canvasWidth,
-      canvasHeight,
-    });
-    const first = settledFitUrl.current !== url;
-    if (!first) {
-      const action = shouldRepeatLoadFit(settledLoadFitKey.current, nextKey, {
-        selectionActive: detailVisible,
-      });
-      if (action === "skip") return;
-      if (action === "sync") {
-        settledLoadFitKey.current = nextKey;
-        return;
-      }
-    }
-    if (
-      !fitCardsReady({
-        partsExpanded,
-        partsChip,
-        detailVisible,
-        partsHeight,
-        detailHeight,
-      })
-    ) {
-      return;
-    }
-    fit(review.root, homeFitDirection());
-    settledFitUrl.current = url;
-    settledLoadFitKey.current = nextKey;
-    invalidateSceneNow();
-  }, [
-    session,
+  const { setPartsCard, setDetailCard } = useCanvasFit({
+    xrActive: Boolean(session),
+    review,
+    url,
+    fit,
+    cameraMoved,
+    canvasWidth,
+    canvasHeight,
     partsExpanded,
     partsChip,
     detailVisible,
     detailWidth,
-    partsHeight,
-    detailHeight,
-    review,
-    cameraMoved,
-    canvasWidth,
-    canvasHeight,
-    fit,
-    url,
-  ]);
+  });
 
   if (switching) {
     return (
@@ -397,57 +305,7 @@ function Overlay({
           </div>
         </>
       )}
-      {!session && scene !== "none" && (
-        <div className="pointer-events-none absolute inset-0 z-0 grid place-items-center">
-          {scene === "welcome-hint" ? (
-            <div className="flex flex-col items-center gap-2 text-center">
-              <Lockup />
-              <p className="text-sm text-muted-foreground">Open a folder to start.</p>
-            </div>
-          ) : scene === "pick-file" ? (
-            <p className="text-xs text-muted-foreground">Pick a STEP or GLB from Files</p>
-          ) : (
-            <div className="pointer-events-auto mx-4 flex w-full max-w-80 flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-card/80 px-6 py-5 text-center shadow-sm">
-              {scene === "welcome-card" ? (
-                <>
-                  <Lockup />
-                  <WelcomeFolders folder={folder} />
-                </>
-              ) : null}
-              {scene === "folder-gone" ? (
-                <>
-                  <Lockup />
-                  <UnavailableFolderCard folder={folder} />
-                </>
-              ) : null}
-              {scene === "no-cad" ? (
-                <>
-                  <Lockup />
-                  <p className="text-sm text-muted-foreground">This folder has no STEP or GLB.</p>
-                  {folder.canRegister ? <OpenFolderButton folder={folder} /> : null}
-                </>
-              ) : null}
-              {scene === "show-files" ? (
-                <>
-                  <p className="text-sm text-muted-foreground">Show files to pick a STEP or GLB.</p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    title={filesRailToggleTitle(isMacPlatform(navigator.platform, navigator.userAgent), "show")}
-                    onClick={() => setTreeOpen(true)}
-                  >
-                    Show files
-                  </Button>
-                  <RecentFiles recents={fileRecents} onPick={(path) => void setDoc(path)} />
-                </>
-              ) : null}
-              {folder.error && scene !== "welcome-card" ? (
-                <p className="text-xs text-error">{folder.error}</p>
-              ) : null}
-            </div>
-          )}
-        </div>
-      )}
+      {!session && scene !== "none" ? <EmptyScene folder={folder} scene={scene} /> : null}
       {progress !== null && load && !sceneCrash && (
         <div className="pointer-events-none absolute inset-x-4 top-1/2 z-20 mx-auto w-full max-w-72 -translate-y-1/2 rounded-xl border border-border bg-card/95 p-4 text-center shadow-lg">
           <strong className="inline-flex items-center gap-2 text-sm">
@@ -484,15 +342,6 @@ function Overlay({
         </div>
       ) : null}
     </>
-  );
-}
-
-function UnavailableFolderCard({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
-  return (
-    <div className="flex w-full flex-col items-center gap-3">
-      <p className="text-sm text-muted-foreground">This folder isn&apos;t available</p>
-      {folder.canRegister ? <OpenFolderButton folder={folder} /> : null}
-    </div>
   );
 }
 

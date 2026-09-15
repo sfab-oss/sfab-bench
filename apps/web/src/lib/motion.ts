@@ -8,16 +8,6 @@ export const REFRESH_FILES_EVENT = "sfab-refresh-files";
 
 export const CLOSE_FOLDER_BODY = "The open model and chat will be cleared from this tab.";
 
-/** True when the OS (or a test double) asks for reduced motion. */
-export function prefersReducedMotion(matches: boolean): boolean {
-  return matches;
-}
-
-/** Restored chrome must not animate in; later user actions may. */
-export function firstPaintSuppressed(paintedKey: string | null, navigationKey: string): boolean {
-  return paintedKey !== navigationKey;
-}
-
 export function orbitDampingEnabled(prefersReduce: boolean): boolean {
   return !prefersReduce;
 }
@@ -38,10 +28,6 @@ export function closeFolderTitle(folderLabel: string): string {
 
 export function refreshFilesTooltip(refreshing: boolean): string {
   return refreshing ? "Refreshing…" : "Refresh files";
-}
-
-export function motionRootIsReady(attrValue: string | null | undefined): boolean {
-  return attrValue === MOTION_READY_VALUE;
 }
 
 export function requestCloseFolder() {

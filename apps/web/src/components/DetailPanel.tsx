@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
-import { namedKids, treeTops } from "@/cad/tree";
 import { Button } from "@/components/ui/button";
 import { formatMm, measureDelta } from "@/lib/measure";
 import { disambiguateSiblingNames, partDisplayName, partLabelFileStem } from "@/lib/part-label";
+import { siblingRows } from "@/lib/part-tree";
 import { overlayMaxHeight } from "@/lib/layout";
 import { useStore } from "@/state/store";
 
@@ -40,9 +40,7 @@ function SelectionBody() {
   const fileStem = partLabelFileStem(review?.parts.length ?? 0, title);
   const displayName = useMemo(() => {
     if (!part || !review) return "";
-    const parent = part.object.parent;
-    const siblingObjs = parent ? namedKids(parent, review) : treeTops(review);
-    const siblings = siblingObjs.flatMap((obj) => {
+    const siblings = siblingRows(review, part.object.parent).flatMap((obj) => {
       const sibling = review.partByObject.get(obj);
       if (!sibling) return [];
       return [
