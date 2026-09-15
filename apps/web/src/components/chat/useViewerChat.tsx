@@ -13,6 +13,7 @@ import {
   type HarnessId,
 } from "@/lib/harness";
 import { store, useStore } from "@/state/store";
+import { shouldPersistMessages } from "@/chat/persist-thread";
 
 export type ThreadRow = {
   id: string;
@@ -189,6 +190,7 @@ export function useViewerChat() {
 }
 
 export function persistThread(threadId: string, messages: GalleryChatMessage[]) {
+  if (!shouldPersistMessages(messages)) return Promise.resolve();
   return jsonApi.threads[":id"].$put({
     param: { id: threadId },
     json: { messages },

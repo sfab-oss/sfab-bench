@@ -4,6 +4,13 @@ import { memo, useRef, useState, type ReactNode } from "react";
 
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import type { AIDataPart } from "@/components/chat/ai-types";
+import {
+  askUserComposerPlaceholder,
+  formatAskUserAnswer,
+  isAskUserQuestionsPart,
+  parseAskUserQuestionsInput,
+  type AskUserQuestionsOutput,
+} from "@/chat/ask-user-questions";
 import { messagePlainText, useViewerChat } from "@/components/chat/useViewerChat";
 import { toolTitle } from "@/components/ui/tool";
 import { splitWorkedParts, workedLabel } from "@/components/ui/worked";
@@ -151,6 +158,73 @@ function XrWorked({
   );
 }
 
+function XrAskUserQuestions({
+  part,
+}: {
+  part: GalleryChatMessage["parts"][number];
+}) {
+  const theme = useXrTheme();
+  const input = parseAskUserQuestionsInput("input" in part ? part.input : undefined);
+  const pending =
+    "state" in part && (part.state === "input-available" || part.state === "input-streaming");
+  if (!input) return <XrToolLine part={part} />;
+  if (pending) return null;
+  const summary = formatAskUserAnswer(input, "output" in part ? part.output : undefined);
+  return (
+    <Container width="100%" flexShrink={0} flexDirection="column" gap={2}>
+      <Text fontSize={11} color={theme.subtle}>
+        {asciiSafe(input.questions[0]?.header ?? "Question")}
+      </Text>
+      <Text fontSize={13} color={theme.text}>
+        {asciiSafe(summary || "Answered")}
+      </Text>
+    </Container>
+  );
+}
+
+function XrAskUserBanner({
+  pendingAsk,
+  onAnswer,
+}: {
+  pendingAsk: NonNullable<ReturnType<typeof useXrChatRuntime>>["pendingAsk"];
+  onAnswer: (toolCallId: string, output: AskUserQuestionsOutput) => void;
+}) {
+  const theme = useXrTheme();
+  if (!pendingAsk) return null;
+  const question = pendingAsk.input.questions[0];
+  if (!question) return null;
+  return (
+    <Container width="100%" flexShrink={0} flexDirection="column" gap={4} padding={8} borderRadius={8} backgroundColor={theme.muted}>
+      <Text fontSize={11} color={theme.subtle}>
+        {asciiSafe(question.header ?? "Question")}
+      </Text>
+      <Text fontSize={13} color={theme.text}>
+        {asciiSafe(question.question)}
+      </Text>
+      {question.options.map((option) => (
+        <Container
+          key={option.id}
+          width="100%"
+          flexShrink={0}
+          padding={8}
+          borderRadius={8}
+          backgroundColor={theme.card}
+          onClick={() =>
+            onAnswer(pendingAsk.toolCallId, {
+              action: "answered",
+              answers: { [question.id]: { optionIds: [option.id] } },
+            })
+          }
+        >
+          <Text fontSize={13} color={theme.text}>
+            {asciiSafe(option.label)}
+          </Text>
+        </Container>
+      ))}
+    </Container>
+  );
+}
+
 function XrPart({
   part,
   isStreaming,
@@ -166,6 +240,9 @@ function XrPart({
   }
   if (part.type === "data-plan") {
     return <XrPlan entries={(part as { data: AIDataPart["plan"] }).data.entries} />;
+  }
+  if (isAskUserQuestionsPart(part)) {
+    return <XrAskUserQuestions part={part} />;
   }
   if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
     return <XrToolLine part={part} />;
@@ -194,7 +271,13 @@ function XrAssistantParts({
             </XrWorked>
           );
         }
-        return <XrPart key={segment.item.index} isStreaming={isStreaming} part={segment.item.part} />;
+        return (
+          <XrPart
+            key={segment.item.index}
+            isStreaming={isStreaming}
+            part={segment.item.part}
+          />
+        );
       })}
     </Container>
   );
@@ -247,7 +330,8 @@ function XrChatSession({
   const { ref: listRef, atEnd, onScroll, jumpToEnd } = useXrChatScroll();
   const theme = useXrTheme();
   if (!runtime) return null;
-  const { messages, busy, error, draft, setDraft, send, stop, voice } = runtime;
+  const { messages, busy, error, draft, setDraft, send, stop, voice, answerAskUser, pendingAsk } = runtime;
+  const lockSend = Boolean(pendingAsk && !pendingAsk.input.questions[0]?.allowFreeForm);
   const submit = () => {
     send();
     jumpToEnd();
@@ -309,6 +393,7 @@ function XrChatSession({
         ) : null}
       </Container>
       <Container width="100%" height={1} flexShrink={0} backgroundColor={theme.border} />
+      {pendingAsk ? <XrAskUserBanner pendingAsk={pendingAsk} onAnswer={answerAskUser} /> : null}
       {voice.active ? (
         <VoiceRecordRow
           elapsedMs={voice.elapsedMs}
@@ -325,8 +410,12 @@ function XrChatSession({
             <Input
               value={draft}
               onValueChange={(value: string) => setDraft(value)}
-              placeholder="Ask for a change..."
-              disabled={busy}
+              placeholder={
+                pendingAsk
+                  ? askUserComposerPlaceholder(pendingAsk.input.questions[0])
+                  : "Ask for a change..."
+              }
+              disabled={busy || lockSend}
               width="100%"
               height="100%"
               fontSize={14}
@@ -345,7 +434,15 @@ function XrChatSession({
           {busy ? (
             <ToolBtn id="xr-chat-stop" icon={Square} tip="Stop" grow={false} onClick={() => stop()} />
           ) : (
-            <ToolBtn id="xr-chat-send" icon={Send} tip="Send" grow={false} onClick={submit} />
+            <ToolBtn
+              id="xr-chat-send"
+              icon={Send}
+              tip="Send"
+              grow={false}
+              onClick={() => {
+                if (!lockSend) submit();
+              }}
+            />
           )}
         </Container>
       )}

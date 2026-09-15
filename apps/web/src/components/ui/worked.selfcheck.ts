@@ -4,7 +4,7 @@ function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
 }
 
-function kinds(parts: Array<{ type: string }>) {
+function kinds(parts: Array<{ type: string; toolName?: string }>) {
   return splitWorkedParts(parts).map((segment) => {
     if (segment.kind === "worked") return `worked:${segment.items.map((item) => item.part.type).join(",")}`;
     return `visible:${segment.item.part.type}`;
@@ -41,5 +41,20 @@ const trailing = kinds([
   { type: "tool-bash" },
 ]);
 expect(trailing.join("|") === "worked:reasoning|visible:text|visible:tool-bash", `trailing tools stay outside, got ${trailing.join("|")}`);
+
+const ask = kinds([
+  { type: "reasoning" },
+  { type: "tool-bash" },
+  { type: "tool-askUserQuestions" },
+]);
+expect(
+  ask.join("|") === "worked:reasoning,tool-bash|visible:tool-askUserQuestions",
+  `ask-user stays outside the fold, got ${ask.join("|")}`,
+);
+
+const askDynamic = kinds([
+  { type: "dynamic-tool", toolName: "askUserQuestions" },
+]);
+expect(askDynamic[0] === "visible:dynamic-tool", `dynamic ask-user stays visible, got ${askDynamic[0]}`);
 
 console.log("worked.selfcheck ok");

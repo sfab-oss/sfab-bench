@@ -1,8 +1,11 @@
 import { useChat } from "@ai-sdk/react";
+import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
-import { useLiveShowArtifact } from "@/chat/useLiveShowArtifact";
+import { findPendingAskUserQuestions, type AskUserQuestionsOutput } from "@/chat/ask-user-questions";
+import { findPendingGetViewer } from "@/chat/get-viewer";
+import { useLiveViewerTools } from "@/chat/useLiveViewerTools";
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import { messagePlainText, persistThread, useViewerChat } from "@/components/chat/useViewerChat";
 import { jsonApi } from "@/lib/api";
@@ -19,6 +22,8 @@ export type XrChatRuntime = {
   setDraft: (value: string | ((cur: string) => string)) => void;
   send: () => void;
   stop: () => void;
+  pendingAsk: ReturnType<typeof findPendingAskUserQuestions>;
+  answerAskUser: (toolCallId: string, output: AskUserQuestionsOutput) => void;
   voice: Voice;
 };
 
@@ -51,30 +56,62 @@ function XrChatSessionRuntime({
   const busyRef = useRef(false);
   const sendRef = useRef<(text: string) => void>(() => {});
 
-  const { messages, sendMessage, status, error, stop } = useChat({
+  const { messages, sendMessage, status, error, stop, addToolOutput } = useChat({
     id: threadId,
     throttle: 50,
     messages: initialMessages,
     transport: viewerChatTransport(),
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onFinish: ({ messages: next }) => {
       void persistThread(threadId, next as GalleryChatMessage[]).then(onPersist);
     },
   });
 
   const busy = status === "submitted" || status === "streaming";
-  useLiveShowArtifact(messages as GalleryChatMessage[], busy);
-  busyRef.current = busy;
+  const pendingAsk = findPendingAskUserQuestions(messages);
+  const pendingViewer = findPendingGetViewer(messages);
+  useLiveViewerTools(messages as GalleryChatMessage[], addToolOutput, busy);
+  busyRef.current = busy || pendingViewer !== null;
 
   const send = useCallback(() => {
     const text = draft.trim();
     if (!text || busyRef.current) return;
+    const pending = findPendingAskUserQuestions(messages);
+    if (pending) {
+      const question = pending.input.questions[0];
+      if (!question?.allowFreeForm) return;
+      setDraft("");
+      void addToolOutput({
+        tool: "askUserQuestions",
+        toolCallId: pending.toolCallId,
+        output: {
+          action: "answered",
+          answers: { [question.id]: { optionIds: [], freeform: text } },
+        },
+      });
+      return;
+    }
     setDraft("");
     void sendMessage({ text });
-  }, [draft, sendMessage]);
+  }, [addToolOutput, draft, messages, sendMessage]);
 
   sendRef.current = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || busyRef.current) return;
+    const pending = findPendingAskUserQuestions(messages);
+    if (pending) {
+      const question = pending.input.questions[0];
+      if (!question?.allowFreeForm) return;
+      void addToolOutput({
+        tool: "askUserQuestions",
+        toolCallId: pending.toolCallId,
+        output: {
+          action: "answered",
+          answers: { [question.id]: { optionIds: [], freeform: trimmed } },
+        },
+      });
+      return;
+    }
     void sendMessage({ text: trimmed });
   };
 
@@ -87,10 +124,11 @@ function XrChatSessionRuntime({
   });
 
   useEffect(() => {
-    const phase = busy ? (status === "streaming" ? "streaming" : "submitted") : "idle";
+    const waiting = busy || pendingViewer !== null;
+    const phase = waiting ? (status === "streaming" ? "streaming" : "submitted") : "idle";
     store.getState().setXrChatPhase(phase);
     return () => store.getState().setXrChatPhase("idle");
-  }, [busy, status]);
+  }, [busy, pendingViewer, status]);
   useEffect(() => {
     const last = [...messages].reverse().find((m) => m.role === "assistant");
     store.getState().setXrChatChars(last ? messagePlainText(last as GalleryChatMessage).length : 0);
@@ -98,7 +136,7 @@ function XrChatSessionRuntime({
 
   const value: XrChatRuntime = {
     messages: messages as GalleryChatMessage[],
-    busy,
+    busy: busy || pendingViewer !== null,
     error,
     draft,
     setDraft,
@@ -106,6 +144,14 @@ function XrChatSessionRuntime({
     stop: () => {
       stop();
       void jsonApi["chat"].stop.$post();
+    },
+    pendingAsk,
+    answerAskUser: (toolCallId, output) => {
+      void addToolOutput({
+        tool: "askUserQuestions",
+        toolCallId,
+        output,
+      });
     },
     voice,
   };

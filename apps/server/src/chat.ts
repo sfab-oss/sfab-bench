@@ -25,6 +25,8 @@ import {
   setSessionRunStatus,
   startSessionRun,
 } from "./session";
+import { dropTrailingHarnessErrors } from "./chat-stream";
+import { messagesToPersist } from "./chat-persist";
 import { saveMessages } from "./threads-db";
 import { runViewerContext } from "./viewer-context";
 
@@ -43,7 +45,8 @@ function sessionFor(root: string, harness: HarnessId, chatId: string, effort: Ch
   let pending = sessions.get(key);
   if (!pending) {
     pending = getAgent(harness, effort, root)
-      .createSession({ sessionId: `${chatId}:${effort}` })
+      // Thread id only. Effort in this string became a colon in the session folder name.
+      .createSession({ sessionId: chatId })
       .catch((err) => {
         sessions.delete(key);
         throw err;
@@ -82,6 +85,17 @@ function stampUser(last: UIMessage, snapshot: ViewerSnapshot): UIMessage {
   };
 }
 
+function lastIsToolContinuation(last: UIMessage): boolean {
+  if (last.role !== "assistant") return false;
+  const tools = (last.parts ?? []).filter(
+    (part) => part.type === "dynamic-tool" || (typeof part.type === "string" && part.type.startsWith("tool-")),
+  );
+  if (tools.length === 0) return false;
+  return tools.every(
+    (part) => "state" in part && (part.state === "output-available" || part.state === "output-error"),
+  );
+}
+
 function persistChat(chatId: string, next: UIMessage[], root: string) {
   try {
     saveMessages(chatId, root, next);
@@ -117,7 +131,11 @@ export async function handleChat(req: Request, root: string): Promise<Response> 
   req.signal.addEventListener("abort", () => run.abort());
 
   const snapshot: ViewerSnapshot = body.viewer ?? emptySnapshot(body.viewerFile ?? "");
-  const stamped = stampUser(last, snapshot);
+  const continueTurn = lastIsToolContinuation(last);
+  if (last.role !== "user" && !continueTurn) {
+    return new Response("expected a user message or tool result", { status: 400 });
+  }
+  const stamped = continueTurn ? last : stampUser(last, snapshot);
   const history = body.messages.slice(0, -1);
   const live = [...history, last];
 
@@ -144,7 +162,11 @@ export async function handleChat(req: Request, root: string): Promise<Response> 
                 typeof body.model === "string" && body.model.trim()
                   ? body.model.trim()
                   : DEFAULT_HARNESS_MODEL[harness];
-              const prior = isNew ? [...history, stamped] : [stamped];
+              const prior = continueTurn
+                ? body.messages
+                : isNew
+                  ? [...history, stamped]
+                  : [stamped];
               const result = await agent.stream({
                 session,
                 messages: await convertToModelMessages(prior),
@@ -152,7 +174,7 @@ export async function handleChat(req: Request, root: string): Promise<Response> 
                 abortSignal: run.signal,
               });
               const ui = toUIMessageStream({
-                stream: result.stream as never,
+                stream: dropTrailingHarnessErrors(result.stream as never) as never,
                 onError: getHarnessErrorMessage,
               });
               const [toClient, toPersist] = ui.tee();
@@ -166,7 +188,7 @@ export async function handleChat(req: Request, root: string): Promise<Response> 
                 } catch {
                   /* abort or stream error — persist what we have */
                 }
-                persistChat(chatId, assistant ? [...live, assistant] : live, root);
+                persistChat(chatId, messagesToPersist(live, assistant), root);
               })();
               writer.merge(toClient);
               await persist;

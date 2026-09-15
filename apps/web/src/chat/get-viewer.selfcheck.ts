@@ -1,0 +1,68 @@
+import { findPendingGetViewer, latestShownArtifact, shownFromPart, viewerIsReady } from "./get-viewer";
+
+function expect(cond: boolean, label: string) {
+  if (!cond) throw new Error(label);
+}
+
+const shownTool = shownFromPart(
+  {
+    type: "tool-show_artifact",
+    toolName: "show_artifact",
+    toolCallId: "show-1",
+    state: "output-available",
+    output: { shown: "STEP/m8_nut.step" },
+  },
+  0,
+  "msg-1",
+);
+expect(shownTool?.file === "STEP/m8_nut.step", "show_artifact shown path");
+
+const shownData = shownFromPart(
+  { type: "data-viewer", data: { file: "STEP/m8_nut.step" } },
+  1,
+  "msg-1",
+);
+expect(shownData?.file === "STEP/m8_nut.step", "data-viewer shown path");
+expect(shownFromPart({ type: "tool-show_artifact", state: "input-available" }, 0, "msg-1") === null, "pending show is not shown");
+
+const latest = latestShownArtifact([
+  {
+    id: "a",
+    parts: [{ type: "data-viewer", data: { file: "old.step" } }],
+  },
+  {
+    id: "b",
+    parts: [
+      { type: "tool-show_artifact", toolCallId: "s2", state: "output-available", output: { shown: "STEP/m8_nut.step" } },
+    ],
+  },
+]);
+expect(latest === "STEP/m8_nut.step", `latest shown, got ${latest}`);
+
+const pending = findPendingGetViewer([
+  {
+    role: "assistant",
+    parts: [
+      { type: "tool-get_viewer", toolCallId: "gv-1", state: "input-available", input: {} },
+    ],
+  },
+]);
+expect(pending?.toolCallId === "gv-1", "finds pending get_viewer");
+
+expect(
+  findPendingGetViewer([
+    {
+      role: "assistant",
+      parts: [{ type: "tool-get_viewer", toolCallId: "gv-1", state: "output-available", output: { empty: true } }],
+    },
+  ]) === null,
+  "answered get_viewer is not pending",
+);
+
+expect(viewerIsReady({ url: "", progress: null }, null) === true, "empty idle is ready");
+expect(viewerIsReady({ url: "", progress: 0 }, null) === false, "loading is not ready");
+expect(viewerIsReady({ url: "old.step", progress: null }, "STEP/m8_nut.step") === false, "wrong file is not ready");
+expect(viewerIsReady({ url: "STEP/m8_nut.step", progress: 40 }, "STEP/m8_nut.step") === false, "target still loading");
+expect(viewerIsReady({ url: "STEP/m8_nut.step", progress: null }, "STEP/m8_nut.step") === true, "target settled");
+
+console.log("get-viewer.selfcheck ok");

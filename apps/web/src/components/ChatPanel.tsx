@@ -1,13 +1,16 @@
 import { useChat } from "@ai-sdk/react";
+import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { Check, Copy, EllipsisVertical, History, MessageCircleDashedIcon, PanelRight, Plus } from "lucide-react";
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 
 import { ChatMessageRow } from "@/components/chat/chat-message-parts";
 import { GalleryChatInput, type GalleryPromptMessage } from "@/components/chat/composer";
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import { persistThread, useViewerChat } from "@/components/chat/useViewerChat";
 import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
-import { useLiveShowArtifact } from "@/chat/useLiveShowArtifact";
+import { findPendingAskUserQuestions, type AskUserQuestionsOutput } from "@/chat/ask-user-questions";
+import { findPendingGetViewer } from "@/chat/get-viewer";
+import { useLiveViewerTools } from "@/chat/useLiveViewerTools";
 import { LiveDot } from "@/components/brand/LiveDot";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -66,13 +69,14 @@ export function ChatPanel() {
     document.addEventListener("mouseup", up);
   };
 
-  if (!chatOpen) return null;
-
   const active = threads.find((t) => t.id === threadId);
 
   return (
     <aside
-      className="relative flex h-full shrink-0 flex-col border-l border-border bg-background"
+      className={cn(
+        "relative flex h-full shrink-0 flex-col border-l border-border bg-background",
+        !chatOpen && "hidden",
+      )}
       style={{ width }}
     >
       <div
@@ -224,21 +228,25 @@ function ChatSession({
   onLive: (live: boolean) => void;
   onPersist: () => void;
 }) {
-  const { messages, sendMessage, status, error, stop } = useChat({
+  const { messages, sendMessage, status, error, stop, addToolOutput } = useChat({
     id: threadId,
     throttle: 50,
     messages: initialMessages,
     transport: viewerChatTransport(),
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onFinish: ({ messages: next }) => {
       void persistThread(threadId, next as GalleryChatMessage[]).then(onPersist);
     },
   });
   const busy = status === "submitted" || status === "streaming";
+  const pendingAsk = findPendingAskUserQuestions(messages);
+  const pendingViewer = findPendingGetViewer(messages);
+  const live = busy || pendingViewer !== null;
   useEffect(() => {
-    onLive(busy);
+    onLive(live);
     return () => onLive(false);
-  }, [busy, onLive]);
-  useLiveShowArtifact(messages as GalleryChatMessage[], busy);
+  }, [live, onLive]);
+  useLiveViewerTools(messages as GalleryChatMessage[], addToolOutput, busy);
   messagesRef.current = messages as GalleryChatMessage[];
   const streamingMessageId = busy && messages.at(-1)?.role === "assistant" ? (messages.at(-1)?.id ?? null) : null;
 
@@ -247,6 +255,17 @@ function ChatSession({
     if (!text) return;
     void sendMessage({ text });
   };
+
+  const onAnswerAskUser = useCallback(
+    (toolCallId: string, output: AskUserQuestionsOutput) => {
+      void addToolOutput({
+        tool: "askUserQuestions",
+        toolCallId,
+        output,
+      });
+    },
+    [addToolOutput],
+  );
 
   return (
     <>
@@ -279,7 +298,7 @@ function ChatSession({
               )}
             </MessageScrollerContent>
           </MessageScrollerViewport>
-          <MessageScrollerButton />
+          {pendingAsk ? null : <MessageScrollerButton />}
         </MessageScroller>
       </MessageScrollerProvider>
       <GalleryChatInput
@@ -288,9 +307,11 @@ function ChatSession({
           stop();
           void jsonApi["chat"].stop.$post();
         }}
+        pendingAsk={pendingAsk}
+        onAnswerAskUser={onAnswerAskUser}
         placeholder="Ask for a change…"
         status={status}
-        disabled={busy}
+        disabled={busy || pendingViewer !== null}
       />
     </>
   );

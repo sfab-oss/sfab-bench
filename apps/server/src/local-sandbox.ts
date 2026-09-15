@@ -1,10 +1,12 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { Readable } from "node:stream";
+
+import { APP_HOME } from "./config";
 
 import type { HarnessV1NetworkSandboxSession, HarnessV1SandboxProvider } from "@ai-sdk/harness";
 import type {
@@ -64,11 +66,16 @@ function isInside(root: string, abs: string) {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
-function resolvePath(root: string, p: string) {
+function posixQuote(value: string) {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function resolvePath(root: string, p: string, extra: string[] = []) {
   const abs = normalize(isAbsolute(p) ? p : resolve(root, p));
   const home = homedir();
   const allowed = [
     root,
+    ...extra,
     join(home, ".agents"),
     join(home, ".config", "opencode"),
     join(home, ".opencode"),
@@ -79,37 +86,77 @@ function resolvePath(root: string, p: string) {
   throw new Error(`sandbox path escapes workspace: ${p}`);
 }
 
+/**
+ * Where adapters write `.harness-bootstrap/` and `.agent-runs/`.
+ * Not the CAD folder — they still key that off `defaultWorkingDirectory`.
+ * Remove when `workspace: localWorkspace({ path })` ships (vercel/ai#19108).
+ */
+export function harnessHome(root: string, appHome = APP_HOME): string {
+  const id = createHash("sha256").update(normalize(root)).digest("hex").slice(0, 16);
+  return join(appHome, "harness", id);
+}
+
+/** Spawn/run: coding commands in the open folder; bootstrap stays in the cache. */
+export function projectCwd(root: string, workingDirectory?: string, stateDir?: string) {
+  if (!workingDirectory) return root;
+  const abs = resolvePath(root, workingDirectory, stateDir ? [stateDir] : []);
+  return isInside(root, abs) ? root : abs;
+}
+
+const WORKDIR_FLAG = /--workdir\s+(?:'([^']*)'|"([^"]*)"|(\S+))/g;
+
+/** Bridge `--workdir` must be the project, not `<harness>-<session>` under the cache. */
+export function pinProjectWorkdir(command: string, root: string, stateDir?: string) {
+  const project = normalize(root);
+  const state = stateDir ? normalize(stateDir) : "";
+  return command.replace(WORKDIR_FLAG, (full, single?: string, double?: string, bare?: string) => {
+    const raw = single ?? double ?? bare ?? "";
+    const abs = normalize(raw);
+    if (abs === project) return full;
+    if (isInside(project, abs) || (state && isInside(state, abs))) {
+      return `--workdir ${posixQuote(project)}`;
+    }
+    return full;
+  });
+}
+
 export function createLocalSandbox(root: string): HarnessV1SandboxProvider {
   installExitHandlers();
   return {
     specificationVersion: "harness-sandbox-v1",
     providerId: "local-host",
-    createSession: async () => createLocalSession(root),
+    createSession: async () => {
+      const stateDir = harnessHome(root);
+      await mkdir(stateDir, { recursive: true });
+      return createLocalSession(root, stateDir);
+    },
   };
 }
 
-function createLocalSession(root: string): HarnessV1NetworkSandboxSession {
+function createLocalSession(root: string, stateDir: string): HarnessV1NetworkSandboxSession {
   const id = randomUUID();
   const children = new Set<ChildProcess>();
   const files: Experimental_SandboxSession = {
     description: `Local workspace at ${root}`,
     readFile: async ({ path }) => {
       try {
-        return Readable.toWeb(createReadStream(resolvePath(root, path))) as ReadableStream<Uint8Array>;
+        return Readable.toWeb(createReadStream(resolvePath(root, path, [stateDir]))) as ReadableStream<Uint8Array>;
       } catch {
         return null;
       }
     },
     readBinaryFile: async ({ path }) => {
       try {
-        return new Uint8Array(await readFile(resolvePath(root, path)));
+        return new Uint8Array(await readFile(resolvePath(root, path, [stateDir])));
       } catch {
         return null;
       }
     },
     readTextFile: async ({ path, encoding, startLine, endLine }) => {
       try {
-        let text = await readFile(resolvePath(root, path), { encoding: (encoding as BufferEncoding) ?? "utf8" });
+        let text = await readFile(resolvePath(root, path, [stateDir]), {
+          encoding: (encoding as BufferEncoding) ?? "utf8",
+        });
         if (startLine != null || endLine != null) {
           const lines = text.split("\n");
           const start = Math.max(1, startLine ?? 1) - 1;
@@ -122,7 +169,7 @@ function createLocalSession(root: string): HarnessV1NetworkSandboxSession {
       }
     },
     writeFile: async ({ path, content }) => {
-      const dest = resolvePath(root, path);
+      const dest = resolvePath(root, path, [stateDir]);
       await mkdir(dirname(dest), { recursive: true });
       const chunks: Uint8Array[] = [];
       const reader = content.getReader();
@@ -134,18 +181,18 @@ function createLocalSession(root: string): HarnessV1NetworkSandboxSession {
       await writeFile(dest, Buffer.concat(chunks.map((c) => Buffer.from(c))));
     },
     writeBinaryFile: async ({ path, content }) => {
-      const dest = resolvePath(root, path);
+      const dest = resolvePath(root, path, [stateDir]);
       await mkdir(dirname(dest), { recursive: true });
       await writeFile(dest, content);
     },
     writeTextFile: async ({ path, content, encoding }) => {
-      const dest = resolvePath(root, path);
+      const dest = resolvePath(root, path, [stateDir]);
       await mkdir(dirname(dest), { recursive: true });
       await writeFile(dest, content, { encoding: (encoding as BufferEncoding) ?? "utf8" });
     },
     spawn: async ({ command, workingDirectory, env, abortSignal }) => {
-      const cwd = workingDirectory ? resolvePath(root, workingDirectory) : root;
-      const child = spawnShell(command, cwd, env);
+      const cwd = projectCwd(root, workingDirectory, stateDir);
+      const child = spawnShell(pinProjectWorkdir(command, root, stateDir), cwd, env);
       children.add(child);
       child.once("exit", () => children.delete(child));
       abortSignal?.addEventListener("abort", () => killTree(child), { once: true });
@@ -164,9 +211,9 @@ function createLocalSession(root: string): HarnessV1NetworkSandboxSession {
       return proc;
     },
     run: async ({ command, workingDirectory, env, abortSignal }) => {
-      const cwd = workingDirectory ? resolvePath(root, workingDirectory) : root;
+      const cwd = projectCwd(root, workingDirectory, stateDir);
       return new Promise((resolveRun) => {
-        const child = spawnShell(command, cwd, env);
+        const child = spawnShell(pinProjectWorkdir(command, root, stateDir), cwd, env);
         const out: Buffer[] = [];
         const err: Buffer[] = [];
         child.stdout?.on("data", (d) => out.push(d as Buffer));
@@ -185,7 +232,7 @@ function createLocalSession(root: string): HarnessV1NetworkSandboxSession {
 
   const session: HarnessV1NetworkSandboxSession = {
     id,
-    defaultWorkingDirectory: root,
+    defaultWorkingDirectory: stateDir,
     ports: [0],
     description: files.description,
     getPortEndpoint: async ({ port, protocol = "ws" }) => ({

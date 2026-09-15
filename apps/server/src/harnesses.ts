@@ -75,7 +75,7 @@ async function probeOpenCode(root?: string | null): Promise<HarnessInfo> {
       id: "opencode",
       label: HARNESS_LABEL.opencode,
       status: "missing-cli",
-      detail: "OpenCode is not connected. Install the CLI or add .harness-bootstrap in the project.",
+      detail: "OpenCode is not connected. Install the CLI.",
       defaultModel: DEFAULT_HARNESS_MODEL.opencode,
       models,
     };

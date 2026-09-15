@@ -155,7 +155,6 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
 
 function ViewerShell({ host }: { host: boolean }) {
   const session = useXrSession();
-  const chatOpen = useStore((s) => s.chatOpen);
   const treeOpen = useStore((s) => s.treeOpen);
   const setTreeOpen = useStore((s) => s.setTreeOpen);
   const folder = useOpenFolder(host);
@@ -174,7 +173,7 @@ function ViewerShell({ host }: { host: boolean }) {
           <Overlay folder={folder} />
         </div>
       </SidebarInset>
-      {!session && chatOpen && hasProject ? <ChatPanel /> : null}
+      {!session && hasProject ? <ChatPanel /> : null}
       <BrowseFolderDialog open={folder.dialogOpen} onOpenChange={folder.setDialogOpen} />
     </SidebarProvider>
   );

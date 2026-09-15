@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { harnessHome } from "./local-sandbox";
 import { opencodeBinCandidates } from "./models";
 
 function expect(cond: unknown, label: string) {
@@ -9,8 +10,13 @@ function expect(cond: unknown, label: string) {
 const otherHome = "/tmp/sfab-other-home";
 const withProject = opencodeBinCandidates("/tmp/cad", otherHome);
 expect(
+  withProject[0] ===
+    join(harnessHome("/tmp/cad", join(otherHome, ".sfab-bench")), ".harness-bootstrap/opencode/node_modules/.bin/opencode"),
+  "cache bootstrap is first",
+);
+expect(
   withProject.includes("/tmp/cad/.harness-bootstrap/opencode/node_modules/.bin/opencode"),
-  "project bootstrap is first",
+  "leftover project bootstrap is still a candidate",
 );
 expect(
   withProject.includes(join(otherHome, ".opencode/bin/opencode")),

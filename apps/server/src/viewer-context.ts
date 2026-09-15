@@ -4,7 +4,6 @@ import { tool } from "ai";
 import { z } from "zod";
 
 import type { ViewerSnapshot } from "@sfab-bench/contract";
-import { emptySnapshot } from "@sfab-bench/contract";
 import { resolveArtifact, shownUrl } from "./cad-pkg";
 
 type ViewerStore = {
@@ -29,19 +28,12 @@ export function viewerFileUrl(path: string) {
 }
 
 export const viewerTools = {
+  // No execute: the asking client snapshots after tessellation and continues
+  // the turn. A server execute would freeze the send-time (often empty) view.
   get_viewer: tool({
-    description: "What CAD artifact the visualizer is currently showing: project-relative path, empty, tree names, selected # ref.",
+    description:
+      "What this asking client's visualizer is showing right now: project-relative path, empty, tree names, selected # ref. Call after show_artifact if you need the loaded tree.",
     inputSchema: z.object({}),
-    execute: async () => {
-      const store = als.getStore();
-      const file = store?.file ?? "";
-      const base = store?.snapshot ?? emptySnapshot(file);
-      return {
-        ...base,
-        file: base.file || file,
-        empty: base.empty || !file,
-      };
-    },
   }),
   show_artifact: tool({
     description: "Show a CAD artifact in the visualizer. Pass a STEP or GLB path relative to the open project folder.",

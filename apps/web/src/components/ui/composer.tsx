@@ -671,7 +671,7 @@ export function ComposerSubmitButton({
     <InputGroupButton
       aria-label={actAsStop ? "Stop" : "Send"}
       className={className}
-      disabled={(disabled ?? contextDisabled) || (isInFlight && !actAsStop)}
+      disabled={actAsStop ? false : (disabled ?? contextDisabled) || isInFlight}
       onClick={(event) => {
         event.preventDefault();
         if (actAsStop) {

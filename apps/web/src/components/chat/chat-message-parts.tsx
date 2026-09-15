@@ -8,6 +8,11 @@ import {
 } from "ai";
 import { CheckIcon, CircleIcon, CopyIcon } from "lucide-react";
 import { Streamdown } from "streamdown";
+import {
+  isAskUserQuestionsPart,
+  parseAskUserQuestionsInput,
+} from "@/chat/ask-user-questions";
+import { AskUserAnsweredCard } from "@/components/chat/AskUserQuestionsPanel";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker";
@@ -123,6 +128,20 @@ function DefaultToolPart({
   );
 }
 
+function AskUserQuestionsPart({
+  part,
+}: {
+  part: DynamicToolUIPart | ToolUIPart;
+}) {
+  const input = parseAskUserQuestionsInput(part.input);
+  if (!input) {
+    return <DefaultToolPart messageId="" part={part} partIndex={0} />;
+  }
+  const pending = part.state === "input-available" || part.state === "input-streaming";
+  if (pending) return null;
+  return <AskUserAnsweredCard input={input} output={part.output} />;
+}
+
 function GalleryMessagePart({
   part,
   messageId,
@@ -172,11 +191,20 @@ function GalleryMessagePart({
   }
 
   if (part.type === "dynamic-tool" || isToolUIPart(part)) {
+    const toolPart = part as DynamicToolUIPart | ToolUIPart;
+    if (isAskUserQuestionsPart(toolPart)) {
+      return (
+        <AskUserQuestionsPart
+          key={`${messageId}-ask-${partIndex}`}
+          part={toolPart}
+        />
+      );
+    }
     return (
       <DefaultToolPart
         key={`${messageId}-tool-${partIndex}`}
         messageId={messageId}
-        part={part as DynamicToolUIPart | ToolUIPart}
+        part={toolPart}
         partIndex={partIndex}
       />
     );

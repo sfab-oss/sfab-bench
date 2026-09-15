@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 export interface WorkedPart {
   type: string;
+  toolName?: string;
 }
 
 export interface IndexedWorkedPart<T extends WorkedPart> {
@@ -22,7 +23,12 @@ export type WorkedSegment<T extends WorkedPart> =
   | { kind: "worked"; items: IndexedWorkedPart<T>[] }
   | { kind: "visible"; item: IndexedWorkedPart<T> };
 
+export function isAskUserQuestionsWorkedPart(part: WorkedPart): boolean {
+  return part.type === "tool-askUserQuestions" || part.toolName === "askUserQuestions";
+}
+
 export function isWorkedPart(part: WorkedPart): boolean {
+  if (isAskUserQuestionsWorkedPart(part)) return false;
   return (
     part.type === "reasoning" ||
     part.type === "dynamic-tool" ||
