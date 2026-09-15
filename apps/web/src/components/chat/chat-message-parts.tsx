@@ -273,7 +273,7 @@ function GalleryMessagePart({
     const busy = isWorkspaceBusyError(errorText);
     return (
       <div className="my-2 flex items-start gap-2">
-        <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-destructive">{mapped}</p>
+        <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-error">{mapped}</p>
         {busy && onStop ? (
           <Button type="button" size="sm" variant="ghost" className="h-6 shrink-0 px-2" onClick={onStop}>
             Stop

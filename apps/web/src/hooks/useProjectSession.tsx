@@ -1,6 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { closeToast, showToast } from "@/components/ui/toast";
 import { jsonApi, getDeviceToken } from "@/lib/api";
+import {
+  CONNECTION_RETRY_MS,
+  INITIAL_CONNECTION_STATE,
+  reduceConnection,
+  setLiveConnectionPhase,
+  type ConnectionEvent,
+  type ConnectionPhase,
+  type ConnectionState,
+} from "@/lib/feedback";
 import { shouldReloadOpenFile } from "@/lib/files-rail";
 import { registerAndOpenTab } from "@/lib/project";
 import { projectUrl } from "@/lib/project-query";
@@ -15,6 +25,8 @@ type SessionValue = {
   you: SessionClient;
   project: ProjectSession["project"];
   fileRecents: string[];
+  connectionPhase: ConnectionPhase;
+  connectionOfferReload: boolean;
   setDoc: (file: string | null, reload?: boolean) => Promise<void>;
 };
 
@@ -38,6 +50,7 @@ export function ProjectSessionProvider({
   const [you, setYou] = useState(youProp);
   const [project, setProject] = useState<ProjectSession["project"]>(() => ({ path: projectUrl() }));
   const [fileRecents, setFileRecents] = useState<string[]>([]);
+  const [connection, setConnection] = useState<ConnectionState>(INITIAL_CONNECTION_STATE);
   const appliedDeepLink = useRef(false);
   const lastPath = useRef(projectUrl());
 
@@ -145,6 +158,36 @@ export function ProjectSessionProvider({
     let closed = false;
     let ws: WebSocket | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
+    let current = INITIAL_CONNECTION_STATE;
+    setLiveConnectionPhase(current.phase);
+
+    const applyConnection = (event: ConnectionEvent) => {
+      const { state, notice } = reduceConnection(current, event);
+      current = state;
+      setLiveConnectionPhase(state.phase);
+      setConnection(state);
+      if (notice === "lost") {
+        closeToast("connection-reconnected");
+        showToast({
+          id: "connection-lost",
+          type: "info",
+          title: "Lost connection to this Mac — reconnecting…",
+        });
+      } else if (notice === "reconnected") {
+        closeToast("connection-lost");
+        closeToast("connection-offline");
+        showToast({ id: "connection-reconnected", type: "success", title: "Reconnected" });
+      } else if (notice === "reload") {
+        closeToast("connection-lost");
+        showToast({
+          id: "connection-offline",
+          type: "error",
+          title: "Lost connection to this Mac",
+          description: "This page can't reach the workbench process.",
+          action: { label: "Reload", onClick: () => window.location.reload() },
+        });
+      }
+    };
 
     const connect = () => {
       ws = new WebSocket(sessionWsUrl());
@@ -159,6 +202,7 @@ export function ProjectSessionProvider({
         if (event.type === "snapshot") {
           applySnapshot(event.session);
           setReady(true);
+          applyConnection({ type: "snapshot", now: Date.now() });
           return;
         }
         if (event.type === "library") {
@@ -170,13 +214,19 @@ export function ProjectSessionProvider({
       ws.onclose = () => {
         if (closed) return;
         setReady(false);
-        retry = setTimeout(connect, 1000);
+        applyConnection({ type: "close", now: Date.now() });
+        retry = setTimeout(connect, CONNECTION_RETRY_MS);
       };
     };
 
     connect();
+    const tick = window.setInterval(() => {
+      if (closed || current.phase === "connected") return;
+      applyConnection({ type: "tick", now: Date.now() });
+    }, 1_000);
     return () => {
       closed = true;
+      window.clearInterval(tick);
       if (retry) clearTimeout(retry);
       ws?.close();
     };
@@ -198,9 +248,11 @@ export function ProjectSessionProvider({
       you,
       project,
       fileRecents,
+      connectionPhase: connection.phase,
+      connectionOfferReload: connection.offerReload,
       setDoc,
     }),
-    [ready, you, project, fileRecents, setDoc],
+    [ready, you, project, fileRecents, connection.phase, connection.offerReload, setDoc],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

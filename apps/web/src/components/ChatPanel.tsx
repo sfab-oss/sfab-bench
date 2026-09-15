@@ -25,6 +25,7 @@ import { LiveDot } from "@/components/brand/LiveDot";
 import { CrashCard } from "@/components/CrashCard";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Button } from "@/components/ui/button";
+import { showNetworkErrorToast, showToast } from "@/components/ui/toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -45,6 +46,7 @@ import {
 import { loadHarnesses } from "@/hooks/useHarnesses";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { jsonApi } from "@/lib/api";
+import { HIDDEN_CHAT_NOTICE, hiddenChatNotice } from "@/lib/feedback";
 import { CHAT_DEFAULT_WIDTH, CHAT_MAX_WIDTH, CHAT_MIN_WIDTH, chatWidthAfterKey, clampChatDrag } from "@/lib/layout";
 import { escBelongsTo, probeEscLayers } from "@/lib/shortcuts";
 import { NEW_CHAT_EVENT, registerPaletteOwner } from "@/lib/command-palette";
@@ -66,10 +68,13 @@ export function ChatPanel({
 }) {
   const treeOpen = useStore((s) => s.treeOpen);
   const setWidth = useStore((s) => s.setChatWidth);
+  const setChatOpen = useStore((s) => s.setChatOpen);
+  const setCompactChatOpen = useStore((s) => s.setCompactChatOpen);
   const [resizing, setResizing] = useState(false);
   const [live, setLive] = useState(false);
   const [sessionPreview, setSessionPreview] = useState<string | null>(null);
   const [tabStatus, setTabStatus] = useState({ streaming: false, askUser: false, error: false });
+  const prevTabStatus = useRef(tabStatus);
   const messagesRef = useRef<GalleryChatMessage[]>([]);
   const messagesThreadIdRef = useRef<string | null>(null);
   const newChatLock = useRef(false);
@@ -84,6 +89,20 @@ export function ChatPanel({
   useEffect(() => {
     void loadHarnesses();
   }, []);
+  useEffect(() => {
+    const prev = prevTabStatus.current;
+    prevTabStatus.current = tabStatus;
+    const kind = hiddenChatNotice(!open, prev, tabStatus);
+    if (!kind) return;
+    showToast({
+      type: kind === "failed" ? "error" : "info",
+      title: HIDDEN_CHAT_NOTICE[kind],
+      action: {
+        label: "Show chat",
+        onClick: () => (compact ? setCompactChatOpen(true) : setChatOpen(true)),
+      },
+    });
+  }, [open, tabStatus, compact, setChatOpen, setCompactChatOpen]);
 
   const onSessionMeta = useCallback(
     (meta: { preview: string | null; streaming: boolean; askUser: boolean; error: boolean }) => {
@@ -515,7 +534,18 @@ function ChatSession({
       turnErrorRef.current = null;
       const toSave = finishPersistMessages(next as GalleryChatMessage[], isError, text);
       if (!toSave) return;
-      void persistThread(threadId, toSave).then(onPersist);
+      void persistThread(threadId, toSave).then(
+        (res) => {
+          if (res && "ok" in res && res.ok === false) {
+            showNetworkErrorToast({ title: "Couldn't save this chat" });
+            return;
+          }
+          onPersist();
+        },
+        () => {
+          showNetworkErrorToast({ title: "Couldn't save this chat" });
+        },
+      );
     },
   });
   const busy = status === "submitted" || status === "streaming";
@@ -525,7 +555,14 @@ function ChatSession({
   const loadingModel = pendingViewer !== null || progress !== null;
   const abortWorkspaceTurn = useCallback(() => {
     stop();
-    void jsonApi["chat"].stop.$post();
+    void jsonApi["chat"].stop.$post().then(
+      (res) => {
+        if (!res.ok) showNetworkErrorToast({ title: "Couldn't stop the reply" });
+      },
+      () => {
+        showNetworkErrorToast({ title: "Couldn't stop the reply" });
+      },
+    );
   }, [stop]);
   useEffect(() => {
     captureDraftRef.current = () => composerRef.current?.captureDraft();
@@ -602,7 +639,7 @@ function ChatSession({
   return (
     <>
       {liveError && errorText ? (
-        <div className="flex items-center gap-2 px-3 py-1 text-xs text-destructive">
+        <div className="flex items-center gap-2 px-3 py-1 text-xs text-error">
           <span className="min-w-0 flex-1">{errorText}</span>
           {errorIsBusy ? (
             <Button type="button" size="sm" variant="ghost" className="h-6 px-2" onClick={abortWorkspaceTurn}>

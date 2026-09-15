@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import { jsonApi } from "@/lib/api";
+import { showNetworkErrorToast } from "@/components/ui/toast";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import {
   DEFAULT_CHAT_EFFORT,
@@ -118,28 +119,42 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
   const openThread = useCallback(
     async (id: string) => {
       if (!projectPath) return;
-      const res = await jsonApi.threads[":id"].$get({ param: { id } });
-      if (!res.ok) return;
-      const body = (await res.json()) as { thread?: ThreadRow; messages?: GalleryChatMessage[] };
-      setThreadId(id);
-      setInitialMessages(body.messages ?? []);
-      if (body.thread) applyThreadPrefs(body.thread);
-      writeSavedThread(projectPath, id);
-      await refreshThreads();
+      try {
+        const res = await jsonApi.threads[":id"].$get({ param: { id } });
+        if (!res.ok) {
+          showNetworkErrorToast({ title: "Couldn't open that chat" });
+          return;
+        }
+        const body = (await res.json()) as { thread?: ThreadRow; messages?: GalleryChatMessage[] };
+        setThreadId(id);
+        setInitialMessages(body.messages ?? []);
+        if (body.thread) applyThreadPrefs(body.thread);
+        writeSavedThread(projectPath, id);
+        await refreshThreads();
+      } catch {
+        showNetworkErrorToast({ title: "Couldn't open that chat" });
+      }
     },
     [projectPath, refreshThreads],
   );
 
   const newThread = useCallback(async () => {
     if (!projectPath) return;
-    const res = await jsonApi.threads.$post();
-    if (!res.ok) return;
-    const row = (await res.json()) as ThreadRow;
-    await persistOpenPrefs(row.id);
-    setThreadId(row.id);
-    setInitialMessages([]);
-    writeSavedThread(projectPath, row.id);
-    await refreshThreads();
+    try {
+      const res = await jsonApi.threads.$post();
+      if (!res.ok) {
+        showNetworkErrorToast({ title: "Couldn't start a new chat" });
+        return;
+      }
+      const row = (await res.json()) as ThreadRow;
+      await persistOpenPrefs(row.id);
+      setThreadId(row.id);
+      setInitialMessages([]);
+      writeSavedThread(projectPath, row.id);
+      await refreshThreads();
+    } catch {
+      showNetworkErrorToast({ title: "Couldn't start a new chat" });
+    }
   }, [projectPath, refreshThreads]);
 
   useEffect(() => {

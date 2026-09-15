@@ -109,7 +109,7 @@ export function ToolHeader({
         {label}
       </span>
       {isError ? (
-        <span className="shrink-0 text-destructive text-xs">Error</span>
+        <span className="shrink-0 text-error text-xs">Error</span>
       ) : null}
       <ChevronDownIcon className="size-3.5 shrink-0 -rotate-90 transition-transform group-data-[panel-open]:rotate-0" />
     </CollapsibleTrigger>
@@ -194,7 +194,7 @@ export function ToolOutput({
     <div
       className={cn(
         "flex flex-col gap-0.5 overflow-x-auto text-xs",
-        errorText ? "text-destructive" : "text-foreground",
+        errorText ? "text-error" : "text-foreground",
         className
       )}
       data-slot="tool-output"

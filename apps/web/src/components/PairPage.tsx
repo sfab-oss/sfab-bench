@@ -94,7 +94,7 @@ export function PairPage({ onPaired }: { onPaired?: () => void }) {
           placeholder="K7MP2Q"
           className="mt-5 h-14 text-center font-mono text-2xl tracking-[0.35em]"
         />
-        {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="mt-3 text-sm text-error">{error}</p> : null}
         <Button type="submit" className="mt-5 w-full" disabled={busy || code.replace(/\s/g, "").length < 6}>
           {busy ? (
             <span className="inline-flex items-center gap-2">

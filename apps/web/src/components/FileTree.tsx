@@ -328,7 +328,7 @@ export function FileTree({
 
   if (error) {
     return (
-      <div className="px-4 py-2 text-xs text-destructive">{displayLoadError(error, projectPath)}</div>
+      <div className="px-4 py-2 text-xs text-error">{displayLoadError(error, projectPath)}</div>
     );
   }
   if (!ready) {
