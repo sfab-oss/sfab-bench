@@ -26,11 +26,11 @@ import {
 } from "@/components/ui/sidebar";
 import { showToast } from "@/components/ui/toast";
 import { displayLoadError } from "@/lib/load-copy";
-import { catalogEmptyReason, loadExpandedDirs, saveExpandedDirs, type CatalogKindFilter } from "@/lib/files-rail";
+import { useFileTreeExpansion } from "@/hooks/useFileTreeExpansion";
+import { catalogEmptyReason, type CatalogKindFilter } from "@/lib/files-rail";
 import { copyText } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import {
-  catalogAncestors,
   catalogDirPaths,
   catalogNodeCount,
   catalogSections,
@@ -261,29 +261,7 @@ export function FileTree({
     () => (filter.trim() || kind !== "all" ? [] : catalogSections(files, recents ?? []).recents),
     [files, recents, filter, kind],
   );
-  const [expanded, setExpanded] = useState<Set<string>>(() => {
-    const stored = loadExpandedDirs(projectPath);
-    if (stored) return new Set(stored);
-    return new Set(catalogAncestors(current));
-  });
-
-  const persist = (next: Set<string>) => {
-    saveExpandedDirs(projectPath, [...next]);
-  };
-
-  const setExpandedFromToggle = (path: string, nextOpen: boolean) => {
-    const copy = new Set(expanded);
-    if (nextOpen) copy.add(path);
-    else copy.delete(path);
-    setExpanded(copy);
-    persist(copy);
-  };
-
-  const collapseAll = () => {
-    const empty = new Set<string>();
-    setExpanded(empty);
-    persist(empty);
-  };
+  const { expanded, toggle, collapseAll } = useFileTreeExpansion(projectPath, current);
 
   const dirs = catalogDirPaths(tree);
   const empty = catalogEmptyReason({
@@ -358,7 +336,7 @@ export function FileTree({
                   node={node}
                   current={current}
                   expanded={expanded}
-                  toggle={setExpandedFromToggle}
+                  toggle={toggle}
                   onPick={onPick}
                   nested={false}
                 />
