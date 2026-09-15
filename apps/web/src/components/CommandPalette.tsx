@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import type { OpenFolderApi } from "@/components/OpenFolder";
 import { useProjectSession } from "@/hooks/useProjectSession";
-import { frameFitObject } from "@/cad/review";
+import { fitDirectionFor, frameFitObject } from "@/cad/review";
 import { isMacPlatform } from "@/lib/files-rail";
 import {
   COMMAND_PALETTE_LIST_ID,
@@ -210,12 +210,12 @@ export function CommandPalette({
       }
       if (cmd.id === "action:frame-model") {
         const obj = frameFitObject(s.review, s.selectedId, "model");
-        if (obj) s.fit?.(obj);
+        if (obj) s.fit?.(obj, fitDirectionFor("model"));
         return;
       }
       if (cmd.id === "action:frame-selection") {
         const obj = frameFitObject(s.review, s.selectedId, "selection");
-        if (obj) s.fit?.(obj);
+        if (obj) s.fit?.(obj, fitDirectionFor("selection"));
         return;
       }
       if (cmd.id === "action:close-folder") {

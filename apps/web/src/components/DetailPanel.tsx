@@ -185,10 +185,12 @@ export function DetailPanel({
   canvasHeight,
   compact,
   width,
+  cardRef,
 }: {
   canvasHeight: number;
   compact: boolean;
   width: number;
+  cardRef?: (el: HTMLElement | null) => void;
 }) {
   const { review, selectedId, pickedRef, tool } = useStore(
     useShallow((s) => ({
@@ -205,6 +207,7 @@ export function DetailPanel({
 
   return (
     <aside
+      ref={cardRef}
       className="pointer-events-auto absolute top-16 right-4 z-10 min-w-0 overflow-auto rounded-xl border border-border bg-card/95 p-3 shadow-lg"
       style={{
         width: compact ? width : 260,

@@ -139,12 +139,33 @@ export function detailPanelWidth(canvasWidth: number, compact: boolean, partsChi
   return Math.max(160, Math.min(DETAIL_WIDTH, canvasWidth - OVERLAY_RIGHT - 12 - chip));
 }
 
-export function fitInsets(input: {
+export type FitInsetInput = {
   partsExpanded: boolean;
   partsChip: boolean;
   detailVisible: boolean;
   detailWidth: number;
-}): FitInsets {
+  /** Measured card heights (0 when unmounted). Chip uses its real height. */
+  partsHeight?: number;
+  detailHeight?: number;
+  canvasWidth?: number;
+  canvasHeight?: number;
+};
+
+/** True once every visible overlay card has a measured height. */
+export function fitCardsReady(input: {
+  partsExpanded: boolean;
+  partsChip: boolean;
+  detailVisible: boolean;
+  partsHeight: number;
+  detailHeight: number;
+}): boolean {
+  if ((input.partsExpanded || input.partsChip) && input.partsHeight <= 0) return false;
+  if (input.detailVisible && input.detailHeight <= 0) return false;
+  return true;
+}
+
+/** Treat PartTree / Detail as full-height side columns (area 6). */
+export function fitBesideInsets(input: FitInsetInput): FitInsets {
   const left = input.partsExpanded
     ? OVERLAY_LEFT + PART_TREE_WIDTH
     : input.partsChip
@@ -152,6 +173,43 @@ export function fitInsets(input: {
       : OVERLAY_LEFT;
   const right = input.detailVisible ? OVERLAY_RIGHT + input.detailWidth : OVERLAY_RIGHT;
   return { left, right, top: OVERLAY_TOP, bottom: OVERLAY_BOTTOM };
+}
+
+/**
+ * Free rect under the floating cards: base side margins, top = lowest card
+ * bottom + cluster gap. Cards sit at OVERLAY_TOP (`top-16`).
+ */
+export function fitBelowInsets(input: FitInsetInput): FitInsets {
+  const cardH = Math.max(input.partsHeight ?? 0, input.detailHeight ?? 0);
+  const top = cardH > 0 ? OVERLAY_TOP + cardH + OVERLAY_CLUSTER_GAP : OVERLAY_TOP;
+  return { left: OVERLAY_LEFT, right: OVERLAY_RIGHT, top, bottom: OVERLAY_BOTTOM };
+}
+
+/**
+ * Pick the free rect with the smaller pull-back. Tie (or unmeasured cards /
+ * unknown canvas) → beside, so a fresh load with no detail card stays the
+ * area-6 pose or only improves.
+ */
+export function fitInsets(input: FitInsetInput): FitInsets {
+  const beside = fitBesideInsets(input);
+  const w = input.canvasWidth ?? 0;
+  const h = input.canvasHeight ?? 0;
+  if (w < 2 || h < 2) return beside;
+  if (
+    !fitCardsReady({
+      partsExpanded: input.partsExpanded,
+      partsChip: input.partsChip,
+      detailVisible: input.detailVisible,
+      partsHeight: input.partsHeight ?? 0,
+      detailHeight: input.detailHeight ?? 0,
+    })
+  ) {
+    return beside;
+  }
+  const below = fitBelowInsets(input);
+  const besideScale = fitDistanceScale(w, h, beside);
+  const belowScale = fitDistanceScale(w, h, below);
+  return belowScale < besideScale ? below : beside;
 }
 
 /** Pull the camera back so the sphere fits in the inset rectangle. */

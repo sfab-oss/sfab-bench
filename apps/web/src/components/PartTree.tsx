@@ -250,11 +250,13 @@ export function PartTree({
   expanded,
   onExpand,
   onCollapse,
+  cardRef,
 }: {
   canvasHeight: number;
   expanded: boolean;
   onExpand: () => void;
   onCollapse: () => void;
+  cardRef?: (el: HTMLElement | null) => void;
 }) {
   const url = useStore((s) => s.url);
   return (
@@ -271,6 +273,7 @@ export function PartTree({
         expanded={expanded}
         onCollapse={onCollapse}
         onExpand={onExpand}
+        cardRef={cardRef}
       />
     </RenderErrorBoundary>
   );
@@ -281,11 +284,13 @@ function PartTreeBody({
   expanded,
   onExpand,
   onCollapse,
+  cardRef,
 }: {
   canvasHeight: number;
   expanded: boolean;
   onExpand: () => void;
   onCollapse: () => void;
+  cardRef?: (el: HTMLElement | null) => void;
 }) {
   const { review, title, url } = useStore(
     useShallow((s) => ({
@@ -298,6 +303,7 @@ function PartTreeBody({
   if (!expanded) {
     return (
       <Button
+        ref={(el) => cardRef?.(el)}
         type="button"
         variant="secondary"
         size="sm"
@@ -313,6 +319,7 @@ function PartTreeBody({
   }
   return (
     <aside
+      ref={cardRef}
       className="pointer-events-auto absolute top-16 left-3 z-10 flex w-[280px] flex-col overflow-hidden rounded-xl border border-border/80 bg-card/95 shadow-lg backdrop-blur-sm"
       style={{ maxHeight: overlayMaxHeight(canvasHeight) }}
     >

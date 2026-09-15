@@ -8,6 +8,7 @@ import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { usePrefersReducedMotion } from "@/hooks/useMotionReady";
 import { useStudioColor } from "@/hooks/useStudioColor";
 import { useXrSession } from "@/hooks/useXrSession";
+import { FIT_HOME_DIR, homeFitDirection } from "@/cad/review";
 import { fitDistanceScale, fitPanNdc, getLiveFitInsets } from "@/lib/layout";
 import { orbitDampingEnabled, viewerFrameloop } from "@/lib/motion";
 import { CadModel } from "@/scene/CadModel";
@@ -75,7 +76,7 @@ function FitBridge() {
     const from =
       dir?.clone().normalize() ??
       camera.position.clone().sub(controls?.target ?? new THREE.Vector3()).normalize();
-    if (from.lengthSq() < 1e-6) from.set(0.6, 0.5, 0.7).normalize();
+    if (from.lengthSq() < 1e-6) from.set(...FIT_HOME_DIR).normalize();
     camera.position.copy(center).addScaledVector(from, dist);
     if (controls) {
       controls.target.copy(center);
@@ -117,7 +118,7 @@ export function ViewerCanvas() {
   const xrSession = useXrSession();
   const reduceMotion = usePrefersReducedMotion();
   const onFit = useCallback(
-    (obj: THREE.Object3D) => store.getState().fit?.(obj, new THREE.Vector3(0.6, 0.5, 0.7)),
+    (obj: THREE.Object3D) => store.getState().fit?.(obj, homeFitDirection()),
     [],
   );
 
