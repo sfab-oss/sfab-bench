@@ -17,7 +17,7 @@ export function messageFromHttpBody(text: string, fallback = ""): string {
 }
 
 function unwrap(raw: string): string {
-  return messageFromHttpBody(raw, raw).trim();
+  return messageFromHttpBody(raw, "Could not load this file").trim();
 }
 
 /** Catalog / CAD 400 "not a directory: /abs/path" (and a gone folder). */

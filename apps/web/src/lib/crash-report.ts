@@ -3,6 +3,17 @@ import { redact } from "./redact";
 export const APP_DISPLAY_NAME = "sfab-bench";
 export const APP_VERSION = "0.1.1";
 
+/** One-line card copy: message only, no stack. Truncation is CSS. */
+export function crashCardReason(error: unknown, projectPath = ""): string {
+  let raw = "";
+  if (error instanceof Error) {
+    raw = error.message.trim() || error.name || "Error";
+  } else if (typeof error === "string") {
+    raw = error.trim();
+  }
+  return redact(raw || "An unexpected error occurred.", projectPath);
+}
+
 function errorDetails(error: unknown): string {
   if (error instanceof Error) {
     const stack = error.stack?.trim();

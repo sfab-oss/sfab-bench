@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { formatCrashReport } from "@/lib/crash-report";
+import { crashCardReason, formatCrashReport } from "@/lib/crash-report";
 import { projectUrl } from "@/lib/project-query";
 import { cn } from "@/lib/utils";
 
@@ -15,18 +15,28 @@ export function CrashCard({
   variant?: "card" | "page";
 }) {
   const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef(0);
+  const projectPath = projectUrl();
+  const reason = crashCardReason(error, projectPath);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimer.current) window.clearTimeout(copiedTimer.current);
+    };
+  }, []);
 
   const copyReport = () => {
     const report = formatCrashReport({
       pathname: typeof window === "undefined" ? "/" : window.location.pathname,
       time: new Date().toISOString(),
       error,
-      projectPath: projectUrl(),
+      projectPath,
     });
     void navigator.clipboard.writeText(report).then(
       () => {
         setCopied(true);
-        window.setTimeout(() => setCopied(false), 1500);
+        if (copiedTimer.current) window.clearTimeout(copiedTimer.current);
+        copiedTimer.current = window.setTimeout(() => setCopied(false), 1500);
       },
       () => {
         /* private mode / permission */
@@ -43,6 +53,9 @@ export function CrashCard({
       )}
     >
       <strong>Something went wrong</strong>
+      <p className="mt-1 line-clamp-2 break-words text-muted-foreground" title={reason}>
+        {reason}
+      </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {onRetry ? (
           <Button type="button" size="sm" onClick={onRetry}>

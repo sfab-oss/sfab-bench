@@ -1,4 +1,4 @@
-import { formatCrashReport } from "./crash-report";
+import { crashCardReason, formatCrashReport } from "./crash-report";
 import { displayLoadError, friendlyLoadReason, isUnavailableFolder, loadCardCopy, messageFromHttpBody } from "./load-copy";
 import { redact, redactHomePaths, redactProjectPrefix } from "./redact";
 
@@ -9,6 +9,14 @@ function expect(cond: boolean, label: string) {
 expect(redactHomePaths("/Users/you/cad/part.step") === "~/cad/part.step", "Users home");
 expect(redactHomePaths("/home/you/cad/part.step") === "~/cad/part.step", "linux home");
 expect(redactHomePaths("file:///Users/you/cad/part.step") === "file://~/cad/part.step", "file url");
+expect(redactHomePaths("C:\\Users\\you\\cad\\part.step") === "~\\cad\\part.step", "windows backslash");
+expect(redactHomePaths("C:/Users/you/cad/part.step") === "~/cad/part.step", "windows forward");
+expect(redactHomePaths("D:\\Users\\you\\a.step") === "~\\a.step", "other drive");
+expect(redactHomePaths("file:///C:/Users/you/cad/part.step") === "file://~/cad/part.step", "windows file url");
+expect(redactHomePaths("file:///d:/Users/you/a.step") === "file://~/a.step", "windows file url other drive");
+expect(redactHomePaths("Users of this Mac stay") === "Users of this Mac stay", "plain Users");
+expect(redactHomePaths("saved on the C: drive") === "saved on the C: drive", "drive letter only");
+expect(redactHomePaths("D:\\Projects\\cad\\a.step") === "D:\\Projects\\cad\\a.step", "non-home windows path");
 expect(
   redact("tessellating /Users/you/cad/part.step took longer than 300000ms") ===
     "tessellating ~/cad/part.step took longer than 300000ms",
@@ -26,6 +34,8 @@ expect(redact("no file at missing.step", "/Users/you/proj") === "no file at miss
 
 expect(messageFromHttpBody('{"error":"not a directory: /Users/you/nope"}') === "not a directory: /Users/you/nope", "json error");
 expect(messageFromHttpBody("<!DOCTYPE html><html>404</html>", "missing") === "missing", "html 404");
+expect(friendlyLoadReason("<!DOCTYPE html><html>404</html>") === "Could not load this file", "html never on card");
+expect(displayLoadError("<html>not found</html>") === "Could not load this file", "html through display");
 expect(isUnavailableFolder("not a directory: /Users/you/nope"), "not a directory");
 expect(isUnavailableFolder("the project folder is gone"), "gone folder");
 expect(isUnavailableFolder('{"error":"not a directory: /abs/path"}'), "json not a directory");
@@ -77,5 +87,15 @@ expect(report.includes("/Users/") === false, "no Users dir");
 expect(report.includes("/home/") === false, "no home dir");
 expect(report.includes("2026-09-15T00:00:00.000Z"), "iso time");
 expect(report.includes("~/cad/part.step"), "stack redacted");
+
+const cardErr = new Error("tessellating /Users/you/cad/part.step took longer than 300000ms");
+const cardReason = crashCardReason(cardErr);
+expect(cardReason === "tessellating ~/cad/part.step took longer than 300000ms", "card is redacted message");
+expect(cardReason.includes("\n") === false, "card reason is one line");
+expect((cardErr.stack ?? "").length > cardErr.message.length, "stack stays off the card");
+expect(
+  crashCardReason(new Error("failed at C:\\Users\\you\\cad\\a.step")) === "failed at ~\\cad\\a.step",
+  "card redacts windows home",
+);
 
 console.log("redact.selfcheck ok");

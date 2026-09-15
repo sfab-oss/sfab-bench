@@ -9,8 +9,10 @@ export function redactProjectPrefix(text: string, projectPath: string): string {
 
 export function redactHomePaths(text: string): string {
   return text
+    .replace(/file:\/\/\/[A-Za-z]:[/\\]Users[/\\][^/\\]+/gi, "file://~")
     .replace(/file:\/\/\/Users\/[^/]+/g, "file://~")
     .replace(/file:\/\/\/home\/[^/]+/g, "file://~")
+    .replace(/[A-Za-z]:[/\\]Users[/\\][^/\\]+/gi, "~")
     .replace(/\/Users\/[^/]+/g, "~")
     .replace(/\/home\/[^/]+/g, "~");
 }

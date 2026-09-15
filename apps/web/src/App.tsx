@@ -191,7 +191,7 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
 function UnavailableFolderCard({ onOpen }: { onOpen?: () => void }) {
   return (
     <div className="flex w-full flex-col items-center gap-3">
-      <p className="text-sm text-muted-foreground">This folder isn&apos;t available — Open folder</p>
+      <p className="text-sm text-muted-foreground">This folder isn&apos;t available</p>
       {onOpen ? (
         <Button type="button" size="sm" onClick={onOpen}>
           Open folder
