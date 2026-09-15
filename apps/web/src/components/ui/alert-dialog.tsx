@@ -13,9 +13,8 @@ function AlertDialogClose({ ...props }: AlertDialogPrimitive.Close.Props) {
 function AlertDialogContent({
   className,
   children,
-  viewportClassName,
   ...props
-}: AlertDialogPrimitive.Popup.Props & { viewportClassName?: string }) {
+}: AlertDialogPrimitive.Popup.Props) {
   return (
     <AlertDialogPrimitive.Portal>
       <AlertDialogPrimitive.Backdrop
@@ -23,12 +22,7 @@ function AlertDialogContent({
         forceRender
         className="fixed inset-0 z-50 min-h-dvh bg-black/50 transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0"
       />
-      <AlertDialogPrimitive.Viewport
-        className={cn(
-          "pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4",
-          viewportClassName,
-        )}
-      >
+      <AlertDialogPrimitive.Viewport className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
         <AlertDialogPrimitive.Popup
           data-slot="alert-dialog-content"
           className={cn(

@@ -9,54 +9,26 @@ import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import type { OpenFolderApi } from "@/components/OpenFolder";
 import { useProjectSession } from "@/hooks/useProjectSession";
-import { fitDirectionFor, frameFitObject } from "@/cad/review";
-import { isMacPlatform } from "@/lib/files-rail";
 import {
   COMMAND_PALETTE_LIST_ID,
   buildCommands,
   clampActiveIndex,
-  isCommandPaletteToggle,
-  otherModalDialogOpen,
+  commandPaletteBlocked,
   paletteOptionId,
-  paletteOwnersState,
-  requestNewChat,
-  requestOpenQuest,
   requestOpenSettings,
-  subscribePaletteOwners,
   visiblePalette,
   wrapActiveIndex,
-  type ModalProbe,
   type PaletteCommand,
-  type PaletteOwners,
-  type PalettePart,
 } from "@/lib/command-palette";
-import { disambiguateSiblingNames, partDisplayName, partLabelFileStem } from "@/lib/part-label";
-import { requestCloseFolder, requestRefreshFiles } from "@/lib/motion";
+import { requestCloseFolder } from "@/lib/motion";
 import { folderName, shortPath } from "@/lib/project";
 import { isCompactChat } from "@/lib/layout";
+import { isMacPlatform, matchesShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { store, useStore } from "@/state/store";
 import type { CatalogEntry } from "@/lib/viewer-snapshot";
 
-const EMPTY_PARTS: PalettePart[] = [];
 const EMPTY_COMMANDS: PaletteCommand[] = [];
-
-function usePaletteOwners(): PaletteOwners {
-  const [owners, setOwners] = useState(paletteOwnersState);
-  useEffect(() => {
-    const sync = () => setOwners(paletteOwnersState());
-    sync();
-    return subscribePaletteOwners(sync);
-  }, []);
-  return owners;
-}
-
-function probeOpenModals(): ModalProbe[] {
-  return Array.from(document.querySelectorAll("[data-slot='dialog-content'], [data-slot='alert-dialog-content']")).map((el) => ({
-    palette: Boolean(el.closest("[data-command-palette]")),
-    ending: el.hasAttribute("data-ending-style"),
-  }));
-}
 
 function restoreFocus(el: HTMLElement | null) {
   if (!el?.isConnected) return;
@@ -81,12 +53,9 @@ export function CommandPalette({
   const activeRowRef = useRef<HTMLButtonElement | null>(null);
   const { setTheme } = useTheme();
   const { project, setDoc } = useProjectSession();
-  const owners = usePaletteOwners();
-  const { url, review, title, treeOpen, chatOpen, compactChatOpen } = useStore(
+  const { url, treeOpen, chatOpen, compactChatOpen } = useStore(
     useShallow((s) => ({
       url: s.url,
-      review: s.review,
-      title: s.title,
       treeOpen: s.treeOpen,
       chatOpen: s.chatOpen,
       compactChatOpen: s.compactChatOpen,
@@ -98,23 +67,6 @@ export function CommandPalette({
   );
   const chatVisible = compactChat ? compactChatOpen : chatOpen;
 
-  const parts = useMemo<PalettePart[]>(() => {
-    if (!review) return EMPTY_PARTS;
-    const withRef = review.parts.filter((part) => part.cadRef);
-    if (withRef.length === 0) return EMPTY_PARTS;
-    const fileStem = partLabelFileStem(review.parts.length, title);
-    const labeled = withRef.map((part) => ({
-      key: part.cadRef ?? `id:${part.id}`,
-      display: partDisplayName(part, part.cadRef, fileStem),
-      ref: part.cadRef,
-    }));
-    const labels = disambiguateSiblingNames(labeled);
-    return withRef.map((part, index) => ({
-      displayName: labels.get(labeled[index]!.key) ?? labeled[index]!.display,
-      ref: part.cadRef as string,
-    }));
-  }, [review, title]);
-
   const commands = useMemo(() => {
     if (!open) return EMPTY_COMMANDS;
     const currentPath = project.path;
@@ -122,12 +74,8 @@ export function CommandPalette({
       mac,
       canOpenFolder: folder.canRegister,
       hasProject: Boolean(currentPath),
-      hasModel: Boolean(review),
       filesOpen: treeOpen,
       chatOpen: chatVisible,
-      settings: owners.settings,
-      quest: owners.quest,
-      newChat: owners.newChat,
       files: catalogFiles.map((file) => ({
         name: folderName(file.path),
         path: file.path,
@@ -140,26 +88,20 @@ export function CommandPalette({
           path: row.path,
           subtitle: shortPath(row.path),
         })),
-      parts,
     });
   }, [
     open,
     mac,
     folder.canRegister,
     folder.recents,
-    owners.settings,
-    owners.quest,
-    owners.newChat,
     project.path,
-    review,
     treeOpen,
     chatVisible,
     catalogFiles,
     url,
-    parts,
   ]);
 
-  const { groups, items } = useMemo(() => visiblePalette(commands, query), [commands, query]);
+  const items = useMemo(() => visiblePalette(commands, query), [commands, query]);
   const active = clampActiveIndex(activeIndex, items.length);
   const activeCommand = items[active];
   const activeOptionId = activeCommand ? paletteOptionId(activeCommand.id) : undefined;
@@ -190,51 +132,23 @@ export function CommandPalette({
         else s.setChatOpen(!s.chatOpen);
         return;
       }
-      if (cmd.id === "action:new-chat") {
-        if (compact) s.setCompactChatOpen(true);
-        else s.setChatOpen(true);
-        requestNewChat();
-        return;
-      }
       if (cmd.id === "action:settings") {
         requestOpenSettings();
-        return;
-      }
-      if (cmd.id === "action:enter-quest") {
-        requestOpenQuest();
-        return;
-      }
-      if (cmd.id === "action:refresh-files") {
-        requestRefreshFiles();
-        return;
-      }
-      if (cmd.id === "action:frame-model") {
-        const obj = frameFitObject(s.review, s.selectedId, "model");
-        if (obj) s.fit?.(obj, fitDirectionFor("model"));
-        return;
-      }
-      if (cmd.id === "action:frame-selection") {
-        const obj = frameFitObject(s.review, s.selectedId, "selection");
-        if (obj) s.fit?.(obj, fitDirectionFor("selection"));
         return;
       }
       if (cmd.id === "action:close-folder") {
         requestCloseFolder();
         return;
       }
-      if (cmd.group === "files" && cmd.payload) {
+      if (cmd.id.startsWith("file:") && cmd.payload) {
         void setDoc(cmd.payload);
         return;
       }
-      if (cmd.group === "folders" && cmd.payload) {
+      if (cmd.id.startsWith("folder:") && cmd.payload) {
         folder.pickRecent(cmd.payload);
         return;
       }
-      if (cmd.group === "parts" && cmd.payload) {
-        s.selectByRef(cmd.payload);
-        return;
-      }
-      if (cmd.group === "appearance" && cmd.payload) {
+      if (cmd.id.startsWith("theme:") && cmd.payload) {
         setTheme(cmd.payload);
       }
     },
@@ -251,10 +165,11 @@ export function CommandPalette({
     [execute, finishClose],
   );
 
+  const dialogOpen = folder.dialogOpen;
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.isComposing) return;
-      if (!isCommandPaletteToggle(event, mac)) return;
+      if (!matchesShortcut(event, "command-palette", { mac })) return;
       event.preventDefault();
       event.stopPropagation();
       if (open) {
@@ -262,7 +177,7 @@ export function CommandPalette({
         skipRestoreRef.current = false;
         return;
       }
-      if (otherModalDialogOpen(probeOpenModals())) return;
+      if (dialogOpen || commandPaletteBlocked()) return;
       restoreRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       skipRestoreRef.current = false;
       setQuery("");
@@ -271,7 +186,7 @@ export function CommandPalette({
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [finishClose, mac, open]);
+  }, [dialogOpen, finishClose, mac, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -320,8 +235,7 @@ export function CommandPalette({
       <DialogContent
         data-command-palette=""
         showCloseButton={false}
-        viewportClassName="items-start justify-center pt-[12vh] sm:pt-[15vh]"
-        className="max-h-[min(28rem,calc(100dvh-8rem))] max-w-lg gap-0 self-start p-0"
+        className="mt-[12vh] max-h-[min(28rem,calc(100dvh-8rem))] max-w-lg gap-0 self-start p-0 sm:mt-[15vh]"
         onKeyDownCapture={onListKeyDown}
       >
         <DialogTitle className="sr-only">Command palette</DialogTitle>
@@ -353,70 +267,44 @@ export function CommandPalette({
           {items.length === 0 ? (
             <p className="px-2 py-6 text-center text-sm text-muted-foreground">No results</p>
           ) : (
-            groups.map((group, groupPos) => {
-              const start = groups.slice(0, groupPos).reduce((n, row) => n + row.items.length, 0);
-              return (
-              <section key={group.id} className="mb-1">
-                <h2 className="px-2 py-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                  {group.label}
-                </h2>
-                <ul>
-                  {group.items.map((cmd, groupIndex) => {
-                    const index = start + groupIndex;
-                    const selected = index === active;
-                    return (
-                      <li key={cmd.id}>
-                        <button
-                          id={paletteOptionId(cmd.id)}
-                          ref={selected ? activeRowRef : undefined}
-                          type="button"
-                          role="option"
-                          aria-selected={selected}
-                          tabIndex={-1}
-                          className={cn(
-                            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
-                            selected ? "bg-accent text-accent-foreground" : "text-foreground",
-                          )}
-                          onMouseEnter={() => setActiveIndex(index)}
-                          onClick={() => run(cmd)}
-                        >
-                          <span className="min-w-0 flex-1">
-                            <span className="flex min-w-0 items-center gap-2">
-                              {cmd.current ? <Check className="size-3.5 shrink-0" /> : null}
-                              <span className="min-w-0 truncate">{cmd.title}</span>
-                            </span>
-                            {cmd.subtitle ? (
-                              <StartTruncatedPath
-                                path={cmd.subtitle}
-                                className="font-mono text-[11px] text-muted-foreground"
-                              />
-                            ) : null}
-                          </span>
-                          {cmd.shortcut ? <Kbd className="shrink-0">{cmd.shortcut}</Kbd> : null}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            );
-            })
+            <ul>
+              {items.map((cmd, index) => {
+                const selected = index === active;
+                return (
+                  <li key={cmd.id}>
+                    <button
+                      id={paletteOptionId(cmd.id)}
+                      ref={selected ? activeRowRef : undefined}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      tabIndex={-1}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
+                        selected ? "bg-accent text-accent-foreground" : "text-foreground",
+                      )}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => run(cmd)}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="flex min-w-0 items-center gap-2">
+                          {cmd.current ? <Check className="size-3.5 shrink-0" /> : null}
+                          <span className="min-w-0 truncate">{cmd.title}</span>
+                        </span>
+                        {cmd.subtitle ? (
+                          <StartTruncatedPath
+                            path={cmd.subtitle}
+                            className="font-mono text-[11px] text-muted-foreground"
+                          />
+                        ) : null}
+                      </span>
+                      {cmd.shortcut ? <Kbd className="shrink-0">{cmd.shortcut}</Kbd> : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
-        </div>
-        <div className="flex shrink-0 items-center gap-3 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <Kbd>↑</Kbd>
-            <Kbd>↓</Kbd>
-            navigate
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Kbd>↵</Kbd>
-            run
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Kbd>esc</Kbd>
-            close
-          </span>
         </div>
       </DialogContent>
     </Dialog>
