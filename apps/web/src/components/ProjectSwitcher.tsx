@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 
 import { StartTruncatedPath } from "@/components/StartTruncatedPath";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { requestCloseFolder } from "@/lib/motion";
 import {
   fetchProject,
   folderName,
   openTabProject,
-  closeTabProject,
   registerAndOpenTab,
   shortPath,
   type ProjectInfo,
@@ -133,7 +133,7 @@ export function ProjectSwitcher({
         ) : null}
         <PopoverClose
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-          onClick={() => closeTabProject()}
+          onClick={() => requestCloseFolder()}
         >
           Close folder
         </PopoverClose>

@@ -316,6 +316,26 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
   return <li data-sidebar="menu-item" className={cn("group/menu-item relative", className)} {...props} />;
 }
 
+const SidebarMenuAction = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentProps<"button"> & { showOnHover?: boolean }
+>(function SidebarMenuAction({ className, showOnHover = false, ...props }, ref) {
+  return (
+    <button
+      ref={ref}
+      type="button"
+      data-sidebar="menu-action"
+      className={cn(
+        "absolute top-1.5 right-1 z-10 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-3.5 [&>svg]:shrink-0",
+        showOnHover &&
+          "opacity-0 group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 aria-expanded:opacity-100",
+        className,
+      )}
+      {...props}
+    />
+  );
+});
+
 const sidebarMenuButtonVariants = cva(
   "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
   {
@@ -410,7 +430,7 @@ function SidebarMenuSub({ className, ...props }: React.ComponentProps<"ul">) {
 }
 
 function SidebarMenuSubItem({ className, ...props }: React.ComponentProps<"li">) {
-  return <li data-sidebar="menu-sub-item" className={cn("group/menu-sub-item relative", className)} {...props} />;
+  return <li data-sidebar="menu-sub-item" className={cn("group/menu-item group/menu-sub-item relative", className)} {...props} />;
 }
 
 function SidebarMenuSubButton({
@@ -450,6 +470,7 @@ export {
   SidebarInput,
   SidebarInset,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,

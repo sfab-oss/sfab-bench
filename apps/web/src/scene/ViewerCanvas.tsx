@@ -5,9 +5,13 @@ import { Suspense, useCallback, useEffect, useLayoutEffect } from "react";
 import * as THREE from "three";
 
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
+import { usePrefersReducedMotion } from "@/hooks/useMotionReady";
 import { useStudioColor } from "@/hooks/useStudioColor";
+import { useXrSession } from "@/hooks/useXrSession";
 import { fitDistanceScale, fitPanNdc, getLiveFitInsets } from "@/lib/layout";
+import { orbitDampingEnabled, viewerFrameloop } from "@/lib/motion";
 import { CadModel } from "@/scene/CadModel";
+import { bindSceneInvalidate } from "@/scene/invalidate";
 import { RecenterOnReset } from "@/scene/RecenterOnReset";
 import { SpawnInFront } from "@/scene/SpawnInFront";
 import { store, useStore } from "@/state/store";
@@ -33,9 +37,23 @@ function StudioFloor() {
   );
 }
 
+function DemandBridge() {
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    bindSceneInvalidate(invalidate);
+    const unsub = store.subscribe(() => invalidate());
+    return () => {
+      unsub();
+      bindSceneInvalidate(null);
+    };
+  }, [invalidate]);
+  return null;
+}
+
 function FitBridge() {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
+  const invalidate = useThree((s) => s.invalidate);
   const controls = useThree((s) => s.controls) as {
     target: THREE.Vector3;
     update: () => void;
@@ -64,20 +82,22 @@ function FitBridge() {
       controls.update();
     }
     const ndc = fitPanNdc(w, h, insets);
-    if (ndc.x === 0 && ndc.y === 0) return;
-    camera.updateMatrixWorld();
-    const halfH = dist * Math.tan(fov / 2);
-    const halfW = halfH * camera.aspect;
-    const camRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
-    const camUp = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
-    const shift = camRight.multiplyScalar(-ndc.x * halfW).add(camUp.multiplyScalar(-ndc.y * halfH));
-    camera.position.add(shift);
-    if (controls) {
-      controls.target.add(shift);
-      controls.update();
+    if (ndc.x !== 0 || ndc.y !== 0) {
+      camera.updateMatrixWorld();
+      const halfH = dist * Math.tan(fov / 2);
+      const halfW = halfH * camera.aspect;
+      const camRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+      const camUp = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+      const shift = camRight.multiplyScalar(-ndc.x * halfW).add(camUp.multiplyScalar(-ndc.y * halfH));
+      camera.position.add(shift);
+      if (controls) {
+        controls.target.add(shift);
+        controls.update();
+      }
     }
+    invalidate();
     });
-  }, [camera, controls, gl, setFit]);
+  }, [camera, controls, gl, invalidate, setFit]);
   return null;
 }
 
@@ -94,6 +114,8 @@ export function ViewerCanvas() {
   const studio = useStudioColor();
   const url = useStore((s) => s.url);
   const setPlaced = useStore((s) => s.setPlaced);
+  const xrSession = useXrSession();
+  const reduceMotion = usePrefersReducedMotion();
   const onFit = useCallback(
     (obj: THREE.Object3D) => store.getState().fit?.(obj, new THREE.Vector3(0.6, 0.5, 0.7)),
     [],
@@ -103,9 +125,11 @@ export function ViewerCanvas() {
     <Canvas
       style={{ position: "absolute", inset: 0 }}
       camera={{ position: [0.42, 0.32, 0.5], fov: 50, near: 0.01, far: 50 }}
+      frameloop={viewerFrameloop(Boolean(xrSession))}
       gl={{ antialias: true, alpha: true, localClippingEnabled: true }}
     >
       <XR store={xrStore}>
+        <DemandBridge />
         <IfInSessionMode deny="immersive-ar">
           <color attach="background" args={[studio]} />
         </IfInSessionMode>
@@ -145,7 +169,11 @@ export function ViewerCanvas() {
           <ToolDrawer />
         </Suspense>
         <IfInSessionMode deny={["immersive-ar", "immersive-vr"]}>
-          <OrbitControls makeDefault enableDamping onStart={() => store.getState().setCameraMoved(true)} />
+          <OrbitControls
+            makeDefault
+            enableDamping={orbitDampingEnabled(reduceMotion)}
+            onStart={() => store.getState().setCameraMoved(true)}
+          />
           <CornerAxes />
         </IfInSessionMode>
       </XR>

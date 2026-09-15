@@ -210,6 +210,11 @@ export function buildCommands(input: BuildCommandsInput): PaletteCommand[] {
       group: "actions",
       title: input.chatOpen ? "Hide chat" : "Show chat",
     });
+    commands.push({
+      id: "action:refresh-files",
+      group: "actions",
+      title: "Refresh files",
+    });
   }
 
   if (input.newChat) {

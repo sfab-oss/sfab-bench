@@ -1,3 +1,4 @@
+import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
@@ -5,6 +6,7 @@ import { Lockup } from "@/components/brand/Lockup";
 import { EmptyFolderRail, type OpenFolderApi } from "@/components/OpenFolder";
 import { FileTree } from "@/components/FileTree";
 import { ProjectSwitcher } from "@/components/ProjectSwitcher";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -20,7 +22,9 @@ import type { CatalogState } from "@/hooks/useCatalog";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { commandPaletteShortcutLabel } from "@/lib/command-palette";
 import { isMacPlatform } from "@/lib/files-rail";
+import { refreshFilesTooltip } from "@/lib/motion";
 import { shortcutTooltip } from "@/lib/shortcuts";
+import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
 
 export function DesktopSidebar({
@@ -40,7 +44,7 @@ export function DesktopSidebar({
   );
   const { project, setDoc, connectionPhase, connectionOfferReload } = useProjectSession();
   const hasProject = Boolean(project.path);
-  const { files, error, ready } = catalog;
+  const { files, error, ready, refreshing, reload } = catalog;
   const [filter, setFilter] = useState("");
   const mac = isMacPlatform(
     typeof navigator === "undefined" ? "" : navigator.platform,
@@ -64,13 +68,28 @@ export function DesktopSidebar({
           <p className="px-2 text-xs text-error">{folder.error}</p>
         ) : null}
         {hasProject ? (
-          <SidebarInput
-            placeholder={`Search files… ${commandPaletteShortcutLabel(mac)}`}
-            title={shortcutTooltip("Command palette", "command-palette", mac)}
-            aria-label="Search files"
-            value={filter}
-            onChange={(ev) => setFilter(ev.target.value)}
-          />
+          <div className="flex items-center gap-1">
+            <SidebarInput
+              className="min-w-0 flex-1"
+              placeholder={`Search files… ${commandPaletteShortcutLabel(mac)}`}
+              title={shortcutTooltip("Command palette", "command-palette", mac)}
+              aria-label="Search files"
+              value={filter}
+              onChange={(ev) => setFilter(ev.target.value)}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="size-8 shrink-0"
+              title={refreshFilesTooltip(refreshing)}
+              aria-label={refreshFilesTooltip(refreshing)}
+              aria-busy={refreshing || undefined}
+              onClick={() => reload({ explicit: true })}
+            >
+              <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
+            </Button>
+          </div>
         ) : null}
       </SidebarHeader>
       <SidebarContent>

@@ -204,3 +204,23 @@ body,
 body {
   font-size: calc(1rem * var(--ui-text-scale, 1));
 }
+
+/* Restored chrome must already be in its end state; user actions may animate after. */
+html:not([data-motion="ready"]) *,
+html:not([data-motion="ready"]) *::before,
+html:not([data-motion="ready"]) *::after {
+  animation-delay: 0s !important;
+  animation-duration: 0s !important;
+  transition-duration: 0s !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -31,7 +31,8 @@ import {
   type PalettePart,
 } from "@/lib/command-palette";
 import { disambiguateSiblingNames, partDisplayName, partLabelFileStem } from "@/lib/part-label";
-import { closeTabProject, folderName, shortPath } from "@/lib/project";
+import { requestCloseFolder, requestRefreshFiles } from "@/lib/motion";
+import { folderName, shortPath } from "@/lib/project";
 import { isCompactChat } from "@/lib/layout";
 import { cn } from "@/lib/utils";
 import { store, useStore } from "@/state/store";
@@ -203,6 +204,10 @@ export function CommandPalette({
         requestOpenQuest();
         return;
       }
+      if (cmd.id === "action:refresh-files") {
+        requestRefreshFiles();
+        return;
+      }
       if (cmd.id === "action:frame-model") {
         const obj = frameFitObject(s.review, s.selectedId, "model");
         if (obj) s.fit?.(obj);
@@ -214,7 +219,7 @@ export function CommandPalette({
         return;
       }
       if (cmd.id === "action:close-folder") {
-        closeTabProject();
+        requestCloseFolder();
         return;
       }
       if (cmd.group === "files" && cmd.payload) {
