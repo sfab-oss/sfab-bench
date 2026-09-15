@@ -229,8 +229,9 @@ function ChatInputInner({
     if (!hasCadParts) return;
     const text = inputRef.current?.getText() ?? "";
     const chips = wrapRef.current?.querySelectorAll("[data-mention-suggestion-char]").length ?? 0;
-    // setText moves the caret, so only rebuild when some ref is still plain text.
-    if (parseCadRefs(text).length > chips) inputRef.current?.setText(text);
+    // setText moves the caret, so only rebuild when some resolvable ref is still plain text.
+    const refs = parseCadRefs(text).filter((hit) => resolveCadRef(hit.ref, catalogParts, fileStem));
+    if (refs.length > chips) inputRef.current?.setText(text);
   }, [hasCadParts, inputRef]);
 
   const syncDraft = () => {
@@ -298,7 +299,7 @@ function ChatInputInner({
         onSubmit={(parsed, { clear, focus }) => {
           if (voice.active) return;
           const trimmed = parsed.text.trim();
-          if (!trimmed || lockSend || loadingModel || sendBlockReason) return;
+          if (!trimmed || inFlight || lockSend || loadingModel || sendBlockReason) return;
           setSessionDraft(threadId, "");
           setDraftText("");
           draftTouchedRef.current = false;
@@ -430,7 +431,8 @@ export function GalleryChatInput({
     ref,
     () => ({
       captureDraft: () => {
-        captureSessionDraft(threadId, inputRef.current?.getText() ?? "");
+        const input = inputRef.current;
+        if (input) captureSessionDraft(threadId, input.getText());
       },
       clear: () => {
         setSessionDraft(threadId, "");
