@@ -46,7 +46,10 @@
       (function () {
         try {
           var root = document.documentElement.style;
-          var contrastRaw = Number(localStorage.getItem("sfab-bench.contrast"));
+          // Same as parseContrast: a missing or blank value is the 100% default, not Number(null) = 0.
+          var contrastStored = localStorage.getItem("sfab-bench.contrast");
+          var contrastRaw =
+            contrastStored == null || contrastStored.trim() === "" ? 100 : Number(contrastStored);
           var contrast = Number.isFinite(contrastRaw)
             ? Math.min(130, Math.max(90, Math.round(contrastRaw)))
             : 100;
