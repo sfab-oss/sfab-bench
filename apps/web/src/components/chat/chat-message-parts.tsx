@@ -115,6 +115,8 @@ function CadRefAnchor(props: MarkdownAnchorProps) {
   return <StreamdownMarkdownA {...props} />;
 }
 
+const CAD_REF_COMPONENTS = { a: CadRefAnchor };
+
 function MarkdownBody({
   children,
   className,
@@ -123,13 +125,15 @@ function MarkdownBody({
   className?: string;
 }) {
   const markdown = linkifyCadRefsInMarkdown(children);
+  // Only override links when there are chips, so plain messages keep Streamdown's link safety.
+  const hasCadRefs = markdown !== children;
   return (
     <Streamdown
       className={cn(
         "size-full text-base [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         className
       )}
-      components={{ a: CadRefAnchor }}
+      components={hasCadRefs ? CAD_REF_COMPONENTS : undefined}
     >
       {markdown}
     </Streamdown>
