@@ -46,7 +46,7 @@ import { loadHarnesses } from "@/hooks/useHarnesses";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { jsonApi } from "@/lib/api";
 import { CHAT_DEFAULT_WIDTH, clampChatDrag } from "@/lib/layout";
-import { NEW_CHAT_EVENT } from "@/lib/command-palette";
+import { NEW_CHAT_EVENT, registerPaletteOwner } from "@/lib/command-palette";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
 
@@ -233,6 +233,7 @@ export function ChatPanel({
     window.addEventListener(NEW_CHAT_EVENT, onNewChat);
     return () => window.removeEventListener(NEW_CHAT_EVENT, onNewChat);
   }, []);
+  useEffect(() => registerPaletteOwner("new-chat"), []);
 
   return (
     <>
@@ -355,7 +356,9 @@ export function ChatPanel({
 
 function floatingDismissOpen(): boolean {
   return Boolean(
-    document.querySelector("[data-mention-list], [data-slot='popover-content'], [data-slot='select-content']"),
+    document.querySelector(
+      "[data-mention-list], [data-slot='popover-content'], [data-slot='select-content'], [data-slot='dialog-content']",
+    ),
   );
 }
 

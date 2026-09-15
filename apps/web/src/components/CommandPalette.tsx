@@ -8,21 +8,26 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import type { OpenFolderApi } from "@/components/OpenFolder";
-import { useCatalog } from "@/hooks/useCatalog";
 import { useProjectSession } from "@/hooks/useProjectSession";
+import { frameFitObject } from "@/cad/review";
 import { isMacPlatform } from "@/lib/files-rail";
 import {
+  COMMAND_PALETTE_LIST_ID,
   buildCommands,
   clampActiveIndex,
   isCommandPaletteToggle,
   otherModalDialogOpen,
+  paletteOptionId,
+  paletteOwnersState,
   requestNewChat,
   requestOpenQuest,
   requestOpenSettings,
+  subscribePaletteOwners,
   visiblePalette,
   wrapActiveIndex,
   type ModalProbe,
   type PaletteCommand,
+  type PaletteOwners,
   type PalettePart,
 } from "@/lib/command-palette";
 import { disambiguateSiblingNames, partDisplayName, partLabelFileStem } from "@/lib/part-label";
@@ -30,12 +35,19 @@ import { closeTabProject, folderName, shortPath } from "@/lib/project";
 import { isCompactChat } from "@/lib/layout";
 import { cn } from "@/lib/utils";
 import { store, useStore } from "@/state/store";
+import type { CatalogEntry } from "@/lib/viewer-snapshot";
 
 const EMPTY_PARTS: PalettePart[] = [];
 const EMPTY_COMMANDS: PaletteCommand[] = [];
 
-function fileName(path: string) {
-  return path.split("/").filter(Boolean).pop() ?? path;
+function usePaletteOwners(): PaletteOwners {
+  const [owners, setOwners] = useState(paletteOwnersState);
+  useEffect(() => {
+    const sync = () => setOwners(paletteOwnersState());
+    sync();
+    return subscribePaletteOwners(sync);
+  }, []);
+  return owners;
 }
 
 function probeOpenModals(): ModalProbe[] {
@@ -51,13 +63,13 @@ function restoreFocus(el: HTMLElement | null) {
 }
 
 export function CommandPalette({
-  host,
   folder,
   compactChat,
+  catalogFiles,
 }: {
-  host: boolean;
   folder: OpenFolderApi;
   compactChat: boolean;
+  catalogFiles: CatalogEntry[];
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -68,7 +80,7 @@ export function CommandPalette({
   const activeRowRef = useRef<HTMLButtonElement | null>(null);
   const { setTheme } = useTheme();
   const { project, setDoc } = useProjectSession();
-  const { files: catalog } = useCatalog(Boolean(project.path));
+  const owners = usePaletteOwners();
   const { url, review, title, treeOpen, chatOpen, compactChatOpen } = useStore(
     useShallow((s) => ({
       url: s.url,
@@ -108,13 +120,15 @@ export function CommandPalette({
     return buildCommands({
       mac,
       canOpenFolder: folder.canRegister,
-      host,
       hasProject: Boolean(currentPath),
       hasModel: Boolean(review),
       filesOpen: treeOpen,
       chatOpen: chatVisible,
-      files: catalog.map((file) => ({
-        name: fileName(file.path),
+      settings: owners.settings,
+      quest: owners.quest,
+      newChat: owners.newChat,
+      files: catalogFiles.map((file) => ({
+        name: folderName(file.path),
         path: file.path,
         current: file.path === url,
       })),
@@ -132,18 +146,22 @@ export function CommandPalette({
     mac,
     folder.canRegister,
     folder.recents,
-    host,
+    owners.settings,
+    owners.quest,
+    owners.newChat,
     project.path,
     review,
     treeOpen,
     chatVisible,
-    catalog,
+    catalogFiles,
     url,
     parts,
   ]);
 
   const { groups, items } = useMemo(() => visiblePalette(commands, query), [commands, query]);
   const active = clampActiveIndex(activeIndex, items.length);
+  const activeCommand = items[active];
+  const activeOptionId = activeCommand ? paletteOptionId(activeCommand.id) : undefined;
 
   const finishClose = useCallback((restore: boolean) => {
     setOpen(false);
@@ -186,11 +204,12 @@ export function CommandPalette({
         return;
       }
       if (cmd.id === "action:frame-model") {
-        if (s.review) s.fit?.(s.review.root);
+        const obj = frameFitObject(s.review, s.selectedId, "model");
+        if (obj) s.fit?.(obj);
         return;
       }
       if (cmd.id === "action:frame-selection") {
-        const obj = s.selectedId !== null ? s.review?.parts[s.selectedId]?.object : s.review?.root;
+        const obj = frameFitObject(s.review, s.selectedId, "selection");
         if (obj) s.fit?.(obj);
         return;
       }
@@ -305,11 +324,15 @@ export function CommandPalette({
           <Search className="size-4 shrink-0 text-muted-foreground" />
           <Input
             ref={inputRef}
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={COMMAND_PALETTE_LIST_ID}
+            aria-activedescendant={activeOptionId}
+            aria-autocomplete="list"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Type a command…"
             aria-label="Search commands"
-            aria-controls="command-palette-list"
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
@@ -317,7 +340,7 @@ export function CommandPalette({
           />
         </div>
         <div
-          id="command-palette-list"
+          id={COMMAND_PALETTE_LIST_ID}
           role="listbox"
           aria-label="Commands"
           className="min-h-0 flex-1 overflow-y-auto p-1"
@@ -339,10 +362,12 @@ export function CommandPalette({
                     return (
                       <li key={cmd.id}>
                         <button
+                          id={paletteOptionId(cmd.id)}
                           ref={selected ? activeRowRef : undefined}
                           type="button"
                           role="option"
                           aria-selected={selected}
+                          tabIndex={-1}
                           className={cn(
                             "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
                             selected ? "bg-accent text-accent-foreground" : "text-foreground",

@@ -59,14 +59,51 @@ export type PalettePart = {
   ref: string;
 };
 
+export type PaletteOwnerId = "settings" | "quest" | "new-chat";
+
+export type PaletteOwners = {
+  settings: boolean;
+  quest: boolean;
+  newChat: boolean;
+};
+
+const mountedOwners = new Set<PaletteOwnerId>();
+const ownerListeners = new Set<() => void>();
+
+export function paletteOwnersState(): PaletteOwners {
+  return {
+    settings: mountedOwners.has("settings"),
+    quest: mountedOwners.has("quest"),
+    newChat: mountedOwners.has("new-chat"),
+  };
+}
+
+export function registerPaletteOwner(owner: PaletteOwnerId): () => void {
+  mountedOwners.add(owner);
+  for (const listener of ownerListeners) listener();
+  return () => {
+    mountedOwners.delete(owner);
+    for (const listener of ownerListeners) listener();
+  };
+}
+
+export function subscribePaletteOwners(listener: () => void): () => void {
+  ownerListeners.add(listener);
+  return () => {
+    ownerListeners.delete(listener);
+  };
+}
+
 export type BuildCommandsInput = {
   mac: boolean;
   canOpenFolder: boolean;
-  host: boolean;
   hasProject: boolean;
   hasModel: boolean;
   filesOpen: boolean;
   chatOpen: boolean;
+  settings: boolean;
+  quest: boolean;
+  newChat: boolean;
   files: readonly PaletteFile[];
   folders: readonly PaletteFolder[];
   parts: readonly PalettePart[];
@@ -106,6 +143,12 @@ export function isCommandPaletteToggle(
 
 export function otherModalDialogOpen(modals: readonly ModalProbe[]): boolean {
   return modals.some((modal) => !modal.palette && !modal.ending);
+}
+
+export const COMMAND_PALETTE_LIST_ID = "command-palette-list";
+
+export function paletteOptionId(commandId: string): string {
+  return `command-option-${commandId.replace(/[^A-Za-z0-9_-]+/g, "-")}`;
 }
 
 export function queryTokens(query: string): string[] {
@@ -172,6 +215,9 @@ export function buildCommands(input: BuildCommandsInput): PaletteCommand[] {
       group: "actions",
       title: input.chatOpen ? "Hide chat" : "Show chat",
     });
+  }
+
+  if (input.newChat) {
     commands.push({
       id: "action:new-chat",
       group: "actions",
@@ -179,13 +225,15 @@ export function buildCommands(input: BuildCommandsInput): PaletteCommand[] {
     });
   }
 
-  commands.push({
-    id: "action:settings",
-    group: "actions",
-    title: "Settings",
-  });
+  if (input.settings) {
+    commands.push({
+      id: "action:settings",
+      group: "actions",
+      title: "Settings",
+    });
+  }
 
-  if (input.host) {
+  if (input.quest) {
     commands.push({
       id: "action:enter-quest",
       group: "actions",

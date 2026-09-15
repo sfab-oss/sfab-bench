@@ -25,11 +25,12 @@ import { Toolbar } from "@/components/Toolbar";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
-import { useCatalog } from "@/hooks/useCatalog";
+import { useCatalog, type CatalogState } from "@/hooks/useCatalog";
 import { useXrSession } from "@/hooks/useXrSession";
 import { useXrSupport } from "@/hooks/useXrSupport";
 import { ProjectSessionProvider, useProjectSession } from "@/hooks/useProjectSession";
 import { fileLabel } from "@/cad/loadCadReview";
+import { frameFitObject } from "@/cad/review";
 import { fetchMe, jsonApi, type MePrincipal } from "@/lib/api";
 import { filesRailToggleTitle, isMacPlatform } from "@/lib/files-rail";
 import {
@@ -137,12 +138,14 @@ function EnterXr() {
 
 function Overlay({
   folder,
+  catalog,
   canvasWidth,
   canvasHeight,
   compactChat,
   chatToggleRef,
 }: {
   folder: ReturnType<typeof useOpenFolder>;
+  catalog: CatalogState;
   canvasWidth: number;
   canvasHeight: number;
   compactChat: boolean;
@@ -163,7 +166,7 @@ function Overlay({
   );
   const session = useXrSession();
   const { project, setDoc, fileRecents } = useProjectSession();
-  const { files, ready: catalogReady, error: catalogError } = useCatalog(Boolean(project.path));
+  const { files, ready: catalogReady, error: catalogError } = catalog;
   const treeOpen = useStore((s) => s.treeOpen);
   const setTreeOpen = useStore((s) => s.setTreeOpen);
   const chatOpen = useStore((s) => s.chatOpen);
@@ -280,11 +283,11 @@ function Overlay({
               left={toolbar.left}
               top={toolbar.top}
               onHome={() => {
-                if (review) fit?.(review.root);
+                const obj = frameFitObject(review, selectedId, "model");
+                if (obj) fit?.(obj);
               }}
               onFit={() => {
-                const obj =
-                  selectedId !== null ? review?.parts[selectedId]?.object : review?.root;
+                const obj = frameFitObject(review, selectedId, "selection");
                 if (obj) fit?.(obj);
               }}
             />
@@ -430,6 +433,7 @@ function ViewerShell({ host }: { host: boolean }) {
   const windowWidth = useWindowWidth();
   const compactChat = isCompactChat(windowWidth, treeOpen);
   const layoutWidth = chatLayoutWidth(chatWidth, windowWidth, treeOpen);
+  const catalog = useCatalog(hasProject);
   const canvasRef = useRef<HTMLDivElement>(null);
   const chatToggleRef = useRef<HTMLButtonElement>(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
@@ -468,7 +472,7 @@ function ViewerShell({ host }: { host: boolean }) {
       onOpenChange={setTreeOpen}
       style={{ "--sidebar-width": "19rem" } as CSSProperties}
     >
-      {!session ? <DesktopSidebar host={host} folder={folder} /> : null}
+      {!session ? <DesktopSidebar catalog={catalog} host={host} folder={folder} /> : null}
       <SidebarInset className="min-h-0 overflow-hidden">
         <div ref={canvasRef} className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           <RenderErrorBoundary
@@ -484,6 +488,7 @@ function ViewerShell({ host }: { host: boolean }) {
           <Overlay
             canvasHeight={canvasSize.h}
             canvasWidth={canvasSize.w}
+            catalog={catalog}
             chatToggleRef={chatToggleRef}
             compactChat={compactChat}
             folder={folder}
@@ -512,7 +517,7 @@ function ViewerShell({ host }: { host: boolean }) {
         </RenderErrorBoundary>
       ) : null}
       <BrowseFolderDialog open={folder.dialogOpen} onOpenChange={folder.setDialogOpen} />
-      <CommandPalette host={host} folder={folder} compactChat={compactChat} />
+      <CommandPalette catalogFiles={catalog.files} compactChat={compactChat} folder={folder} />
     </SidebarProvider>
   );
 }

@@ -1,4 +1,6 @@
+import { frameFitObject } from "../cad/review";
 import {
+  COMMAND_PALETTE_LIST_ID,
   EMPTY_QUERY_FILE_LIMIT,
   EMPTY_QUERY_FOLDER_LIMIT,
   GROUP_LABELS,
@@ -11,7 +13,10 @@ import {
   commandRank,
   isCommandPaletteToggle,
   otherModalDialogOpen,
+  paletteOptionId,
+  paletteOwnersState,
   queryTokens,
+  registerPaletteOwner,
   visiblePalette,
   wrapActiveIndex,
   type PaletteCommand,
@@ -111,11 +116,13 @@ const parts = Array.from({ length: PARTS_MATCH_CAP + 40 }, (_, i) => ({
 const full = buildCommands({
   mac: true,
   canOpenFolder: true,
-  host: true,
   hasProject: true,
   hasModel: true,
   filesOpen: true,
   chatOpen: false,
+  settings: true,
+  quest: true,
+  newChat: true,
   files,
   folders,
   parts,
@@ -165,11 +172,13 @@ expect(none.groups.length === 0 && none.items.length === 0, "no results");
 const guest = buildCommands({
   mac: false,
   canOpenFolder: false,
-  host: false,
   hasProject: false,
   hasModel: false,
   filesOpen: false,
   chatOpen: false,
+  settings: true,
+  quest: false,
+  newChat: false,
   files: [],
   folders: [],
   parts: [],
@@ -180,7 +189,26 @@ expect(guest.some((c) => c.id === "action:close-folder") === false, "no folder t
 expect(guest.some((c) => c.id === "action:new-chat") === false, "no chat without folder");
 expect(guest.some((c) => c.id === "action:frame-model") === false, "no model to frame");
 expect(guest.some((c) => c.id === "action:toggle-files" && c.title === "Show files" && c.shortcut === "Ctrl+B"), "guest files");
-expect(guest.some((c) => c.id === "action:settings"), "settings always");
+expect(guest.some((c) => c.id === "action:settings"), "settings when owner is mounted");
+
+const xr = buildCommands({
+  mac: true,
+  canOpenFolder: true,
+  hasProject: true,
+  hasModel: true,
+  filesOpen: true,
+  chatOpen: true,
+  settings: false,
+  quest: false,
+  newChat: false,
+  files: [],
+  folders: [],
+  parts: [],
+});
+expect(xr.some((c) => c.id === "action:settings") === false, "unmounted settings hidden");
+expect(xr.some((c) => c.id === "action:enter-quest") === false, "unmounted quest hidden");
+expect(xr.some((c) => c.id === "action:new-chat") === false, "unmounted new chat hidden");
+expect(xr.some((c) => c.id === "action:toggle-chat"), "chat toggle still works from store");
 
 const ranked = visiblePalette(
   [
@@ -193,5 +221,27 @@ const ranked = visiblePalette(
 expect(ranked.groups.map((g) => g.id).join(",") === "actions", "group order held");
 expect(ranked.groups[0]?.items[0]?.id === "b", "prefix ranks above contains");
 expect(ranked.groups[0]?.items[1]?.id === "a", "contains stays second");
+
+expect(COMMAND_PALETTE_LIST_ID === "command-palette-list", "listbox id");
+expect(paletteOptionId("file:cad/bracket.step") === "command-option-file-cad-bracket-step", "stable option id");
+expect(paletteOptionId("action:settings") === "command-option-action-settings", "action option id");
+
+const dropSettings = registerPaletteOwner("settings");
+expect(paletteOwnersState().settings, "owner registers");
+const dropQuest = registerPaletteOwner("quest");
+expect(paletteOwnersState().quest, "quest owner registers");
+dropSettings();
+expect(paletteOwnersState().settings === false, "owner unregisters");
+expect(paletteOwnersState().quest, "other owner remains");
+dropQuest();
+expect(paletteOwnersState().quest === false, "quest unregisters");
+
+const root = { id: "root" };
+const part = { object: { id: "part" } };
+const frameReview = { root, parts: [part] };
+expect(frameFitObject(frameReview, null, "model") === root, "frame model uses root");
+expect(frameFitObject(frameReview, null, "selection") === root, "frame selection without pick uses root");
+expect(frameFitObject(frameReview, 0, "selection") === part.object, "frame selection uses part");
+expect(frameFitObject(null, 0, "model") === null, "frame without review");
 
 console.log("command-palette.selfcheck ok");

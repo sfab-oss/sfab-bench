@@ -15,13 +15,21 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { WorkbenchSettings } from "@/components/WorkbenchSettings";
-import { useCatalog } from "@/hooks/useCatalog";
+import type { CatalogState } from "@/hooks/useCatalog";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { commandPaletteShortcutLabel } from "@/lib/command-palette";
 import { isMacPlatform } from "@/lib/files-rail";
 import { useStore } from "@/state/store";
 
-export function DesktopSidebar({ host, folder }: { host: boolean; folder: OpenFolderApi }) {
+export function DesktopSidebar({
+  host,
+  folder,
+  catalog,
+}: {
+  host: boolean;
+  folder: OpenFolderApi;
+  catalog: CatalogState;
+}) {
   const { url, recentFiles } = useStore(
     useShallow((s) => ({
       url: s.url,
@@ -30,7 +38,7 @@ export function DesktopSidebar({ host, folder }: { host: boolean; folder: OpenFo
   );
   const { project, setDoc } = useProjectSession();
   const hasProject = Boolean(project.path);
-  const { files, error, ready } = useCatalog(hasProject);
+  const { files, error, ready } = catalog;
   const [filter, setFilter] = useState("");
   const mac = isMacPlatform(
     typeof navigator === "undefined" ? "" : navigator.platform,
