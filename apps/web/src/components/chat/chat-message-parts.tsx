@@ -7,11 +7,13 @@ import {
   type UITools,
 } from "ai";
 import { CheckIcon, CircleIcon, CopyIcon } from "lucide-react";
+import type { ComponentProps } from "react";
 import { Streamdown } from "streamdown";
 import {
   isAskUserQuestionsPart,
   parseAskUserQuestionsInput,
 } from "@/chat/ask-user-questions";
+import { resolveCadRef, cadRefFromHref, linkifyCadRefsInMarkdown } from "@/chat/cad-refs";
 import { turnErrorText } from "@/chat/persist-thread";
 import { AskUserAnsweredCard } from "@/components/chat/AskUserQuestionsPanel";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -40,9 +42,80 @@ import {
   WorkedContent,
   WorkedTrigger,
 } from "@/components/ui/worked";
+import { partLabelFileStem } from "@/lib/part-label";
 import { cn } from "@/lib/utils";
+import { useStore } from "@/state/store";
 import type { AIDataPart } from "./ai-types";
 import type { GalleryChatMessage } from "./mock-chat-messages";
+
+function CadRefChip({ token }: { token: string }) {
+  const label = useStore((s) => {
+    const parts = s.review?.parts ?? [];
+    return resolveCadRef(token, parts, partLabelFileStem(parts.length, s.title))?.label ?? null;
+  });
+  const selectByRef = useStore((s) => s.selectByRef);
+
+  if (!label) {
+    return (
+      <span
+        className="mx-0.5 inline-flex align-middle rounded-sm bg-muted px-1 py-0.5 text-sm text-muted-foreground"
+        title="Not in the open model"
+      >
+        {token}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      className="mx-0.5 inline-flex align-middle rounded-sm bg-primary/15 px-1 py-0.5 text-sm font-medium text-primary hover:bg-primary/25"
+      onClick={() => selectByRef(token)}
+      title={token}
+      type="button"
+    >
+      {label}
+    </button>
+  );
+}
+
+type MarkdownAnchorProps = ComponentProps<"a"> & { node?: unknown };
+
+/**
+ * Streamdown's default `MarkdownA` is not exported. This matches its
+ * linkSafety-off `<a>` fallback (`rel="noreferrer" target="_blank"` plus
+ * the `wrap-anywhere font-medium text-primary underline` classes). The
+ * default-on linkSafety path (button + confirmation modal) cannot be reused.
+ */
+function StreamdownMarkdownA({
+  href,
+  className,
+  children,
+  node: _node,
+  ...props
+}: MarkdownAnchorProps) {
+  return (
+    <a
+      {...props}
+      className={cn("wrap-anywhere font-medium text-primary underline", className)}
+      data-streamdown="link"
+      href={href}
+      rel="noreferrer"
+      target="_blank"
+    >
+      {children}
+    </a>
+  );
+}
+
+function CadRefAnchor(props: MarkdownAnchorProps) {
+  const token = cadRefFromHref(props.href);
+  if (token) {
+    return <CadRefChip token={token} />;
+  }
+  return <StreamdownMarkdownA {...props} />;
+}
+
+const CAD_REF_COMPONENTS = { a: CadRefAnchor };
 
 function MarkdownBody({
   children,
@@ -51,14 +124,18 @@ function MarkdownBody({
   children: string;
   className?: string;
 }) {
+  const markdown = linkifyCadRefsInMarkdown(children);
+  // Only override links when there are chips, so plain messages keep Streamdown's link safety.
+  const hasCadRefs = markdown !== children;
   return (
     <Streamdown
       className={cn(
         "size-full text-base [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         className
       )}
+      components={hasCadRefs ? CAD_REF_COMPONENTS : undefined}
     >
-      {children}
+      {markdown}
     </Streamdown>
   );
 }

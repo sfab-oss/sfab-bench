@@ -45,6 +45,11 @@ export interface MentionConfig<T extends BaseMentionItem> {
   items: T[] | ((query: string) => T[] | Promise<T[]>);
   render?: (item: T, selected: boolean) => ReactNode;
   chipClassName?: string;
+  /** Fixed at mount — changing it later has no effect. */
+  allowSpaces?: boolean;
+  queryCloses?: (query: string) => boolean;
+  emptyMessage?: string;
+  getFooter?: (items: T[]) => string | undefined;
 }
 
 export type MentionConfigs = Record<string, MentionConfig<BaseMentionItem>>;
@@ -80,6 +85,7 @@ interface ComposerContextValue {
   mentions: MentionConfigs | undefined;
   mentionsRef: RefObject<MentionConfigs | undefined>;
   selectedItemsRef: RefObject<SelectedMentionItems>;
+  suggestionOpenRef: RefObject<boolean>;
 }
 
 function filterStaticItems<T extends BaseMentionItem>(
@@ -120,6 +126,8 @@ interface MentionListProps<T extends BaseMentionItem> {
   command: (item: { id: string; label: string }) => void;
   renderItem?: (item: T, selected: boolean) => ReactNode;
   onSelectItem?: (item: T) => void;
+  emptyMessage?: string;
+  footer?: string;
   ref?: React.Ref<MentionListHandle>;
 }
 
@@ -129,6 +137,8 @@ function MentionList<T extends BaseMentionItem>({
   command,
   renderItem,
   onSelectItem,
+  emptyMessage,
+  footer,
   ref,
 }: MentionListProps<T>) {
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -188,7 +198,7 @@ function MentionList<T extends BaseMentionItem>({
   }
 
   return (
-    <div className="flex max-h-48 min-w-48 max-w-64 flex-col overflow-y-auto overflow-x-hidden rounded-md bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10">
+    <div className="flex max-h-48 min-w-56 max-w-72 flex-col overflow-y-auto overflow-x-hidden rounded-md bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10">
       {items.length ? (
         items.map((item, index) => (
           <button
@@ -212,9 +222,14 @@ function MentionList<T extends BaseMentionItem>({
         ))
       ) : (
         <div className="px-2 py-1.5 text-muted-foreground text-sm">
-          No results found
+          {emptyMessage ?? "No results found"}
         </div>
       )}
+      {footer ? (
+        <div className="px-2 py-1.5 text-muted-foreground text-xs">
+          {footer}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -222,7 +237,8 @@ function MentionList<T extends BaseMentionItem>({
 function createMentionSuggestion(
   key: string,
   mentionsRef: RefObject<MentionConfigs | undefined>,
-  selectedItemsRef: RefObject<SelectedMentionItems>
+  selectedItemsRef: RefObject<SelectedMentionItems>,
+  suggestionOpenRef: RefObject<boolean>
 ) {
   return {
     items: ({ query }: { query: string }) => {
@@ -243,17 +259,24 @@ function createMentionSuggestion(
         selectedItemsRef.current[key].set(item.id, item);
       };
 
+      const listProps = (props: SuggestionProps<BaseMentionItem>) => {
+        const config = mentionsRef.current?.[key];
+        return {
+          items: props.items,
+          loading: props.loading,
+          command: props.command,
+          renderItem: config?.render,
+          onSelectItem: rememberItem,
+          emptyMessage: config?.emptyMessage,
+          footer: config?.getFooter?.(props.items),
+        };
+      };
+
       return {
         onStart: (props: SuggestionProps<BaseMentionItem>) => {
-          const config = mentionsRef.current?.[key];
+          suggestionOpenRef.current = true;
           component = new ReactRenderer(MentionList, {
-            props: {
-              items: props.items,
-              loading: props.loading,
-              command: props.command,
-              renderItem: config?.render,
-              onSelectItem: rememberItem,
-            },
+            props: listProps(props),
             editor: props.editor,
           });
           // The mount wrapper is the positioned element (appended to body,
@@ -263,14 +286,7 @@ function createMentionSuggestion(
           unmount = props.mount(component.element);
         },
         onUpdate: (props: SuggestionProps<BaseMentionItem>) => {
-          const config = mentionsRef.current?.[key];
-          component?.updateProps({
-            items: props.items,
-            loading: props.loading,
-            command: props.command,
-            renderItem: config?.render,
-            onSelectItem: rememberItem,
-          });
+          component?.updateProps(listProps(props));
         },
         onKeyDown: (props: SuggestionKeyDownProps) => {
           if (props.event.key === "Escape") {
@@ -281,6 +297,7 @@ function createMentionSuggestion(
           return component?.ref?.onKeyDown(props) ?? false;
         },
         onExit: () => {
+          suggestionOpenRef.current = false;
           unmount?.();
           unmount = undefined;
           component?.destroy();
@@ -294,14 +311,20 @@ function createMentionSuggestion(
 function buildMentionExtensions(
   mentionsRef: RefObject<MentionConfigs | undefined>,
   selectedItemsRef: RefObject<SelectedMentionItems>,
+  suggestionOpenRef: RefObject<boolean>,
   initialMentions: MentionConfigs | undefined
 ) {
   return Object.entries(initialMentions ?? {}).map(([key, config]) => {
     const trigger = config.trigger || "@";
+    const mentionName = `${key}-mention`;
     const MentionPlugin = MentionExtension.extend({
-      name: `${key}-mention`,
+      name: mentionName,
+      // Pin the package default: backspace deletes the whole chip.
+      atom: true,
       renderHTML({ node, HTMLAttributes }) {
         const chipClassName = mentionsRef.current?.[key]?.chipClassName;
+        const id = String(node.attrs.id ?? "");
+        const label = String(node.attrs.label ?? node.attrs.id ?? "");
         return [
           "span",
           mergeAttributes(HTMLAttributes, {
@@ -309,16 +332,42 @@ function buildMentionExtensions(
               "rounded-sm bg-primary px-1 py-0.5 text-primary-foreground no-underline",
               chipClassName
             ),
+            title: id,
           }),
-          `${trigger}${node.attrs.label ?? node.attrs.id}`,
+          label,
         ];
+      },
+      renderText({ node }) {
+        return String(node.attrs.id ?? "");
       },
     });
 
     return MentionPlugin.configure({
+      deleteTriggerWithBackspace: true,
       suggestion: {
         char: trigger,
-        ...createMentionSuggestion(key, mentionsRef, selectedItemsRef),
+        allowSpaces: config.allowSpaces ?? false,
+        allow: ({ state, range }) => {
+          const $from = state.doc.resolve(range.from);
+          const type = state.schema.nodes[mentionName];
+          if (!type || !$from.parent.type.contentMatch.matchType(type)) {
+            return false;
+          }
+          const queryCloses = mentionsRef.current?.[key]?.queryCloses;
+          if (queryCloses) {
+            const query = state.doc
+              .textBetween(range.from, range.to)
+              .slice(trigger.length);
+            if (queryCloses(query)) return false;
+          }
+          return true;
+        },
+        ...createMentionSuggestion(
+          key,
+          mentionsRef,
+          selectedItemsRef,
+          suggestionOpenRef
+        ),
       },
     });
   });
@@ -326,16 +375,14 @@ function buildMentionExtensions(
 
 function appendMentionFromNode(
   node: JSONContent,
-  mentions: MentionConfigs | undefined,
+  _mentions: MentionConfigs | undefined,
   selectedItems: SelectedMentionItems,
   buckets: Record<string, BaseMentionItem[]>
 ): string {
   const key = (node.type ?? "").slice(0, -"-mention".length);
-  const config = mentions?.[key];
   const attrs = node.attrs ?? {};
   const id = String(attrs.id ?? "");
   const label = String(attrs.label ?? "");
-  const trigger = config?.trigger ?? "";
 
   const cached = selectedItems[key]?.get(id);
   const item: BaseMentionItem = cached ?? { id, name: label };
@@ -345,7 +392,7 @@ function appendMentionFromNode(
   if (!buckets[key].some((existing) => existing.id === id)) {
     buckets[key].push(item);
   }
-  return `${trigger}${label}`;
+  return id;
 }
 
 export function parseEditorContent(
@@ -450,6 +497,7 @@ export function Composer({
   const mentionsRef = useRef(mentions);
   const onSubmitRef = useRef(onSubmit);
   const selectedItemsRef = useRef<SelectedMentionItems>({});
+  const suggestionOpenRef = useRef(false);
 
   mentionsRef.current = mentions;
   onSubmitRef.current = onSubmit;
@@ -511,6 +559,7 @@ export function Composer({
       mentions,
       mentionsRef,
       selectedItemsRef,
+      suggestionOpenRef,
     }),
     [defaultValue, disabled, editor, mentions, onStop, status, submit]
   );
@@ -533,11 +582,15 @@ const SubmitEnter = Extension.create({
   addOptions() {
     return {
       getOnEnter: (): (() => void) => () => undefined,
+      isSuggestionOpen: (): boolean => false,
     };
   },
   addKeyboardShortcuts() {
     return {
       Enter: () => {
+        if (this.options.isSuggestionOpen?.()) {
+          return false;
+        }
         this.options.getOnEnter()?.();
         return true;
       },
@@ -562,6 +615,7 @@ export function ComposerEditor({
     mentions,
     mentionsRef,
     selectedItemsRef,
+    suggestionOpenRef,
   } = useComposerContext();
 
   const initialMentionsRef = useRef(mentions);
@@ -588,10 +642,12 @@ export function ComposerEditor({
       }),
       SubmitEnter.configure({
         getOnEnter: () => onEnterRef.current,
+        isSuggestionOpen: () => suggestionOpenRef.current,
       }),
       ...buildMentionExtensions(
         mentionsRef,
         selectedItemsRef,
+        suggestionOpenRef,
         initialMentionsRef.current
       ),
     ],

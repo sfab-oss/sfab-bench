@@ -1,23 +1,34 @@
 import type { ChatStatus } from "ai";
-import { Mic } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Hash, Mic } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   askUserComposerPlaceholder,
   type AskUserQuestion,
   type AskUserQuestionsInput,
   type AskUserQuestionsOutput,
 } from "@/chat/ask-user-questions";
+import {
+  CAD_MENTION_FACE_CAP,
+  cadMentionQueryCloses,
+  filterCadMentionCatalog,
+  type CadMentionCatalogPart,
+  type CadMentionItem,
+} from "@/chat/cad-refs";
 import { AskUserQuestionsPanel, type AskUserQuestionsHandle } from "@/components/chat/AskUserQuestionsPanel";
 import {
   Composer,
   ComposerEditor,
   type ComposerHandle,
+  ComposerMentionButton,
   ComposerSubmitButton,
 } from "@/components/ui/composer";
 import { Button } from "@/components/ui/button";
 import { InputGroupAddon } from "@/components/ui/input-group";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { partLabelFileStem } from "@/lib/part-label";
 import { cn } from "@/lib/utils";
+import { useStore } from "@/state/store";
 import { EffortSelect } from "./EffortSelect";
 import { ModelPicker } from "./ModelPicker";
 import { ProviderStatus } from "./ProviderStatus";
@@ -25,6 +36,38 @@ import { VoiceRecordBar } from "./VoiceRecordBar";
 
 export interface GalleryPromptMessage {
   text: string;
+}
+
+function selectedPartFaceOrds(
+  parts: { id: number; object: { children: readonly unknown[] } }[] | undefined,
+  selectedId: number | null,
+): { ord: number }[] | undefined {
+  if (!parts || selectedId === null) return undefined;
+  const part = parts[selectedId];
+  if (!part) return undefined;
+  const ranges: { ord: number }[] = [];
+  for (const child of part.object.children) {
+    const geom =
+      child && typeof child === "object" && "geometry" in child
+        ? (child as { geometry?: { userData?: { faceRanges?: { ord: number }[] } } }).geometry
+        : undefined;
+    const faceRanges = geom?.userData?.faceRanges;
+    if (!Array.isArray(faceRanges)) continue;
+    for (const range of faceRanges) {
+      if (typeof range?.ord === "number") ranges.push({ ord: range.ord });
+    }
+  }
+  if (ranges.length === 0 || ranges.length > CAD_MENTION_FACE_CAP) return undefined;
+  return ranges;
+}
+
+function PartMentionRow({ item }: { item: CadMentionItem }) {
+  return (
+    <span className="flex min-w-0 flex-1 flex-col">
+      <span className="truncate">{item.name}</span>
+      <span className="truncate text-xs text-muted-foreground">{item.cadRef}</span>
+    </span>
+  );
 }
 
 function ChatInputInner({
@@ -45,6 +88,55 @@ function ChatInputInner({
   attached: boolean;
 }) {
   const inputRef = useRef<ComposerHandle>(null);
+  const { review, selectedId, title } = useStore(
+    useShallow((s) => ({
+      review: s.review,
+      selectedId: s.selectedId,
+      title: s.title,
+    })),
+  );
+  const catalogParts = useMemo<CadMentionCatalogPart[]>(
+    () =>
+      (review?.parts ?? [])
+        .filter((part): part is typeof part & { cadRef: string } => Boolean(part.cadRef))
+        .map((part) => ({ name: part.name, cadRef: part.cadRef })),
+    [review],
+  );
+  const hasCadParts = catalogParts.length > 0;
+  const fileStem = partLabelFileStem(review?.parts.length ?? 0, title);
+  const selectedPart = useMemo(() => {
+    const selectedRaw = selectedId !== null ? review?.parts[selectedId] : undefined;
+    if (selectedRaw?.cadRef == null) return undefined;
+    return { name: selectedRaw.name, cadRef: selectedRaw.cadRef };
+  }, [review, selectedId]);
+  const faces = useMemo(
+    () => selectedPartFaceOrds(review?.parts, selectedId),
+    [review, selectedId],
+  );
+  const truncatedRef = useRef(false);
+  const mentions = useMemo(
+    () => ({
+      part: {
+        trigger: "#",
+        allowSpaces: true,
+        queryCloses: cadMentionQueryCloses,
+        emptyMessage: hasCadParts ? "No parts match" : "Open a STEP to mention parts",
+        getFooter: () => (truncatedRef.current ? "Keep typing to narrow…" : undefined),
+        items: (query: string) => {
+          const result = filterCadMentionCatalog(catalogParts, query, {
+            fileStem,
+            selectedPart,
+            faces,
+          });
+          truncatedRef.current = result.truncated;
+          return result.items;
+        },
+        render: (item: CadMentionItem) => <PartMentionRow item={item} />,
+      },
+    }),
+    [catalogParts, faces, fileStem, hasCadParts, selectedPart],
+  );
+  const mentionTitle = hasCadParts ? "Mention a part (#)" : "Open a STEP to mention parts";
   const voice = useVoiceInput((text) => {
     const cur = inputRef.current?.getText() ?? "";
     const next = !cur.trim() ? text : /[\s\n]$/.test(cur) ? `${cur}${text}` : `${cur} ${text}`;
@@ -70,6 +162,7 @@ function ChatInputInner({
       <Composer
         className={attached ? "rounded-none border-0 bg-transparent shadow-none dark:bg-transparent" : "rounded-2xl"}
         disabled={disabled}
+        mentions={mentions}
         onStop={onStop}
         onSubmit={(parsed, { clear }) => {
           if (voice.active) return;
@@ -92,6 +185,14 @@ function ChatInputInner({
       >
         <ModelPicker />
         <EffortSelect />
+        <ComposerMentionButton
+          aria-label="Mention a part (#)"
+          disabled={disabled || !hasCadParts}
+          title={mentionTitle}
+          variant="ghost"
+        >
+          <Hash />
+        </ComposerMentionButton>
         <div className="ml-auto flex items-center gap-1">
           <Button
             type="button"
