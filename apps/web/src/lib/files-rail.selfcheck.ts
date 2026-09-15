@@ -5,6 +5,7 @@ import {
   FILE_CONTEXT_MENU_HEIGHT,
   FILE_CONTEXT_MENU_MARGIN,
   FILE_CONTEXT_MENU_WIDTH,
+  fileContextMenuIndexAfterKey,
   filesRailShortcutLabel,
   filesRailToggleTitle,
   isEditableTarget,
@@ -171,5 +172,13 @@ expect(clipped.left === viewport.width - FILE_CONTEXT_MENU_WIDTH - FILE_CONTEXT_
 expect(clipped.top === viewport.height - FILE_CONTEXT_MENU_HEIGHT - FILE_CONTEXT_MENU_MARGIN, "bottom edge clamp");
 const origin = clampContextMenuPosition(-20, -20, viewport);
 expect(origin.left === FILE_CONTEXT_MENU_MARGIN && origin.top === FILE_CONTEXT_MENU_MARGIN, "margin clamp");
+
+expect(fileContextMenuIndexAfterKey("ArrowDown", 0, 1) === 0, "one item down stays");
+expect(fileContextMenuIndexAfterKey("ArrowUp", 0, 1) === 0, "one item up stays");
+expect(fileContextMenuIndexAfterKey("ArrowDown", 0, 3) === 1, "down next");
+expect(fileContextMenuIndexAfterKey("ArrowUp", 0, 3) === 2, "up wraps");
+expect(fileContextMenuIndexAfterKey("ArrowDown", 2, 3) === 0, "down wraps");
+expect(fileContextMenuIndexAfterKey("Escape", 0, 3) === null, "esc is not an index change");
+expect(fileContextMenuIndexAfterKey("ArrowDown", 0, 0) === null, "empty menu");
 
 console.log("files-rail.selfcheck ok");

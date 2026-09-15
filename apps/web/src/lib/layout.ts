@@ -164,6 +164,29 @@ export function fitCardsReady(input: {
   return true;
 }
 
+/**
+ * Identity of the load-fit pose. Selection / Detail / Measure are omitted on
+ * purpose: clicking a part must not re-Home the camera. Compact chat is a
+ * modal overlay and is also omitted.
+ */
+export type LoadFitKey = {
+  partsExpanded: boolean;
+  partsChip: boolean;
+  partsHeight: number;
+  canvasWidth: number;
+  canvasHeight: number;
+};
+
+export function loadFitKey(input: LoadFitKey): string {
+  const parts = input.partsExpanded ? "x" : input.partsChip ? "c" : "-";
+  return `${parts}:${input.partsHeight}:${Math.round(input.canvasWidth)}x${Math.round(input.canvasHeight)}`;
+}
+
+/** True when an already-settled load fit should run again (`!cameraMoved`). */
+export function shouldRepeatLoadFit(prevKey: string | null, nextKey: string): boolean {
+  return prevKey !== null && prevKey !== nextKey;
+}
+
 /** Treat PartTree / Detail as full-height side columns (area 6). */
 export function fitBesideInsets(input: FitInsetInput): FitInsets {
   const left = input.partsExpanded

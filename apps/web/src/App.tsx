@@ -41,8 +41,10 @@ import {
   fitCardsReady,
   fitInsets,
   isCompactChat,
+  loadFitKey,
   overlayLayout,
   setLiveFitInsets,
+  shouldRepeatLoadFit,
   toolbarLayout,
   toolbarRightReserve,
 } from "@/lib/layout";
@@ -50,6 +52,7 @@ import { displayLoadError, isUnavailableFolder, loadCardCopy } from "@/lib/load-
 import { redeemFragmentToken } from "@/lib/pairing";
 import { folderName } from "@/lib/project";
 import { PRODUCT_TITLE, documentTitle, emptySceneKind } from "@/lib/welcome";
+import { invalidateSceneNow } from "@/scene/invalidate";
 import { ViewerCanvas } from "@/scene/ViewerCanvas";
 import { useStore } from "@/state/store";
 import { enterAR, enterVR } from "@/xrStore";
@@ -232,6 +235,7 @@ function Overlay({
   const toolbar = toolbarLayout({ canvasWidth, leftReserve, rightReserve });
   const cameraMoved = useStore((s) => s.cameraMoved);
   const settledFitUrl = useRef<string | null>(null);
+  const settledLoadFitKey = useRef<string | null>(null);
   const [partsHeight, setPartsCard] = useOverlayCardHeight();
   const [detailHeight, setDetailCard] = useOverlayCardHeight();
 
@@ -254,10 +258,19 @@ function Overlay({
     );
     if (!review) {
       settledFitUrl.current = null;
+      settledLoadFitKey.current = null;
       return;
     }
     if (cameraMoved || canvasWidth < 2 || canvasHeight < 2 || !fit) return;
-    if (settledFitUrl.current === url) return;
+    const nextKey = loadFitKey({
+      partsExpanded,
+      partsChip,
+      partsHeight,
+      canvasWidth,
+      canvasHeight,
+    });
+    const first = settledFitUrl.current !== url;
+    if (!first && !shouldRepeatLoadFit(settledLoadFitKey.current, nextKey)) return;
     if (
       !fitCardsReady({
         partsExpanded,
@@ -271,6 +284,8 @@ function Overlay({
     }
     fit(review.root, homeFitDirection());
     settledFitUrl.current = url;
+    settledLoadFitKey.current = nextKey;
+    invalidateSceneNow();
   }, [
     session,
     partsExpanded,
@@ -565,10 +580,14 @@ function ViewerShell({ host }: { host: boolean }) {
           />
         </RenderErrorBoundary>
       ) : null}
-      <BrowseFolderDialog open={folder.dialogOpen} onOpenChange={folder.setDialogOpen} />
-      <CloseFolderDialog />
-      <CommandPalette catalogFiles={catalog.files} compactChat={compactChat} folder={folder} />
-      {!session ? <Toasts offsetRight={toastOffsetRight} pinLeft={toastPinLeft} /> : null}
+      {!session ? (
+        <>
+          <BrowseFolderDialog open={folder.dialogOpen} onOpenChange={folder.setDialogOpen} />
+          <CloseFolderDialog />
+          <CommandPalette catalogFiles={catalog.files} compactChat={compactChat} folder={folder} />
+          <Toasts offsetRight={toastOffsetRight} pinLeft={toastPinLeft} />
+        </>
+      ) : null}
     </SidebarProvider>
   );
 }

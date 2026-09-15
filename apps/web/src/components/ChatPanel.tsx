@@ -122,6 +122,33 @@ export function ChatPanel({
     },
     [setWidth, treeOpen],
   );
+  const dragRef = useRef<{ startX: number; startW: number } | null>(null);
+
+  useEffect(() => {
+    if (!resizing) return;
+    if (!open) {
+      setResizing(false);
+      return;
+    }
+    const move = (e: MouseEvent) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      persistWidth(drag.startW + (drag.startX - e.clientX));
+    };
+    const up = () => {
+      setResizing(false);
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+    return () => {
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+    };
+  }, [resizing, open, persistWidth]);
 
   useEffect(() => {
     const wasCompactOpen = compactOpenRef.current;
@@ -187,23 +214,8 @@ export function ChatPanel({
 
   const onResizeDown = (ev: ReactMouseEvent) => {
     ev.preventDefault();
+    dragRef.current = { startX: ev.clientX, startW: width };
     setResizing(true);
-    const startX = ev.clientX;
-    const startW = width;
-    const move = (e: MouseEvent) => {
-      persistWidth(startW + (startX - e.clientX));
-    };
-    const up = () => {
-      setResizing(false);
-      document.body.style.removeProperty("cursor");
-      document.body.style.removeProperty("user-select");
-      document.removeEventListener("mousemove", move);
-      document.removeEventListener("mouseup", up);
-    };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    document.addEventListener("mousemove", move);
-    document.addEventListener("mouseup", up);
   };
 
   const active = threads.find((t) => t.id === threadId);

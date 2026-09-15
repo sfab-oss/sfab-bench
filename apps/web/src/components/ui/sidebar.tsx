@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useXrSession } from "@/hooks/useXrSession";
 import { filesRailToggleTitle, isMacPlatform } from "@/lib/files-rail";
 import { matchesShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
@@ -18,9 +18,6 @@ type SidebarContextProps = {
   state: "expanded" | "collapsed";
   open: boolean;
   setOpen: (open: boolean) => void;
-  openMobile: boolean;
-  setOpenMobile: (open: boolean) => void;
-  isMobile: boolean;
   toggleSidebar: () => void;
 };
 
@@ -45,8 +42,7 @@ function SidebarProvider({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
-  const isMobile = useIsMobile();
-  const [openMobile, setOpenMobile] = React.useState(false);
+  const xrSession = useXrSession();
   const [_open, _setOpen] = React.useState(defaultOpen);
   const open = openProp ?? _open;
   const setOpen = React.useCallback(
@@ -62,6 +58,7 @@ function SidebarProvider({
   }, [setOpen]);
 
   React.useEffect(() => {
+    if (xrSession) return;
     const mac = isMacPlatform(navigator.platform, navigator.userAgent);
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!matchesShortcut(event, "toggle-files", { mac, activeElement: document.activeElement })) return;
@@ -70,12 +67,12 @@ function SidebarProvider({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleSidebar]);
+  }, [toggleSidebar, xrSession]);
 
   const state = open ? "expanded" : "collapsed";
   const contextValue = React.useMemo<SidebarContextProps>(
-    () => ({ state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar }),
-    [state, open, setOpen, isMobile, openMobile, toggleSidebar],
+    () => ({ state, open, setOpen, toggleSidebar }),
+    [state, open, setOpen, toggleSidebar],
   );
 
   return (
@@ -363,12 +360,14 @@ function SidebarMenuButton({
   variant = "default",
   size = "default",
   className,
+  ref,
   ...props
 }: React.ComponentProps<"button"> & {
   isActive?: boolean;
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   return (
     <button
+      ref={ref}
       type="button"
       data-sidebar="menu-button"
       data-size={size}
@@ -437,10 +436,12 @@ function SidebarMenuSubButton({
   size = "md",
   isActive = false,
   className,
+  ref,
   ...props
 }: React.ComponentProps<"button"> & { size?: "sm" | "md"; isActive?: boolean }) {
   return (
     <button
+      ref={ref}
       type="button"
       data-sidebar="menu-sub-button"
       data-size={size}

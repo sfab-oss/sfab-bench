@@ -33,6 +33,14 @@ export const FILE_CONTEXT_MENU_WIDTH = 192;
 export const FILE_CONTEXT_MENU_HEIGHT = 44;
 export const FILE_CONTEXT_MENU_MARGIN = 8;
 
+/** ArrowUp/Down wrapping inside the file context menu. Esc is not an index change. */
+export function fileContextMenuIndexAfterKey(key: string, currentIndex: number, count: number): number | null {
+  if (count <= 0) return null;
+  if (key === "ArrowDown") return (currentIndex + 1 + count) % count;
+  if (key === "ArrowUp") return (currentIndex - 1 + count) % count;
+  return null;
+}
+
 /** Keep a fixed context menu inside the viewport. */
 export function clampContextMenuPosition(
   x: number,

@@ -34,6 +34,12 @@ import { composerDocFromPrompt, EMPTY_PROMPT_REASON } from "@/chat/composer-reco
 import { InputGroup, InputGroupButton } from "@/components/ui/input-group";
 import { cn } from "@/lib/utils";
 
+export const COMPOSER_MENTION_LIST_ID = "composer-mention-list";
+
+export function mentionOptionId(id: string): string {
+  return `composer-mention-option-${id.replace(/[^A-Za-z0-9_-]+/g, "-")}`;
+}
+
 export interface BaseMentionItem {
   id: string;
   name: string;
@@ -130,6 +136,7 @@ interface MentionListProps<T extends BaseMentionItem> {
   onSelectItem?: (item: T) => void;
   emptyMessage?: string;
   footer?: string;
+  editor?: Editor | null;
   ref?: React.Ref<MentionListHandle>;
 }
 
@@ -141,6 +148,7 @@ function MentionList<T extends BaseMentionItem>({
   onSelectItem,
   emptyMessage,
   footer,
+  editor,
   ref,
 }: MentionListProps<T>) {
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -173,6 +181,29 @@ function MentionList<T extends BaseMentionItem>({
     });
   };
 
+  useLayoutEffect(() => {
+    const el = editor?.view.dom;
+    if (!el) return;
+    el.setAttribute("role", "combobox");
+    el.setAttribute("aria-autocomplete", "list");
+    el.setAttribute("aria-haspopup", "listbox");
+    el.setAttribute("aria-expanded", "true");
+    el.setAttribute("aria-controls", COMPOSER_MENTION_LIST_ID);
+    return () => {
+      el.setAttribute("aria-expanded", "false");
+      el.removeAttribute("aria-controls");
+      el.removeAttribute("aria-activedescendant");
+    };
+  }, [editor]);
+
+  useLayoutEffect(() => {
+    const el = editor?.view.dom;
+    if (!el) return;
+    const active = items[selectedIndex];
+    if (active) el.setAttribute("aria-activedescendant", mentionOptionId(active.id));
+    else el.removeAttribute("aria-activedescendant");
+  }, [editor, items, selectedIndex]);
+
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }) => {
       if (event.key === "ArrowUp") {
@@ -193,7 +224,13 @@ function MentionList<T extends BaseMentionItem>({
 
   if (loading && items.length === 0) {
     return (
-      <div className="min-w-48 rounded-md bg-popover px-2 py-1.5 text-muted-foreground text-sm shadow-md ring-1 ring-foreground/10">
+      <div
+        id={COMPOSER_MENTION_LIST_ID}
+        role="listbox"
+        aria-label="Mentions"
+        className="min-w-48 rounded-md bg-popover px-2 py-1.5 text-muted-foreground text-sm shadow-md ring-1 ring-foreground/10"
+        data-mention-list
+      >
         Loading…
       </div>
     );
@@ -201,6 +238,9 @@ function MentionList<T extends BaseMentionItem>({
 
     return (
       <div
+        id={COMPOSER_MENTION_LIST_ID}
+        role="listbox"
+        aria-label="Mentions"
         className="flex max-h-48 min-w-56 max-w-72 flex-col overflow-y-auto overflow-x-hidden rounded-md bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
         data-mention-list
       >
@@ -211,11 +251,16 @@ function MentionList<T extends BaseMentionItem>({
               "relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
               selectedIndex === index && "bg-accent text-accent-foreground"
             )}
+            id={mentionOptionId(item.id)}
             key={item.id}
             onClick={() => selectItem(index)}
+            onMouseDown={(event) => event.preventDefault()}
             ref={(el) => {
               itemRefs.current[index] = el;
             }}
+            role="option"
+            aria-selected={selectedIndex === index}
+            tabIndex={-1}
             type="button"
           >
             {renderItem ? (
@@ -274,6 +319,7 @@ function createMentionSuggestion(
           onSelectItem: rememberItem,
           emptyMessage: config?.emptyMessage,
           footer: config?.getFooter?.(props.items),
+          editor: props.editor,
         };
       };
 
@@ -750,6 +796,10 @@ export function ComposerEditor({
     editorProps: {
       attributes: {
         "data-slot": "input-group-control",
+        role: "combobox",
+        "aria-autocomplete": "list",
+        "aria-expanded": "false",
+        "aria-haspopup": "listbox",
         class: cn(
           "tiptap max-w-none flex-1 rounded-none border-0 bg-transparent py-2 shadow-none outline-none ring-0 focus-visible:ring-0 aria-invalid:ring-0 dark:bg-transparent"
         ),
