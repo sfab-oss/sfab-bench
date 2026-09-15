@@ -228,7 +228,9 @@ function ChatInputInner({
   useEffect(() => {
     if (!hasCadParts) return;
     const text = inputRef.current?.getText() ?? "";
-    if (parseCadRefs(text).length > 0) inputRef.current?.setText(text);
+    const chips = wrapRef.current?.querySelectorAll("[data-mention-suggestion-char]").length ?? 0;
+    // setText moves the caret, so only rebuild when some ref is still plain text.
+    if (parseCadRefs(text).length > chips) inputRef.current?.setText(text);
   }, [hasCadParts, inputRef]);
 
   const syncDraft = () => {
