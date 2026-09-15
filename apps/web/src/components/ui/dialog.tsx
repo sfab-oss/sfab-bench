@@ -11,13 +11,13 @@ function DialogContent({ className, children, ...props }: DialogPrimitive.Popup.
     <DialogPrimitive.Portal>
       <DialogPrimitive.Backdrop
         data-slot="dialog-overlay"
-        className="fixed inset-0 z-50 bg-black/40 transition-opacity data-[starting-style]:opacity-0 data-[ending-style]:opacity-0"
+        className="fixed inset-0 z-50 bg-black/50 opacity-100"
       />
-      <DialogPrimitive.Viewport className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <DialogPrimitive.Viewport className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
         <DialogPrimitive.Popup
           data-slot="dialog-content"
           className={cn(
-            "flex max-h-[min(32rem,calc(100dvh-2rem))] w-full max-w-md flex-col rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-lg outline-none",
+            "pointer-events-auto flex max-h-[min(32rem,calc(100dvh-2rem))] w-full max-w-md flex-col rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-lg outline-none",
             "transition-[opacity,transform] duration-150",
             "data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
             "data-[ending-style]:scale-95 data-[ending-style]:opacity-0",

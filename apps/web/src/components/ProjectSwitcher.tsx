@@ -13,6 +13,7 @@ import {
   type ProjectInfo,
   type ProjectRow,
 } from "@/lib/project";
+import { redact } from "@/lib/redact";
 import { cn } from "@/lib/utils";
 
 export function ProjectSwitcher({
@@ -36,7 +37,7 @@ export function ProjectSwitcher({
         setError(null);
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Could not load folders");
+        setError(redact(err instanceof Error ? err.message : "Could not load folders"));
       });
   };
 
@@ -52,7 +53,7 @@ export function ProjectSwitcher({
       else openTabProject(nextPath);
       setOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not open that folder");
+      setError(redact(err instanceof Error ? err.message : "Could not open that folder"));
     } finally {
       setBusy(false);
     }
@@ -87,7 +88,7 @@ export function ProjectSwitcher({
         {recents.length === 0 ? (
           <p className="px-2 py-1.5 text-[13px] text-muted-foreground">No other folders yet.</p>
         ) : (
-          <ul>
+          <ul className="max-h-48 overflow-y-auto">
             {recents.map((row) => {
               const active = row.path === path;
               return (

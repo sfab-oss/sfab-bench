@@ -343,7 +343,7 @@ export function FileTree({
       {recentRows.length > 0 ? (
         <SidebarGroup>
           <SidebarGroupLabel>Recent</SidebarGroupLabel>
-          <SidebarGroupContent>
+          <SidebarGroupContent className="max-h-48 overflow-y-auto">
             <SidebarMenu>
               {recentRows.map((row) => (
                 <SidebarMenuItem key={`recent-${row.path}`}>

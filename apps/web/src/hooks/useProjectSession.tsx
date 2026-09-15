@@ -4,7 +4,9 @@ import { jsonApi, getDeviceToken } from "@/lib/api";
 import { shouldReloadOpenFile } from "@/lib/files-rail";
 import { registerAndOpenTab } from "@/lib/project";
 import { projectUrl } from "@/lib/project-query";
+import { redact } from "@/lib/redact";
 import type { ProjectSession, SessionClient, SessionEvent, SessionSnapshot } from "@/lib/session";
+import { emitFolderError } from "@/lib/welcome";
 import { modelUrl } from "@/cad/loadCadReview";
 import { store } from "@/state/store";
 
@@ -126,7 +128,10 @@ export function ProjectSessionProvider({
   useEffect(() => {
     const onOpen = (ev: Event) => {
       const path = (ev as CustomEvent<string>).detail;
-      if (typeof path === "string" && path.trim()) void registerAndOpenTab(path);
+      if (typeof path !== "string" || !path.trim()) return;
+      void registerAndOpenTab(path).catch((err: unknown) => {
+        emitFolderError(redact(err instanceof Error ? err.message : "Could not open that folder"));
+      });
     };
     window.addEventListener("sfab-open-folder", onOpen);
     return () => window.removeEventListener("sfab-open-folder", onOpen);

@@ -44,6 +44,9 @@ export function DesktopSidebar({ host, folder }: { host: boolean; folder: OpenFo
           )}
           <SidebarTrigger className="mt-0.5" />
         </div>
+        {hasProject && folder.error ? (
+          <p className="px-2 text-xs text-destructive">{folder.error}</p>
+        ) : null}
         {hasProject ? (
           <SidebarInput
             placeholder="Search files…"

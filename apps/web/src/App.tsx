@@ -7,7 +7,13 @@ import { Lockup } from "@/components/brand/Lockup";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ViewerChatProvider } from "@/components/chat/useViewerChat";
 import { CrashCard } from "@/components/CrashCard";
-import { BrowseFolderDialog, WelcomeFiles, WelcomeFolders, useOpenFolder } from "@/components/OpenFolder";
+import {
+  BrowseFolderDialog,
+  OpenFolderButton,
+  RecentFiles,
+  WelcomeFolders,
+  useOpenFolder,
+} from "@/components/OpenFolder";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { DetailPanel } from "@/components/DetailPanel";
 import { PairPage } from "@/components/PairPage";
@@ -21,10 +27,13 @@ import { useCatalog } from "@/hooks/useCatalog";
 import { useXrSession } from "@/hooks/useXrSession";
 import { useXrSupport } from "@/hooks/useXrSupport";
 import { ProjectSessionProvider, useProjectSession } from "@/hooks/useProjectSession";
+import { fileLabel } from "@/cad/loadCadReview";
 import { fetchMe, jsonApi, type MePrincipal } from "@/lib/api";
 import { filesRailToggleTitle, isMacPlatform } from "@/lib/files-rail";
 import { displayLoadError, isUnavailableFolder, loadCardCopy } from "@/lib/load-copy";
 import { redeemFragmentToken } from "@/lib/pairing";
+import { folderName } from "@/lib/project";
+import { PRODUCT_TITLE, documentTitle, emptySceneKind } from "@/lib/welcome";
 import { ViewerCanvas } from "@/scene/ViewerCanvas";
 import { useStore } from "@/state/store";
 import { enterAR, enterVR } from "@/xrStore";
@@ -82,10 +91,23 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
   const { project, setDoc, fileRecents } = useProjectSession();
   const { files, ready: catalogReady, error: catalogError } = useCatalog(Boolean(project.path));
   const treeOpen = useStore((s) => s.treeOpen);
+  const setTreeOpen = useStore((s) => s.setTreeOpen);
   const chatOpen = useStore((s) => s.chatOpen);
   const switching = useStore((s) => s.switching);
   const folderGone = isUnavailableFolder(catalogError);
   const load = progress !== null ? loadCardCopy({ title, url, progress }) : null;
+  const scene = emptySceneKind({
+    hasReview: Boolean(review),
+    progress,
+    loadError: Boolean(error),
+    sceneCrash: Boolean(sceneCrash),
+    projectPath: project.path,
+    treeOpen,
+    catalogReady,
+    hasCad: files.length > 0,
+    folderGone,
+  });
+  const toolbarVisible = Boolean(review) || progress !== null;
   if (switching) {
     return (
       <div className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-background text-foreground">
@@ -103,23 +125,32 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
       {!session && (
         <>
           {!treeOpen ? (
-            <div className="pointer-events-auto absolute top-4 left-3 z-10 rounded-xl border border-border bg-card/95 shadow-lg">
-              <SidebarTrigger
-                className="h-9 w-9"
-                title={filesRailToggleTitle(isMacPlatform(navigator.platform, navigator.userAgent), "show")}
-              />
+            <div className="pointer-events-auto absolute top-4 left-3 z-10 flex flex-col items-start gap-2">
+              <div className="rounded-xl border border-border bg-card/95 shadow-lg">
+                <SidebarTrigger
+                  className="h-9 w-9"
+                  title={filesRailToggleTitle(isMacPlatform(navigator.platform, navigator.userAgent), "show")}
+                />
+              </div>
+              {folder.error && scene === "none" ? (
+                <p className="max-w-xs rounded-md border border-destructive/40 bg-card/95 px-2 py-1 text-xs text-destructive">
+                  {folder.error}
+                </p>
+              ) : null}
             </div>
           ) : null}
-          <Toolbar
-            onHome={() => {
-              if (review) fit?.(review.root);
-            }}
-            onFit={() => {
-              const obj =
-                selectedId !== null ? review?.parts[selectedId]?.object : review?.root;
-              if (obj) fit?.(obj);
-            }}
-          />
+          {toolbarVisible ? (
+            <Toolbar
+              onHome={() => {
+                if (review) fit?.(review.root);
+              }}
+              onFit={() => {
+                const obj =
+                  selectedId !== null ? review?.parts[selectedId]?.object : review?.root;
+                if (obj) fit?.(obj);
+              }}
+            />
+          ) : null}
           <PartTree />
           <DetailPanel />
           <div className="pointer-events-none absolute top-4 right-3 z-10 flex items-start gap-2">
@@ -128,25 +159,55 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
           </div>
         </>
       )}
-      {!session && !review && progress === null && !error && !sceneCrash && (
+      {!session && scene !== "none" && (
         <div className="pointer-events-none absolute inset-0 z-0 grid place-items-center">
-          <div className="pointer-events-auto flex w-80 flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-card/80 px-6 py-5 text-center shadow-sm">
-            <Lockup />
-            {project.path ? (
-              folderGone ? (
-                <UnavailableFolderCard onOpen={folder.canRegister ? () => void folder.requestOpen() : undefined} />
-              ) : (
-                <WelcomeFiles
-                  recents={fileRecents}
-                  hasCad={files.length > 0}
-                  ready={catalogReady}
-                  onPick={(path) => void setDoc(path)}
-                />
-              )
-            ) : (
-              <WelcomeFolders folder={folder} />
-            )}
-          </div>
+          {scene === "welcome-hint" ? (
+            <div className="flex flex-col items-center gap-2 text-center">
+              <Lockup />
+              <p className="text-sm text-muted-foreground">Open a folder to start.</p>
+            </div>
+          ) : scene === "pick-file" ? (
+            <p className="text-xs text-muted-foreground">Pick a STEP or GLB from Files</p>
+          ) : (
+            <div className="pointer-events-auto flex w-80 max-w-[calc(100%-2rem)] flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-card/80 px-6 py-5 text-center shadow-sm">
+              {scene === "welcome-card" ? (
+                <>
+                  <Lockup />
+                  <WelcomeFolders folder={folder} />
+                </>
+              ) : null}
+              {scene === "folder-gone" ? (
+                <>
+                  <Lockup />
+                  <UnavailableFolderCard folder={folder} />
+                </>
+              ) : null}
+              {scene === "no-cad" ? (
+                <>
+                  <Lockup />
+                  <p className="text-sm text-muted-foreground">This folder has no STEP or GLB.</p>
+                  {folder.canRegister ? <OpenFolderButton folder={folder} /> : null}
+                </>
+              ) : null}
+              {scene === "show-files" ? (
+                <>
+                  <p className="text-sm text-muted-foreground">Show files to pick a STEP or GLB.</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    title={filesRailToggleTitle(isMacPlatform(navigator.platform, navigator.userAgent), "show")}
+                    onClick={() => setTreeOpen(true)}
+                  >
+                    Show files
+                  </Button>
+                  <RecentFiles recents={fileRecents} onPick={(path) => void setDoc(path)} />
+                </>
+              ) : null}
+              {folder.error && scene !== "welcome-card" ? (
+                <p className="text-xs text-destructive">{folder.error}</p>
+              ) : null}
+            </div>
+          )}
         </div>
       )}
       {progress !== null && load && !sceneCrash && (
@@ -188,15 +249,11 @@ function Overlay({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
   );
 }
 
-function UnavailableFolderCard({ onOpen }: { onOpen?: () => void }) {
+function UnavailableFolderCard({ folder }: { folder: ReturnType<typeof useOpenFolder> }) {
   return (
     <div className="flex w-full flex-col items-center gap-3">
       <p className="text-sm text-muted-foreground">This folder isn&apos;t available</p>
-      {onOpen ? (
-        <Button type="button" size="sm" onClick={onOpen}>
-          Open folder
-        </Button>
-      ) : null}
+      {folder.canRegister ? <OpenFolderButton folder={folder} /> : null}
     </div>
   );
 }
@@ -210,6 +267,17 @@ function ViewerShell({ host }: { host: boolean }) {
   const projectPath = useProjectSession().project.path;
   const hasProject = Boolean(projectPath);
   const chatWidth = useStore((s) => s.chatWidth);
+
+  useEffect(() => {
+    const file = url ? fileLabel(url) : "";
+    document.title = documentTitle({
+      folderName: projectPath ? folderName(projectPath) : null,
+      fileName: file && file !== "No model" ? file : null,
+    });
+    return () => {
+      document.title = PRODUCT_TITLE;
+    };
+  }, [projectPath, url]);
   return (
     <SidebarProvider
       className="h-dvh min-h-0 overflow-hidden"
