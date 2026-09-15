@@ -20,6 +20,12 @@ export function fileStemFromLabel(fileLabel: string): string {
   return name.replace(/\.(step|stp|glb|gltf)$/i, "") || name;
 }
 
+/** Stem is only for a lone listed solid — not siblings or a nested assembly. */
+export function partLabelFileStem(partCount: number, fileLabel: string): string | undefined {
+  if (partCount !== 1) return undefined;
+  return fileStemFromLabel(fileLabel) || undefined;
+}
+
 /** Path segments from a `#o1.1.2` / `o1.1.2` / face ref, or null. */
 export function occurrencePath(ref?: string | null): string | null {
   if (!ref) return null;

@@ -4,7 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import { namedKids, treeTops } from "@/cad/tree";
 import { Button } from "@/components/ui/button";
 import { formatMm, measureDelta } from "@/lib/measure";
-import { disambiguateSiblingNames, fileStemFromLabel, partDisplayName } from "@/lib/part-label";
+import { disambiguateSiblingNames, partDisplayName, partLabelFileStem } from "@/lib/part-label";
 import { useStore } from "@/state/store";
 
 function SelectionBody() {
@@ -24,16 +24,19 @@ function SelectionBody() {
       })),
     );
   const part = selectedId !== null ? review?.parts[selectedId] : undefined;
+  const ref = pickedRef ?? part?.cadRef ?? null;
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const copyTimer = useRef(0);
 
   useEffect(() => {
+    setCopyState("idle");
+    if (copyTimer.current) window.clearTimeout(copyTimer.current);
     return () => {
       if (copyTimer.current) window.clearTimeout(copyTimer.current);
     };
-  }, []);
+  }, [ref]);
 
-  const fileStem = review && review.parts.length === 1 ? fileStemFromLabel(title) || undefined : undefined;
+  const fileStem = partLabelFileStem(review?.parts.length ?? 0, title);
   const displayName = useMemo(() => {
     if (!part || !review) return "";
     const parent = part.object.parent;
@@ -59,7 +62,6 @@ function SelectionBody() {
 
   if (!review || (!part && !pickedRef)) return null;
   const shown = part ? !hiddenIds.has(part.id) : true;
-  const ref = pickedRef ?? part?.cadRef ?? null;
 
   const copyRef = () => {
     if (!ref) return;

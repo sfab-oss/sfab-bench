@@ -40,6 +40,7 @@ export function Toolbar({ onHome, onFit }: Props) {
       <Button type="button" variant="secondary" size="sm" className="h-9 w-9 p-0" title="Frame selection" onClick={onFit}>
         <Scan />
       </Button>
+      {/* Measure replaces the Selection panel, so Isolate has to stay on the toolbar. */}
       <Button
         type="button"
         variant="secondary"

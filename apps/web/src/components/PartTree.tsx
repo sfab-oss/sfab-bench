@@ -9,7 +9,7 @@ import { CrashCard } from "@/components/CrashCard";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { disambiguateSiblingNames, fileStemFromLabel, partDisplayName } from "@/lib/part-label";
+import { disambiguateSiblingNames, partDisplayName, partLabelFileStem } from "@/lib/part-label";
 import { filterPartTree, type PartTreeItem } from "@/lib/part-tree";
 import { useStore } from "@/state/store";
 import { cn } from "@/lib/utils";
@@ -131,11 +131,10 @@ function ModelTreeBody() {
   openKeysRef.current = openKeys;
   const savedOpenKeys = useRef<Set<string> | null>(null);
 
-  const fileStem = useMemo(() => {
-    if (!review || review.parts.length !== 1) return undefined;
-    const stem = fileStemFromLabel(title);
-    return stem || undefined;
-  }, [review, title]);
+  const fileStem = useMemo(
+    () => partLabelFileStem(review?.parts.length ?? 0, title),
+    [review, title],
+  );
 
   const forest = useMemo(
     () => (review ? rowsFromObjs(treeTops(review), review, fileStem) : []),
