@@ -182,9 +182,21 @@ export function loadFitKey(input: LoadFitKey): string {
   return `${parts}:${input.partsHeight}:${Math.round(input.canvasWidth)}x${Math.round(input.canvasHeight)}`;
 }
 
-/** True when an already-settled load fit should run again (`!cameraMoved`). */
-export function shouldRepeatLoadFit(prevKey: string | null, nextKey: string): boolean {
-  return prevKey !== null && prevKey !== nextKey;
+export type LoadFitRepeat = "fit" | "sync" | "skip";
+
+/**
+ * Repeat-load-fit decision after the first Home for this URL.
+ * `"sync"` absorbs a tree-height change caused by selection (e.g. revealing
+ * ancestors) so clearing the selection later does not Home either.
+ */
+export function shouldRepeatLoadFit(
+  prevKey: string | null,
+  nextKey: string,
+  options: { selectionActive?: boolean } = {},
+): LoadFitRepeat {
+  if (prevKey === null || prevKey === nextKey) return "skip";
+  if (options.selectionActive) return "sync";
+  return "fit";
 }
 
 /** Treat PartTree / Detail as full-height side columns (area 6). */

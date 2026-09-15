@@ -223,6 +223,7 @@ function FileContextDismiss({ open, onClose }: { open: boolean; onClose: () => v
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
+      event.stopPropagation();
       close();
     };
     const id = window.setTimeout(() => {

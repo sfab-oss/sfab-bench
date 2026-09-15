@@ -236,14 +236,14 @@ function MentionList<T extends BaseMentionItem>({
     );
   }
 
-    return (
-      <div
-        id={COMPOSER_MENTION_LIST_ID}
-        role="listbox"
-        aria-label="Mentions"
-        className="flex max-h-48 min-w-56 max-w-72 flex-col overflow-y-auto overflow-x-hidden rounded-md bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
-        data-mention-list
-      >
+  return (
+    <div
+      id={COMPOSER_MENTION_LIST_ID}
+      role="listbox"
+      aria-label="Mentions"
+      className="flex max-h-48 min-w-56 max-w-72 flex-col overflow-y-auto overflow-x-hidden rounded-md bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+      data-mention-list
+    >
       {items.length ? (
         items.map((item, index) => (
           <button

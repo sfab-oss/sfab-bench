@@ -238,11 +238,11 @@ const loadCanvas = loadFitKey({
   canvasWidth: 754,
   canvasHeight: 700,
 });
-expect(shouldRepeatLoadFit(null, loadTree) === false, "first load fit is not a repeat");
-expect(shouldRepeatLoadFit(loadTree, loadTree) === false, "same overlay does not re-fit");
-expect(shouldRepeatLoadFit(loadTree, loadTaller), "taller part tree re-fits");
-expect(shouldRepeatLoadFit(loadChip, loadTree), "chip to expanded re-fits");
-expect(shouldRepeatLoadFit(loadTree, loadCanvas), "canvas size re-fits");
+expect(shouldRepeatLoadFit(null, loadTree) === "skip", "first load fit is not a repeat");
+expect(shouldRepeatLoadFit(loadTree, loadTree) === "skip", "same overlay does not re-fit");
+expect(shouldRepeatLoadFit(loadTree, loadTaller) === "fit", "taller part tree re-fits");
+expect(shouldRepeatLoadFit(loadChip, loadTree) === "fit", "chip to expanded re-fits");
+expect(shouldRepeatLoadFit(loadTree, loadCanvas) === "fit", "canvas size re-fits");
 expect(
   loadFitKey({
     partsExpanded: true,
@@ -252,6 +252,18 @@ expect(
     canvasHeight: 900,
   }) === loadTree,
   "selection / detail are not in the load-fit key",
+);
+expect(
+  shouldRepeatLoadFit(loadTree, loadTaller, { selectionActive: true }) === "sync",
+  "select that grows the tree syncs the key without fitting",
+);
+expect(
+  shouldRepeatLoadFit(loadTaller, loadTaller, { selectionActive: false }) === "skip",
+  "clearing selection does not re-fit",
+);
+expect(
+  shouldRepeatLoadFit(loadTaller, loadCanvas, { selectionActive: false }) === "fit",
+  "tree/canvas change with nothing selected re-fits",
 );
 
 const needed = FILES_RAIL_WIDTH + CHAT_MIN_WIDTH + CANVAS_MIN_WIDTH;

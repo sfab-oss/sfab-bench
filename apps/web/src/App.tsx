@@ -270,7 +270,16 @@ function Overlay({
       canvasHeight,
     });
     const first = settledFitUrl.current !== url;
-    if (!first && !shouldRepeatLoadFit(settledLoadFitKey.current, nextKey)) return;
+    if (!first) {
+      const action = shouldRepeatLoadFit(settledLoadFitKey.current, nextKey, {
+        selectionActive: detailVisible,
+      });
+      if (action === "skip") return;
+      if (action === "sync") {
+        settledLoadFitKey.current = nextKey;
+        return;
+      }
+    }
     if (
       !fitCardsReady({
         partsExpanded,
