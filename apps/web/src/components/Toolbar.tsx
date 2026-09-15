@@ -12,16 +12,20 @@ type Props = {
 
 export function Toolbar({ onHome, onFit }: Props) {
   const {
+    review,
     selectedId,
     isolate,
+    fit,
     axesVisible,
     setAxesVisible,
     tool,
     setTool,
   } = useStore(
     useShallow((s) => ({
+      review: s.review,
       selectedId: s.selectedId,
       isolate: s.isolate,
+      fit: s.fit,
       axesVisible: s.axesVisible,
       setAxesVisible: s.setAxesVisible,
       tool: s.tool,
@@ -30,12 +34,13 @@ export function Toolbar({ onHome, onFit }: Props) {
   );
   return (
     <div className="pointer-events-auto absolute top-4 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 rounded-xl border border-border bg-card/95 p-1 shadow-lg">
-      <Button type="button" variant="secondary" size="sm" className="h-9 w-9 p-0" title="Home" onClick={onHome}>
+      <Button type="button" variant="secondary" size="sm" className="h-9 w-9 p-0" title="Frame whole model" onClick={onHome}>
         <Home />
       </Button>
-      <Button type="button" variant="secondary" size="sm" className="h-9 w-9 p-0" title="Fit" onClick={onFit}>
+      <Button type="button" variant="secondary" size="sm" className="h-9 w-9 p-0" title="Frame selection" onClick={onFit}>
         <Scan />
       </Button>
+      {/* Measure replaces the Selection panel, so Isolate has to stay on the toolbar. */}
       <Button
         type="button"
         variant="secondary"
@@ -43,7 +48,12 @@ export function Toolbar({ onHome, onFit }: Props) {
         className="h-9 w-9 p-0"
         title="Isolate"
         disabled={selectedId === null}
-        onClick={() => selectedId !== null && isolate(selectedId)}
+        onClick={() => {
+          if (selectedId === null) return;
+          isolate(selectedId);
+          const obj = review?.parts[selectedId]?.object;
+          if (obj) fit?.(obj);
+        }}
       >
         <Focus />
       </Button>
