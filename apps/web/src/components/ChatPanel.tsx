@@ -8,6 +8,20 @@ import { GalleryChatInput, type GalleryChatHandle, type GalleryPromptMessage } f
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import { persistThread, useViewerChat } from "@/components/chat/useViewerChat";
 import { lastUserPromptText, mapChatErrorMessage, isWorkspaceBusyError } from "@/chat/composer-recovery";
+import { resolveCadRef } from "@/chat/cad-refs";
+import {
+  decideNewChatAction,
+  EMPTY_THREAD_TITLE,
+  firstUserLine,
+  formatRelativeTime,
+  HISTORY_POLL_MS,
+  isEmptyHistoryTitle,
+  msUntilNextMinuteTick,
+  partitionHistoryRows,
+  threadRowPip,
+  titleRefSegments,
+  type ThreadPip,
+} from "@/chat/history";
 import { finishPersistMessages, isTurnErrorPart } from "@/chat/persist-thread";
 import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
 import { findPendingAskUserQuestions, type AskUserQuestionsOutput } from "@/chat/ask-user-questions";
@@ -37,6 +51,7 @@ import {
 import { loadHarnesses } from "@/hooks/useHarnesses";
 import { jsonApi } from "@/lib/api";
 import { CHAT_DEFAULT_WIDTH, clampChatDrag } from "@/lib/layout";
+import { partLabelFileStem } from "@/lib/part-label";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
 
@@ -57,15 +72,33 @@ export function ChatPanel({
   const setWidth = useStore((s) => s.setChatWidth);
   const [resizing, setResizing] = useState(false);
   const [live, setLive] = useState(false);
+  const [currentEmpty, setCurrentEmpty] = useState(true);
+  const [sessionPreview, setSessionPreview] = useState<string | null>(null);
+  const [tabStatus, setTabStatus] = useState({ streaming: false, askUser: false, error: false });
   const messagesRef = useRef<GalleryChatMessage[]>([]);
   const compactOpenRef = useRef(false);
   const panelRef = useRef<HTMLElement>(null);
   const stopTurnRef = useRef<(() => void) | null>(null);
   const captureDraftRef = useRef<(() => void) | null>(null);
-  const { threads, threadId, initialMessages, refreshThreads, newThread, openThread } = useViewerChat();
+  const composerRef = useRef<GalleryChatHandle>(null);
+  const { threads, threadId, initialMessages, refreshThreads, newThread, openThread, registerTabTurn } =
+    useViewerChat();
   useEffect(() => {
     void loadHarnesses();
   }, []);
+
+  const onSessionMeta = useCallback(
+    (meta: { empty: boolean; preview: string | null; streaming: boolean; askUser: boolean; error: boolean }) => {
+      setCurrentEmpty(meta.empty);
+      setSessionPreview(meta.preview);
+      setTabStatus((prev) =>
+        prev.streaming === meta.streaming && prev.askUser === meta.askUser && prev.error === meta.error
+          ? prev
+          : { streaming: meta.streaming, askUser: meta.askUser, error: meta.error },
+      );
+    },
+    [],
+  );
 
   const persistWidth = useCallback(
     (next: number) => {
@@ -142,6 +175,22 @@ export function ChatPanel({
   };
 
   const active = threads.find((t) => t.id === threadId);
+  const headerTitle = active?.title ?? "Assistant";
+
+  const startNewChat = () => {
+    const decision = decideNewChatAction({ currentId: threadId, currentEmpty, threads });
+    if (decision.action === "focus") {
+      composerRef.current?.focus();
+      return;
+    }
+    captureDraftRef.current?.();
+    stopTurnRef.current?.();
+    if (decision.action === "open") {
+      void openThread(decision.id);
+      return;
+    }
+    void newThread();
+  };
 
   return (
     <>
@@ -195,9 +244,9 @@ export function ChatPanel({
         <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-4" />
         <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
           {live ? <LiveDot /> : null}
-          <div className="min-w-0 truncate text-sm font-medium">{active?.title ?? "Assistant"}</div>
+          <CadRefTitle className="min-w-0 truncate text-sm font-medium" title={headerTitle} />
         </div>
-        <ChatSettingsMenu
+        <ChatExportMenu
           onCopyJson={() =>
             copyConversationJson({
               id: threadId,
@@ -206,53 +255,28 @@ export function ChatPanel({
             })
           }
         />
-        <Popover>
-          <PopoverTrigger
-            render={<Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" title="Chat history" />}
-          >
-            <History />
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-64 p-1">
-            {threads.length === 0 ? (
-              <div className="px-2 py-1.5 text-xs text-muted-foreground">No chats yet</div>
-            ) : (
-              <ul className="max-h-72 overflow-y-auto">
-                {threads.map((t) => (
-                  <li key={t.id}>
-                    <PopoverClose
-                      className={cn(
-                        "flex w-full truncate rounded-sm px-2 py-1.5 text-left text-sm",
-                        t.id === threadId
-                          ? "bg-accent font-medium text-accent-foreground"
-                          : "text-muted-foreground hover:bg-accent",
-                      )}
-                      onClick={() => {
-                        if (t.id === threadId) return;
-                        captureDraftRef.current?.();
-                        // Stop only while this tab holds a live turn (ref is null when idle).
-                        stopTurnRef.current?.();
-                        void openThread(t.id);
-                      }}
-                    >
-                      {t.title}
-                    </PopoverClose>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </PopoverContent>
-        </Popover>
+        <HistoryPopover
+          currentEmpty={currentEmpty}
+          currentPreview={sessionPreview}
+          currentStatus={tabStatus}
+          onOpenThread={(id) => {
+            if (id === threadId) return;
+            captureDraftRef.current?.();
+            stopTurnRef.current?.();
+            void openThread(id);
+          }}
+          refreshThreads={refreshThreads}
+          threadId={threadId}
+          threads={threads}
+        />
         <Button
           type="button"
           variant="ghost"
           size="sm"
           className="h-8 w-8 p-0"
           title="New chat"
-          onClick={() => {
-            captureDraftRef.current?.();
-            stopTurnRef.current?.();
-            void newThread();
-          }}
+          aria-label="New chat"
+          onClick={startNewChat}
         >
           <Plus />
         </Button>
@@ -272,9 +296,12 @@ export function ChatPanel({
             initialMessages={initialMessages}
             messagesRef={messagesRef}
             onLive={setLive}
+            onMeta={onSessionMeta}
             onPersist={() => void refreshThreads()}
+            registerTabTurn={registerTabTurn}
             stopTurnRef={stopTurnRef}
             captureDraftRef={captureDraftRef}
+            composerRef={composerRef}
           />
         ) : null}
       </RenderErrorBoundary>
@@ -343,17 +370,197 @@ function jsonSafe(_key: string, value: unknown) {
   return value;
 }
 
-function ChatSettingsMenu({ onCopyJson }: { onCopyJson: () => Promise<boolean> }) {
-  const [copied, setCopied] = useState(false);
+function useMinuteTick() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    let interval = 0;
+    const timeout = window.setTimeout(() => {
+      setNow(Date.now());
+      interval = window.setInterval(() => setNow(Date.now()), 60_000);
+    }, msUntilNextMinuteTick(Date.now()));
+    return () => {
+      window.clearTimeout(timeout);
+      if (interval) window.clearInterval(interval);
+    };
+  }, []);
+  return now;
+}
+
+function CadRefTitle({ title, className }: { title: string; className?: string }) {
+  const parts = useStore((s) => s.review?.parts ?? []);
+  const fileLabel = useStore((s) => s.title);
+  const fileStem = partLabelFileStem(parts.length, fileLabel);
+  const segments = titleRefSegments(title, (ref) => resolveCadRef(ref, parts, fileStem)?.label ?? null);
+  return (
+    <span className={className} title={title}>
+      {segments.map((seg, i) =>
+        seg.type === "text" ? (
+          <span key={i}>{seg.value}</span>
+        ) : (
+          <span key={`${seg.ref}-${i}`} title={seg.ref}>
+            {seg.label}
+          </span>
+        ),
+      )}
+    </span>
+  );
+}
+
+function StatusPip({ pip }: { pip: ThreadPip }) {
+  if (!pip) return null;
+  const label = pip === "streaming" ? "Replying" : pip === "ask-user" ? "Waiting on you" : "Error";
+  if (pip === "streaming") {
+    return <LiveDot className="animate-pulse" title={label} />;
+  }
+  return (
+    <span
+      aria-label={label}
+      className={cn(
+        "inline-block size-1.5 shrink-0 rounded-full",
+        pip === "ask-user" ? "bg-amber-500" : "bg-destructive",
+      )}
+      title={label}
+    />
+  );
+}
+
+function HistoryPopover({
+  threads,
+  threadId,
+  currentEmpty,
+  currentPreview,
+  currentStatus,
+  refreshThreads,
+  onOpenThread,
+}: {
+  threads: { id: string; title: string; updated_at: number }[];
+  threadId: string | null;
+  currentEmpty: boolean;
+  currentPreview: string | null;
+  currentStatus: { streaming: boolean; askUser: boolean; error: boolean };
+  refreshThreads: () => Promise<unknown>;
+  onOpenThread: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [refreshError, setRefreshError] = useState(false);
+  const [showEmpty, setShowEmpty] = useState(false);
+  const now = useMinuteTick();
+
+  const refresh = useCallback(async () => {
+    const rows = await refreshThreads();
+    setRefreshError(rows === undefined);
+  }, [refreshThreads]);
+
+  useEffect(() => {
+    if (!open) return;
+    void refresh();
+    const id = window.setInterval(() => void refresh(), HISTORY_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [open, refresh]);
+
+  const { visible, emptyHidden } = partitionHistoryRows(threads, threadId, currentEmpty);
+  const rows = showEmpty ? [...visible, ...emptyHidden] : visible;
+
+  return (
+    <Popover
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setShowEmpty(false);
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Chat history"
+            aria-label="Chat history"
+          />
+        }
+      >
+        <History />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 p-1">
+        {refreshError ? (
+          <div className="px-2 py-1 text-[11px] text-destructive" role="status">
+            Couldn't refresh
+          </div>
+        ) : null}
+        {threads.length === 0 ? (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">No chats yet</div>
+        ) : (
+          <ul className="max-h-80 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+            {rows.map((t) => {
+              const current = t.id === threadId;
+              const empty = current ? currentEmpty : isEmptyHistoryTitle(t.title);
+              const preview = current && isEmptyHistoryTitle(t.title) ? currentPreview : null;
+              const pip = threadRowPip({
+                rowId: t.id,
+                currentId: threadId,
+                streaming: currentStatus.streaming,
+                askUser: currentStatus.askUser,
+                error: currentStatus.error,
+              });
+              return (
+                <li key={t.id}>
+                  <PopoverClose
+                    className={cn(
+                      "flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left",
+                      current ? "bg-accent font-medium text-accent-foreground" : "hover:bg-accent",
+                      empty && !current && "text-muted-foreground",
+                    )}
+                    onClick={() => onOpenThread(t.id)}
+                  >
+                    <StatusPip pip={pip} />
+                    <span className="min-w-0 flex-1">
+                      <CadRefTitle
+                        className="block truncate text-sm"
+                        title={t.title.trim() ? t.title : EMPTY_THREAD_TITLE}
+                      />
+                      {preview ? (
+                        <span className="mt-0.5 block truncate text-[11px] font-normal text-muted-foreground">
+                          <CadRefTitle title={preview} />
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="shrink-0 pt-0.5 text-[11px] font-normal text-muted-foreground">
+                      {formatRelativeTime(t.updated_at, now)}
+                    </span>
+                  </PopoverClose>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {emptyHidden.length > 0 ? (
+          <button
+            type="button"
+            className="mt-0.5 w-full rounded-sm px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent"
+            onClick={() => setShowEmpty((v) => !v)}
+          >
+            {showEmpty ? "Hide empty" : `Show empty (${emptyHidden.length})`}
+          </button>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function ChatExportMenu({ onCopyJson }: { onCopyJson: () => Promise<boolean> }) {
+  const [copied, setCopied] = useState<"idle" | "copied" | "error">("idle");
 
   return (
     <Popover
       onOpenChange={(open) => {
-        if (!open) setCopied(false);
+        if (!open) setCopied("idle");
       }}
     >
       <PopoverTrigger
-        render={<Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" title="Chat settings" />}
+        render={
+          <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" title="Export" aria-label="Export" />
+        }
       >
         <EllipsisVertical />
       </PopoverTrigger>
@@ -363,12 +570,12 @@ function ChatSettingsMenu({ onCopyJson }: { onCopyJson: () => Promise<boolean> }
           className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
           onClick={() => {
             void onCopyJson().then((ok) => {
-              if (ok) setCopied(true);
+              setCopied(ok ? "copied" : "error");
             });
           }}
         >
-          {copied ? <Check className="size-4 shrink-0" /> : <Copy className="size-4 shrink-0" />}
-          {copied ? "Copied" : "Copy conversation as JSON"}
+          {copied === "copied" ? <Check className="size-4 shrink-0" /> : <Copy className="size-4 shrink-0" />}
+          {copied === "copied" ? "Copied" : copied === "error" ? "Couldn't copy" : "Copy conversation as JSON"}
         </button>
       </PopoverContent>
     </Popover>
@@ -380,20 +587,25 @@ function ChatSession({
   initialMessages,
   messagesRef,
   onLive,
+  onMeta,
   onPersist,
+  registerTabTurn,
   stopTurnRef,
   captureDraftRef,
+  composerRef,
 }: {
   threadId: string;
   initialMessages: GalleryChatMessage[];
   messagesRef: RefObject<GalleryChatMessage[]>;
   onLive: (live: boolean) => void;
+  onMeta: (meta: { empty: boolean; preview: string | null; streaming: boolean; askUser: boolean; error: boolean }) => void;
   onPersist: () => void;
+  registerTabTurn: (streaming: boolean, stop: (() => void) | null) => void;
   stopTurnRef: RefObject<(() => void) | null>;
   captureDraftRef: RefObject<(() => void) | null>;
+  composerRef: RefObject<GalleryChatHandle | null>;
 }) {
   const turnErrorRef = useRef<string | null>(null);
-  const composerRef = useRef<GalleryChatHandle>(null);
   const progress = useStore((s) => s.progress);
   const url = useStore((s) => s.url);
   const { messages, sendMessage, status, error, stop, regenerate, addToolOutput } = useChat({
@@ -439,6 +651,10 @@ function ChatSession({
     };
   }, [live, abortWorkspaceTurn, stopTurnRef]);
   useEffect(() => {
+    registerTabTurn(busy, busy ? abortWorkspaceTurn : null);
+    return () => registerTabTurn(false, null);
+  }, [busy, abortWorkspaceTurn, registerTabTurn]);
+  useEffect(() => {
     onLive(live);
     return () => onLive(false);
   }, [live, onLive]);
@@ -479,6 +695,16 @@ function ChatSession({
     (lastMessage.parts ?? []).some(isTurnErrorPart)
       ? lastMessage.id
       : null;
+
+  useEffect(() => {
+    onMeta({
+      empty: messages.length === 0,
+      preview: firstUserLine(messages),
+      streaming: busy,
+      askUser: pendingAsk !== null,
+      error: liveError || Boolean(tailErrorId),
+    });
+  }, [messages, busy, pendingAsk, liveError, tailErrorId, onMeta]);
 
   return (
     <>

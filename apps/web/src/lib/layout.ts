@@ -31,6 +31,8 @@ export const OVERLAY_MAX_HEIGHT_CAP = 32 * 16;
 export const TOOLBAR_WIDTH = 198;
 export const TOOLBAR_TOP = 16;
 export const CHAT_TOGGLE_RESERVE = 44;
+/** Hidden-chat "Replying… · Stop · Show chat" chip. */
+export const CHAT_LIVE_CHIP_RESERVE = 220;
 /** "Enter Studio" pill + wrapper padding/border. */
 export const ENTER_XR_RESERVE = 140;
 export const OVERLAY_CLUSTER_GAP = 8;
@@ -162,10 +164,10 @@ export function toolbarLayout(input: {
   return { stacked: true, left: Math.max(12, Math.min(leftReserve, maxLeft)), top: TOOLBAR_TOP };
 }
 
-export function toolbarRightReserve(chatToggle: boolean, enterXr: boolean): number {
+export function toolbarRightReserve(chatToggle: boolean, enterXr: boolean, liveChip = false): number {
   let n = 12;
   if (enterXr) n += ENTER_XR_RESERVE;
-  if (chatToggle) n += CHAT_TOGGLE_RESERVE;
+  if (chatToggle) n += liveChip ? CHAT_LIVE_CHIP_RESERVE : CHAT_TOGGLE_RESERVE;
   if (enterXr && chatToggle) n += OVERLAY_CLUSTER_GAP;
   return n;
 }

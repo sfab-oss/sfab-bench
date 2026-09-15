@@ -313,6 +313,7 @@ function ChatInputInner({
 export type GalleryChatHandle = {
   captureDraft: () => void;
   clear: () => void;
+  focus: () => void;
 };
 
 export function GalleryChatInput({
@@ -380,6 +381,9 @@ export function GalleryChatInput({
       clear: () => {
         setSessionDraft(threadId, "");
         composerRef.current?.clear();
+      },
+      focus: () => {
+        composerRef.current?.focus();
       },
     }),
     [threadId],
