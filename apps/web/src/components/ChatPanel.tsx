@@ -96,10 +96,25 @@ export function ChatPanel({
         return;
       }
       if (ev.key !== "Tab" || floatingDismissOpen()) return;
+      backwards = ev.shiftKey;
       wrapTab(ev, panelRef.current);
     };
+    // Tab order can leave the panel from any element, not only the last one; pull focus back.
+    let backwards = false;
+    const onFocusIn = (ev: FocusEvent) => {
+      const root = panelRef.current;
+      const target = ev.target;
+      if (!root || !(target instanceof HTMLElement) || root.contains(target)) return;
+      if (floatingDismissOpen() || target.closest("[data-mention-list]")) return;
+      const nodes = tabbableIn(root);
+      (backwards ? nodes[nodes.length - 1] : nodes[0])?.focus();
+    };
     document.addEventListener("keydown", onKey, true);
-    return () => document.removeEventListener("keydown", onKey, true);
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("focusin", onFocusIn);
+    };
   }, [compact, open, onClose]);
 
   const onResizeDown = (ev: ReactMouseEvent) => {
