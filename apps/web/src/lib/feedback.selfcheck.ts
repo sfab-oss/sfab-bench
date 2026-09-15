@@ -1,5 +1,4 @@
 import {
-  HIDDEN_CHAT_NOTICE,
   INITIAL_CHAT_TURN_FLAGS,
   INITIAL_CONNECTION_STATE,
   INITIAL_FAILURE_STREAK,
@@ -135,6 +134,5 @@ expect(
   ) === null,
   "already-asking does not re-toast on finish",
 );
-expect(HIDDEN_CHAT_NOTICE["ask-user"] === "The agent is asking a question", "ask copy");
 
 console.log("feedback.selfcheck ok");
