@@ -13,6 +13,8 @@ import { findPendingAskUserQuestions, type AskUserQuestionsOutput } from "@/chat
 import { findPendingGetViewer } from "@/chat/get-viewer";
 import { useLiveViewerTools } from "@/chat/useLiveViewerTools";
 import { LiveDot } from "@/components/brand/LiveDot";
+import { CrashCard } from "@/components/CrashCard";
+import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
@@ -147,16 +149,25 @@ export function ChatPanel() {
           <Plus />
         </Button>
       </header>
-      {threadId ? (
-        <ChatSession
-          key={threadId}
-          threadId={threadId}
-          initialMessages={initialMessages}
-          messagesRef={messagesRef}
-          onLive={setLive}
-          onPersist={() => void refreshThreads()}
-        />
-      ) : null}
+      <RenderErrorBoundary
+        resetKeys={[threadId]}
+        fallback={({ error, reset }) => (
+          <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+            <CrashCard error={error} onRetry={reset} />
+          </div>
+        )}
+      >
+        {threadId ? (
+          <ChatSession
+            key={threadId}
+            threadId={threadId}
+            initialMessages={initialMessages}
+            messagesRef={messagesRef}
+            onLive={setLive}
+            onPersist={() => void refreshThreads()}
+          />
+        ) : null}
+      </RenderErrorBoundary>
     </aside>
   );
 }

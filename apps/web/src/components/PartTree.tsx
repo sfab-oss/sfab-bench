@@ -4,6 +4,8 @@ import type { Object3D } from "three";
 import { useShallow } from "zustand/react/shallow";
 
 import { namedKids, treeTops } from "@/cad/tree";
+import { CrashCard } from "@/components/CrashCard";
+import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useOpenOnSelect } from "@/hooks/useTreeNode";
@@ -117,6 +119,22 @@ function ModelTreeBody() {
 }
 
 export function PartTree() {
+  const url = useStore((s) => s.url);
+  return (
+    <RenderErrorBoundary
+      resetKeys={[url]}
+      fallback={({ error, reset }) => (
+        <div className="pointer-events-auto absolute top-16 left-3 z-10">
+          <CrashCard error={error} onRetry={reset} />
+        </div>
+      )}
+    >
+      <PartTreeBody />
+    </RenderErrorBoundary>
+  );
+}
+
+function PartTreeBody() {
   const { review, title, partsOpen, setPartsOpen } = useStore(
     useShallow((s) => ({
       review: s.review,

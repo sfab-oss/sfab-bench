@@ -41,8 +41,12 @@ export function ProjectSessionProvider({
 
   const applyLibrary = useCallback((path: string, recents: string[]) => {
     const pathChanged = lastPath.current !== path;
-    if (lastPath.current && pathChanged) {
-      void store.getState().loadModel("");
+    if (pathChanged) {
+      const { url, error, progress } = store.getState();
+      // Clear a leftover ?file=-only boot, or the previous folder's document.
+      if (lastPath.current || url || error || progress !== null) {
+        void store.getState().loadModel("");
+      }
     }
     lastPath.current = path;
     setProject({ path });
@@ -53,10 +57,16 @@ export function ProjectSessionProvider({
   const adoptTab = useCallback(
     (path: string, recents: string[]) => {
       applyLibrary(path, recents);
+      if (!path) {
+        if (modelUrl() || store.getState().url || store.getState().progress !== null) {
+          void store.getState().loadModel("");
+        }
+        return;
+      }
       if (!appliedDeepLink.current) {
         appliedDeepLink.current = true;
         const deep = modelUrl();
-        if (deep && path) void store.getState().loadModel(deep);
+        if (deep) void store.getState().loadModel(deep);
       }
     },
     [applyLibrary],

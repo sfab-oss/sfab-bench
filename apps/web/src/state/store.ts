@@ -7,6 +7,7 @@ import { type Appearance, readDomAppearance } from "@/lib/appearance";
 import { applyHighlights, clearHighlights } from "@/cad/highlights";
 import { fileLabel, loadCadReview, modelUrl, syncFileQuery } from "@/cad/loadCadReview";
 import { isAncestor, type CadReview } from "@/cad/review";
+import { projectUrl } from "@/lib/project-query";
 import {
   DEFAULT_CHAT_EFFORT,
   DEFAULT_HARNESS,
@@ -170,6 +171,10 @@ type State = {
   switching: XrSwitchTo;
   setXrSwitch: (next: XrSwitchTo) => void;
 
+  /** Canvas island crash; Overlay paints the card so chat and the rail stay up. */
+  sceneCrash: { error: unknown; reset: () => void } | null;
+  setSceneCrash: (next: { error: unknown; reset: () => void } | null) => void;
+
   // scene
   placed: Group | null;
   fit: ((obj: Object3D, dir?: Vector3) => void) | null;
@@ -185,7 +190,7 @@ type State = {
   setRecenter: (fn: (() => void) | null) => void;
 };
 
-const url = modelUrl();
+const url = projectUrl() ? modelUrl() : "";
 
 export const store = createStore<State>()(
   persist(
@@ -435,6 +440,9 @@ export const store = createStore<State>()(
 
   switching: null,
   setXrSwitch: (switching) => set({ switching }),
+
+  sceneCrash: null,
+  setSceneCrash: (sceneCrash) => set({ sceneCrash }),
 
   placed: null,
   fit: null,

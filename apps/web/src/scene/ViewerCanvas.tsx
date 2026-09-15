@@ -1,9 +1,10 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { IfInSessionMode, XR } from "@react-three/xr";
-import { Suspense, useCallback, useLayoutEffect } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect } from "react";
 import * as THREE from "three";
 
+import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { useStudioColor } from "@/hooks/useStudioColor";
 import { CadModel } from "@/scene/CadModel";
 import { RecenterOnReset } from "@/scene/RecenterOnReset";
@@ -61,8 +62,18 @@ function FitBridge() {
   return null;
 }
 
+function SceneCrashBridge({ error, reset }: { error: unknown; reset: () => void }) {
+  const setSceneCrash = useStore((s) => s.setSceneCrash);
+  useEffect(() => {
+    setSceneCrash({ error, reset });
+    return () => setSceneCrash(null);
+  }, [error, reset, setSceneCrash]);
+  return null;
+}
+
 export function ViewerCanvas() {
   const studio = useStudioColor();
+  const url = useStore((s) => s.url);
   const setPlaced = useStore((s) => s.setPlaced);
   const onFit = useCallback(
     (obj: THREE.Object3D) => store.getState().fit?.(obj, new THREE.Vector3(0.6, 0.5, 0.7)),
@@ -91,7 +102,12 @@ export function ViewerCanvas() {
           }}
         >
           <SpawnInFront />
-          <CadModel onFit={onFit} />
+          <RenderErrorBoundary
+            resetKeys={[url]}
+            fallback={({ error, reset }) => <SceneCrashBridge error={error} reset={reset} />}
+          >
+            <CadModel onFit={onFit} />
+          </RenderErrorBoundary>
         </group>
         <XRGrab />
         <HandSkeletons />

@@ -18,6 +18,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
+import { displayLoadError } from "@/lib/load-copy";
 import {
   catalogEmptyReason,
   defaultExpandedDirPaths,
@@ -326,7 +327,9 @@ export function FileTree({
   });
 
   if (error) {
-    return <div className="px-4 py-2 text-xs text-destructive">{error}</div>;
+    return (
+      <div className="px-4 py-2 text-xs text-destructive">{displayLoadError(error, projectPath)}</div>
+    );
   }
   if (!ready) {
     return <div className="px-4 py-2 text-xs text-muted-foreground">Loading files…</div>;
