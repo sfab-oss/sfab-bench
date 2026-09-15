@@ -142,7 +142,7 @@ export function QuestJoinPanel({
             <DialogTitle className="pr-0">Enter Quest</DialogTitle>
             <p className="mt-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{hostLine}</p>
           </div>
-          {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+          {error ? <p className="mt-3 text-sm text-error">{error}</p> : null}
           {!error && !info ? <p className="mt-3 text-sm text-muted-foreground">Loading…</p> : null}
           {info ? (
             <>

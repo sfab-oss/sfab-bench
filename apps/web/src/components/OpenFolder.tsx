@@ -376,7 +376,7 @@ export function BrowseFolderDialog({
             </ul>
           </div>
         ) : null}
-        {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
+        {error ? <p className="mt-2 text-xs text-error">{error}</p> : null}
         <div className="mt-3 flex justify-end gap-2">
           <Button type="button" size="sm" variant="secondary" className="h-8" disabled={busy} onClick={() => onOpenChange(false)}>
             Cancel
@@ -408,7 +408,7 @@ export function WelcomeFolders({ folder }: { folder: OpenFolderApi }) {
       {!folder.canRegister && folder.recents.length === 0 ? (
         <p className="text-[13px] text-muted-foreground">Open a folder on the Mac first, then it shows up here.</p>
       ) : null}
-      {folder.error ? <p className="text-xs text-destructive">{folder.error}</p> : null}
+      {folder.error ? <p className="text-xs text-error">{folder.error}</p> : null}
     </div>
   );
 }
@@ -424,7 +424,7 @@ export function EmptyFolderRail({ folder }: { folder: OpenFolderApi }) {
       {!folder.canRegister && folder.recents.length === 0 ? (
         <p className="text-[13px] text-muted-foreground">Open a folder on the Mac first, then it shows up here.</p>
       ) : null}
-      {folder.error ? <p className="text-xs text-destructive">{folder.error}</p> : null}
+      {folder.error ? <p className="text-xs text-error">{folder.error}</p> : null}
     </div>
   );
 }

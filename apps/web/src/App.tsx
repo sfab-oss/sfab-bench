@@ -25,6 +25,7 @@ import { Toolbar } from "@/components/Toolbar";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
+import { ToastProvider, Toasts } from "@/components/ui/toast";
 import { useCatalog, type CatalogState } from "@/hooks/useCatalog";
 import { useXrSession } from "@/hooks/useXrSession";
 import { useXrSupport } from "@/hooks/useXrSupport";
@@ -273,7 +274,7 @@ function Overlay({
                 />
               </div>
               {folder.error && scene === "none" ? (
-                <p className="max-w-xs rounded-md border border-destructive/40 bg-card/95 px-2 py-1 text-xs text-destructive">
+                <p className="max-w-xs rounded-md border border-destructive/40 bg-card/95 px-2 py-1 text-xs text-error">
                   {folder.error}
                 </p>
               ) : null}
@@ -364,7 +365,7 @@ function Overlay({
                 </>
               ) : null}
               {folder.error && scene !== "welcome-card" ? (
-                <p className="text-xs text-destructive">{folder.error}</p>
+                <p className="text-xs text-error">{folder.error}</p>
               ) : null}
             </div>
           )}
@@ -389,7 +390,7 @@ function Overlay({
       {error && !sceneCrash && (
         <div className="pointer-events-auto absolute inset-x-4 top-1/2 z-20 mx-auto w-full max-w-80 -translate-y-1/2 rounded-xl border border-destructive bg-card p-4 text-sm shadow-lg">
           <strong>Couldn&apos;t open {title}</strong>
-          <div className="mt-1 text-muted-foreground">{displayLoadError(error, project.path)}</div>
+          <div className="mt-1 text-error">{displayLoadError(error, project.path)}</div>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => void loadModel(url)}>
               Retry
@@ -438,6 +439,9 @@ function ViewerShell({ host }: { host: boolean }) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const chatToggleRef = useRef<HTMLButtonElement>(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
+  const chatVisible = hasProject && (compactChat ? compactChatOpen : chatOpen);
+  const toastOffsetRight = session || compactChat || !chatVisible ? 16 : layoutWidth + 16;
+  const toastPinLeft = Boolean(!session && compactChat && compactChatOpen);
 
   useEffect(() => {
     if (!compactChat) setCompactChatOpen(false);
@@ -519,6 +523,7 @@ function ViewerShell({ host }: { host: boolean }) {
       ) : null}
       <BrowseFolderDialog open={folder.dialogOpen} onOpenChange={folder.setDialogOpen} />
       <CommandPalette catalogFiles={catalog.files} compactChat={compactChat} folder={folder} />
+      {!session ? <Toasts offsetRight={toastOffsetRight} pinLeft={toastPinLeft} /> : null}
     </SidebarProvider>
   );
 }
@@ -530,11 +535,13 @@ function ViewerApp({ host, you }: { host: boolean; you: { id: string; label: str
     return () => document.removeEventListener("beforexrselect", onSelect);
   }, []);
   return (
-    <ProjectSessionProvider you={you}>
-      <ViewerChatProvider>
-        <ViewerShell host={host} />
-      </ViewerChatProvider>
-    </ProjectSessionProvider>
+    <ToastProvider>
+      <ProjectSessionProvider you={you}>
+        <ViewerChatProvider>
+          <ViewerShell host={host} />
+        </ViewerChatProvider>
+      </ProjectSessionProvider>
+    </ToastProvider>
   );
 }
 

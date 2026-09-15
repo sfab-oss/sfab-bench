@@ -19,6 +19,7 @@
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.577 0.245 27.325);
+  --error-text-raw: oklch(0.50 0.22 27.325);
   --border-raw: oklch(0.922 0 0);
   --input-raw: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -60,6 +61,7 @@
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.396 0.141 25.723);
   --destructive-foreground: oklch(0.637 0.237 25.331);
+  --error-text-raw: oklch(0.78 0.14 25.331);
   --border-raw: oklch(0.269 0 0);
   --input-raw: oklch(0.269 0 0);
   --ring: oklch(0.556 0 0);
@@ -117,6 +119,11 @@
     color-mix(in srgb, var(--sidebar-border-raw) var(--appearance-contrast-base), transparent),
     var(--sidebar-foreground-raw) var(--appearance-contrast-border-boost)
   );
+  --error-text: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--error-text-raw) var(--appearance-contrast-base), var(--background)),
+    var(--appearance-contrast-target) var(--appearance-contrast-boost)
+  );
 }
 
 @theme inline {
@@ -136,6 +143,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-error: var(--error-text);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

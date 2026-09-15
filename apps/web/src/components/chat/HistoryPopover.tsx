@@ -113,7 +113,7 @@ export function HistoryPopover({
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-1">
         {refreshError ? (
-          <div className="px-2 py-1 text-[11px] text-destructive" role="status">
+          <div className="px-2 py-1 text-[11px] text-error" role="status">
             Couldn't refresh
           </div>
         ) : null}

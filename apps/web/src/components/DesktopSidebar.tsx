@@ -15,6 +15,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { WorkbenchSettings } from "@/components/WorkbenchSettings";
+import { ConnectionStatusDot } from "@/components/ConnectionStatusDot";
 import type { CatalogState } from "@/hooks/useCatalog";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { commandPaletteShortcutLabel } from "@/lib/command-palette";
@@ -37,7 +38,7 @@ export function DesktopSidebar({
       recentFiles: s.recentFiles,
     })),
   );
-  const { project, setDoc } = useProjectSession();
+  const { project, setDoc, connectionPhase, connectionOfferReload } = useProjectSession();
   const hasProject = Boolean(project.path);
   const { files, error, ready } = catalog;
   const [filter, setFilter] = useState("");
@@ -60,7 +61,7 @@ export function DesktopSidebar({
           <SidebarTrigger className="mt-0.5" />
         </div>
         {hasProject && folder.error ? (
-          <p className="px-2 text-xs text-destructive">{folder.error}</p>
+          <p className="px-2 text-xs text-error">{folder.error}</p>
         ) : null}
         {hasProject ? (
           <SidebarInput
@@ -91,7 +92,12 @@ export function DesktopSidebar({
         )}
       </SidebarContent>
       <SidebarFooter>
-        <WorkbenchSettings host={host} />
+        <div className="flex items-center gap-1">
+          <div className="min-w-0 flex-1">
+            <WorkbenchSettings host={host} />
+          </div>
+          <ConnectionStatusDot offerReload={connectionOfferReload} phase={connectionPhase} />
+        </div>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

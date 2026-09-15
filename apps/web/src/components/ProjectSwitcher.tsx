@@ -121,7 +121,7 @@ export function ProjectSwitcher({
             })}
           </ul>
         )}
-        {error ? <p className="px-2 py-1 text-xs text-destructive">{error}</p> : null}
+        {error ? <p className="px-2 py-1 text-xs text-error">{error}</p> : null}
         {canRegister && onOpenFolder ? (
           <PopoverClose
             className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
