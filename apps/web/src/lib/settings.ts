@@ -99,6 +99,7 @@ export type ShortcutSpec = {
 
 /** Shortcuts that have handlers on this branch. `Mod` becomes ⌘ or Ctrl. */
 export const SETTINGS_SHORTCUTS: readonly ShortcutSpec[] = [
+  { action: "Command palette", keys: ["Mod", "K"] },
   { action: "Show or hide files", keys: ["Mod", "B"] },
   { action: "Open folder", keys: ["Mod", "O"] },
   { action: "Send", keys: ["Enter"] },

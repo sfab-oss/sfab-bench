@@ -5,7 +5,15 @@ import { messageFromHttpBody } from "@/lib/load-copy";
 import type { CatalogEntry } from "@/lib/viewer-snapshot";
 import { useProjectSession } from "@/hooks/useProjectSession";
 
-export function useCatalog(enabled = true) {
+export type CatalogState = {
+  files: CatalogEntry[];
+  revision: number;
+  error: string | null;
+  ready: boolean;
+  reload: () => void;
+};
+
+export function useCatalog(enabled = true): CatalogState {
   const [files, setFiles] = useState<CatalogEntry[]>([]);
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState<string | null>(null);

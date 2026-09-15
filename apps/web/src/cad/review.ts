@@ -20,6 +20,19 @@ export type CadReview = {
   showAll: () => void;
 };
 
+/** Object the camera should frame — whole model, or the selected part when there is one. */
+export function frameFitObject<T>(
+  review: { root: T; parts: Array<{ object: T } | undefined> } | null | undefined,
+  selectedId: number | null,
+  scope: "model" | "selection",
+): T | null {
+  if (!review) return null;
+  if (scope === "selection" && selectedId !== null) {
+    return review.parts[selectedId]?.object ?? null;
+  }
+  return review.root;
+}
+
 export function cssColor(color: THREE.Color): string {
   return `#${color.getHexString()}`;
 }
