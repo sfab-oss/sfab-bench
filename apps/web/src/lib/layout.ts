@@ -27,8 +27,13 @@ export const OVERLAY_BOTTOM = 24;
 export const OVERLAY_BOTH_THRESHOLD = 620;
 export const DETAIL_COMPACT_THRESHOLD = 480;
 export const OVERLAY_MAX_HEIGHT_CAP = 32 * 16;
-export const TOOLBAR_WIDTH = 188;
+/** Five 36px tools + gap-0.5 + p-1 + border. */
+export const TOOLBAR_WIDTH = 196;
 export const TOOLBAR_TOP = 16;
+export const CHAT_TOGGLE_RESERVE = 44;
+/** "Enter Studio" pill + wrapper padding/border. */
+export const ENTER_XR_RESERVE = 140;
+export const OVERLAY_CLUSTER_GAP = 8;
 
 export type FitInsets = {
   left: number;
@@ -155,4 +160,12 @@ export function toolbarLayout(input: {
   }
   const maxLeft = Math.max(12, canvasWidth - TOOLBAR_WIDTH - 12);
   return { stacked: true, left: Math.max(12, Math.min(leftReserve, maxLeft)), top: TOOLBAR_TOP };
+}
+
+export function toolbarRightReserve(chatToggle: boolean, enterXr: boolean): number {
+  let n = 12;
+  if (enterXr) n += ENTER_XR_RESERVE;
+  if (chatToggle) n += CHAT_TOGGLE_RESERVE;
+  if (enterXr && chatToggle) n += OVERLAY_CLUSTER_GAP;
+  return n;
 }

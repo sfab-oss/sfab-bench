@@ -197,8 +197,11 @@ function MentionList<T extends BaseMentionItem>({
     );
   }
 
-  return (
-    <div className="flex max-h-48 min-w-56 max-w-72 flex-col overflow-y-auto overflow-x-hidden rounded-md bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10">
+    return (
+      <div
+        className="flex max-h-48 min-w-56 max-w-72 flex-col overflow-y-auto overflow-x-hidden rounded-md bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+        data-mention-list
+      >
       {items.length ? (
         items.map((item, index) => (
           <button
@@ -280,9 +283,9 @@ function createMentionSuggestion(
             editor: props.editor,
           });
           // The mount wrapper is the positioned element (appended to body,
-          // position:absolute, no z-index) — without this it stacks below
-          // elevated surfaces like the z-50 chat dock.
-          component.element.style.zIndex = "50";
+          // position:absolute). Stack above the compact chat overlay (z-50).
+          component.element.style.zIndex = "70";
+          component.element.dataset.mentionList = "";
           unmount = props.mount(component.element);
         },
         onUpdate: (props: SuggestionProps<BaseMentionItem>) => {
@@ -290,8 +293,11 @@ function createMentionSuggestion(
         },
         onKeyDown: (props: SuggestionKeyDownProps) => {
           if (props.event.key === "Escape") {
+            props.event.preventDefault();
+            props.event.stopPropagation();
             unmount?.();
             unmount = undefined;
+            suggestionOpenRef.current = false;
             return true;
           }
           return component?.ref?.onKeyDown(props) ?? false;

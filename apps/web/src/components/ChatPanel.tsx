@@ -43,18 +43,21 @@ export function ChatPanel({
   width,
   onClose,
   open = true,
-  embedded = false,
+  compact = false,
+  toggleRef,
 }: {
   width: number;
   onClose: () => void;
   open?: boolean;
-  embedded?: boolean;
+  compact?: boolean;
+  toggleRef?: RefObject<HTMLButtonElement | null>;
 }) {
   const treeOpen = useStore((s) => s.treeOpen);
   const setWidth = useStore((s) => s.setChatWidth);
   const [resizing, setResizing] = useState(false);
   const [live, setLive] = useState(false);
   const messagesRef = useRef<GalleryChatMessage[]>([]);
+  const compactOpenRef = useRef(false);
   const { threads, threadId, initialMessages, refreshThreads, newThread, openThread } = useViewerChat();
   useEffect(() => {
     void loadHarnesses();
@@ -66,6 +69,32 @@ export function ChatPanel({
     },
     [setWidth, treeOpen],
   );
+
+  useEffect(() => {
+    const wasCompactOpen = compactOpenRef.current;
+    const isCompactOpen = compact && open;
+    compactOpenRef.current = isCompactOpen;
+    if (isCompactOpen && !wasCompactOpen) {
+      const el = document.querySelector<HTMLElement>("[data-chat-composer] .ProseMirror");
+      el?.focus();
+      return;
+    }
+    if (wasCompactOpen && compact && !open) {
+      toggleRef?.current?.focus();
+    }
+  }, [compact, open, toggleRef]);
+
+  useEffect(() => {
+    if (!compact || !open) return;
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== "Escape") return;
+      if (document.querySelector("[data-mention-list]")) return;
+      ev.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [compact, open, onClose]);
 
   const onResizeDown = (ev: ReactMouseEvent) => {
     ev.preventDefault();
@@ -91,14 +120,24 @@ export function ChatPanel({
   const active = threads.find((t) => t.id === threadId);
 
   return (
-    <aside
-      className={cn(
-        "@container/chat relative flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden bg-background",
-        embedded ? "border-0" : "shrink-0 border-l border-border",
-        !embedded && !open && "hidden",
-      )}
-      style={embedded ? undefined : { width }}
-    >
+    <>
+      {compact && open ? (
+        <button
+          type="button"
+          aria-label="Close chat"
+          className="fixed inset-0 z-40 bg-black/30"
+          onClick={onClose}
+        />
+      ) : null}
+      <aside
+        aria-label="Assistant"
+        className={cn(
+          "@container/chat flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden border-l border-border bg-background",
+          compact ? "fixed inset-y-0 right-0 z-50 max-w-[90vw]" : "relative shrink-0",
+          !open && "hidden",
+        )}
+        style={{ width }}
+      >
       <div
         className={cn(
           "absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize bg-transparent hover:bg-border",
@@ -191,6 +230,7 @@ export function ChatPanel({
         ) : null}
       </RenderErrorBoundary>
     </aside>
+    </>
   );
 }
 

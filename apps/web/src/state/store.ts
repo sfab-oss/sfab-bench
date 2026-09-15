@@ -114,6 +114,9 @@ type State = {
   setChatOpen: (open: Setter) => void;
   setCompactChatOpen: (open: Setter) => void;
   setChatWidth: (width: number) => void;
+  /** True once the user has orbited; blocks the one-shot settled auto-fit. */
+  cameraMoved: boolean;
+  setCameraMoved: (moved: boolean) => void;
   setChatHarness: (harness: HarnessId) => void;
   setChatModel: (model: string) => void;
   setChatSelection: (harness: HarnessId, model: string) => void;
@@ -212,6 +215,7 @@ export const store = createStore<State>()(
   partsOpen: prefs.partsOpen ?? true,
   chatOpen: prefs.chatOpen ?? true,
   compactChatOpen: false,
+  cameraMoved: false,
   chatWidth: prefs.chatWidth != null ? clampChatWidth(prefs.chatWidth) : CHAT_DEFAULT_WIDTH,
   chatHarness: isHarnessId(prefs.chatHarness ?? "") ? prefs.chatHarness! : DEFAULT_HARNESS,
   chatModel:
@@ -243,6 +247,7 @@ export const store = createStore<State>()(
         hiddenIds: new Set(),
         tool: "select",
         measure: { a: null, b: null },
+        cameraMoved: false,
       });
       return;
     }
@@ -257,6 +262,7 @@ export const store = createStore<State>()(
       hiddenIds: new Set(),
       tool: "select",
       measure: { a: null, b: null },
+      cameraMoved: false,
     });
     try {
       const review = await loadCadReview(next, (loaded, total) => {
@@ -283,6 +289,9 @@ export const store = createStore<State>()(
   setPartsOpen: (open) => set((s) => ({ partsOpen: resolve(s.partsOpen, open) })),
   setChatOpen: (open) => set((s) => ({ chatOpen: resolve(s.chatOpen, open) })),
   setCompactChatOpen: (open) => set((s) => ({ compactChatOpen: resolve(s.compactChatOpen, open) })),
+  setCameraMoved: (moved) => {
+    if (get().cameraMoved !== moved) set({ cameraMoved: moved });
+  },
   setChatWidth: (width) => {
     const chatWidth = clampChatWidth(width);
     if (get().chatWidth !== chatWidth) set({ chatWidth });

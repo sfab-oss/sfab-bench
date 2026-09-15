@@ -10,6 +10,7 @@ import {
   OVERLAY_BOTH_THRESHOLD,
   PART_TREE_WIDTH,
   TOOLBAR_TOP,
+  TOOLBAR_WIDTH,
   chatLayoutWidth,
   chatMaxForWindow,
   clampChatDrag,
@@ -23,6 +24,7 @@ import {
   overlayMaxHeight,
   preferredChatWidth,
   toolbarLayout,
+  toolbarRightReserve,
 } from "./layout";
 
 function expect(cond: boolean, label: string) {
@@ -38,6 +40,7 @@ expect(COMPACT_CHAT_BREAKPOINT === 980, "T3 compact breakpoint");
 expect(OVERLAY_BOTH_THRESHOLD === 620, "PartTree + Detail + gaps");
 expect(PART_TREE_WIDTH === 280, "PartTree width");
 expect(DETAIL_WIDTH === 260, "Detail width");
+expect(TOOLBAR_WIDTH === 196, "toolbar pill width");
 
 expect(preferredChatWidth(100) === CHAT_MIN_WIDTH, "stored below min");
 expect(preferredChatWidth(900) === CHAT_MAX_WIDTH, "stored above max");
@@ -108,6 +111,11 @@ const squeezed = toolbarLayout({ canvasWidth: 210, leftReserve: 48, rightReserve
 expect(squeezed.stacked, "tiny canvas offsets the toolbar");
 expect(squeezed.top === TOOLBAR_TOP, "stays on the top row, not over PartTree");
 expect(squeezed.left >= 12, "offset toolbar stays on the canvas");
+
+expect(toolbarRightReserve(false, false) === 12, "padding only");
+expect(toolbarRightReserve(true, false) === 12 + 44, "chat toggle");
+expect(toolbarRightReserve(false, true) === 12 + 140, "Enter Studio");
+expect(toolbarRightReserve(true, true) === 12 + 140 + 44 + 8, "both plus gap");
 
 const needed = FILES_RAIL_WIDTH + CHAT_MIN_WIDTH + CANVAS_MIN_WIDTH;
 expect(needed === 1064, "rail + min chat + canvas");

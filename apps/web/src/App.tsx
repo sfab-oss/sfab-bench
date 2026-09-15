@@ -1,5 +1,6 @@
 import { Box, PanelRight, Scan } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { Vector3 } from "three";
 import { useShallow } from "zustand/react/shallow";
 
 import { LiveDot } from "@/components/brand/LiveDot";
@@ -21,7 +22,6 @@ import { PartTree } from "@/components/PartTree";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Toolbar } from "@/components/Toolbar";
 import { Button } from "@/components/ui/button";
-import { ChatSheet } from "@/components/ui/sheet";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { useCatalog } from "@/hooks/useCatalog";
@@ -39,6 +39,7 @@ import {
   overlayLayout,
   setLiveFitInsets,
   toolbarLayout,
+  toolbarRightReserve,
 } from "@/lib/layout";
 import { displayLoadError, isUnavailableFolder, loadCardCopy } from "@/lib/load-copy";
 import { redeemFragmentToken } from "@/lib/pairing";
@@ -166,9 +167,13 @@ function Overlay({
     ? detailPanelWidth(canvasWidth, overlays.detailCompact, partsChip)
     : 0;
   const showChatToggle = Boolean(project.path) && (compactChat ? !compactChatOpen : !chatOpen);
+  const { ar, vr, ready: xrReady } = useXrSupport();
+  const enterXr = xrReady && (ar || vr);
   const leftReserve = treeOpen ? 12 : 52;
-  const rightReserve = 12 + (showChatToggle ? 44 : 0);
+  const rightReserve = toolbarRightReserve(showChatToggle, Boolean(enterXr));
   const toolbar = toolbarLayout({ canvasWidth, leftReserve, rightReserve });
+  const cameraMoved = useStore((s) => s.cameraMoved);
+  const settledFitUrl = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     if (session) {
@@ -183,7 +188,27 @@ function Overlay({
         detailWidth,
       }),
     );
-  }, [session, partsExpanded, partsChip, detailVisible, detailWidth]);
+    if (!review) {
+      settledFitUrl.current = null;
+      return;
+    }
+    if (cameraMoved || canvasWidth < 2 || canvasHeight < 2 || !fit) return;
+    if (settledFitUrl.current === url) return;
+    fit(review.root, new Vector3(0.6, 0.5, 0.7));
+    settledFitUrl.current = url;
+  }, [
+    session,
+    partsExpanded,
+    partsChip,
+    detailVisible,
+    detailWidth,
+    review,
+    cameraMoved,
+    canvasWidth,
+    canvasHeight,
+    fit,
+    url,
+  ]);
 
   if (switching) {
     return (
@@ -245,7 +270,11 @@ function Overlay({
           <DetailPanel canvasHeight={canvasHeight} compact={overlays.detailCompact} width={detailWidth} />
           <div className="pointer-events-none absolute top-4 right-3 z-10 flex items-start gap-2">
             <EnterXr />
-            {showChatToggle ? <ChatToggle buttonRef={chatToggleRef} compact={compactChat} /> : null}
+            {project.path ? (
+              <div className={showChatToggle ? undefined : "pointer-events-none sr-only"}>
+                <ChatToggle buttonRef={chatToggleRef} compact={compactChat} />
+              </div>
+            ) : null}
           </div>
         </>
       )}
@@ -436,18 +465,13 @@ function ViewerShell({ host }: { host: boolean }) {
             </aside>
           )}
         >
-          {compactChat ? (
-            <ChatSheet
-              open={compactChatOpen}
-              toggleRef={chatToggleRef}
-              width={layoutWidth}
-              onClose={() => setCompactChatOpen(false)}
-            >
-              <ChatPanel embedded width={layoutWidth} onClose={() => setCompactChatOpen(false)} />
-            </ChatSheet>
-          ) : (
-            <ChatPanel open={chatOpen} width={layoutWidth} onClose={() => setChatOpen(false)} />
-          )}
+          <ChatPanel
+            compact={compactChat}
+            open={compactChat ? compactChatOpen : chatOpen}
+            toggleRef={chatToggleRef}
+            width={layoutWidth}
+            onClose={() => (compactChat ? setCompactChatOpen(false) : setChatOpen(false))}
+          />
         </RenderErrorBoundary>
       ) : null}
       <BrowseFolderDialog open={folder.dialogOpen} onOpenChange={folder.setDialogOpen} />

@@ -145,7 +145,7 @@ export function ViewerCanvas() {
           <ToolDrawer />
         </Suspense>
         <IfInSessionMode deny={["immersive-ar", "immersive-vr"]}>
-          <OrbitControls makeDefault enableDamping />
+          <OrbitControls makeDefault enableDamping onStart={() => store.getState().setCameraMoved(true)} />
           <CornerAxes />
         </IfInSessionMode>
       </XR>
