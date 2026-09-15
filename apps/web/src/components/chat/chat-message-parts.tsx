@@ -14,6 +14,7 @@ import {
   parseAskUserQuestionsInput,
 } from "@/chat/ask-user-questions";
 import { resolveCadRef, cadRefFromHref, linkifyCadRefsInMarkdown } from "@/chat/cad-refs";
+import { isWorkspaceBusyError, mapChatErrorMessage } from "@/chat/composer-recovery";
 import { turnErrorText } from "@/chat/persist-thread";
 import { AskUserAnsweredCard } from "@/components/chat/AskUserQuestionsPanel";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -227,6 +228,8 @@ function GalleryMessagePart({
   isLastPart,
   isStreaming,
   role,
+  onRetry,
+  onStop,
 }: {
   part: UIMessagePart<AIDataPart, UITools>;
   messageId: string;
@@ -234,6 +237,8 @@ function GalleryMessagePart({
   isLastPart: boolean;
   isStreaming: boolean;
   role: GalleryChatMessage["role"];
+  onRetry?: () => void;
+  onStop?: () => void;
 }) {
   if (part.type === "text") {
     if (role === "user") {
@@ -257,8 +262,21 @@ function GalleryMessagePart({
 
   const errorText = turnErrorText(part);
   if (errorText) {
+    const mapped = mapChatErrorMessage(errorText) ?? errorText;
+    const busy = isWorkspaceBusyError(errorText);
     return (
-      <p className="my-2 whitespace-pre-wrap break-words text-sm text-destructive">{errorText}</p>
+      <div className="my-2 flex items-start gap-2">
+        <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-destructive">{mapped}</p>
+        {busy && onStop ? (
+          <Button type="button" size="sm" variant="ghost" className="h-6 shrink-0 px-2" onClick={onStop}>
+            Stop
+          </Button>
+        ) : onRetry ? (
+          <Button type="button" size="sm" variant="ghost" className="h-6 shrink-0 px-2" onClick={onRetry}>
+            Retry
+          </Button>
+        ) : null}
+      </div>
     );
   }
 
@@ -322,9 +340,13 @@ function workedDurationSeconds(
 export function ChatMessageRow({
   message,
   isStreaming = false,
+  onRetry,
+  onStop,
 }: {
   message: GalleryChatMessage;
   isStreaming?: boolean;
+  onRetry?: () => void;
+  onStop?: () => void;
 }) {
   const textForCopy = message.parts
     .filter(isTextUIPart)
@@ -343,6 +365,8 @@ export function ChatMessageRow({
       isStreaming={isStreaming}
       key={`${message.id}-part-${partIndex}`}
       messageId={message.id}
+      onRetry={onRetry}
+      onStop={onStop}
       part={part}
       partIndex={partIndex}
       role={message.role}
