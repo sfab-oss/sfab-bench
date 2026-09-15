@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 
 import { apiFetch } from "@/lib/api";
+import { messageFromHttpBody } from "@/lib/load-copy";
 import { buildBoundsTrees } from "@/cad/bvh";
 import { loadStepPackage } from "@/cad/loadStepPackage";
 import { cssColor, makeReview, type CadPart, type CadReview } from "@/cad/review";
@@ -56,12 +57,14 @@ export async function loadCadReview(
   const repo = repoCadPath(url);
   if (repo) return loadStepPackage(cadPkgBase(repo), onProgress);
   const glbRel = url.replace(/^\/+/, "");
+  if (!/\.(glb|gltf)$/i.test(glbRel)) {
+    throw new Error("Not a STEP or GLB file");
+  }
   const objectUrl = await (async () => {
-    if (!/\.(glb|gltf)$/i.test(glbRel)) return url;
     const res = await apiFetch(projectFileUrl(glbRel), { cache: "no-store" });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(text || res.statusText);
+      throw new Error(messageFromHttpBody(text, res.statusText || "Could not load this file"));
     }
     const blob = await res.blob();
     return URL.createObjectURL(blob);

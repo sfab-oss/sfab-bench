@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { jsonApi } from "@/lib/api";
+import { messageFromHttpBody } from "@/lib/load-copy";
 import type { CatalogEntry } from "@/lib/viewer-snapshot";
 import { useProjectSession } from "@/hooks/useProjectSession";
 
@@ -22,7 +23,10 @@ export function useCatalog(enabled = true) {
     void jsonApi.catalog
       .$get()
       .then(async (res) => {
-        if (!res.ok) throw new Error((await res.text()) || res.statusText);
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(messageFromHttpBody(text, res.statusText || "Could not load files"));
+        }
         return res.json() as Promise<{ files?: CatalogEntry[]; revision?: number }>;
       })
       .then((body) => {
