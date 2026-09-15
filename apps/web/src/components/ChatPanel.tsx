@@ -519,7 +519,6 @@ function ChatSession({
                       isStreaming={streamingMessageId === message.id}
                       message={message as GalleryChatMessage}
                       onRetry={tailErrorId === message.id ? retryFailedTurn : undefined}
-                      onStop={tailErrorId === message.id ? abortWorkspaceTurn : undefined}
                     />
                   </MessageScrollerItem>
                 ))

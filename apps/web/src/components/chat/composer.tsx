@@ -187,8 +187,10 @@ function ChatInputInner({
     return () => window.removeEventListener("keydown", onKey);
   }, [voice.active, voice.cancel]);
 
+  const draftTouchedRef = useRef(false);
   useEffect(() => {
     const id = threadId;
+    draftTouchedRef.current = false;
     return () => {
       if (!inputRef.current?.isReady()) return;
       captureSessionDraft(id, inputRef.current.getText());
@@ -220,7 +222,9 @@ function ChatInputInner({
         mentionLabelsFor={(text) => mentionLabelsForPrompt(text, catalogParts, fileStem)}
         mentions={mentions}
         onDraftChange={(text) => {
-          if (text) captureSessionDraft(threadId, text);
+          // Ignore the editor's empty mount update, but store a clear the user made.
+          if (text) draftTouchedRef.current = true;
+          if (text || draftTouchedRef.current) captureSessionDraft(threadId, text);
         }}
         onPromptHistory={(direction) => {
           const current = inputRef.current?.getText() ?? "";

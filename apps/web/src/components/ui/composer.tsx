@@ -694,7 +694,6 @@ export function ComposerEditor({
     suggestionOpenRef,
     onPromptHistoryRef,
     mentionLabelsForRef,
-    onDraftChangeRef,
   } = useComposerContext();
 
   const initialMentionsRef = useRef(mentions);
