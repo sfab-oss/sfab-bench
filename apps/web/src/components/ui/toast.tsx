@@ -106,24 +106,13 @@ const TOAST_ICONS = {
   info: Info,
 } as const;
 
-export function Toasts({
-  offsetRight = 16,
-  pinLeft = false,
-}: {
-  offsetRight?: number;
-  pinLeft?: boolean;
-}) {
+export function Toasts() {
   const { toasts } = Toast.useToastManager<ToastData>();
   return (
     <Toast.Portal>
       <Toast.Viewport
         data-slot="toast-viewport"
-        className={cn(
-          "pointer-events-none fixed z-40 flex w-[min(20rem,calc(100%-2rem))] flex-col-reverse gap-2 outline-none",
-          "bottom-4",
-          pinLeft ? "left-4" : "right-4",
-        )}
-        style={pinLeft ? undefined : { right: offsetRight }}
+        className="pointer-events-none fixed bottom-4 left-4 z-[60] flex w-[min(20rem,calc(100%-2rem))] flex-col-reverse gap-2 outline-none"
       >
         {toasts.map((toast) => {
           const kind = (toast.type === "error" || toast.type === "success" ? toast.type : "info") as ToastKind;

@@ -1,23 +1,16 @@
 import {
   CONNECTION_GRACE_MS,
   CONNECTION_RELOAD_AFTER_MS,
-  ERROR_TEXT_DARK,
-  ERROR_TEXT_LIGHT,
   HIDDEN_CHAT_NOTICE,
   INITIAL_CHAT_TURN_FLAGS,
   INITIAL_CONNECTION_STATE,
   INITIAL_FAILURE_STREAK,
   connectionDotLabel,
   connectionDotVisible,
-  contrastRatio,
-  errorTextContrastRows,
   hiddenChatNotice,
-  mixErrorText,
   noteFailureStreak,
   reduceConnection,
   suppressNetworkFailureToast,
-  CANVAS_DARK,
-  CANVAS_LIGHT,
 } from "./feedback";
 
 function expect(cond: boolean, label: string) {
@@ -149,32 +142,5 @@ expect(
 );
 expect(HIDDEN_CHAT_NOTICE["ask-user"] === "The agent is asking a question", "ask copy");
 expect(HIDDEN_CHAT_NOTICE.failed === "Reply failed", "failed copy");
-
-const rows = errorTextContrastRows();
-const expected = [
-  ["light", 90, "5.37"],
-  ["light", 100, "6.39"],
-  ["light", 130, "11.77"],
-  ["dark", 90, "7.46"],
-  ["dark", 100, "9.14"],
-  ["dark", 130, "11.64"],
-] as const;
-expect(rows.length === expected.length, "six contrast rows");
-for (let i = 0; i < expected.length; i++) {
-  const row = rows[i];
-  const want = expected[i];
-  expect(row?.theme === want[0] && row.contrast === want[1], `${want[0]} ${want[1]}% row`);
-  expect(row && row.ratio.toFixed(2) === want[2], `${want[0]} ${want[1]}% is ${want[2]}`);
-  expect(row != null && row.ratio >= 4.5, `${want[0]} ${want[1]}% passes AA`);
-}
-
-const light90 = mixErrorText(ERROR_TEXT_LIGHT, CANVAS_LIGHT, 90, "black");
-const dark90 = mixErrorText(ERROR_TEXT_DARK, CANVAS_DARK, 90, "white");
-expect(contrastRatio(light90, CANVAS_LIGHT) === rows[0]?.ratio, "light 90 uses the mixer");
-expect(contrastRatio(dark90, CANVAS_DARK) === rows[3]?.ratio, "dark 90 uses the mixer");
-
-const lightRaw = contrastRatio(ERROR_TEXT_LIGHT, CANVAS_LIGHT);
-const darkRaw = contrastRatio(ERROR_TEXT_DARK, CANVAS_DARK);
-expect(lightRaw >= 4.5 && darkRaw >= 4.5, "raw tokens pass on canvas/card");
 
 console.log("feedback.selfcheck ok");

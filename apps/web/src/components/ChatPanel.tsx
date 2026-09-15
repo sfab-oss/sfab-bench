@@ -49,7 +49,6 @@ import { jsonApi } from "@/lib/api";
 import { HIDDEN_CHAT_NOTICE, hiddenChatNotice } from "@/lib/feedback";
 import { CHAT_DEFAULT_WIDTH, CHAT_MAX_WIDTH, CHAT_MIN_WIDTH, chatWidthAfterKey, clampChatDrag } from "@/lib/layout";
 import { escBelongsTo, probeEscLayers } from "@/lib/shortcuts";
-import { NEW_CHAT_EVENT, registerPaletteOwner } from "@/lib/command-palette";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
 
@@ -276,15 +275,6 @@ export function ChatPanel({
       }
     })();
   };
-
-  const startNewChatRef = useRef(startNewChat);
-  startNewChatRef.current = startNewChat;
-  useEffect(() => {
-    const onNewChat = () => startNewChatRef.current();
-    window.addEventListener(NEW_CHAT_EVENT, onNewChat);
-    return () => window.removeEventListener(NEW_CHAT_EVENT, onNewChat);
-  }, []);
-  useEffect(() => registerPaletteOwner("new-chat"), []);
 
   return (
     <>

@@ -34,7 +34,8 @@ import { ProjectSessionProvider, useProjectSession } from "@/hooks/useProjectSes
 import { fileLabel } from "@/cad/loadCadReview";
 import { fitDirectionFor, frameFitObject, homeFitDirection } from "@/cad/review";
 import { fetchMe, jsonApi, type MePrincipal } from "@/lib/api";
-import { filesRailToggleTitle, isMacPlatform } from "@/lib/files-rail";
+import { filesRailToggleTitle } from "@/lib/files-rail";
+import { isMacPlatform } from "@/lib/shortcuts";
 import {
   chatLayoutWidth,
   detailPanelWidth,
@@ -515,9 +516,6 @@ function ViewerShell({ host }: { host: boolean }) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const chatToggleRef = useRef<HTMLButtonElement>(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
-  const chatVisible = hasProject && (compactChat ? compactChatOpen : chatOpen);
-  const toastOffsetRight = session || compactChat || !chatVisible ? 16 : layoutWidth + 16;
-  const toastPinLeft = Boolean(!session && compactChat && compactChatOpen);
 
   useEffect(() => {
     if (!compactChat) setCompactChatOpen(false);
@@ -602,7 +600,7 @@ function ViewerShell({ host }: { host: boolean }) {
           <BrowseFolderDialog open={folder.dialogOpen} onOpenChange={folder.setDialogOpen} />
           <CloseFolderDialog />
           <CommandPalette catalogFiles={catalog.files} compactChat={compactChat} folder={folder} />
-          <Toasts offsetRight={toastOffsetRight} pinLeft={toastPinLeft} />
+          <Toasts />
         </>
       ) : null}
     </SidebarProvider>

@@ -1,5 +1,5 @@
 import { Kbd } from "@/components/ui/kbd";
-import { isMacPlatform } from "@/lib/files-rail";
+import { isMacPlatform } from "@/lib/shortcuts";
 import { SHORTCUTS, formatShortcutChips } from "@/lib/shortcuts";
 
 export function ShortcutsSection() {

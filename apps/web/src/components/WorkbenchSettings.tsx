@@ -10,7 +10,7 @@ import { QuestJoinPanel } from "@/components/QuestJoinPanel";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
-import { OPEN_QUEST_EVENT, OPEN_SETTINGS_EVENT, registerPaletteOwner } from "@/lib/command-palette";
+import { OPEN_SETTINGS_EVENT } from "@/lib/command-palette";
 import { cn } from "@/lib/utils";
 
 type SettingsSectionId = "appearance" | "voice" | "providers" | "shortcuts" | "about";
@@ -36,29 +36,9 @@ export function WorkbenchSettings({ host }: { host: boolean }) {
       setSection("appearance");
       setSettingsOpen(true);
     };
-    const onQuest = () => {
-      if (settingsOpen) {
-        setPendingQuest(true);
-        setSettingsOpen(false);
-        return;
-      }
-      setQuestOpen(true);
-    };
     window.addEventListener(OPEN_SETTINGS_EVENT, onSettings);
-    window.addEventListener(OPEN_QUEST_EVENT, onQuest);
-    return () => {
-      window.removeEventListener(OPEN_SETTINGS_EVENT, onSettings);
-      window.removeEventListener(OPEN_QUEST_EVENT, onQuest);
-    };
-  }, [settingsOpen]);
-
-  useEffect(() => {
-    const drop = [registerPaletteOwner("settings")];
-    if (host) drop.push(registerPaletteOwner("quest"));
-    return () => {
-      for (const stop of drop) stop();
-    };
-  }, [host]);
+    return () => window.removeEventListener(OPEN_SETTINGS_EVENT, onSettings);
+  }, []);
 
   const sections: { id: SettingsSectionId; label: string; hostOnly?: boolean }[] = [
     { id: "appearance", label: "Appearance" },
