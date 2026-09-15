@@ -28,11 +28,9 @@ import {
   fitInsets,
   fitPanNdc,
   isCompactChat,
-  loadFitKey,
   overlayLayout,
   overlayMaxHeight,
   preferredChatWidth,
-  shouldRepeatLoadFit,
   toolbarLayout,
   toolbarRightReserve,
 } from "./layout";
@@ -209,62 +207,6 @@ expect(toolbarRightReserve(true, true) === 12 + 140 + 44 + 8, "both plus gap");
 expect(CHAT_LIVE_CHIP_RESERVE === 220, "hidden-chat live chip width");
 expect(toolbarRightReserve(true, false, true) === 12 + 220, "live chip");
 expect(toolbarRightReserve(true, true, true) === 12 + 140 + 220 + 8, "live chip plus Enter Studio");
-
-const loadTree = loadFitKey({
-  partsExpanded: true,
-  partsChip: false,
-  partsHeight: 270,
-  canvasWidth: 754,
-  canvasHeight: 900,
-});
-const loadChip = loadFitKey({
-  partsExpanded: false,
-  partsChip: true,
-  partsHeight: 40,
-  canvasWidth: 754,
-  canvasHeight: 900,
-});
-const loadTaller = loadFitKey({
-  partsExpanded: true,
-  partsChip: false,
-  partsHeight: 320,
-  canvasWidth: 754,
-  canvasHeight: 900,
-});
-const loadCanvas = loadFitKey({
-  partsExpanded: true,
-  partsChip: false,
-  partsHeight: 270,
-  canvasWidth: 754,
-  canvasHeight: 700,
-});
-expect(shouldRepeatLoadFit(null, loadTree) === "skip", "first load fit is not a repeat");
-expect(shouldRepeatLoadFit(loadTree, loadTree) === "skip", "same overlay does not re-fit");
-expect(shouldRepeatLoadFit(loadTree, loadTaller) === "fit", "taller part tree re-fits");
-expect(shouldRepeatLoadFit(loadChip, loadTree) === "fit", "chip to expanded re-fits");
-expect(shouldRepeatLoadFit(loadTree, loadCanvas) === "fit", "canvas size re-fits");
-expect(
-  loadFitKey({
-    partsExpanded: true,
-    partsChip: false,
-    partsHeight: 270,
-    canvasWidth: 754,
-    canvasHeight: 900,
-  }) === loadTree,
-  "selection / detail are not in the load-fit key",
-);
-expect(
-  shouldRepeatLoadFit(loadTree, loadTaller, { selectionActive: true }) === "sync",
-  "select that grows the tree syncs the key without fitting",
-);
-expect(
-  shouldRepeatLoadFit(loadTaller, loadTaller, { selectionActive: false }) === "skip",
-  "clearing selection does not re-fit",
-);
-expect(
-  shouldRepeatLoadFit(loadTaller, loadCanvas, { selectionActive: false }) === "fit",
-  "tree/canvas change with nothing selected re-fits",
-);
 
 const needed = FILES_RAIL_WIDTH + CHAT_MIN_WIDTH + CANVAS_MIN_WIDTH;
 expect(needed === 1064, "rail + min chat + canvas");

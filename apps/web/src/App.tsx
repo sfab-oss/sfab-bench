@@ -42,10 +42,8 @@ import {
   fitCardsReady,
   fitInsets,
   isCompactChat,
-  loadFitKey,
   overlayLayout,
   setLiveFitInsets,
-  shouldRepeatLoadFit,
   toolbarLayout,
   toolbarRightReserve,
 } from "@/lib/layout";
@@ -244,7 +242,6 @@ function Overlay({
   const toolbar = toolbarLayout({ canvasWidth, leftReserve, rightReserve });
   const cameraMoved = useStore((s) => s.cameraMoved);
   const settledFitUrl = useRef<string | null>(null);
-  const settledLoadFitKey = useRef<string | null>(null);
   const [partsHeight, setPartsCard] = useOverlayCardHeight();
   const [detailHeight, setDetailCard] = useOverlayCardHeight();
 
@@ -267,28 +264,10 @@ function Overlay({
     );
     if (!review) {
       settledFitUrl.current = null;
-      settledLoadFitKey.current = null;
       return;
     }
     if (cameraMoved || canvasWidth < 2 || canvasHeight < 2 || !fit) return;
-    const nextKey = loadFitKey({
-      partsExpanded,
-      partsChip,
-      partsHeight,
-      canvasWidth,
-      canvasHeight,
-    });
-    const first = settledFitUrl.current !== url;
-    if (!first) {
-      const action = shouldRepeatLoadFit(settledLoadFitKey.current, nextKey, {
-        selectionActive: detailVisible,
-      });
-      if (action === "skip") return;
-      if (action === "sync") {
-        settledLoadFitKey.current = nextKey;
-        return;
-      }
-    }
+    if (settledFitUrl.current === url) return;
     if (
       !fitCardsReady({
         partsExpanded,
@@ -302,7 +281,6 @@ function Overlay({
     }
     fit(review.root, homeFitDirection());
     settledFitUrl.current = url;
-    settledLoadFitKey.current = nextKey;
     invalidateSceneNow();
   }, [
     session,
