@@ -17,6 +17,8 @@ import {
 import { WorkbenchSettings } from "@/components/WorkbenchSettings";
 import { useCatalog } from "@/hooks/useCatalog";
 import { useProjectSession } from "@/hooks/useProjectSession";
+import { commandPaletteShortcutLabel } from "@/lib/command-palette";
+import { isMacPlatform } from "@/lib/files-rail";
 import { useStore } from "@/state/store";
 
 export function DesktopSidebar({ host, folder }: { host: boolean; folder: OpenFolderApi }) {
@@ -30,6 +32,10 @@ export function DesktopSidebar({ host, folder }: { host: boolean; folder: OpenFo
   const hasProject = Boolean(project.path);
   const { files, error, ready } = useCatalog(hasProject);
   const [filter, setFilter] = useState("");
+  const mac = isMacPlatform(
+    typeof navigator === "undefined" ? "" : navigator.platform,
+    typeof navigator === "undefined" ? "" : navigator.userAgent,
+  );
 
   return (
     <Sidebar collapsible="offcanvas">
@@ -49,7 +55,7 @@ export function DesktopSidebar({ host, folder }: { host: boolean; folder: OpenFo
         ) : null}
         {hasProject ? (
           <SidebarInput
-            placeholder="Search files…"
+            placeholder={`Search files… ${commandPaletteShortcutLabel(mac)}`}
             value={filter}
             onChange={(ev) => setFilter(ev.target.value)}
           />

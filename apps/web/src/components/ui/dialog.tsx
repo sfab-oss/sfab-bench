@@ -20,8 +20,9 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  viewportClassName,
   ...props
-}: DialogPrimitive.Popup.Props & { showCloseButton?: boolean }) {
+}: DialogPrimitive.Popup.Props & { showCloseButton?: boolean; viewportClassName?: string }) {
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Backdrop
@@ -29,7 +30,12 @@ function DialogContent({
         forceRender
         className="fixed inset-0 z-50 min-h-dvh bg-black/50 transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0"
       />
-      <DialogPrimitive.Viewport className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
+      <DialogPrimitive.Viewport
+        className={cn(
+          "pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4",
+          viewportClassName,
+        )}
+      >
         <DialogPrimitive.Popup
           data-slot="dialog-content"
           className={cn(

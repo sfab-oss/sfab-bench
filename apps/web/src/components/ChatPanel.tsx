@@ -46,6 +46,7 @@ import { loadHarnesses } from "@/hooks/useHarnesses";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { jsonApi } from "@/lib/api";
 import { CHAT_DEFAULT_WIDTH, clampChatDrag } from "@/lib/layout";
+import { NEW_CHAT_EVENT } from "@/lib/command-palette";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
 
@@ -224,6 +225,14 @@ export function ChatPanel({
       }
     })();
   };
+
+  const startNewChatRef = useRef(startNewChat);
+  startNewChatRef.current = startNewChat;
+  useEffect(() => {
+    const onNewChat = () => startNewChatRef.current();
+    window.addEventListener(NEW_CHAT_EVENT, onNewChat);
+    return () => window.removeEventListener(NEW_CHAT_EVENT, onNewChat);
+  }, []);
 
   return (
     <>

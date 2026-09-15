@@ -80,6 +80,7 @@ expect(formatShortcutToken("Mod", false) === "Ctrl", "other mod");
 expect(formatShortcutChips(["Mod", "B"], true).join(" ") === "⌘ B", "mac files chord");
 expect(formatShortcutChips(["Mod", "O"], false).join(" ") === "Ctrl O", "other open chord");
 expect(formatShortcutChips(["Shift", "Enter"], true).join("+") === "Shift+Enter", "newline chips");
+expect(SETTINGS_SHORTCUTS.some((row) => row.action === "Command palette" && row.keys.includes("K")), "palette shortcut");
 expect(SETTINGS_SHORTCUTS.some((row) => row.keys.includes("Mod") && row.keys.includes("B")), "files shortcut");
 expect(SETTINGS_SHORTCUTS.some((row) => row.keys.includes("#")), "mention shortcut");
 expect(SETTINGS_SHORTCUTS.some((row) => row.keys.includes("1–9")), "ask-user digits");

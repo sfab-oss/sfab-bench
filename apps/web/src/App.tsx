@@ -6,6 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 import { LiveDot } from "@/components/brand/LiveDot";
 import { Lockup } from "@/components/brand/Lockup";
 import { ChatPanel } from "@/components/ChatPanel";
+import { CommandPalette } from "@/components/CommandPalette";
 import { ViewerChatProvider, useViewerChat } from "@/components/chat/useViewerChat";
 import { CrashCard } from "@/components/CrashCard";
 import {
@@ -511,6 +512,7 @@ function ViewerShell({ host }: { host: boolean }) {
         </RenderErrorBoundary>
       ) : null}
       <BrowseFolderDialog open={folder.dialogOpen} onOpenChange={folder.setDialogOpen} />
+      <CommandPalette host={host} folder={folder} compactChat={compactChat} />
     </SidebarProvider>
   );
 }
