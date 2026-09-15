@@ -1,7 +1,7 @@
 import { Billboard, Line } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { Container, Text } from "@react-three/uikit";
-import { useLayoutEffect, useRef } from "react";
+import { useRef } from "react";
 import type { Object3D } from "three";
 import * as THREE from "three";
 
@@ -29,16 +29,10 @@ export function MeasureGizmo() {
   const delta = measureDelta(measure.a, measure.b);
   const mid: [number, number, number] | null =
     a && b ? [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2] : null;
-  const pin = () => {
+  useFrame(() => {
     if (aRef.current) pinWorldSize(aRef.current);
     if (bRef.current) pinWorldSize(bRef.current);
     if (labelRef.current) pinWorldSize(labelRef.current);
-  };
-  useLayoutEffect(() => {
-    pin();
-  });
-  useFrame(() => {
-    pin();
   });
   return (
     <group>

@@ -1,6 +1,10 @@
 import {
   catalogEmptyReason,
+  clampContextMenuPosition,
   defaultExpandedDirPaths,
+  FILE_CONTEXT_MENU_HEIGHT,
+  FILE_CONTEXT_MENU_MARGIN,
+  FILE_CONTEXT_MENU_WIDTH,
   filesRailShortcutLabel,
   filesRailToggleTitle,
   isEditableTarget,
@@ -158,5 +162,14 @@ const roundTrip = readFileTreeExpansion(
 expect(roundTrip.length === 1 && roundTrip[0]?.expanded[0] === "cad", "storage round-trip");
 expect(readFileTreeExpansion("not-json").length === 0, "bad json is empty");
 expect(readFileTreeExpansion(null).length === 0, "missing storage is empty");
+
+const viewport = { width: 1280, height: 720 };
+const inside = clampContextMenuPosition(400, 200, viewport);
+expect(inside.left === 400 && inside.top === 200, "inside click stays");
+const clipped = clampContextMenuPosition(2000, 2000, viewport);
+expect(clipped.left === viewport.width - FILE_CONTEXT_MENU_WIDTH - FILE_CONTEXT_MENU_MARGIN, "right edge clamp");
+expect(clipped.top === viewport.height - FILE_CONTEXT_MENU_HEIGHT - FILE_CONTEXT_MENU_MARGIN, "bottom edge clamp");
+const origin = clampContextMenuPosition(-20, -20, viewport);
+expect(origin.left === FILE_CONTEXT_MENU_MARGIN && origin.top === FILE_CONTEXT_MENU_MARGIN, "margin clamp");
 
 console.log("files-rail.selfcheck ok");

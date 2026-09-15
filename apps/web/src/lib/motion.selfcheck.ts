@@ -1,11 +1,9 @@
 import {
   CLOSE_FOLDER_BODY,
   MOTION_READY_VALUE,
-  cameraTweenMs,
   closeFolderNeedsConfirm,
   closeFolderTitle,
   firstPaintSuppressed,
-  motionAllowed,
   motionRootIsReady,
   orbitDampingEnabled,
   prefersReducedMotion,
@@ -23,15 +21,6 @@ expect(prefersReducedMotion(false) === false, "no-preference");
 expect(firstPaintSuppressed(null, "workbench"), "unpainted is held");
 expect(firstPaintSuppressed("boot", "workbench"), "new key is held");
 expect(firstPaintSuppressed("workbench", "workbench") === false, "same key is released");
-
-expect(motionAllowed(false, false), "normal motion");
-expect(motionAllowed(true, false) === false, "reduce blocks");
-expect(motionAllowed(false, true) === false, "first paint blocks");
-expect(motionAllowed(true, true) === false, "both block");
-
-expect(cameraTweenMs(false, 240) === 240, "tween kept");
-expect(cameraTweenMs(true, 240) === 0, "reduce snaps");
-expect(cameraTweenMs(false, 0) === 0, "zero stays zero");
 
 expect(orbitDampingEnabled(false), "damping on");
 expect(orbitDampingEnabled(true) === false, "reduce disables damping");

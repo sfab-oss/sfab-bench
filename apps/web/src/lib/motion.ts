@@ -18,17 +18,6 @@ export function firstPaintSuppressed(paintedKey: string | null, navigationKey: s
   return paintedKey !== navigationKey;
 }
 
-/** Motion for panels/sheets only when reduced-motion is off and first paint has released. */
-export function motionAllowed(prefersReduce: boolean, firstPaintHeld: boolean): boolean {
-  return !prefersReduce && !firstPaintHeld;
-}
-
-/** Fit/home camera moves skip the tween when reduced motion is on. */
-export function cameraTweenMs(prefersReduce: boolean, durationMs: number): number {
-  if (prefersReduce || durationMs <= 0) return 0;
-  return durationMs;
-}
-
 export function orbitDampingEnabled(prefersReduce: boolean): boolean {
   return !prefersReduce;
 }

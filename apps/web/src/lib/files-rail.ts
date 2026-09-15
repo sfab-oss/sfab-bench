@@ -28,6 +28,30 @@ export function filesRailToggleTitle(mac: boolean, action: "toggle" | "show" = "
   return action === "show" ? shortcutTooltip("Show files", "toggle-files", mac) : shortcutTooltip("Toggle files", "toggle-files", mac);
 }
 
+/** Matches `w-48` plus one menu row (`p-1` + `py-1.5`). */
+export const FILE_CONTEXT_MENU_WIDTH = 192;
+export const FILE_CONTEXT_MENU_HEIGHT = 44;
+export const FILE_CONTEXT_MENU_MARGIN = 8;
+
+/** Keep a fixed context menu inside the viewport. */
+export function clampContextMenuPosition(
+  x: number,
+  y: number,
+  viewport: { width: number; height: number },
+  size: { width: number; height: number } = {
+    width: FILE_CONTEXT_MENU_WIDTH,
+    height: FILE_CONTEXT_MENU_HEIGHT,
+  },
+  margin = FILE_CONTEXT_MENU_MARGIN,
+): { left: number; top: number } {
+  const maxLeft = Math.max(margin, viewport.width - size.width - margin);
+  const maxTop = Math.max(margin, viewport.height - size.height - margin);
+  return {
+    left: Math.min(Math.max(x, margin), maxLeft),
+    top: Math.min(Math.max(y, margin), maxTop),
+  };
+}
+
 export function catalogEmptyReason(input: {
   fileCount: number;
   listedCount: number;

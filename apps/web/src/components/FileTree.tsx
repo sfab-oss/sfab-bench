@@ -28,6 +28,7 @@ import { showToast } from "@/components/ui/toast";
 import { displayLoadError } from "@/lib/load-copy";
 import {
   catalogEmptyReason,
+  clampContextMenuPosition,
   defaultExpandedDirPaths,
   findFileTreeProject,
   loadFileTreeProjects,
@@ -89,7 +90,7 @@ function FileRow({
   onPick: (path: string) => void;
   nested: boolean;
 }) {
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{ left: number; top: number } | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
   const active = node.path === current;
   const name = node.name || fileName(node.path);
@@ -106,7 +107,12 @@ function FileRow({
     onContextMenu: (event: MouseEvent) => {
       event.preventDefault();
       setActionsOpen(false);
-      setMenu({ x: event.clientX, y: event.clientY });
+      setMenu(
+        clampContextMenuPosition(event.clientX, event.clientY, {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        }),
+      );
     },
     className: "pr-8 text-sidebar-foreground [&>svg]:text-sidebar-foreground",
   };
@@ -148,7 +154,7 @@ function FileRow({
           <div
             role="menu"
             className="fixed z-50 w-48 rounded-md border border-border bg-popover p-1 shadow-md"
-            style={{ left: menu.x, top: menu.y }}
+            style={{ left: menu.left, top: menu.top }}
             onMouseDown={(event) => event.stopPropagation()}
           >
             <CopyPathItem path={node.path} onDone={() => setMenu(null)} />

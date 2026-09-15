@@ -3,11 +3,12 @@ import { useEffect, useState } from "react";
 import { useViewerChat } from "@/components/chat/useViewerChat";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import {
   CLOSE_FOLDER_BODY,
@@ -43,19 +44,19 @@ export function CloseFolderDialog() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-sm gap-3" showCloseButton={false}>
-        <DialogTitle className="pr-0">{closeFolderTitle(folderName(path))}</DialogTitle>
-        <DialogDescription>{CLOSE_FOLDER_BODY}</DialogDescription>
+    <AlertDialog open={open} onOpenChange={(next) => setOpen(next)}>
+      <AlertDialogContent className="max-w-sm gap-3">
+        <AlertDialogTitle>{closeFolderTitle(folderName(path))}</AlertDialogTitle>
+        <AlertDialogDescription>{CLOSE_FOLDER_BODY}</AlertDialogDescription>
         <div className="flex justify-end gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={() => setOpen(false)}>
+          <AlertDialogClose render={<Button type="button" size="sm" variant="outline" />}>
             Cancel
-          </Button>
+          </AlertDialogClose>
           <Button type="button" size="sm" onClick={confirm}>
             Close folder
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
