@@ -53,7 +53,7 @@ import { jsonApi } from "@/lib/api";
 import { CHAT_DEFAULT_WIDTH, clampChatDrag } from "@/lib/layout";
 import { partLabelFileStem } from "@/lib/part-label";
 import { cn } from "@/lib/utils";
-import { useStore } from "@/state/store";
+import { store, useStore } from "@/state/store";
 
 export function ChatPanel({
   width,
@@ -386,8 +386,11 @@ function useMinuteTick() {
   return now;
 }
 
+// A stable empty list: a fresh `[]` from the selector re-renders forever when no model is open.
+const NO_PARTS: NonNullable<ReturnType<typeof store.getState>["review"]>["parts"] = [];
+
 function CadRefTitle({ title, className }: { title: string; className?: string }) {
-  const parts = useStore((s) => s.review?.parts ?? []);
+  const parts = useStore((s) => s.review?.parts ?? NO_PARTS);
   const fileLabel = useStore((s) => s.title);
   const fileStem = partLabelFileStem(parts.length, fileLabel);
   const segments = titleRefSegments(title, (ref) => resolveCadRef(ref, parts, fileStem)?.label ?? null);
