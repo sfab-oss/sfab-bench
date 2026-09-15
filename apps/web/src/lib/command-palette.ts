@@ -1,4 +1,4 @@
-import { formatShortcutToken } from "./settings";
+import { formatShortcut, formatShortcutKeys, matchesShortcut } from "./shortcuts";
 
 export const EMPTY_QUERY_FILE_LIMIT = 8;
 export const EMPTY_QUERY_FOLDER_LIMIT = 5;
@@ -115,14 +115,12 @@ export type ModalProbe = {
 };
 
 export function commandPaletteShortcutLabel(mac: boolean): string {
-  return mac ? "⌘K" : "Ctrl+K";
+  return formatShortcut("command-palette", mac);
 }
 
 /** One chip, matching ⌘O / Ctrl+O as they appear on palette rows. */
 export function chordLabel(keys: readonly string[], mac: boolean): string {
-  const chips = keys.map((token) => formatShortcutToken(token, mac));
-  if (mac && keys[0] === "Mod") return chips.join("");
-  return chips.join("+");
+  return formatShortcutKeys(keys, mac);
 }
 
 export function isCommandPaletteToggle(
@@ -135,10 +133,7 @@ export function isCommandPaletteToggle(
   },
   mac: boolean,
 ): boolean {
-  if (event.altKey || event.shiftKey) return false;
-  if (event.key !== "k" && event.key !== "K") return false;
-  if (mac) return event.metaKey && !event.ctrlKey;
-  return event.ctrlKey && !event.metaKey;
+  return matchesShortcut(event, "command-palette", { mac });
 }
 
 export function otherModalDialogOpen(modals: readonly ModalProbe[]): boolean {
@@ -190,8 +185,8 @@ export function clampActiveIndex(index: number, length: number): number {
 
 export function buildCommands(input: BuildCommandsInput): PaletteCommand[] {
   const commands: PaletteCommand[] = [];
-  const filesChord = chordLabel(["Mod", "B"], input.mac);
-  const openChord = chordLabel(["Mod", "O"], input.mac);
+  const filesChord = formatShortcut("toggle-files", input.mac);
+  const openChord = formatShortcut("open-folder", input.mac);
 
   if (input.canOpenFolder) {
     commands.push({

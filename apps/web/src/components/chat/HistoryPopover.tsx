@@ -136,7 +136,7 @@ export function HistoryPopover({
                 <li key={t.id}>
                   <PopoverClose
                     className={cn(
-                      "flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left",
+                      "flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                       current ? "bg-accent font-medium text-accent-foreground" : "hover:bg-accent",
                       empty && !current && "text-muted-foreground",
                     )}

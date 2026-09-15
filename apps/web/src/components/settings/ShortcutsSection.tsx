@@ -1,6 +1,6 @@
 import { Kbd } from "@/components/ui/kbd";
 import { isMacPlatform } from "@/lib/files-rail";
-import { SETTINGS_SHORTCUTS, formatShortcutChips } from "@/lib/settings";
+import { SHORTCUTS, formatShortcutChips } from "@/lib/shortcuts";
 
 export function ShortcutsSection() {
   const mac = isMacPlatform(
@@ -9,12 +9,12 @@ export function ShortcutsSection() {
   );
   return (
     <ul className="space-y-2">
-      {SETTINGS_SHORTCUTS.map((row) => (
-        <li key={row.action} className="flex items-center justify-between gap-3">
-          <span className="text-sm">{row.action}</span>
+      {SHORTCUTS.map((row) => (
+        <li key={row.id} className="flex items-center justify-between gap-3">
+          <span className="text-sm">{row.label}</span>
           <span className="flex shrink-0 items-center gap-1">
             {formatShortcutChips(row.keys, mac).map((chip, index) => (
-              <Kbd key={`${row.action}-${chip}-${index}`}>{chip}</Kbd>
+              <Kbd key={`${row.id}-${chip}-${index}`}>{chip}</Kbd>
             ))}
           </span>
         </li>

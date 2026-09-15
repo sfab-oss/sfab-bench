@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { StartTruncatedPath } from "@/components/StartTruncatedPath";
 import { desktopBridge } from "@/lib/desktop";
-import { isEditableTarget, isMacPlatform } from "@/lib/files-rail";
+import { isMacPlatform } from "@/lib/files-rail";
+import { matchesShortcut } from "@/lib/shortcuts";
 import {
   browsePath,
   fetchProject,
@@ -166,10 +167,9 @@ export function useOpenFolder(canRegister: boolean) {
 
   useEffect(() => {
     if (!canRegister || desktopBridge()) return;
+    const mac = isMacPlatform(navigator.platform, navigator.userAgent);
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "o" && event.key !== "O") return;
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
-      if (isEditableTarget(event.target, document.activeElement)) return;
+      if (!matchesShortcut(event, "open-folder", { mac, activeElement: document.activeElement })) return;
       event.preventDefault();
       void requestOpen();
     };
@@ -247,17 +247,6 @@ export function BrowseFolderDialog({
       cancelled = true;
     };
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      onOpenChange(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onOpenChange]);
 
   const go = async (next: string): Promise<BrowseInfo | null> => {
     const value = next.trim();

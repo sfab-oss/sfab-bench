@@ -1,7 +1,7 @@
 import { useChat } from "@ai-sdk/react";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { Check, Copy, EllipsisVertical, MessageCircleDashedIcon, PanelRight, Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 
 import { CadRefTitle } from "@/components/chat/CadRefTitle";
 import { ChatMessageRow } from "@/components/chat/chat-message-parts";
@@ -45,7 +45,8 @@ import {
 import { loadHarnesses } from "@/hooks/useHarnesses";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { jsonApi } from "@/lib/api";
-import { CHAT_DEFAULT_WIDTH, clampChatDrag } from "@/lib/layout";
+import { CHAT_DEFAULT_WIDTH, CHAT_MAX_WIDTH, CHAT_MIN_WIDTH, chatWidthAfterKey, clampChatDrag } from "@/lib/layout";
+import { escBelongsTo, probeEscLayers } from "@/lib/shortcuts";
 import { NEW_CHAT_EVENT, registerPaletteOwner } from "@/lib/command-palette";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
@@ -117,12 +118,19 @@ export function ChatPanel({
     }
   }, [compact, open, toggleRef]);
 
+  // Hidden chat stays mounted (docked or compact), so stop any recording when it closes.
+  useEffect(() => {
+    if (!open) composerRef.current?.cancelVoice();
+  }, [open]);
+
   useEffect(() => {
     if (!compact || !open) return;
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === "Escape") {
         // Capture so we see popovers/selects before Base UI unmounts them.
-        if (ev.defaultPrevented || floatingDismissOpen()) return;
+        if (ev.defaultPrevented) return;
+        const layers = { ...probeEscLayers(document), compactChat: true };
+        if (!escBelongsTo("compact-chat", layers)) return;
         ev.preventDefault();
         onClose();
         return;
@@ -148,6 +156,15 @@ export function ChatPanel({
       document.removeEventListener("focusin", onFocusIn);
     };
   }, [compact, open, onClose]);
+
+  const onResizeKeyDown = (ev: ReactKeyboardEvent<HTMLDivElement>) => {
+    const next = chatWidthAfterKey(ev.key, ev.shiftKey, width, window.innerWidth, treeOpen);
+    if (next == null) return;
+    ev.preventDefault();
+    persistWidth(next);
+  };
+
+  const resizeMax = clampChatDrag(CHAT_MAX_WIDTH, typeof window === "undefined" ? width : window.innerWidth, treeOpen);
 
   const onResizeDown = (ev: ReactMouseEvent) => {
     ev.preventDefault();
@@ -261,12 +278,20 @@ export function ChatPanel({
         style={{ width }}
       >
       <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize chat"
+        aria-valuemin={CHAT_MIN_WIDTH}
+        aria-valuemax={resizeMax}
+        aria-valuenow={width}
+        tabIndex={0}
         className={cn(
-          "absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize bg-transparent hover:bg-border",
+          "absolute inset-y-0 left-0 z-10 w-2 cursor-col-resize bg-transparent outline-none hover:bg-border focus-visible:bg-border focus-visible:ring-2 focus-visible:ring-ring/50",
           resizing && "bg-muted-foreground",
         )}
         title="Drag to resize chat. Double-click to reset."
         onMouseDown={onResizeDown}
+        onKeyDown={onResizeKeyDown}
         onDoubleClick={(ev) => {
           ev.preventDefault();
           persistWidth(CHAT_DEFAULT_WIDTH);
@@ -279,10 +304,10 @@ export function ChatPanel({
           size="icon-sm"
           className="size-7"
           title="Hide chat"
+          aria-label="Hide chat"
           onClick={onClose}
         >
           <PanelRight />
-          <span className="sr-only">Hide chat</span>
         </Button>
         <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-4" />
         <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
@@ -355,11 +380,8 @@ export function ChatPanel({
 }
 
 function floatingDismissOpen(): boolean {
-  return Boolean(
-    document.querySelector(
-      "[data-mention-list], [data-slot='popover-content'], [data-slot='select-content'], [data-slot='dialog-content']",
-    ),
-  );
+  const probe = probeEscLayers(document);
+  return Boolean(probe.mention || probe.popoverOrSelect || probe.dialog);
 }
 
 function tabbableIn(root: HTMLElement): HTMLElement[] {
@@ -436,7 +458,7 @@ function ChatExportMenu({ onCopyJson }: { onCopyJson: () => Promise<boolean> }) 
       <PopoverContent align="end" className="w-56 p-1">
         <button
           type="button"
-          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
+          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground outline-none hover:bg-accent focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50"
           onClick={() => {
             void onCopyJson().then((ok) => {
               setCopied(ok ? "copied" : "error");

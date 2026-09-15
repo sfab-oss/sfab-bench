@@ -45,6 +45,7 @@ export function VoiceRecordBar({
       role="status"
       aria-live="polite"
       aria-label={transcribing ? "Transcribing" : `Recording ${formatVoiceTime(elapsedMs)}`}
+      data-voice-recording=""
     >
       <Button
         type="button"
@@ -62,12 +63,11 @@ export function VoiceRecordBar({
       </span>
       <Button
         type="button"
-        variant="ghost"
+        variant="default"
         size="icon-sm"
         disabled={transcribing || !recording}
         aria-label="Done recording"
         title={error ?? (transcribing ? "Transcribing…" : "Done")}
-        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
         onClick={onComplete}
       >
         {transcribing ? <Loader2 className="animate-spin" /> : <Check />}

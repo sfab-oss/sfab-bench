@@ -92,32 +92,12 @@ export function harnessStatusLabel(status: string): string {
   return status;
 }
 
-export type ShortcutSpec = {
-  action: string;
-  keys: readonly string[];
-};
-
-/** Shortcuts that have handlers on this branch. `Mod` becomes ⌘ or Ctrl. */
-export const SETTINGS_SHORTCUTS: readonly ShortcutSpec[] = [
-  { action: "Command palette", keys: ["Mod", "K"] },
-  { action: "Show or hide files", keys: ["Mod", "B"] },
-  { action: "Open folder", keys: ["Mod", "O"] },
-  { action: "Send", keys: ["Enter"] },
-  { action: "New line", keys: ["Shift", "Enter"] },
-  { action: "Recall previous prompt", keys: ["↑"] },
-  { action: "Mention a part", keys: ["#"] },
-  { action: "Choose an answer", keys: ["1–9"] },
-  { action: "Cancel voice, close mention, or close a dialog", keys: ["Esc"] },
-];
-
-export function formatShortcutToken(token: string, mac: boolean): string {
-  if (token === "Mod") return mac ? "⌘" : "Ctrl";
-  return token;
-}
-
-export function formatShortcutChips(keys: readonly string[], mac: boolean): string[] {
-  return keys.map((token) => formatShortcutToken(token, mac));
-}
+export {
+  SETTINGS_SHORTCUTS,
+  formatShortcutChips,
+  formatShortcutToken,
+  type ShortcutSpec,
+} from "./shortcuts";
 
 export type DebugReportInput = {
   appName: string;

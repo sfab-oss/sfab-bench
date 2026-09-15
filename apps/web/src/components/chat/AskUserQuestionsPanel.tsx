@@ -11,6 +11,7 @@ import {
 } from "@/chat/ask-user-questions";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { matchesShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 
 export type AskUserQuestionsHandle = {
@@ -113,14 +114,8 @@ export function AskUserQuestionsPanel({
   useEffect(() => {
     if (!question || disabled || question.allowMultiple || question.options.length === 0) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      const target = event.target;
-      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
-      if (target instanceof HTMLElement && target.closest('[contenteditable]:not([contenteditable="false"])')) {
-        return;
-      }
+      if (!matchesShortcut(event, "ask-user-choose", { mac: false, activeElement: document.activeElement })) return;
       const digit = Number.parseInt(event.key, 10);
-      if (Number.isNaN(digit) || digit < 1 || digit > 9) return;
       const option = question.options[digit - 1];
       if (!option) return;
       event.preventDefault();
@@ -130,12 +125,21 @@ export function AskUserQuestionsPanel({
     return () => document.removeEventListener("keydown", onKey);
   }, [disabled, question, selectOption]);
 
+  // Locked send has no visible reason if this collapses, so keep it open until they pick.
+  const keepOpen = Boolean(question && !question.allowFreeForm);
+
   if (!question) return null;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
+    <Collapsible
+      open={keepOpen ? true : open}
+      onOpenChange={(next) => {
+        if (keepOpen) return;
+        setOpen(next);
+      }}
+    >
       <div className="px-3 pt-2">
-        <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md py-1 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring">
+        <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md py-1 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
           <span className="shrink-0">{question.header ?? "Question"}</span>
           {open ? null : (
             <span className="min-w-0 flex-1 truncate font-normal">{question.question}</span>
@@ -167,7 +171,7 @@ export function AskUserQuestionsPanel({
                     disabled={disabled}
                     onClick={() => selectOption(optionId)}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring",
+                      "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
                       isSelected ? "bg-muted text-foreground" : "text-foreground/85 hover:bg-muted/70",
                       disabled && "cursor-not-allowed opacity-50",
                     )}

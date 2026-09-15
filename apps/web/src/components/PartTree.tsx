@@ -85,20 +85,27 @@ function Node({
           fit?.(part.object);
         }}
       >
-        <button
-          type="button"
-          className="grid h-5 w-5 shrink-0 place-items-center text-muted-foreground"
-          onClick={(ev) => {
-            ev.stopPropagation();
-            if (kids.length) onToggle(row.key);
-          }}
-        >
-          {kids.length ? open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" /> : null}
-        </button>
+        {kids.length ? (
+          <button
+            type="button"
+            className="grid h-5 w-5 shrink-0 place-items-center text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            aria-label={open ? `Collapse ${row.displayName}` : `Expand ${row.displayName}`}
+            aria-expanded={open}
+            onClick={(ev) => {
+              ev.stopPropagation();
+              onToggle(row.key);
+            }}
+          >
+            {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+          </button>
+        ) : (
+          <span className="inline-block h-5 w-5 shrink-0" aria-hidden />
+        )}
         <input
           type="checkbox"
           className="size-3.5 accent-foreground"
           checked={!hiddenIds.has(part.id)}
+          aria-label={hiddenIds.has(part.id) ? `Show ${row.displayName}` : `Hide ${row.displayName}`}
           onClick={(ev) => ev.stopPropagation()}
           onChange={(ev) => setVisible(part.id, ev.target.checked)}
         />
@@ -204,6 +211,7 @@ function ModelTreeBody() {
         <Input
           className="h-7 flex-1 text-[13px]"
           placeholder="Filter parts…"
+          aria-label="Filter parts"
           value={filter}
           onChange={(ev) => setFilter(ev.target.value)}
         />
@@ -295,6 +303,7 @@ function PartTreeBody({
         size="sm"
         className="pointer-events-auto absolute top-16 left-3 z-10 h-9 gap-2 shadow-lg"
         title="Show model tree"
+        aria-label="Show model tree"
         onClick={onExpand}
       >
         <ListTree className="size-4" />
@@ -319,6 +328,7 @@ function PartTreeBody({
           size="sm"
           className="h-7 w-7 p-0"
           title="Hide model tree"
+          aria-label="Hide model tree"
           onClick={onCollapse}
         >
           <PanelLeftClose />

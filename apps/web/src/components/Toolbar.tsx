@@ -39,10 +39,10 @@ export function Toolbar({ onHome, onFit, top, left }: Props) {
       className="pointer-events-auto absolute z-20 flex gap-0.5 rounded-xl border border-border bg-card/95 p-1 shadow-lg"
       style={{ top, left }}
     >
-      <Button type="button" variant="secondary" size="sm" className="h-9 w-9 p-0" title="Frame whole model" onClick={onHome}>
+      <Button type="button" variant="secondary" size="sm" className="h-9 w-9 p-0" title="Frame whole model" aria-label="Frame whole model" onClick={onHome}>
         <Home />
       </Button>
-      <Button type="button" variant="secondary" size="sm" className="h-9 w-9 p-0" title="Frame selection" onClick={onFit}>
+      <Button type="button" variant="secondary" size="sm" className="h-9 w-9 p-0" title="Frame selection" aria-label="Frame selection" onClick={onFit}>
         <Scan />
       </Button>
       {/* Measure replaces the Selection panel, so Isolate has to stay on the toolbar. */}
@@ -52,6 +52,7 @@ export function Toolbar({ onHome, onFit, top, left }: Props) {
         size="sm"
         className="h-9 w-9 p-0"
         title="Isolate"
+        aria-label="Isolate"
         disabled={selectedId === null}
         onClick={() => {
           if (selectedId === null) return;
@@ -68,6 +69,7 @@ export function Toolbar({ onHome, onFit, top, left }: Props) {
         size="sm"
         className={cn("h-9 w-9 p-0", tool === "measure" && "bg-accent")}
         title="Measure"
+        aria-label="Measure"
         onClick={() => setTool(tool === "measure" ? "select" : "measure")}
       >
         <Ruler />
@@ -78,6 +80,7 @@ export function Toolbar({ onHome, onFit, top, left }: Props) {
         size="sm"
         className={cn("h-9 w-9 p-0", axesVisible && "bg-accent")}
         title="World axes"
+        aria-label="World axes"
         onClick={() => setAxesVisible((open) => !open)}
       >
         <Axis3d />

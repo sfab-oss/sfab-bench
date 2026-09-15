@@ -69,10 +69,10 @@ export function ThemeToggle({ className }: { className?: string }) {
       size="sm"
       className={className ?? "h-9 w-9 p-0"}
       title={dark ? "Switch to light" : "Switch to dark"}
+      aria-label={dark ? "Switch to light" : "Switch to dark"}
       onClick={toggle}
     >
       {dark ? <Sun /> : <Moon />}
-      <span className="sr-only">{dark ? "Switch to light" : "Switch to dark"}</span>
     </Button>
   );
 }

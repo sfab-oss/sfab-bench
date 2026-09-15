@@ -1,6 +1,6 @@
 import type { ChatStatus } from "ai";
 import { Hash, Mic } from "lucide-react";
-import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref, type RefObject } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject, type Ref, type RefObject } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   askUserComposerPlaceholder,
@@ -43,6 +43,7 @@ import { useHarnesses } from "@/hooks/useHarnesses";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { HARNESS_LABEL } from "@/lib/harness";
 import { partLabelFileStem } from "@/lib/part-label";
+import { compactChatSheetOpen, escBelongsTo, probeEscLayers } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
 import { EffortSelect } from "./EffortSelect";
@@ -101,6 +102,7 @@ function ChatInputInner({
   historyMessages,
   sendBlockReason,
   inputRef,
+  cancelVoiceRef,
 }: {
   disabled: boolean;
   onStop?: () => void;
@@ -116,6 +118,7 @@ function ChatInputInner({
   historyMessages: PromptHistoryMessage[];
   sendBlockReason: string | null;
   inputRef: RefObject<ComposerHandle | null>;
+  cancelVoiceRef: MutableRefObject<() => void>;
 }) {
   const historyPositionRef = useRef<PromptHistoryPosition | null>(null);
   const { review, selectedId, title } = useStore(
@@ -173,15 +176,21 @@ function ChatInputInner({
     inputRef.current?.setText(next);
     inputRef.current?.focus();
   });
+  cancelVoiceRef.current = voice.cancel;
 
   useEffect(() => {
     if (!voice.active) return;
     (document.activeElement as HTMLElement | null)?.blur?.();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        voice.cancel();
-      }
+      if (e.key !== "Escape") return;
+      const layers = {
+        ...probeEscLayers(document),
+        compactChat: compactChatSheetOpen(document),
+        voice: true,
+      };
+      if (!escBelongsTo("voice", layers)) return;
+      e.preventDefault();
+      voice.cancel();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -281,7 +290,7 @@ function ChatInputInner({
             size="icon-sm"
             disabled={lockSend || status === "streaming" || status === "submitted"}
             aria-label="Start voice input"
-            title={voice.error ?? "Tap to talk"}
+            title={voice.error ?? "Click to talk"}
             onClick={() => void voice.start()}
           >
             <Mic />
@@ -314,6 +323,7 @@ export type GalleryChatHandle = {
   captureDraft: () => void;
   clear: () => void;
   focus: () => void;
+  cancelVoice: () => void;
 };
 
 export function GalleryChatInput({
@@ -347,6 +357,7 @@ export function GalleryChatInput({
 }) {
   const askRef = useRef<AskUserQuestionsHandle>(null);
   const composerRef = useRef<ComposerHandle>(null);
+  const cancelVoiceRef = useRef<() => void>(() => {});
   const [activeQuestion, setActiveQuestion] = useState<AskUserQuestion | null>(
     pendingAsk?.input.questions[0] ?? null,
   );
@@ -385,13 +396,16 @@ export function GalleryChatInput({
       focus: () => {
         composerRef.current?.focus();
       },
+      cancelVoice: () => {
+        cancelVoiceRef.current();
+      },
     }),
     [threadId],
   );
 
   return (
     <div className="relative bottom-0 z-10 w-full min-w-0 overflow-x-hidden bg-background pt-2" data-chat-composer>
-      <div className="mx-auto w-full min-w-0 p-2 @[360px]/chat:px-4 @[360px]/chat:pb-4 md:max-w-3xl @[500px]/chat:md:pb-6">
+      <div className="mx-auto w-full min-w-0 p-2 @[360px]/chat:px-4 @[360px]/chat:pb-4">
         <div
           className={cn(
             attached && "overflow-hidden rounded-2xl border border-input shadow-xs dark:bg-input/30",
@@ -411,6 +425,7 @@ export function GalleryChatInput({
             <ChatInputInner
               attached={attached}
               canStop={canStop}
+              cancelVoiceRef={cancelVoiceRef}
               disabled={disabled}
               historyMessages={historyMessages}
               inputRef={composerRef}

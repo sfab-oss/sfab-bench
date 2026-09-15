@@ -127,7 +127,7 @@ function Tree({
         onOpenChange={(next) => toggle(node.path, next)}
       >
         <CollapsibleTrigger
-          className="flex h-8 w-full min-w-0 items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
+          className="flex h-8 w-full min-w-0 items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring [&>svg]:size-4 [&>svg]:shrink-0"
         >
           <ChevronRight className="shrink-0 transition-transform" />
           <Folder className="shrink-0" />
@@ -170,7 +170,7 @@ function KindChips({ kind, onKind }: { kind: CatalogKindFilter; onKind: (next: C
           key={id}
           type="button"
           className={cn(
-            "rounded-md px-1.5 py-0.5 text-[11px] font-medium",
+            "rounded-md px-1.5 py-0.5 text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
             kind === id
               ? "bg-sidebar-accent text-sidebar-accent-foreground"
               : "text-sidebar-foreground/60 hover:text-sidebar-foreground",
@@ -369,9 +369,8 @@ export function FileTree({
         <SidebarGroupLabel>Files</SidebarGroupLabel>
         <KindChips kind={kind} onKind={setKind} />
         {dirs.length > 0 ? (
-          <SidebarGroupAction title="Collapse all" onClick={collapseAll}>
+          <SidebarGroupAction title="Collapse all" aria-label="Collapse all" onClick={collapseAll}>
             <ChevronRight className="rotate-90" />
-            <span className="sr-only">Collapse all</span>
           </SidebarGroupAction>
         ) : null}
         <SidebarGroupContent>
