@@ -1,6 +1,6 @@
 import type { JSONContent } from "@tiptap/react";
 
-import { parseCadRefs } from "@/chat/cad-refs";
+import { parseCadRefs, resolveCadRef } from "@/chat/cad-refs";
 
 /** Workspace mutex (ADR 0003). Server body is "a reply is already in progress". */
 export const WORKSPACE_BUSY_MESSAGE = "a reply is already in progress in this folder";
@@ -126,6 +126,20 @@ export function writeComposerDraft(map: Map<string, string>, threadId: string, t
   else map.set(threadId, text);
 }
 
+/**
+ * Persist the outgoing thread's editor text, then return the incoming draft.
+ * `outgoingText === null` means the editor was already gone — do not wipe.
+ */
+export function saveOutgoingThenRestore(
+  map: Map<string, string>,
+  outgoingId: string,
+  incomingId: string,
+  outgoingText: string | null,
+): string {
+  if (outgoingText != null) writeComposerDraft(map, outgoingId, outgoingText);
+  return readComposerDraft(map, incomingId);
+}
+
 /** In-memory drafts for this tab. Not persisted. */
 const sessionDrafts = new Map<string, string>();
 
@@ -137,26 +151,25 @@ export function setSessionDraft(threadId: string, text: string): void {
   writeComposerDraft(sessionDrafts, threadId, text);
 }
 
-export function isWorkspaceBusyError(
-  error: { message?: string; statusCode?: number; status?: number } | string | null | undefined,
-): boolean {
-  if (error == null) return false;
-  if (typeof error === "string") {
-    return /a reply is already in progress/i.test(error) || (/\b409\b/.test(error) && /in progress/i.test(error));
-  }
-  const status = error.statusCode ?? error.status;
-  if (status === 409) return true;
-  const message = error.message ?? "";
-  return /a reply is already in progress/i.test(message) || (/\b409\b/.test(message) && /in progress/i.test(message));
+/** Save while the editor is still mounted. No-op when text could not be read. */
+export function captureSessionDraft(threadId: string, text: string | null): void {
+  if (text == null) return;
+  setSessionDraft(threadId, text);
 }
 
-export function mapChatErrorMessage(
-  error: { message?: string; statusCode?: number; status?: number } | string | null | undefined,
-): string | null {
+function errorMessage(error: { message?: string } | string | null | undefined): string {
+  if (error == null) return "";
+  return typeof error === "string" ? error : (error.message ?? "");
+}
+
+export function isWorkspaceBusyError(error: { message?: string } | string | null | undefined): boolean {
+  return /a reply is already in progress/i.test(errorMessage(error));
+}
+
+export function mapChatErrorMessage(error: { message?: string } | string | null | undefined): string | null {
   if (error == null) return null;
   if (isWorkspaceBusyError(error)) return WORKSPACE_BUSY_MESSAGE;
-  if (typeof error === "string") return error || null;
-  return error.message || null;
+  return errorMessage(error) || null;
 }
 
 export function providerSendBlockReason(input: {
@@ -192,6 +205,19 @@ export function composerPlaceholder(input: {
   if (input.loadingModel) return LOADING_MODEL_PLACEHOLDER;
   if (input.modelLoaded) return MENTION_PLACEHOLDER;
   return DEFAULT_PLACEHOLDER;
+}
+
+export function mentionLabelsForPrompt(
+  text: string,
+  parts: readonly { name: string; cadRef?: string | null }[],
+  fileStem?: string,
+): Record<string, string> {
+  const labels: Record<string, string> = {};
+  for (const hit of parseCadRefs(text)) {
+    const resolved = resolveCadRef(hit.ref, parts, fileStem);
+    if (resolved) labels[hit.ref] = resolved.label;
+  }
+  return labels;
 }
 
 function mentionNode(ref: string, mentionType: string, labels?: Record<string, string>): JSONContent {

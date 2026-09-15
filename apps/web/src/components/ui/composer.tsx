@@ -68,6 +68,7 @@ export interface ComposerHandle {
   setText: (text: string) => void;
   insertText: (text: string) => void;
   submit: () => void;
+  isReady: () => boolean;
 }
 
 interface ComposerHelpers {
@@ -88,6 +89,8 @@ interface ComposerContextValue {
   selectedItemsRef: RefObject<SelectedMentionItems>;
   suggestionOpenRef: RefObject<boolean>;
   onPromptHistoryRef: RefObject<((direction: "backward" | "forward") => boolean) | undefined>;
+  mentionLabelsForRef: RefObject<((text: string) => Record<string, string>) | undefined>;
+  onDraftChangeRef: RefObject<((text: string) => void) | undefined>;
   sendDisabledReason?: string | null;
   canStop?: boolean;
 }
@@ -461,6 +464,8 @@ type SharedComposerProps = {
   /** Show Stop while a turn is live even if useChat status is not streaming (get_viewer). */
   canStop?: boolean;
   onPromptHistory?: (direction: "backward" | "forward") => boolean;
+  mentionLabelsFor?: (text: string) => Record<string, string>;
+  onDraftChange?: (text: string) => void;
   /** Imperative handle (clear/focus/getText/setText/insertText/submit), not the DOM node. */
   ref?: Ref<ComposerHandle>;
 } & Omit<
@@ -498,6 +503,8 @@ export function Composer({
   sendDisabledReason,
   canStop,
   onPromptHistory,
+  mentionLabelsFor,
+  onDraftChange,
   ...props
 }: SharedComposerProps & {
   mentions?: MentionConfigs;
@@ -511,10 +518,14 @@ export function Composer({
   const selectedItemsRef = useRef<SelectedMentionItems>({});
   const suggestionOpenRef = useRef(false);
   const onPromptHistoryRef = useRef(onPromptHistory);
+  const mentionLabelsForRef = useRef(mentionLabelsFor);
+  const onDraftChangeRef = useRef(onDraftChange);
 
   mentionsRef.current = mentions;
   onSubmitRef.current = onSubmit;
   onPromptHistoryRef.current = onPromptHistory;
+  mentionLabelsForRef.current = mentionLabelsFor;
+  onDraftChangeRef.current = onDraftChange;
 
   const parse = useCallback(() => {
     if (!editor) {
@@ -555,7 +566,11 @@ export function Composer({
       getText: () => parse().text,
       setText: (text) => {
         editor?.commands.setContent(
-          composerDocFromPrompt(text, mentionTypeFromConfigs(mentionsRef.current)),
+          composerDocFromPrompt(
+            text,
+            mentionTypeFromConfigs(mentionsRef.current),
+            mentionLabelsForRef.current?.(text),
+          ),
         );
         editor?.commands.focus("end");
       },
@@ -563,6 +578,7 @@ export function Composer({
         editor?.chain().focus().insertContent(text).run();
       },
       submit,
+      isReady: () => Boolean(editor && !editor.isDestroyed),
     }),
     [clear, editor, focus, parse, submit]
   );
@@ -581,11 +597,22 @@ export function Composer({
       selectedItemsRef,
       suggestionOpenRef,
       onPromptHistoryRef,
+      mentionLabelsForRef,
+      onDraftChangeRef,
       sendDisabledReason,
       canStop,
     }),
     [canStop, defaultValue, disabled, editor, mentions, onStop, sendDisabledReason, status, submit]
   );
+
+  useEffect(() => {
+    if (!editor) return;
+    const sync = () => onDraftChangeRef.current?.(parse().text);
+    editor.on("update", sync);
+    return () => {
+      editor.off("update", sync);
+    };
+  }, [editor, parse]);
 
   return (
     <ComposerContext.Provider value={contextValue}>
@@ -666,6 +693,8 @@ export function ComposerEditor({
     selectedItemsRef,
     suggestionOpenRef,
     onPromptHistoryRef,
+    mentionLabelsForRef,
+    onDraftChangeRef,
   } = useComposerContext();
 
   const initialMentionsRef = useRef(mentions);
@@ -714,6 +743,7 @@ export function ComposerEditor({
     content: composerDocFromPrompt(
       defaultValue ?? "",
       mentionTypeFromConfigs(initialMentionsRef.current),
+      mentionLabelsForRef.current?.(defaultValue ?? ""),
     ),
     editable: !disabled,
     autofocus: autoFocus ? "end" : false,

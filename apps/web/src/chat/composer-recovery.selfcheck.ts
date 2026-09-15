@@ -7,10 +7,12 @@ import {
   lastUserPromptText,
   LOADING_MODEL_PLACEHOLDER,
   mapChatErrorMessage,
+  mentionLabelsForPrompt,
   MENTION_PLACEHOLDER,
   type PromptHistoryPosition,
   providerSendBlockReason,
   readComposerDraft,
+  saveOutgoingThenRestore,
   sendDisabledReason,
   stepPromptHistory,
   userPromptText,
@@ -88,11 +90,26 @@ writeComposerDraft(drafts, "t1", "");
 expect(readComposerDraft(drafts, "t1") === "", "empty write drops the key");
 expect(drafts.has("t2"), "other thread kept");
 
+const switchMap = new Map<string, string>();
+expect(
+  saveOutgoingThenRestore(switchMap, "A", "B", "unsent draft here") === "",
+  "B starts empty",
+);
+expect(readComposerDraft(switchMap, "A") === "unsent draft here", "A saved before switch");
+expect(saveOutgoingThenRestore(switchMap, "B", "A", "") === "unsent draft here", "return to A restores");
+saveOutgoingThenRestore(switchMap, "A", "B", null);
+expect(readComposerDraft(switchMap, "A") === "unsent draft here", "unmount without editor does not wipe");
+
 expect(mapChatErrorMessage("QA blocked send") === "QA blocked send", "generic error stays");
 expect(mapChatErrorMessage("a reply is already in progress") === WORKSPACE_BUSY_MESSAGE, "server 409 body");
-expect(mapChatErrorMessage({ message: "409 a reply is already in progress" }) === WORKSPACE_BUSY_MESSAGE, "wrapped 409");
-expect(mapChatErrorMessage({ statusCode: 409, message: "Conflict" }) === WORKSPACE_BUSY_MESSAGE, "statusCode 409");
-expect(mapChatErrorMessage({ status: 409 }) === WORKSPACE_BUSY_MESSAGE, "status 409");
+expect(
+  mapChatErrorMessage(new Error("a reply is already in progress")) === WORKSPACE_BUSY_MESSAGE,
+  "SDK Error(body) 409",
+);
+expect(
+  mapChatErrorMessage(new Error("Failed to fetch the chat response.")) === "Failed to fetch the chat response.",
+  "Failed to fetch is not a 409",
+);
 expect(mapChatErrorMessage(null) === null, "null error");
 
 expect(
@@ -133,6 +150,9 @@ const inline = (doc.content?.[0] as { content?: { type?: string; attrs?: { id?: 
 expect(inline?.[1]?.type === "part-mention", "restore as mention chip");
 expect(inline?.[1]?.attrs?.id === "#o1.2.1", "chip id is the ref");
 expect(inline?.[1]?.attrs?.label === "post_left", "chip label when provided");
+const fromCatalog = mentionLabelsForPrompt("How tall is #o1.2.1?", [{ name: "post_left", cadRef: "#o1.2.1" }]);
+expect(fromCatalog["#o1.2.1"] === "post_left", "label map from resolveCadRef");
+expect(mentionLabelsForPrompt("#o9.9", [{ name: "post_left", cadRef: "#o1.2.1" }])["#o9.9"] === undefined, "unresolved stays unlabeled");
 const plain = composerDocFromPrompt("Look at #o1.2.1");
 const plainInline = (plain.content?.[0] as { content?: { type?: string; text?: string }[] }).content;
 expect(plainInline?.[0]?.type === "text", "plain restore is text");

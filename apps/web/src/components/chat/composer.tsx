@@ -17,9 +17,11 @@ import {
 } from "@/chat/cad-refs";
 import {
   buildPromptHistoryEntries,
+  captureSessionDraft,
   COMPOSER_HINT,
   composerPlaceholder,
   getSessionDraft,
+  mentionLabelsForPrompt,
   providerSendBlockReason,
   sendDisabledReason,
   setSessionDraft,
@@ -186,10 +188,12 @@ function ChatInputInner({
   }, [voice.active, voice.cancel]);
 
   useEffect(() => {
+    const id = threadId;
     return () => {
-      setSessionDraft(threadId, inputRef.current?.getText() ?? "");
+      if (!inputRef.current?.isReady()) return;
+      captureSessionDraft(id, inputRef.current.getText());
     };
-  }, [threadId]);
+  }, [inputRef, threadId]);
 
   useEffect(() => {
     if (!restorePrompt) return;
@@ -213,7 +217,11 @@ function ChatInputInner({
         className={attached ? "rounded-none border-0 bg-transparent shadow-none dark:bg-transparent" : "rounded-2xl"}
         defaultValue={getSessionDraft(threadId)}
         disabled={disabled}
+        mentionLabelsFor={(text) => mentionLabelsForPrompt(text, catalogParts, fileStem)}
         mentions={mentions}
+        onDraftChange={(text) => {
+          if (text) captureSessionDraft(threadId, text);
+        }}
         onPromptHistory={(direction) => {
           const current = inputRef.current?.getText() ?? "";
           const step = stepPromptHistory({
@@ -299,7 +307,8 @@ function ChatInputInner({
 }
 
 export type GalleryChatHandle = {
-  submitText: (text: string) => void;
+  captureDraft: () => void;
+  clear: () => void;
 };
 
 export function GalleryChatInput({
@@ -359,14 +368,17 @@ export function GalleryChatInput({
   useImperativeHandle(
     ref,
     () => ({
-      submitText: (text) => {
-        const trimmed = text.trim();
-        if (!trimmed) return;
-        composerRef.current?.setText(trimmed);
-        composerRef.current?.submit();
+      captureDraft: () => {
+        const handle = composerRef.current;
+        if (!handle?.isReady()) return;
+        captureSessionDraft(threadId, handle.getText());
+      },
+      clear: () => {
+        setSessionDraft(threadId, "");
+        composerRef.current?.clear();
       },
     }),
-    [],
+    [threadId],
   );
 
   return (

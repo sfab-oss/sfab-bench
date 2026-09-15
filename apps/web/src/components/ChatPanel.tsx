@@ -8,7 +8,7 @@ import { GalleryChatInput, type GalleryChatHandle, type GalleryPromptMessage } f
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import { persistThread, useViewerChat } from "@/components/chat/useViewerChat";
 import { lastUserPromptText, mapChatErrorMessage, isWorkspaceBusyError } from "@/chat/composer-recovery";
-import { finishPersistMessages } from "@/chat/persist-thread";
+import { finishPersistMessages, isTurnErrorPart } from "@/chat/persist-thread";
 import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
 import { findPendingAskUserQuestions, type AskUserQuestionsOutput } from "@/chat/ask-user-questions";
 import { findPendingGetViewer } from "@/chat/get-viewer";
@@ -61,6 +61,7 @@ export function ChatPanel({
   const compactOpenRef = useRef(false);
   const panelRef = useRef<HTMLElement>(null);
   const stopTurnRef = useRef<(() => void) | null>(null);
+  const captureDraftRef = useRef<(() => void) | null>(null);
   const { threads, threadId, initialMessages, refreshThreads, newThread, openThread } = useViewerChat();
   useEffect(() => {
     void loadHarnesses();
@@ -227,7 +228,8 @@ export function ChatPanel({
                       )}
                       onClick={() => {
                         if (t.id === threadId) return;
-                        // Stop the live turn first so History does not abandon the workspace mutex.
+                        captureDraftRef.current?.();
+                        // Stop only while this tab holds a live turn (ref is null when idle).
                         stopTurnRef.current?.();
                         void openThread(t.id);
                       }}
@@ -247,6 +249,7 @@ export function ChatPanel({
           className="h-8 w-8 p-0"
           title="New chat"
           onClick={() => {
+            captureDraftRef.current?.();
             stopTurnRef.current?.();
             void newThread();
           }}
@@ -271,6 +274,7 @@ export function ChatPanel({
             onLive={setLive}
             onPersist={() => void refreshThreads()}
             stopTurnRef={stopTurnRef}
+            captureDraftRef={captureDraftRef}
           />
         ) : null}
       </RenderErrorBoundary>
@@ -378,6 +382,7 @@ function ChatSession({
   onLive,
   onPersist,
   stopTurnRef,
+  captureDraftRef,
 }: {
   threadId: string;
   initialMessages: GalleryChatMessage[];
@@ -385,12 +390,13 @@ function ChatSession({
   onLive: (live: boolean) => void;
   onPersist: () => void;
   stopTurnRef: RefObject<(() => void) | null>;
+  captureDraftRef: RefObject<(() => void) | null>;
 }) {
   const turnErrorRef = useRef<string | null>(null);
   const composerRef = useRef<GalleryChatHandle>(null);
   const progress = useStore((s) => s.progress);
   const url = useStore((s) => s.url);
-  const { messages, sendMessage, status, error, stop, addToolOutput } = useChat({
+  const { messages, sendMessage, status, error, stop, regenerate, addToolOutput } = useChat({
     id: threadId,
     throttle: 50,
     messages: initialMessages,
@@ -412,11 +418,26 @@ function ChatSession({
   const pendingViewer = findPendingGetViewer(messages);
   const live = busy || pendingViewer !== null;
   const loadingModel = pendingViewer !== null || progress !== null;
-  const stopTurn = () => {
+  const abortWorkspaceTurn = useCallback(() => {
     stop();
     void jsonApi["chat"].stop.$post();
-  };
-  stopTurnRef.current = stopTurn;
+  }, [stop]);
+  useEffect(() => {
+    captureDraftRef.current = () => composerRef.current?.captureDraft();
+    return () => {
+      captureDraftRef.current = null;
+    };
+  }, [captureDraftRef]);
+  useEffect(() => {
+    if (!live) {
+      stopTurnRef.current = null;
+      return;
+    }
+    stopTurnRef.current = abortWorkspaceTurn;
+    return () => {
+      stopTurnRef.current = null;
+    };
+  }, [live, abortWorkspaceTurn, stopTurnRef]);
   useEffect(() => {
     onLive(live);
     return () => onLive(false);
@@ -432,9 +453,9 @@ function ChatSession({
     void sendMessage({ text });
   };
 
-  const retryLast = () => {
-    if (!lastPrompt) return;
-    composerRef.current?.submitText(lastPrompt);
+  const retryFailedTurn = () => {
+    composerRef.current?.clear();
+    void regenerate();
   };
 
   const onAnswerAskUser = useCallback(
@@ -450,18 +471,26 @@ function ChatSession({
 
   const errorText = mapChatErrorMessage(error);
   const errorIsBusy = isWorkspaceBusyError(error);
+  const liveError = status === "error";
+  const lastMessage = messages.at(-1);
+  const tailErrorId =
+    !liveError &&
+    lastMessage?.role === "assistant" &&
+    (lastMessage.parts ?? []).some(isTurnErrorPart)
+      ? lastMessage.id
+      : null;
 
   return (
     <>
-      {errorText ? (
+      {liveError && errorText ? (
         <div className="flex items-center gap-2 px-3 py-1 text-xs text-destructive">
           <span className="min-w-0 flex-1">{errorText}</span>
           {errorIsBusy ? (
-            <Button type="button" size="sm" variant="ghost" className="h-6 px-2" onClick={stopTurn}>
+            <Button type="button" size="sm" variant="ghost" className="h-6 px-2" onClick={abortWorkspaceTurn}>
               Stop
             </Button>
           ) : (
-            <Button type="button" size="sm" variant="ghost" className="h-6 px-2" onClick={retryLast}>
+            <Button type="button" size="sm" variant="ghost" className="h-6 px-2" onClick={retryFailedTurn}>
               Retry
             </Button>
           )}
@@ -489,8 +518,8 @@ function ChatSession({
                     <ChatMessageRow
                       isStreaming={streamingMessageId === message.id}
                       message={message as GalleryChatMessage}
-                      onRetry={retryLast}
-                      onStop={stopTurn}
+                      onRetry={tailErrorId === message.id ? retryFailedTurn : undefined}
+                      onStop={tailErrorId === message.id ? abortWorkspaceTurn : undefined}
                     />
                   </MessageScrollerItem>
                 ))
@@ -506,7 +535,7 @@ function ChatSession({
         loadingModel={loadingModel}
         modelLoaded={Boolean(url) && progress === null}
         onAnswerAskUser={onAnswerAskUser}
-        onStop={stopTurn}
+        onStop={abortWorkspaceTurn}
         onSubmit={onSubmit}
         pendingAsk={pendingAsk}
         ref={composerRef}
