@@ -14,7 +14,8 @@ Product calls and ranked next: [`product.md`](product.md).
 - **Document** = a STEP or GLB inside that directory. Recursive walk,
   skipping `node_modules`, `.git`, and cache dirs.
 - **Agent cwd** = the project directory. Skills and kernels belong to
-  the folder, not to this app.
+  the folder, not to this app. Harness adapters keep `.harness-bootstrap`
+  and session dirs under `~/.sfab-bench/harness/`, not in that folder.
 - **Library** is shared: file recents, folder recents, thread list,
   messages at rest. The folder a tab is in is the tab's
   ([ADR 0006](decisions/0006-folder-is-a-tab.md),

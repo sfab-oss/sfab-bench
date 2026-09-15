@@ -1,4 +1,4 @@
-import { shouldPersistMessages } from "./persist-thread";
+import { finishPersistMessages, messagesWithTurnError, shouldPersistMessages } from "./persist-thread";
 
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
@@ -11,5 +11,26 @@ const text = { id: "a", role: "assistant" as const, parts: [{ type: "text" as co
 expect(shouldPersistMessages([user]), "user-only persist");
 expect(!shouldPersistMessages([user, empty]), "empty assistant skipped");
 expect(shouldPersistMessages([user, text]), "text assistant persisted");
+
+const fromUser = messagesWithTurnError([user] as { id: string; role: string; parts: unknown[] }[], "Bootstrap command failed");
+expect(fromUser.length === 2, "error assistant appended to user-only");
+expect(fromUser[1]?.role === "assistant", "error role");
+expect((fromUser[1]?.parts ?? []).some((p) => (p as { type?: string }).type === "data-error"), "error part");
+
+const fromEmpty = messagesWithTurnError([user, empty], "Bootstrap command failed");
+expect(fromEmpty.length === 2, "reuse empty assistant");
+expect((fromEmpty[1]?.parts ?? []).length === 1, "error attached to empty assistant");
+
+const skipWipe = finishPersistMessages([user], true, null);
+expect(skipWipe === null, "error without text does not PUT user-only");
+
+const skipEmpty = finishPersistMessages([user, empty], true, null);
+expect(skipEmpty === null, "error without text does not PUT empty assistant");
+
+const withText = finishPersistMessages([user], true, "Bootstrap command failed");
+expect(withText !== null && withText.length === 2, "error text becomes a persisted turn");
+
+const ok = finishPersistMessages([user, text], false, null);
+expect(ok !== null && ok.length === 2, "success persist unchanged");
 
 console.log("persist-thread.selfcheck ok");

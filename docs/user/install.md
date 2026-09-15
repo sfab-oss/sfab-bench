@@ -23,7 +23,8 @@ On the Mac, open `https://127.0.0.1:7322` and accept the self-signed
 certificate. That tab is trusted (loopback). Do not use the LAN IP for
 the Mac tab unless you intend to pair it as a guest.
 
-State directory: `~/.sfab-bench/` (sqlite, cache, certs, managed tools).
+State directory: `~/.sfab-bench/` (sqlite, tessellation cache, certs,
+managed tools, OpenCode/Codex bootstrap under `harness/`).
 
 | Env | Default | Purpose |
 | --- | --- | --- |

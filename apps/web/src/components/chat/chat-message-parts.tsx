@@ -12,6 +12,7 @@ import {
   isAskUserQuestionsPart,
   parseAskUserQuestionsInput,
 } from "@/chat/ask-user-questions";
+import { turnErrorText } from "@/chat/persist-thread";
 import { AskUserAnsweredCard } from "@/components/chat/AskUserQuestionsPanel";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
@@ -174,6 +175,13 @@ function GalleryMessagePart({
           <MarkdownBody>{part.text}</MarkdownBody>
         </BubbleContent>
       </Bubble>
+    );
+  }
+
+  const errorText = turnErrorText(part);
+  if (errorText) {
+    return (
+      <p className="my-2 whitespace-pre-wrap break-words text-sm text-destructive">{errorText}</p>
     );
   }
 

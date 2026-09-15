@@ -1,4 +1,4 @@
-import { dropTrailingHarnessErrors, isCompletedTurnFinish } from "./chat-stream";
+import { dropTrailingHarnessErrors, harnessErrorText, harnessErrorsAsTurnParts, isCompletedTurnFinish } from "./chat-stream";
 
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
@@ -43,5 +43,25 @@ const kept = await collect(
   ),
 );
 expect(kept.at(-1)?.type === "error", "error after tool-calls is kept");
+
+expect(harnessErrorText(new Error("Bootstrap command failed")) === "Bootstrap command failed", "Error.message");
+expect(harnessErrorText("plain") === "plain", "string error");
+expect(
+  harnessErrorText(new Error('{"name":"UnknownError","data":{"message":"Model not found: x."}}')) ===
+    "Model not found: x.",
+  "OpenCode JSON error payload",
+);
+
+const turned = await collect(
+  harnessErrorsAsTurnParts(
+    ReadableStream.from([{ type: "start" }, { type: "error", errorText: "Bootstrap command failed" }]),
+  ),
+);
+expect(turned[0]?.type === "start", "start kept");
+expect(turned[1]?.type === "data-error", "error chunk becomes data-error");
+expect(
+  turned[1] && "data" in turned[1] && turned[1].data.message === "Bootstrap command failed",
+  "error text is the part body",
+);
 
 console.log("chat-stream.selfcheck ok");

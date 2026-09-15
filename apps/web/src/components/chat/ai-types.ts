@@ -20,4 +20,7 @@ export type AIDataPart = {
   viewer: {
     file: string;
   };
+  error: {
+    message: string;
+  };
 };

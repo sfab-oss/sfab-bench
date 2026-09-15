@@ -7,6 +7,7 @@ import { ChatMessageRow } from "@/components/chat/chat-message-parts";
 import { GalleryChatInput, type GalleryPromptMessage } from "@/components/chat/composer";
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import { persistThread, useViewerChat } from "@/components/chat/useViewerChat";
+import { finishPersistMessages } from "@/chat/persist-thread";
 import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
 import { findPendingAskUserQuestions, type AskUserQuestionsOutput } from "@/chat/ask-user-questions";
 import { findPendingGetViewer } from "@/chat/get-viewer";
@@ -228,14 +229,22 @@ function ChatSession({
   onLive: (live: boolean) => void;
   onPersist: () => void;
 }) {
+  const turnErrorRef = useRef<string | null>(null);
   const { messages, sendMessage, status, error, stop, addToolOutput } = useChat({
     id: threadId,
     throttle: 50,
     messages: initialMessages,
     transport: viewerChatTransport(),
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
-    onFinish: ({ messages: next }) => {
-      void persistThread(threadId, next as GalleryChatMessage[]).then(onPersist);
+    onError: (err) => {
+      turnErrorRef.current = err.message;
+    },
+    onFinish: ({ messages: next, isError }) => {
+      const text = turnErrorRef.current;
+      turnErrorRef.current = null;
+      const toSave = finishPersistMessages(next as GalleryChatMessage[], isError, text);
+      if (!toSave) return;
+      void persistThread(threadId, toSave).then(onPersist);
     },
   });
   const busy = status === "submitted" || status === "streaming";

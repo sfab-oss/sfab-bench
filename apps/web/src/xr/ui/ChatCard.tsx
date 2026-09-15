@@ -12,6 +12,7 @@ import {
   type AskUserQuestionsOutput,
 } from "@/chat/ask-user-questions";
 import { messagePlainText, useViewerChat } from "@/components/chat/useViewerChat";
+import { turnErrorText } from "@/chat/persist-thread";
 import { toolTitle } from "@/components/ui/tool";
 import { splitWorkedParts, workedLabel } from "@/components/ui/worked";
 import { ChatModelChip } from "@/xr/ui/ChatModelCard";
@@ -232,8 +233,17 @@ function XrPart({
   part: GalleryChatMessage["parts"][number];
   isStreaming?: boolean;
 }) {
+  const theme = useXrTheme();
   if (part.type === "text" && "text" in part && part.text.trim()) {
     return <UikitMarkdown markdown={part.text} />;
+  }
+  const errorText = turnErrorText(part);
+  if (errorText) {
+    return (
+      <Text fontSize={13} color={theme.danger} wordBreak="break-word">
+        {asciiSafe(errorText)}
+      </Text>
+    );
   }
   if (part.type === "reasoning" && "text" in part) {
     return <XrReasoning isStreaming={Boolean(isStreaming)} text={part.text} />;

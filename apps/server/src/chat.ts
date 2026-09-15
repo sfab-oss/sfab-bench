@@ -1,9 +1,8 @@
-import { getHarnessErrorMessage, type HarnessAgentSession } from "@ai-sdk/harness/agent";
+import { type HarnessAgentSession } from "@ai-sdk/harness/agent";
 import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
-  readUIMessageStream,
   toUIMessageStream,
   type UIMessage,
 } from "ai";
@@ -25,8 +24,8 @@ import {
   setSessionRunStatus,
   startSessionRun,
 } from "./session";
-import { dropTrailingHarnessErrors } from "./chat-stream";
-import { messagesToPersist } from "./chat-persist";
+import { dropTrailingHarnessErrors, harnessErrorText, harnessErrorsAsTurnParts } from "./chat-stream";
+import { messagesToPersist, withTurnError } from "./chat-persist";
 import { saveMessages } from "./threads-db";
 import { runViewerContext } from "./viewer-context";
 
@@ -98,9 +97,10 @@ function lastIsToolContinuation(last: UIMessage): boolean {
 
 function persistChat(chatId: string, next: UIMessage[], root: string) {
   try {
-    saveMessages(chatId, root, next);
-  } catch {
-    /* tests / missing thread */
+    const ok = saveMessages(chatId, root, next);
+    if (!ok) console.error("[chat] persist skipped (no thread)", chatId);
+  } catch (err) {
+    console.error("[chat] persist failed", err);
   }
 }
 
@@ -173,32 +173,36 @@ export async function handleChat(req: Request, root: string): Promise<Response> 
                 options: { model },
                 abortSignal: run.signal,
               });
-              const ui = toUIMessageStream({
-                stream: dropTrailingHarnessErrors(result.stream as never) as never,
-                onError: getHarnessErrorMessage,
-              });
-              const [toClient, toPersist] = ui.tee();
-              const persist = (async () => {
-                let assistant: UIMessage | undefined;
-                try {
-                  for await (const msg of readUIMessageStream({ stream: toPersist })) {
-                    assistant = msg;
-                    setSessionRunStatus(root, "streaming");
-                  }
-                } catch {
-                  /* abort or stream error — persist what we have */
-                }
-                persistChat(chatId, messagesToPersist(live, assistant), root);
-              })();
-              writer.merge(toClient);
-              await persist;
+              const ui = harnessErrorsAsTurnParts(
+                toUIMessageStream({
+                  stream: dropTrailingHarnessErrors(result.stream as never) as never,
+                  onError: harnessErrorText,
+                }) as never,
+              );
+              setSessionRunStatus(root, "streaming");
+              writer.merge(ui as never);
             },
           );
+        } catch (err) {
+          if (!run.signal.aborted) {
+            writer.write({ type: "data-error", data: { message: harnessErrorText(err) } });
+          }
         } finally {
           endSessionRun(root);
         }
       },
-      onError: (err) => (err instanceof Error ? err.message : String(err)),
+      onFinish: ({ responseMessage, isAborted, outcome }) => {
+        let assistant: UIMessage | undefined = responseMessage;
+        if (isAborted && (responseMessage.parts ?? []).length === 0) {
+          persistChat(chatId, live, root);
+          return;
+        }
+        if (outcome.status === "failed") {
+          assistant = withTurnError(responseMessage, harnessErrorText(outcome.error));
+        }
+        persistChat(chatId, messagesToPersist(live, assistant), root);
+      },
+      onError: harnessErrorText,
     }),
   });
 }
