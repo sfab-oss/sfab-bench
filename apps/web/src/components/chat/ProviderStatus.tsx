@@ -2,9 +2,11 @@ import { ProviderLoginHint } from "@/components/chat/ProviderLoginHint";
 import { useHarnesses } from "@/hooks/useHarnesses";
 import { useStore } from "@/state/store";
 
-export function ProviderStatus() {
+type HarnessCatalog = ReturnType<typeof useHarnesses>;
+
+export function ProviderStatus({ catalog }: { catalog: HarnessCatalog }) {
   const harness = useStore((s) => s.chatHarness);
-  const { harnesses, ready, refresh } = useHarnesses();
+  const { harnesses, ready, refresh } = catalog;
   const info = harnesses.find((h) => h.id === harness);
   if (!ready || !info || info.status === "ready") return null;
   return (

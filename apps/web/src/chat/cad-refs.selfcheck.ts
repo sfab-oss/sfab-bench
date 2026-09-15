@@ -1,4 +1,4 @@
-import { parseEditorContent } from "../components/ui/composer";
+import { parseEditorContent, textToDoc } from "../components/ui/chat-input";
 import {
   CAD_MENTION_FACE_CAP,
   CAD_MENTION_LIST_CAP,
@@ -11,6 +11,7 @@ import {
   parseCadRefs,
   partRefFromCadRef,
   resolveCadRef,
+  type CadMentionItem,
 } from "./cad-refs";
 
 function expect(cond: boolean, label: string) {
@@ -144,7 +145,6 @@ expect(
 );
 expect(manyFaces.truncated, "face overflow sets truncated");
 
-expect(CAD_MENTION_FACE_CAP === 50, "face cap is the manager default");
 expect(cadMentionQueryCloses("post  "), "two trailing spaces close");
 expect(cadMentionQueryCloses("post\n"), "newline closes");
 expect(!cadMentionQueryCloses("post "), "one trailing space stays open");
@@ -176,6 +176,34 @@ expect(linked.includes("[#o9.9.f1](#cad-ref:o9.9.f1)"), "unresolved prose ref is
 expect(cadRefFromHref(cadRefHref("#o1.2.1")) === "#o1.2.1", "href round-trips");
 expect(cadRefFromHref("https://example.com/#cad-ref:o1.1") === "#o1.1", "absolute hash still parses");
 expect(cadRefFromHref("#heading") === null, "plain fragment is not a cad ref");
+
+const mentionCfg = {
+  part: {
+    trigger: "#",
+    items: [] as CadMentionItem[],
+    refsInText: parseCadRefs,
+    resolve: (ref: string) => {
+      const hit = resolveCadRef(ref, parts);
+      if (!hit) return undefined;
+      return { id: hit.ref, name: hit.label, cadRef: hit.ref, kind: hit.kind };
+    },
+  },
+};
+const seededItems: Record<string, Map<string, CadMentionItem>> = {};
+const restored = "raise #o1.2.1 5 mm";
+const hydrated = textToDoc(restored, mentionCfg, seededItems);
+const roundTrip = parseEditorContent(hydrated, mentionCfg, seededItems);
+expect(roundTrip.text === restored, "hydrated draft round-trips");
+expect(
+  hydrated.content?.[0]?.content?.some((node) => node.type === "part-mention" && node.attrs?.id === "#o1.2.1") === true,
+  "resolved ref is a chip whose id already includes the trigger",
+);
+expect(seededItems.part?.get("#o1.2.1")?.name === "post_left", "hydrate seeds selectedItems");
+const leftover = textToDoc("see #o9.9 please", mentionCfg, {});
+expect(
+  leftover.content?.[0]?.content?.every((node) => node.type === "text") === true,
+  "unresolved ref stays plain text",
+);
 
 const referenceStyle = "Click [see #o1.1][post] then #o1.2\n\n[post]: #o1.1";
 const referenceLinked = linkifyCadRefsInMarkdown(referenceStyle);

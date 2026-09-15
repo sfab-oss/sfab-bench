@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   applyHarnessFetchResult,
   decideHarnessRefetch,
+  modelShortLabel,
   shouldAcceptHarnessCatalog,
   type HarnessRefreshReason,
 } from "@/chat/model-picker";
@@ -26,30 +27,15 @@ export type HarnessInfo = {
 
 export function harnessModelName(harnesses: HarnessInfo[], harness: HarnessId, slug: string): string {
   const hit = harnesses.find((h) => h.id === harness)?.models.find((m) => m.slug === slug);
-  if (hit?.name.trim()) return hit.name.trim();
-  const i = slug.lastIndexOf("/");
-  return i >= 0 ? slug.slice(i + 1) : slug;
+  return modelShortLabel(slug, hit?.name);
 }
 
-const lastGoodByProject = new Map<string, HarnessInfo[]>();
+let lastGood: { project: string; list: HarnessInfo[] } | null = null;
 const inflightByProject = new Map<string, Promise<HarnessInfo[]>>();
-const lastStartedAtByProject = new Map<string, number>();
-const listeners = new Set<() => void>();
-// Tabs can wander through many folders; keep the most recent ones only.
-const MAX_CACHED_PROJECTS = 20;
+let lastStarted: { project: string; at: number } | null = null;
 
-function rememberProject<T>(map: Map<string, T>, project: string, value: T) {
-  map.delete(project);
-  map.set(project, value);
-  while (map.size > MAX_CACHED_PROJECTS) {
-    const oldest = map.keys().next().value;
-    if (oldest === undefined) break;
-    map.delete(oldest);
-  }
-}
-
-function notifyHarnesses() {
-  for (const listener of listeners) listener();
+function lastGoodFor(project: string): HarnessInfo[] | undefined {
+  return lastGood?.project === project ? lastGood.list : undefined;
 }
 
 function parseHarnessList(body: unknown): HarnessInfo[] {
@@ -63,7 +49,7 @@ export function loadHarnesses(): Promise<HarnessInfo[]> {
   if (!project) return Promise.resolve([]);
   const pending = inflightByProject.get(project);
   if (pending) return pending;
-  rememberProject(lastStartedAtByProject, project, Date.now());
+  lastStarted = { project, at: Date.now() };
   const promise = apiFetch("/api/harnesses", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : Promise.reject(new Error("harnesses"))))
     .then((body) => {
@@ -71,20 +57,22 @@ export function loadHarnesses(): Promise<HarnessInfo[]> {
       const applied = applyHarnessFetchResult({
         ok: true,
         list: fetched,
-        lastGood: lastGoodByProject.get(project) ?? null,
+        lastGood: lastGoodFor(project) ?? null,
       });
-      rememberProject(lastGoodByProject, project, applied.list);
-      if (shouldAcceptHarnessCatalog(project, projectUrl())) notifyHarnesses();
+      if (shouldAcceptHarnessCatalog(project, projectUrl())) {
+        lastGood = { project, list: applied.list };
+      }
       return applied.list;
     })
     .catch((err) => {
       const applied = applyHarnessFetchResult({
         ok: false,
-        lastGood: lastGoodByProject.get(project) ?? null,
+        lastGood: lastGoodFor(project) ?? null,
       });
-      if (!applied.error) rememberProject(lastGoodByProject, project, applied.list);
-      if (shouldAcceptHarnessCatalog(project, projectUrl())) notifyHarnesses();
-      if (!applied.error) return applied.list;
+      if (!applied.error && shouldAcceptHarnessCatalog(project, projectUrl())) {
+        lastGood = { project, list: applied.list };
+      }
+      if (shouldAcceptHarnessCatalog(project, projectUrl()) && !applied.error) return applied.list;
       throw err;
     })
     .finally(() => {
@@ -96,8 +84,8 @@ export function loadHarnesses(): Promise<HarnessInfo[]> {
 
 export function useHarnesses() {
   const project = useProjectSession().project.path;
-  const [harnesses, setHarnesses] = useState<HarnessInfo[]>(() => lastGoodByProject.get(projectUrl()) ?? []);
-  const [ready, setReady] = useState(() => lastGoodByProject.has(projectUrl()));
+  const [harnesses, setHarnesses] = useState<HarnessInfo[]>(() => lastGoodFor(projectUrl()) ?? []);
+  const [ready, setReady] = useState(() => Boolean(lastGoodFor(projectUrl())));
   const [error, setError] = useState(false);
 
   const apply = useCallback((list: HarnessInfo[], failed: boolean) => {
@@ -117,7 +105,7 @@ export function useHarnesses() {
       const decision = decideHarnessRefetch({
         reason,
         now: Date.now(),
-        lastStartedAt: lastStartedAtByProject.get(project) ?? null,
+        lastStartedAt: lastStarted?.project === project ? lastStarted.at : null,
         inflight: inflightByProject.has(project),
       });
       if (decision === "skip") return;
@@ -128,7 +116,7 @@ export function useHarnesses() {
         })
         .catch(() => {
           if (!shouldAcceptHarnessCatalog(project, projectUrl())) return;
-          const fallback = lastGoodByProject.get(project) ?? [];
+          const fallback = lastGoodFor(project) ?? [];
           apply(fallback, fallback.length === 0);
         });
     },
@@ -137,7 +125,7 @@ export function useHarnesses() {
 
   useEffect(() => {
     let cancelled = false;
-    const cached = project ? lastGoodByProject.get(project) : undefined;
+    const cached = project ? lastGoodFor(project) : undefined;
     if (!project) {
       setHarnesses([]);
       setReady(true);
@@ -156,20 +144,9 @@ export function useHarnesses() {
       if (!cancelled) refresh("focus");
     };
     window.addEventListener("focus", onFocus);
-    const listener = () => {
-      if (cancelled) return;
-      if (!shouldAcceptHarnessCatalog(project, projectUrl())) return;
-      const list = lastGoodByProject.get(project);
-      if (!list) return;
-      setHarnesses(list);
-      setError(false);
-      setReady(true);
-    };
-    listeners.add(listener);
     return () => {
       cancelled = true;
       window.removeEventListener("focus", onFocus);
-      listeners.delete(listener);
     };
   }, [project, refresh]);
 

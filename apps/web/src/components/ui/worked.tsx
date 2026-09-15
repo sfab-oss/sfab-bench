@@ -1,7 +1,6 @@
 import { ChevronDownIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { createContext, useCallback, useContext, useState } from "react";
-import { LiveDot } from "@/components/brand/LiveDot";
 import {
   Collapsible,
   CollapsibleContent,
@@ -11,7 +10,6 @@ import { cn } from "@/lib/utils";
 
 export interface WorkedPart {
   type: string;
-  toolName?: string;
 }
 
 export interface IndexedWorkedPart<T extends WorkedPart> {
@@ -23,23 +21,8 @@ export type WorkedSegment<T extends WorkedPart> =
   | { kind: "worked"; items: IndexedWorkedPart<T>[] }
   | { kind: "visible"; item: IndexedWorkedPart<T> };
 
-export function isAskUserQuestionsWorkedPart(part: WorkedPart): boolean {
-  return part.type === "tool-askUserQuestions" || part.toolName === "askUserQuestions";
-}
-
 export function isWorkedPart(part: WorkedPart): boolean {
-  if (isAskUserQuestionsWorkedPart(part)) return false;
-  return (
-    part.type === "reasoning" ||
-    part.type === "dynamic-tool" ||
-    part.type === "data-plan" ||
-    part.type.startsWith("tool-")
-  );
-}
-
-/** AI SDK step markers. Not user-visible; must not split a Working fold. */
-export function isStructuralPart(part: WorkedPart): boolean {
-  return part.type === "step-start" || part.type === "step-finish";
+  return part.type !== "text";
 }
 
 export function splitWorkedParts<T extends WorkedPart>(
@@ -66,7 +49,7 @@ export function splitWorkedParts<T extends WorkedPart>(
 
   for (let index = 0; index < parts.length; index++) {
     const part = parts[index];
-    if (!part || isStructuralPart(part)) {
+    if (!part || part.type === "step-start") {
       continue;
     }
     const beforeTerminal = lastTextIndex === -1 || index < lastTextIndex;
@@ -194,7 +177,6 @@ export function WorkedTrigger({
     >
       {children ?? (
         <>
-          {isStreaming ? <LiveDot /> : null}
           <span className={cn("truncate", isStreaming && "animate-pulse")}>
             {workedLabel({ isStreaming, duration })}
           </span>
@@ -221,3 +203,4 @@ export function WorkedContent({ className, ...props }: WorkedContentProps) {
     />
   );
 }
+

@@ -1,5 +1,5 @@
 import { loginHintCopy } from "@/chat/model-picker";
-import { CommandBlock } from "@/components/ui/command-block";
+import { CommandBlock } from "@/components/chat/CommandBlock";
 import { Button } from "@/components/ui/button";
 import type { HarnessInfo } from "@/hooks/useHarnesses";
 

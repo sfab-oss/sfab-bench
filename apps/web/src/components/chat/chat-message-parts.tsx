@@ -5,7 +5,7 @@ import {
   type UIMessagePart,
   type UITools,
 } from "ai";
-import { CheckIcon, CircleIcon, CopyIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, CircleIcon, CopyIcon } from "lucide-react";
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { Streamdown } from "streamdown";
 import {
@@ -14,7 +14,8 @@ import {
 } from "@/chat/ask-user-questions";
 import { resolveCadRef, cadRefFromHref, linkifyCadRefsInMarkdown } from "@/chat/cad-refs";
 import { isWorkspaceBusyError, mapChatErrorMessage } from "@/chat/composer-recovery";
-import { turnErrorText } from "@/chat/persist-thread";
+import { isTurnErrorPart, turnErrorText } from "@/chat/persist-thread";
+import { LiveDot } from "@/components/brand/LiveDot";
 import { AskUserAnsweredCard } from "@/components/chat/AskUserQuestionsPanel";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
@@ -38,10 +39,13 @@ import {
 } from "@/components/ui/tool";
 import {
   splitWorkedParts,
+  useWorked,
   Worked,
   WorkedContent,
   WorkedTrigger,
+  workedLabel,
 } from "@/components/ui/worked";
+import { copyText } from "@/lib/settings";
 import { partLabelFileStem } from "@/lib/part-label";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
@@ -135,12 +139,7 @@ function MarkdownBody({
         "[&_ul]:my-2 [&_ul]:list-outside [&_ul]:list-disc [&_ul]:pl-5",
         "[&_ol]:my-2 [&_ol]:list-outside [&_ol]:list-decimal [&_ol]:pl-5",
         "[&_li]:my-0.5 [&_ul_ul]:list-[circle] [&_ol_ul]:list-[circle]",
-        "[&_[data-streamdown=code-block]]:relative [&_[data-streamdown=code-block]]:min-w-0 [&_[data-streamdown=code-block]]:max-w-full [&_[data-streamdown=code-block]]:gap-1 [&_[data-streamdown=code-block]]:p-1.5 [&_[data-streamdown=code-block]]:[contain-intrinsic-size:auto_0px] [&_[data-streamdown=code-block]]:[content-visibility:visible]",
-        "[&_[data-streamdown=code-block-header]]:h-auto [&_[data-streamdown=code-block-header]]:min-h-0 [&_[data-streamdown=code-block-header]]:py-0.5 [&_[data-streamdown=code-block-header]]:pr-16",
-        "[&_[data-streamdown=code-block-header]:has(>span:empty)]:hidden",
-        "[&_[data-streamdown=code-block]>div:has(>[data-streamdown=code-block-actions])]:absolute [&_[data-streamdown=code-block]>div:has(>[data-streamdown=code-block-actions])]:top-1.5 [&_[data-streamdown=code-block]>div:has(>[data-streamdown=code-block-actions])]:right-1.5 [&_[data-streamdown=code-block]>div:has(>[data-streamdown=code-block-actions])]:z-10 [&_[data-streamdown=code-block]>div:has(>[data-streamdown=code-block-actions])]:mt-0 [&_[data-streamdown=code-block]>div:has(>[data-streamdown=code-block-actions])]:h-auto",
-        "[&_[data-streamdown=code-block-body]]:min-w-0 [&_[data-streamdown=code-block-body]]:max-w-full",
-        "[&_[data-streamdown=code-block-body]_pre]:max-w-full [&_[data-streamdown=code-block-body]_pre]:overflow-x-auto [&_[data-streamdown=code-block-body]_pre]:whitespace-pre-wrap [&_[data-streamdown=code-block-body]_pre]:break-words",
+        "[&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:break-words",
         className,
       )}
       components={hasCadRefs ? CAD_REF_COMPONENTS : undefined}
@@ -355,18 +354,11 @@ function CopyMessageButton({ text }: { text: string }) {
       aria-label={label}
       className={cn(state !== "idle" && "h-6 w-auto px-2")}
       onClick={() => {
-        void navigator.clipboard.writeText(text).then(
-          () => {
-            if (timer.current != null) window.clearTimeout(timer.current);
-            setState("copied");
-            timer.current = window.setTimeout(() => setState("idle"), 1500);
-          },
-          () => {
-            if (timer.current != null) window.clearTimeout(timer.current);
-            setState("error");
-            timer.current = window.setTimeout(() => setState("idle"), 1500);
-          },
-        );
+        void copyText(text).then((ok) => {
+          if (timer.current != null) window.clearTimeout(timer.current);
+          setState(ok ? "copied" : "error");
+          timer.current = window.setTimeout(() => setState("idle"), 1500);
+        });
       }}
       size="icon-xs"
       title={label}
@@ -376,6 +368,64 @@ function CopyMessageButton({ text }: { text: string }) {
       {state === "copied" ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
       {state === "copied" ? "Copied" : state === "error" ? "Couldn't copy" : null}
     </Button>
+  );
+}
+
+function isStructuralChatPart(part: { type: string }): boolean {
+  return part.type === "step-start" || part.type === "step-finish";
+}
+
+function isAskUserWorkedPart(part: { type: string; toolName?: string }): boolean {
+  return part.type === "tool-askUserQuestions" || part.toolName === "askUserQuestions";
+}
+
+function splitChatType(part: { type: string; toolName?: string }): string {
+  if (isAskUserWorkedPart(part) || isTurnErrorPart(part)) return "text";
+  return part.type;
+}
+
+/** Filter step markers and keep ask-user / turn-error rows out of the Worked fold. */
+export function splitChatWorkedParts<T extends { type: string; toolName?: string }>(
+  parts: readonly T[],
+) {
+  const view = parts
+    .map((part, index) => ({ type: splitChatType(part), part, index }))
+    .filter((row) => !isStructuralChatPart(row.part));
+  return splitWorkedParts(view).map((segment) => {
+    if (segment.kind === "worked") {
+      return {
+        kind: "worked" as const,
+        items: segment.items.map((item) => ({ part: item.part.part, index: item.part.index })),
+      };
+    }
+    return {
+      kind: "visible" as const,
+      item: { part: segment.item.part.part, index: segment.item.part.index },
+    };
+  });
+}
+
+function ChatWorkedTrigger({
+  isStreaming,
+  duration,
+}: {
+  isStreaming: boolean;
+  duration?: number;
+}) {
+  const { isOpen } = useWorked();
+  return (
+    <WorkedTrigger>
+      {isStreaming ? <LiveDot /> : null}
+      <span className={cn("truncate", isStreaming && "animate-pulse")}>
+        {workedLabel({ isStreaming, duration })}
+      </span>
+      <ChevronDownIcon
+        className={cn(
+          "size-3.5 shrink-0 transition-transform",
+          isOpen ? "rotate-0" : "-rotate-90",
+        )}
+      />
+    </WorkedTrigger>
   );
 }
 
@@ -426,7 +476,7 @@ export function ChatMessageRow({
     <Message align={align}>
       <MessageContent>
         {message.role === "assistant"
-          ? splitWorkedParts(message.parts).map((segment) => {
+          ? splitChatWorkedParts(message.parts).map((segment) => {
               if (segment.kind === "worked") {
                 const start = segment.items[0]?.index ?? 0;
                 return (
@@ -435,7 +485,7 @@ export function ChatMessageRow({
                     isStreaming={isStreaming}
                     key={`${message.id}-worked-${start}`}
                   >
-                    <WorkedTrigger />
+                    <ChatWorkedTrigger duration={duration} isStreaming={isStreaming} />
                     <WorkedContent>
                       {segment.items.map((item) =>
                         partRow(item.part, item.index)

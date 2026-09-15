@@ -14,7 +14,8 @@ import {
 import { messagePlainText, useViewerChat } from "@/components/chat/useViewerChat";
 import { turnErrorText } from "@/chat/persist-thread";
 import { toolTitle } from "@/components/ui/tool";
-import { splitWorkedParts, workedLabel } from "@/components/ui/worked";
+import { splitChatWorkedParts } from "@/components/chat/chat-message-parts";
+import { workedLabel } from "@/components/ui/worked";
 import { ChatModelChip } from "@/xr/ui/ChatModelCard";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
 import { asciiSafe, UikitMarkdown } from "@/xr/ui/UikitMarkdown";
@@ -270,7 +271,7 @@ function XrAssistantParts({
   const duration = workedDurationSeconds(message);
   return (
     <Container width="100%" flexShrink={0} flexDirection="column" gap={8}>
-      {splitWorkedParts(message.parts).map((segment) => {
+      {splitChatWorkedParts(message.parts).map((segment) => {
         if (segment.kind === "worked") {
           const start = segment.items[0]?.index ?? 0;
           return (

@@ -46,7 +46,7 @@ export function EffortSelect() {
       >
         <SelectValue />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent onClick={(event) => event.stopPropagation()}>
         {CHAT_EFFORTS.map((value) => (
           <SelectItem key={value} value={value}>
             {CHAT_EFFORT_LABEL[value]}
