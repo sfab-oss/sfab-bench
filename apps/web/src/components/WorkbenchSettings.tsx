@@ -326,7 +326,8 @@ function AboutSection({ host }: { host: boolean }) {
   const { theme } = useTheme();
   const { contrast, textSize } = useAppearancePrefs();
   const projectPath = useProjectSession().project.path;
-  const { title, error } = useStore((s) => ({ title: s.title, error: s.error }));
+  const title = useStore((s) => s.title);
+  const error = useStore((s) => s.error);
   const { harnesses } = useHarnesses();
   const [flash, setFlash] = useState<CopyFlash>(null);
 
