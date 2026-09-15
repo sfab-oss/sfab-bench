@@ -43,6 +43,7 @@ import { useHarnesses } from "@/hooks/useHarnesses";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { HARNESS_LABEL } from "@/lib/harness";
 import { partLabelFileStem } from "@/lib/part-label";
+import { compactChatSheetOpen, escBelongsTo, probeEscLayers } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
 import { EffortSelect } from "./EffortSelect";
@@ -178,10 +179,15 @@ function ChatInputInner({
     if (!voice.active) return;
     (document.activeElement as HTMLElement | null)?.blur?.();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        voice.cancel();
-      }
+      if (e.key !== "Escape") return;
+      const layers = {
+        ...probeEscLayers(document),
+        compactChat: compactChatSheetOpen(document),
+        voice: true,
+      };
+      if (!escBelongsTo("voice", layers)) return;
+      e.preventDefault();
+      voice.cancel();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -281,7 +287,7 @@ function ChatInputInner({
             size="icon-sm"
             disabled={lockSend || status === "streaming" || status === "submitted"}
             aria-label="Start voice input"
-            title={voice.error ?? "Tap to talk"}
+            title={voice.error ?? "Click to talk"}
             onClick={() => void voice.start()}
           >
             <Mic />
@@ -391,7 +397,7 @@ export function GalleryChatInput({
 
   return (
     <div className="relative bottom-0 z-10 w-full min-w-0 overflow-x-hidden bg-background pt-2" data-chat-composer>
-      <div className="mx-auto w-full min-w-0 p-2 @[360px]/chat:px-4 @[360px]/chat:pb-4 md:max-w-3xl @[500px]/chat:md:pb-6">
+      <div className="mx-auto w-full min-w-0 p-2 @[360px]/chat:px-4 @[360px]/chat:pb-4">
         <div
           className={cn(
             attached && "overflow-hidden rounded-2xl border border-input shadow-xs dark:bg-input/30",

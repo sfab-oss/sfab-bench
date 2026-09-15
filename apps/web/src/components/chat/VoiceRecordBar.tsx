@@ -62,12 +62,11 @@ export function VoiceRecordBar({
       </span>
       <Button
         type="button"
-        variant="ghost"
+        variant="default"
         size="icon-sm"
         disabled={transcribing || !recording}
         aria-label="Done recording"
         title={error ?? (transcribing ? "Transcribing…" : "Done")}
-        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
         onClick={onComplete}
       >
         {transcribing ? <Loader2 className="animate-spin" /> : <Check />}

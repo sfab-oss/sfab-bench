@@ -93,6 +93,7 @@ function ChatToggle({
           size="sm"
           className="h-6 px-1.5 text-xs"
           title="Show chat"
+          aria-label="Show chat"
           tabIndex={hidden ? -1 : undefined}
           aria-hidden={hidden || undefined}
           onClick={show}
@@ -111,12 +112,12 @@ function ChatToggle({
         size="icon-sm"
         className="h-9 w-9"
         title="Show chat"
+        aria-label="Show chat"
         tabIndex={hidden ? -1 : undefined}
         aria-hidden={hidden || undefined}
         onClick={show}
       >
         <PanelRight />
-        <span className="sr-only">Show chat</span>
       </Button>
     </div>
   );

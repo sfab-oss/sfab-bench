@@ -295,6 +295,7 @@ function PartTreeBody({
         size="sm"
         className="pointer-events-auto absolute top-16 left-3 z-10 h-9 gap-2 shadow-lg"
         title="Show model tree"
+        aria-label="Show model tree"
         onClick={onExpand}
       >
         <ListTree className="size-4" />
@@ -319,6 +320,7 @@ function PartTreeBody({
           size="sm"
           className="h-7 w-7 p-0"
           title="Hide model tree"
+          aria-label="Hide model tree"
           onClick={onCollapse}
         >
           <PanelLeftClose />

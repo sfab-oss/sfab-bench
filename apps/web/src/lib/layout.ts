@@ -96,6 +96,28 @@ export function clampChatDrag(width: number, windowWidth: number, railOpen: bool
   return chatLayoutWidth(width, windowWidth, railOpen);
 }
 
+export const CHAT_RESIZE_STEP = 16;
+export const CHAT_RESIZE_STEP_LARGE = 64;
+
+/**
+ * Keyboard resize for the chat separator. ArrowLeft grows the rail (handle is
+ * on the left edge); ArrowRight shrinks. Same clamp as dragging.
+ */
+export function chatWidthAfterKey(
+  key: string,
+  shiftKey: boolean,
+  current: number,
+  windowWidth: number,
+  railOpen: boolean,
+): number | null {
+  if (key === "Home") return clampChatDrag(CHAT_MIN_WIDTH, windowWidth, railOpen);
+  if (key === "End") return clampChatDrag(CHAT_MAX_WIDTH, windowWidth, railOpen);
+  const step = shiftKey ? CHAT_RESIZE_STEP_LARGE : CHAT_RESIZE_STEP;
+  if (key === "ArrowLeft") return clampChatDrag(current + step, windowWidth, railOpen);
+  if (key === "ArrowRight") return clampChatDrag(current - step, windowWidth, railOpen);
+  return null;
+}
+
 export function overlayLayout(canvasWidth: number): {
   autoCollapseParts: boolean;
   detailCompact: boolean;

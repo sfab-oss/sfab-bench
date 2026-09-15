@@ -1,3 +1,7 @@
+import { formatShortcut, shortcutTooltip } from "./shortcuts";
+
+export { isEditableTarget, isMacPlatform } from "./shortcuts";
+
 export const FILE_TREE_EXPANSION_KEY = "sfab-bench.file-tree-expansion";
 export const FILE_TREE_EXPANSION_MAX = 20;
 
@@ -16,48 +20,12 @@ export type FileTreeProjectExpansion = {
   updatedAt: number;
 };
 
-type EditableProbe = {
-  tagName?: string;
-  isContentEditable?: boolean;
-  parentElement?: EditableProbe | null;
-  closest?: (selector: string) => unknown;
-};
-
-export function isMacPlatform(platform: string, userAgent = ""): boolean {
-  return /Mac|iPhone|iPad|iPod/.test(platform) || /Mac OS X/.test(userAgent);
-}
-
 export function filesRailShortcutLabel(mac: boolean): string {
-  return mac ? "⌘B" : "Ctrl+B";
+  return formatShortcut("toggle-files", mac);
 }
 
 export function filesRailToggleTitle(mac: boolean, action: "toggle" | "show" = "toggle"): string {
-  const chord = filesRailShortcutLabel(mac);
-  return action === "show" ? `Show files (${chord})` : `Toggle files (${chord})`;
-}
-
-/** True when ⌘B / Ctrl+B should stay with the field (Bold in TipTap, etc.). */
-export function isEditableTarget(target: unknown, activeElement: unknown = null): boolean {
-  return probeIsEditable(toProbe(target)) || probeIsEditable(toProbe(activeElement));
-}
-
-function toProbe(value: unknown): EditableProbe | null {
-  if (!value || typeof value !== "object") return null;
-  return value as EditableProbe;
-}
-
-function probeIsEditable(probe: EditableProbe | null): boolean {
-  if (!probe) return false;
-  const tag = probe.tagName?.toUpperCase();
-  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-  if (probe.isContentEditable) return true;
-  if (typeof probe.closest === "function") {
-    if (probe.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) {
-      return true;
-    }
-  }
-  if (probe.parentElement) return probeIsEditable(probe.parentElement);
-  return false;
+  return action === "show" ? shortcutTooltip("Show files", "toggle-files", mac) : shortcutTooltip("Toggle files", "toggle-files", mac);
 }
 
 export function catalogEmptyReason(input: {

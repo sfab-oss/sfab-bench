@@ -1,5 +1,7 @@
 /** Welcome / empty-scene helpers. Keep `/` empty until the tab names a folder. */
 
+import { formatShortcut, shortcutTooltip } from "./shortcuts";
+
 export const PRODUCT_TITLE = "sfab-bench";
 
 export type EmptySceneKind =
@@ -78,11 +80,11 @@ export function fileRecentLines(path: string): { name: string; extra: string | n
 }
 
 export function openFolderShortcutLabel(mac: boolean): string {
-  return mac ? "⌘O" : "Ctrl+O";
+  return formatShortcut("open-folder", mac);
 }
 
 export function openFolderButtonTitle(mac: boolean): string {
-  return `Open folder (${openFolderShortcutLabel(mac)})`;
+  return shortcutTooltip("Open folder", "open-folder", mac);
 }
 
 export const FOLDER_ERROR_EVENT = "sfab-folder-error";

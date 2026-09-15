@@ -7,12 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { filesRailToggleTitle, isEditableTarget, isMacPlatform } from "@/lib/files-rail";
+import { filesRailToggleTitle, isMacPlatform } from "@/lib/files-rail";
+import { matchesShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 
 const SIDEBAR_WIDTH = "19rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
-const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed";
@@ -62,9 +62,9 @@ function SidebarProvider({
   }, [setOpen]);
 
   React.useEffect(() => {
+    const mac = isMacPlatform(navigator.platform, navigator.userAgent);
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== SIDEBAR_KEYBOARD_SHORTCUT || !(event.metaKey || event.ctrlKey)) return;
-      if (isEditableTarget(event.target, document.activeElement)) return;
+      if (!matchesShortcut(event, "toggle-files", { mac, activeElement: document.activeElement })) return;
       event.preventDefault();
       toggleSidebar();
     };
@@ -114,13 +114,14 @@ function Sidebar({
 
   if (collapsible === "none") {
     return (
-      <div
+      <nav
         data-slot="sidebar"
+        aria-label="Files"
         className={cn("flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground", className)}
         {...props}
       >
         {children}
-      </div>
+      </nav>
     );
   }
 
@@ -156,12 +157,13 @@ function Sidebar({
         )}
         {...props}
       >
-        <div
+        <nav
           data-sidebar="sidebar"
+          aria-label="Files"
           className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
         >
           {children}
-        </div>
+        </nav>
       </div>
     </div>
   );
@@ -174,6 +176,7 @@ function filesRailShortcutIsMac() {
 
 function SidebarTrigger({ className, onClick, title, ...props }: React.ComponentProps<typeof Button>) {
   const { toggleSidebar } = useSidebar();
+  const label = title ?? filesRailToggleTitle(filesRailShortcutIsMac());
   return (
     <Button
       type="button"
@@ -183,14 +186,14 @@ function SidebarTrigger({ className, onClick, title, ...props }: React.Component
       size="icon-sm"
       className={cn("size-7", className)}
       {...props}
-      title={title ?? filesRailToggleTitle(filesRailShortcutIsMac())}
+      aria-label={label}
+      title={label}
       onClick={(event) => {
         onClick?.(event);
         toggleSidebar();
       }}
     >
       <PanelLeft className="rtl:rotate-180" />
-      <span className="sr-only">Toggle files</span>
     </Button>
   );
 }
@@ -291,7 +294,7 @@ function SidebarGroupAction({ className, ...props }: React.ComponentProps<"butto
       type="button"
       data-sidebar="group-action"
       className={cn(
-        "absolute top-3.5 right-3 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-none ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0",
+        "absolute top-3.5 right-3 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-none ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         "after:absolute after:-inset-2 after:md:hidden",
         "group-data-[collapsible=icon]:hidden",
         className,

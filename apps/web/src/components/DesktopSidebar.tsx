@@ -19,6 +19,7 @@ import type { CatalogState } from "@/hooks/useCatalog";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { commandPaletteShortcutLabel } from "@/lib/command-palette";
 import { isMacPlatform } from "@/lib/files-rail";
+import { shortcutTooltip } from "@/lib/shortcuts";
 import { useStore } from "@/state/store";
 
 export function DesktopSidebar({
@@ -64,6 +65,8 @@ export function DesktopSidebar({
         {hasProject ? (
           <SidebarInput
             placeholder={`Search files… ${commandPaletteShortcutLabel(mac)}`}
+            title={shortcutTooltip("Command palette", "command-palette", mac)}
+            aria-label="Search files"
             value={filter}
             onChange={(ev) => setFilter(ev.target.value)}
           />

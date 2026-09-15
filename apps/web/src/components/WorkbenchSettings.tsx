@@ -104,7 +104,7 @@ export function WorkbenchSettings({ host }: { host: boolean }) {
                       type="button"
                       aria-current={section === row.id ? "page" : undefined}
                       className={cn(
-                        "rounded-md px-2 py-1.5 text-left text-sm",
+                        "rounded-md px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                         section === row.id ? "bg-accent text-accent-foreground" : "hover:bg-accent/70",
                       )}
                       onClick={() => setSection(row.id)}
