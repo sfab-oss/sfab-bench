@@ -42,7 +42,7 @@ export function DesktopSidebar({
       recentFiles: s.recentFiles,
     })),
   );
-  const { project, setDoc, connectionPhase, connectionOfferReload } = useProjectSession();
+  const { project, setDoc, connectionPhase, connectionLostShown, connectionOfferReload } = useProjectSession();
   const hasProject = Boolean(project.path);
   const { files, error, ready, refreshing, reload } = catalog;
   const [filter, setFilter] = useState("");
@@ -115,7 +115,11 @@ export function DesktopSidebar({
           <div className="min-w-0 flex-1">
             <WorkbenchSettings host={host} />
           </div>
-          <ConnectionStatusDot offerReload={connectionOfferReload} phase={connectionPhase} />
+          <ConnectionStatusDot
+            lostShown={connectionLostShown}
+            offerReload={connectionOfferReload}
+            phase={connectionPhase}
+          />
         </div>
       </SidebarFooter>
       <SidebarRail />
