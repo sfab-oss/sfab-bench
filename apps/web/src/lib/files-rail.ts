@@ -1,4 +1,4 @@
-import { formatShortcut, shortcutTooltip } from "./shortcuts";
+import { shortcutTooltip } from "./shortcuts";
 
 export const FILE_TREE_EXPANSION_KEY = "sfab-bench.file-tree-expansion";
 
@@ -9,10 +9,6 @@ export type CatalogEmptyReason =
   | { type: "no-cad" }
   | { type: "kind"; kind: "step" | "glb" }
   | { type: "search" };
-
-export function filesRailShortcutLabel(mac: boolean): string {
-  return formatShortcut("toggle-files", mac);
-}
 
 export function filesRailToggleTitle(mac: boolean, action: "toggle" | "show" = "toggle"): string {
   return action === "show" ? shortcutTooltip("Show files", "toggle-files", mac) : shortcutTooltip("Toggle files", "toggle-files", mac);

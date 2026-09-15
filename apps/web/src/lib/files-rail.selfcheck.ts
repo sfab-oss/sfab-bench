@@ -1,6 +1,5 @@
 import {
   catalogEmptyReason,
-  filesRailShortcutLabel,
   filesRailToggleTitle,
   readFileTreeExpansion,
   serializeFileTreeExpansion,
@@ -11,8 +10,6 @@ function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
 }
 
-expect(filesRailShortcutLabel(true) === "⌘B", "mac chord");
-expect(filesRailShortcutLabel(false) === "Ctrl+B", "other chord");
 expect(filesRailToggleTitle(true, "show") === "Show files (⌘B)", "show title");
 expect(filesRailToggleTitle(false) === "Toggle files (Ctrl+B)", "toggle title");
 

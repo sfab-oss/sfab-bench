@@ -10,7 +10,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useProjectSession } from "@/hooks/useProjectSession";
-import { blockCommandPalette } from "@/lib/command-palette";
 import {
   CLOSE_FOLDER_BODY,
   CLOSE_FOLDER_EVENT,
@@ -38,11 +37,6 @@ export function CloseFolderDialog() {
     window.addEventListener(CLOSE_FOLDER_EVENT, onClose);
     return () => window.removeEventListener(CLOSE_FOLDER_EVENT, onClose);
   }, [path, url, tabStreaming]);
-
-  useEffect(() => {
-    if (!open) return;
-    return blockCommandPalette();
-  }, [open]);
 
   const confirm = () => {
     setOpen(false);

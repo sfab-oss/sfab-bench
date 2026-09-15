@@ -1,4 +1,4 @@
-import { formatShortcut, matchesShortcut } from "./shortcuts";
+import { formatShortcut } from "./shortcuts";
 
 export const OPEN_SETTINGS_EVENT = "sfab-open-settings";
 
@@ -32,20 +32,6 @@ export type BuildCommandsInput = {
   files: readonly PaletteFile[];
   folders: readonly PaletteFolder[];
 };
-
-let blockingModals = 0;
-
-/** Settings / Quest / Close-folder register while they are open so ⌘K is ignored. */
-export function blockCommandPalette(): () => void {
-  blockingModals += 1;
-  return () => {
-    blockingModals = Math.max(0, blockingModals - 1);
-  };
-}
-
-export function commandPaletteBlocked(): boolean {
-  return blockingModals > 0;
-}
 
 export function commandPaletteShortcutLabel(mac: boolean): string {
   return formatShortcut("command-palette", mac);

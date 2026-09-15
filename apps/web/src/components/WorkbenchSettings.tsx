@@ -10,7 +10,7 @@ import { QuestJoinPanel } from "@/components/QuestJoinPanel";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
-import { OPEN_SETTINGS_EVENT, blockCommandPalette } from "@/lib/command-palette";
+import { OPEN_SETTINGS_EVENT } from "@/lib/command-palette";
 import { cn } from "@/lib/utils";
 
 type SettingsSectionId = "appearance" | "voice" | "providers" | "shortcuts" | "about";
@@ -39,11 +39,6 @@ export function WorkbenchSettings({ host }: { host: boolean }) {
     window.addEventListener(OPEN_SETTINGS_EVENT, onSettings);
     return () => window.removeEventListener(OPEN_SETTINGS_EVENT, onSettings);
   }, []);
-
-  useEffect(() => {
-    if (!settingsOpen && !questOpen) return;
-    return blockCommandPalette();
-  }, [questOpen, settingsOpen]);
 
   const sections: { id: SettingsSectionId; label: string; hostOnly?: boolean }[] = [
     { id: "appearance", label: "Appearance" },

@@ -13,7 +13,6 @@ import {
   COMMAND_PALETTE_LIST_ID,
   buildCommands,
   clampActiveIndex,
-  commandPaletteBlocked,
   paletteOptionId,
   requestOpenSettings,
   visiblePalette,
@@ -177,7 +176,9 @@ export function CommandPalette({
         skipRestoreRef.current = false;
         return;
       }
-      if (dialogOpen || commandPaletteBlocked()) return;
+      // Settings, Quest and the Close-folder alert keep focus inside their popup.
+      const target = event.target instanceof Element ? event.target : null;
+      if (dialogOpen || target?.closest("[data-slot='dialog-content'], [data-slot='alert-dialog-content']")) return;
       restoreRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       skipRestoreRef.current = false;
       setQuery("");
