@@ -5,6 +5,7 @@ import { namedKids, treeTops } from "@/cad/tree";
 import { Button } from "@/components/ui/button";
 import { formatMm, measureDelta } from "@/lib/measure";
 import { disambiguateSiblingNames, partDisplayName, partLabelFileStem } from "@/lib/part-label";
+import { overlayMaxHeight } from "@/lib/layout";
 import { useStore } from "@/state/store";
 
 function SelectionBody() {
@@ -180,7 +181,15 @@ function MeasureBody() {
   );
 }
 
-export function DetailPanel() {
+export function DetailPanel({
+  canvasHeight,
+  compact,
+  width,
+}: {
+  canvasHeight: number;
+  compact: boolean;
+  width: number;
+}) {
   const { review, selectedId, pickedRef, tool } = useStore(
     useShallow((s) => ({
       review: s.review,
@@ -192,9 +201,17 @@ export function DetailPanel() {
   const part = selectedId !== null ? review?.parts[selectedId] : undefined;
   if (!review) return null;
   if (tool !== "measure" && !part && !pickedRef) return null;
+  if (width <= 0) return null;
 
   return (
-    <aside className="pointer-events-auto absolute top-16 right-4 z-10 max-h-[min(32rem,calc(100dvh-6rem))] w-[260px] min-w-0 overflow-auto rounded-xl border border-border bg-card/95 p-3 shadow-lg">
+    <aside
+      className="pointer-events-auto absolute top-16 right-4 z-10 min-w-0 overflow-auto rounded-xl border border-border bg-card/95 p-3 shadow-lg"
+      style={{
+        width: compact ? width : 260,
+        maxWidth: compact ? "calc(100% - 1.5rem)" : undefined,
+        maxHeight: overlayMaxHeight(canvasHeight),
+      }}
+    >
       {tool === "measure" ? <MeasureBody /> : <SelectionBody />}
     </aside>
   );

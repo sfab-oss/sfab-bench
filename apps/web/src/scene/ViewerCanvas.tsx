@@ -6,6 +6,7 @@ import * as THREE from "three";
 
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { useStudioColor } from "@/hooks/useStudioColor";
+import { fitDistanceScale, fitPanNdc, getLiveFitInsets } from "@/lib/layout";
 import { CadModel } from "@/scene/CadModel";
 import { RecenterOnReset } from "@/scene/RecenterOnReset";
 import { SpawnInFront } from "@/scene/SpawnInFront";
@@ -34,6 +35,7 @@ function StudioFloor() {
 
 function FitBridge() {
   const camera = useThree((s) => s.camera);
+  const gl = useThree((s) => s.gl);
   const controls = useThree((s) => s.controls) as {
     target: THREE.Vector3;
     update: () => void;
@@ -47,7 +49,11 @@ function FitBridge() {
     const center = box.getCenter(new THREE.Vector3());
     const radius = box.getSize(new THREE.Vector3()).length() * 0.5;
     const fov = (camera.fov * Math.PI) / 180;
-    const dist = Math.max((radius / Math.sin(fov / 2)) * 1.2, radius * 1.5, 0.05);
+    const insets = getLiveFitInsets();
+    const w = gl.domElement.clientWidth;
+    const h = gl.domElement.clientHeight;
+    const scale = fitDistanceScale(w, h, insets);
+    const dist = Math.max((radius / Math.sin(fov / 2)) * 1.2, radius * 1.5, 0.05) * scale;
     const from =
       dir?.clone().normalize() ??
       camera.position.clone().sub(controls?.target ?? new THREE.Vector3()).normalize();
@@ -57,8 +63,21 @@ function FitBridge() {
       controls.target.copy(center);
       controls.update();
     }
+    const ndc = fitPanNdc(w, h, insets);
+    if (ndc.x === 0 && ndc.y === 0) return;
+    camera.updateMatrixWorld();
+    const halfH = dist * Math.tan(fov / 2);
+    const halfW = halfH * camera.aspect;
+    const camRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+    const camUp = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+    const shift = camRight.multiplyScalar(-ndc.x * halfW).add(camUp.multiplyScalar(-ndc.y * halfH));
+    camera.position.add(shift);
+    if (controls) {
+      controls.target.add(shift);
+      controls.update();
+    }
     });
-  }, [camera, controls, setFit]);
+  }, [camera, controls, gl, setFit]);
   return null;
 }
 
@@ -126,7 +145,7 @@ export function ViewerCanvas() {
           <ToolDrawer />
         </Suspense>
         <IfInSessionMode deny={["immersive-ar", "immersive-vr"]}>
-          <OrbitControls makeDefault enableDamping />
+          <OrbitControls makeDefault enableDamping onStart={() => store.getState().setCameraMoved(true)} />
           <CornerAxes />
         </IfInSessionMode>
       </XR>

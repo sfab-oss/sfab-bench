@@ -89,7 +89,7 @@ export function ModelPicker() {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 max-w-32 min-w-0 gap-1.5 px-1.5 text-xs font-normal text-muted-foreground"
+            className="h-7 max-w-[5.5rem] min-w-0 gap-1.5 px-1.5 text-xs font-normal text-muted-foreground @[360px]/chat:max-w-32"
             title={fullTitle}
           />
         }

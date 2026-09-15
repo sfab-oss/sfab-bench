@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { disambiguateSiblingNames, partDisplayName, partLabelFileStem } from "@/lib/part-label";
 import { filterPartTree, type PartTreeItem } from "@/lib/part-tree";
+import { overlayMaxHeight } from "@/lib/layout";
 import { useStore } from "@/state/store";
 import { cn } from "@/lib/utils";
 
@@ -236,7 +237,17 @@ function ModelTreeBody() {
   );
 }
 
-export function PartTree() {
+export function PartTree({
+  canvasHeight,
+  expanded,
+  onExpand,
+  onCollapse,
+}: {
+  canvasHeight: number;
+  expanded: boolean;
+  onExpand: () => void;
+  onCollapse: () => void;
+}) {
   const url = useStore((s) => s.url);
   return (
     <RenderErrorBoundary
@@ -247,23 +258,36 @@ export function PartTree() {
         </div>
       )}
     >
-      <PartTreeBody />
+      <PartTreeBody
+        canvasHeight={canvasHeight}
+        expanded={expanded}
+        onCollapse={onCollapse}
+        onExpand={onExpand}
+      />
     </RenderErrorBoundary>
   );
 }
 
-function PartTreeBody() {
-  const { review, title, url, partsOpen, setPartsOpen } = useStore(
+function PartTreeBody({
+  canvasHeight,
+  expanded,
+  onExpand,
+  onCollapse,
+}: {
+  canvasHeight: number;
+  expanded: boolean;
+  onExpand: () => void;
+  onCollapse: () => void;
+}) {
+  const { review, title, url } = useStore(
     useShallow((s) => ({
       review: s.review,
       title: s.title,
       url: s.url,
-      partsOpen: s.partsOpen,
-      setPartsOpen: s.setPartsOpen,
     })),
   );
   if (!review) return null;
-  if (!partsOpen) {
+  if (!expanded) {
     return (
       <Button
         type="button"
@@ -271,7 +295,7 @@ function PartTreeBody() {
         size="sm"
         className="pointer-events-auto absolute top-16 left-3 z-10 h-9 gap-2 shadow-lg"
         title="Show model tree"
-        onClick={() => setPartsOpen(true)}
+        onClick={onExpand}
       >
         <ListTree className="size-4" />
         Model
@@ -279,7 +303,10 @@ function PartTreeBody() {
     );
   }
   return (
-    <aside className="pointer-events-auto absolute top-16 left-3 z-10 flex w-[280px] max-h-[min(32rem,calc(100dvh-6rem))] flex-col overflow-hidden rounded-xl border border-border/80 bg-card/95 shadow-lg backdrop-blur-sm">
+    <aside
+      className="pointer-events-auto absolute top-16 left-3 z-10 flex w-[280px] flex-col overflow-hidden rounded-xl border border-border/80 bg-card/95 shadow-lg backdrop-blur-sm"
+      style={{ maxHeight: overlayMaxHeight(canvasHeight) }}
+    >
       <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
         <ListTree className="size-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
@@ -292,7 +319,7 @@ function PartTreeBody() {
           size="sm"
           className="h-7 w-7 p-0"
           title="Hide model tree"
-          onClick={() => setPartsOpen(false)}
+          onClick={onCollapse}
         >
           <PanelLeftClose />
         </Button>

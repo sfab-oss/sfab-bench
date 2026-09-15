@@ -7,6 +7,7 @@ import { type Appearance, readDomAppearance } from "@/lib/appearance";
 import { applyHighlights, clearHighlights } from "@/cad/highlights";
 import { fileLabel, loadCadReview, modelUrl, syncFileQuery } from "@/cad/loadCadReview";
 import { isAncestor, type CadReview } from "@/cad/review";
+import { CHAT_DEFAULT_WIDTH, clampStoredChatWidth } from "@/lib/layout";
 import { projectUrl } from "@/lib/project-query";
 import {
   DEFAULT_CHAT_EFFORT,
@@ -18,9 +19,11 @@ import {
   type HarnessId,
 } from "@/lib/harness";
 
-export const CHAT_MIN_WIDTH = 280;
-export const CHAT_MAX_WIDTH = 720;
-export const CHAT_DEFAULT_WIDTH = 384;
+export {
+  CHAT_DEFAULT_WIDTH,
+  CHAT_MAX_WIDTH,
+  CHAT_MIN_WIDTH,
+} from "@/lib/layout";
 
 const DESKTOP_PREFS_KEY = "sfab-bench.desktop";
 const MAX_RECENTS = 12;
@@ -40,7 +43,7 @@ type DesktopPrefs = {
 };
 
 function clampChatWidth(n: number) {
-  return Math.max(CHAT_MIN_WIDTH, Math.min(CHAT_MAX_WIDTH, Math.round(n)));
+  return clampStoredChatWidth(n);
 }
 
 function readDesktopPrefs(): Partial<DesktopPrefs> {
@@ -92,6 +95,8 @@ type State = {
   treeOpen: boolean;
   partsOpen: boolean;
   chatOpen: boolean;
+  /** Compact-sheet open state. Not persisted — must not rewrite `chatOpen`. */
+  compactChatOpen: boolean;
   chatWidth: number;
   chatHarness: HarnessId;
   chatModel: string;
@@ -107,7 +112,11 @@ type State = {
   setTreeOpen: (open: Setter) => void;
   setPartsOpen: (open: Setter) => void;
   setChatOpen: (open: Setter) => void;
+  setCompactChatOpen: (open: Setter) => void;
   setChatWidth: (width: number) => void;
+  /** True once the user has orbited; blocks the one-shot settled auto-fit. */
+  cameraMoved: boolean;
+  setCameraMoved: (moved: boolean) => void;
   setChatHarness: (harness: HarnessId) => void;
   setChatModel: (model: string) => void;
   setChatSelection: (harness: HarnessId, model: string) => void;
@@ -205,6 +214,8 @@ export const store = createStore<State>()(
   treeOpen: prefs.treeOpen ?? true,
   partsOpen: prefs.partsOpen ?? true,
   chatOpen: prefs.chatOpen ?? true,
+  compactChatOpen: false,
+  cameraMoved: false,
   chatWidth: prefs.chatWidth != null ? clampChatWidth(prefs.chatWidth) : CHAT_DEFAULT_WIDTH,
   chatHarness: isHarnessId(prefs.chatHarness ?? "") ? prefs.chatHarness! : DEFAULT_HARNESS,
   chatModel:
@@ -236,6 +247,7 @@ export const store = createStore<State>()(
         hiddenIds: new Set(),
         tool: "select",
         measure: { a: null, b: null },
+        cameraMoved: false,
       });
       return;
     }
@@ -250,6 +262,7 @@ export const store = createStore<State>()(
       hiddenIds: new Set(),
       tool: "select",
       measure: { a: null, b: null },
+      cameraMoved: false,
     });
     try {
       const review = await loadCadReview(next, (loaded, total) => {
@@ -275,6 +288,10 @@ export const store = createStore<State>()(
   setTreeOpen: (open) => set((s) => ({ treeOpen: resolve(s.treeOpen, open) })),
   setPartsOpen: (open) => set((s) => ({ partsOpen: resolve(s.partsOpen, open) })),
   setChatOpen: (open) => set((s) => ({ chatOpen: resolve(s.chatOpen, open) })),
+  setCompactChatOpen: (open) => set((s) => ({ compactChatOpen: resolve(s.compactChatOpen, open) })),
+  setCameraMoved: (moved) => {
+    if (get().cameraMoved !== moved) set({ cameraMoved: moved });
+  },
   setChatWidth: (width) => {
     const chatWidth = clampChatWidth(width);
     if (get().chatWidth !== chatWidth) set({ chatWidth });

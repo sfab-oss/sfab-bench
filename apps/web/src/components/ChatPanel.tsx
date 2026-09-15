@@ -35,21 +35,87 @@ import {
 } from "@/components/ui/message-scroller";
 import { loadHarnesses } from "@/hooks/useHarnesses";
 import { jsonApi } from "@/lib/api";
+import { CHAT_DEFAULT_WIDTH, clampChatDrag } from "@/lib/layout";
 import { cn } from "@/lib/utils";
-import { CHAT_MAX_WIDTH, CHAT_MIN_WIDTH, useStore } from "@/state/store";
+import { useStore } from "@/state/store";
 
-export function ChatPanel() {
-  const chatOpen = useStore((s) => s.chatOpen);
-  const setChatOpen = useStore((s) => s.setChatOpen);
-  const width = useStore((s) => s.chatWidth);
+export function ChatPanel({
+  width,
+  onClose,
+  open = true,
+  compact = false,
+  toggleRef,
+}: {
+  width: number;
+  onClose: () => void;
+  open?: boolean;
+  compact?: boolean;
+  toggleRef?: RefObject<HTMLButtonElement | null>;
+}) {
+  const treeOpen = useStore((s) => s.treeOpen);
   const setWidth = useStore((s) => s.setChatWidth);
   const [resizing, setResizing] = useState(false);
   const [live, setLive] = useState(false);
   const messagesRef = useRef<GalleryChatMessage[]>([]);
+  const compactOpenRef = useRef(false);
+  const panelRef = useRef<HTMLElement>(null);
   const { threads, threadId, initialMessages, refreshThreads, newThread, openThread } = useViewerChat();
   useEffect(() => {
     void loadHarnesses();
   }, []);
+
+  const persistWidth = useCallback(
+    (next: number) => {
+      setWidth(clampChatDrag(next, window.innerWidth, treeOpen));
+    },
+    [setWidth, treeOpen],
+  );
+
+  useEffect(() => {
+    const wasCompactOpen = compactOpenRef.current;
+    const isCompactOpen = compact && open;
+    compactOpenRef.current = isCompactOpen;
+    if (isCompactOpen && !wasCompactOpen) {
+      const el = document.querySelector<HTMLElement>("[data-chat-composer] .ProseMirror");
+      el?.focus();
+      return;
+    }
+    if (wasCompactOpen && compact && !open) {
+      toggleRef?.current?.focus();
+    }
+  }, [compact, open, toggleRef]);
+
+  useEffect(() => {
+    if (!compact || !open) return;
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") {
+        // Capture so we see popovers/selects before Base UI unmounts them.
+        if (ev.defaultPrevented || floatingDismissOpen()) return;
+        ev.preventDefault();
+        onClose();
+        return;
+      }
+      if (ev.key !== "Tab" || floatingDismissOpen()) return;
+      backwards = ev.shiftKey;
+      wrapTab(ev, panelRef.current);
+    };
+    // Tab order can leave the panel from any element, not only the last one; pull focus back.
+    let backwards = false;
+    const onFocusIn = (ev: FocusEvent) => {
+      const root = panelRef.current;
+      const target = ev.target;
+      if (!root || !(target instanceof HTMLElement) || root.contains(target)) return;
+      if (floatingDismissOpen() || target.closest("[data-mention-list]")) return;
+      const nodes = tabbableIn(root);
+      (backwards ? nodes[nodes.length - 1] : nodes[0])?.focus();
+    };
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("focusin", onFocusIn);
+    };
+  }, [compact, open, onClose]);
 
   const onResizeDown = (ev: ReactMouseEvent) => {
     ev.preventDefault();
@@ -57,7 +123,7 @@ export function ChatPanel() {
     const startX = ev.clientX;
     const startW = width;
     const move = (e: MouseEvent) => {
-      setWidth(Math.max(CHAT_MIN_WIDTH, Math.min(CHAT_MAX_WIDTH, startW + (startX - e.clientX))));
+      persistWidth(startW + (startX - e.clientX));
     };
     const up = () => {
       setResizing(false);
@@ -75,19 +141,41 @@ export function ChatPanel() {
   const active = threads.find((t) => t.id === threadId);
 
   return (
-    <aside
-      className={cn(
-        "relative flex h-full shrink-0 flex-col border-l border-border bg-background",
-        !chatOpen && "hidden",
-      )}
-      style={{ width }}
-    >
+    <>
+      {compact && open ? (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-hidden="true"
+          aria-label="Close chat"
+          className="fixed inset-0 z-40 bg-black/30"
+          onClick={onClose}
+        />
+      ) : null}
+      <aside
+        ref={panelRef}
+        role={compact && open ? "dialog" : undefined}
+        aria-modal={compact && open ? true : undefined}
+        aria-label="Assistant"
+        tabIndex={compact && open ? -1 : undefined}
+        className={cn(
+          "@container/chat flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden border-l border-border bg-background",
+          compact ? "fixed inset-y-0 right-0 z-50 max-w-[90vw]" : "relative shrink-0",
+          !open && "hidden",
+        )}
+        style={{ width }}
+      >
       <div
         className={cn(
           "absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize bg-transparent hover:bg-border",
           resizing && "bg-muted-foreground",
         )}
+        title="Drag to resize chat. Double-click to reset."
         onMouseDown={onResizeDown}
+        onDoubleClick={(ev) => {
+          ev.preventDefault();
+          persistWidth(CHAT_DEFAULT_WIDTH);
+        }}
       />
       <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-2">
         <Button
@@ -96,7 +184,7 @@ export function ChatPanel() {
           size="icon-sm"
           className="size-7"
           title="Hide chat"
-          onClick={() => setChatOpen(false)}
+          onClick={onClose}
         >
           <PanelRight />
           <span className="sr-only">Hide chat</span>
@@ -169,7 +257,45 @@ export function ChatPanel() {
         ) : null}
       </RenderErrorBoundary>
     </aside>
+    </>
   );
+}
+
+function floatingDismissOpen(): boolean {
+  return Boolean(
+    document.querySelector("[data-mention-list], [data-slot='popover-content'], [data-slot='select-content']"),
+  );
+}
+
+function tabbableIn(root: HTMLElement): HTMLElement[] {
+  const selector =
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])';
+  return Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((el) => {
+    if (el.tabIndex < 0) return false;
+    if (el.closest("[aria-hidden='true']")) return false;
+    return el.getClientRects().length > 0;
+  });
+}
+
+function wrapTab(ev: KeyboardEvent, root: HTMLElement | null) {
+  if (!root) return;
+  const active = document.activeElement;
+  if (active instanceof Node && !root.contains(active)) return;
+  const nodes = tabbableIn(root);
+  if (nodes.length === 0) {
+    ev.preventDefault();
+    root.focus();
+    return;
+  }
+  const first = nodes[0];
+  const last = nodes[nodes.length - 1];
+  if (ev.shiftKey && active === first) {
+    ev.preventDefault();
+    last.focus();
+  } else if (!ev.shiftKey && active === last) {
+    ev.preventDefault();
+    first.focus();
+  }
 }
 
 async function copyConversationJson(conversation: {
