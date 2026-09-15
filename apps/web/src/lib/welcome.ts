@@ -60,6 +60,18 @@ export function pathFieldEnterAction(typed: string, listedPath: string | null): 
   return "list-then-open";
 }
 
+/** Latest browse request wins; the seed listing must not overwrite a typed path. */
+export function browseListingApply(input: {
+  requestId: number;
+  latestId: number;
+  fieldEdited: boolean;
+  seed: boolean;
+}): { apply: boolean; writePath: boolean } {
+  if (input.requestId !== input.latestId) return { apply: false, writePath: false };
+  if (input.seed) return { apply: true, writePath: !input.fieldEdited };
+  return { apply: true, writePath: true };
+}
+
 export function fileRecentLines(path: string): { name: string; extra: string | null } {
   const name = path.split("/").filter(Boolean).pop() ?? path;
   return { name, extra: path === name ? null : path };

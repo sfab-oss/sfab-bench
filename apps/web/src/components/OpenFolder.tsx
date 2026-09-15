@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Folder } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { isEditableTarget, isMacPlatform } from "@/lib/files-rail";
 import {
   browsePath,
   fetchProject,
-  folderName,
   openTabProject,
   registerAndOpenTab,
   shortPath,
@@ -20,6 +19,7 @@ import {
 import { redact } from "@/lib/redact";
 import {
   FOLDER_ERROR_EVENT,
+  browseListingApply,
   emitFolderError,
   fileRecentLines,
   openFolderButtonTitle,
@@ -215,21 +215,33 @@ export function BrowseFolderDialog({
   const [path, setPath] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const latestBrowseRef = useRef(0);
+  const editedRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    editedRef.current = false;
     setError(null);
+    const id = ++latestBrowseRef.current;
     void fetchProject()
       .then(async (info) => {
         const start = info.project?.path ?? "";
         const listing = await browsePath(start || undefined);
         if (cancelled) return;
+        const decision = browseListingApply({
+          requestId: id,
+          latestId: latestBrowseRef.current,
+          fieldEdited: editedRef.current,
+          seed: true,
+        });
+        if (!decision.apply) return;
         setBrowse(listing);
-        setPath(listing.path);
+        if (decision.writePath) setPath(listing.path);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(openErrorMessage(err, "Could not browse"));
+        if (cancelled || id !== latestBrowseRef.current) return;
+        setError(openErrorMessage(err, "Could not browse"));
       });
     return () => {
       cancelled = true;
@@ -251,12 +263,21 @@ export function BrowseFolderDialog({
     const value = next.trim();
     if (!value) return null;
     setError(null);
+    const id = ++latestBrowseRef.current;
     try {
       const listing = await browsePath(value);
+      const decision = browseListingApply({
+        requestId: id,
+        latestId: latestBrowseRef.current,
+        fieldEdited: editedRef.current,
+        seed: false,
+      });
+      if (!decision.apply) return null;
       setBrowse(listing);
-      setPath(listing.path);
+      if (decision.writePath) setPath(listing.path);
       return listing;
     } catch (err) {
+      if (id !== latestBrowseRef.current) return null;
       setError(openErrorMessage(err, "Could not open that path"));
       return null;
     }
@@ -280,14 +301,15 @@ export function BrowseFolderDialog({
   };
 
   const onPathEnter = async () => {
-    const action = pathFieldEnterAction(path, browse?.path ?? null);
+    const typed = path.trim();
+    const action = pathFieldEnterAction(typed, browse?.path ?? null);
     if (action === "idle") return;
     if (action === "open") {
-      await openHere();
+      await openHere(typed);
       return;
     }
-    const listing = await go(path);
-    if (listing) await openHere(listing.path);
+    const listing = await go(typed);
+    if (listing) await openHere(typed);
   };
 
   return (
@@ -303,7 +325,10 @@ export function BrowseFolderDialog({
         >
           <Input
             value={path}
-            onChange={(ev) => setPath(ev.target.value)}
+            onChange={(ev) => {
+              editedRef.current = true;
+              setPath(ev.target.value);
+            }}
             placeholder="~/Projects/my-cad"
             className="h-8 flex-1 font-mono text-[12px]"
             disabled={busy}
@@ -351,7 +376,6 @@ export function BrowseFolderDialog({
                     <button
                       type="button"
                       className="flex w-full items-center gap-2 truncate px-2 py-1.5 text-left text-sm hover:bg-accent"
-                      onDoubleClick={() => void go(dir.path)}
                       onClick={() => void go(dir.path)}
                     >
                       <Folder className="size-3.5 shrink-0 text-muted-foreground" />

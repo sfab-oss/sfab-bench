@@ -129,9 +129,13 @@ export function ProjectSessionProvider({
     const onOpen = (ev: Event) => {
       const path = (ev as CustomEvent<string>).detail;
       if (typeof path !== "string" || !path.trim()) return;
-      void registerAndOpenTab(path).catch((err: unknown) => {
-        emitFolderError(redact(err instanceof Error ? err.message : "Could not open that folder"));
-      });
+      void registerAndOpenTab(path)
+        .then(() => {
+          emitFolderError(null);
+        })
+        .catch((err: unknown) => {
+          emitFolderError(redact(err instanceof Error ? err.message : "Could not open that folder"));
+        });
     };
     window.addEventListener("sfab-open-folder", onOpen);
     return () => window.removeEventListener("sfab-open-folder", onOpen);

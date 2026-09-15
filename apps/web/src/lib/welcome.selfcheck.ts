@@ -1,5 +1,6 @@
 import {
   PRODUCT_TITLE,
+  browseListingApply,
   documentTitle,
   emptySceneKind,
   fileRecentLines,
@@ -100,6 +101,27 @@ expect(
   "other path lists then opens",
 );
 expect(pathFieldEnterAction("/abs/path/cad", null) === "list-then-open", "no listing yet");
+
+expect(
+  browseListingApply({ requestId: 1, latestId: 2, fieldEdited: false, seed: true }).apply === false,
+  "stale seed discarded",
+);
+expect(
+  browseListingApply({ requestId: 1, latestId: 3, fieldEdited: false, seed: false }).apply === false,
+  "stale go discarded",
+);
+expect(
+  browseListingApply({ requestId: 2, latestId: 2, fieldEdited: true, seed: true }).writePath === false,
+  "typed seed keeps the field",
+);
+expect(
+  browseListingApply({ requestId: 2, latestId: 2, fieldEdited: false, seed: true }).writePath,
+  "unedited seed writes the path",
+);
+expect(
+  browseListingApply({ requestId: 3, latestId: 3, fieldEdited: true, seed: false }).writePath,
+  "go still writes the listed path",
+);
 
 expect(fileRecentLines("cube.step").extra === null, "root file has no second line");
 expect(fileRecentLines("cube.step").name === "cube.step", "root file name");
