@@ -46,19 +46,6 @@
       (function () {
         try {
           var root = document.documentElement.style;
-          // Same as parseContrast: a missing or blank value is the 100% default, not Number(null) = 0.
-          var contrastStored = localStorage.getItem("sfab-bench.contrast");
-          var contrastRaw =
-            contrastStored == null || contrastStored.trim() === "" ? 100 : Number(contrastStored);
-          var contrast = Number.isFinite(contrastRaw)
-            ? Math.min(130, Math.max(90, Math.round(contrastRaw)))
-            : 100;
-          root.setProperty("--appearance-contrast-base", Math.min(contrast, 100) + "%");
-          root.setProperty("--appearance-contrast-boost", Math.max(contrast - 100, 0) + "%");
-          root.setProperty(
-            "--appearance-contrast-border-boost",
-            Math.max(contrast - 100, 0) / 4 + "%",
-          );
           var size = localStorage.getItem("sfab-bench.text-size");
           if (size === "small") root.setProperty("--ui-text-scale", "0.875");
           else if (size === "large") root.setProperty("--ui-text-scale", "1.125");

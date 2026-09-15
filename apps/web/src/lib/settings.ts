@@ -1,9 +1,5 @@
 import { redact } from "./redact";
 
-export const CONTRAST_MIN = 90;
-export const CONTRAST_MAX = 130;
-export const CONTRAST_DEFAULT = 100;
-export const CONTRAST_STORAGE_KEY = "sfab-bench.contrast";
 export const TEXT_SIZE_STORAGE_KEY = "sfab-bench.text-size";
 
 export type TextSize = "small" | "default" | "large";
@@ -17,34 +13,8 @@ export const TEXT_SIZE_SCALE: Record<TextSize, string> = {
 
 export const UI_TEXT_SCALE_VAR = "--ui-text-scale";
 
-export type ContrastCssVars = {
-  "--appearance-contrast-base": string;
-  "--appearance-contrast-boost": string;
-  "--appearance-contrast-border-boost": string;
-};
-
-export function clampContrast(value: number): number {
-  if (!Number.isFinite(value)) return CONTRAST_DEFAULT;
-  return Math.min(CONTRAST_MAX, Math.max(CONTRAST_MIN, Math.round(value)));
-}
-
-export function parseContrast(value: string | null | undefined): number {
-  if (value == null || value.trim() === "") return CONTRAST_DEFAULT;
-  return clampContrast(Number(value));
-}
-
 export function parseTextSize(value: string | null | undefined): TextSize {
   return value === "small" || value === "large" ? value : "default";
-}
-
-/** T3-style mix knobs: below 100% fades toward the canvas; above 100% boosts toward black/white. */
-export function contrastCssVars(contrast: number): ContrastCssVars {
-  const c = clampContrast(contrast);
-  return {
-    "--appearance-contrast-base": `${Math.min(c, 100)}%`,
-    "--appearance-contrast-boost": `${Math.max(c - 100, 0)}%`,
-    "--appearance-contrast-border-boost": `${Math.max(c - 100, 0) / 4}%`,
-  };
 }
 
 export function textSizeScale(size: TextSize): string {
@@ -57,13 +27,6 @@ export type StyleTarget = {
     removeProperty: (name: string) => void;
   };
 };
-
-export function applyContrastVars(root: StyleTarget, contrast: number): void {
-  const vars = contrastCssVars(contrast);
-  root.style.setProperty("--appearance-contrast-base", vars["--appearance-contrast-base"]);
-  root.style.setProperty("--appearance-contrast-boost", vars["--appearance-contrast-boost"]);
-  root.style.setProperty("--appearance-contrast-border-boost", vars["--appearance-contrast-border-boost"]);
-}
 
 export function applyTextSize(root: StyleTarget, size: TextSize): void {
   const parsed = parseTextSize(size);
@@ -92,13 +55,6 @@ export function harnessStatusLabel(status: string): string {
   return status;
 }
 
-export {
-  SETTINGS_SHORTCUTS,
-  formatShortcutChips,
-  formatShortcutToken,
-  type ShortcutSpec,
-} from "./shortcuts";
-
 export type DebugReportInput = {
   appName: string;
   version: string;
@@ -109,7 +65,6 @@ export type DebugReportInput = {
   projectPath?: string;
   harnesses: readonly { label: string; status: string }[];
   theme: string;
-  contrast: number;
   textSize: TextSize;
   loadError: string | null;
 };
@@ -134,7 +89,6 @@ export function formatDebugReport(input: DebugReportInput): string {
     "Harnesses:",
     ...harnessLines,
     `Theme: ${input.theme}`,
-    `Contrast: ${clampContrast(input.contrast)}%`,
     `Text size: ${parseTextSize(input.textSize)}`,
     `Last load error: ${error}`,
   ].join("\n");

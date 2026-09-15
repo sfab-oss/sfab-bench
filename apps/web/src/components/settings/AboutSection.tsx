@@ -14,7 +14,7 @@ type CopyFlash = "copied" | "failed" | null;
 
 export function AboutSection({ host }: { host: boolean }) {
   const { theme } = useTheme();
-  const { contrast, textSize } = useAppearancePrefs();
+  const { textSize } = useAppearancePrefs();
   const projectPath = useProjectSession().project.path;
   const title = useStore((s) => s.title);
   const error = useStore((s) => s.error);
@@ -38,7 +38,6 @@ export function AboutSection({ host }: { host: boolean }) {
       projectPath,
       harnesses: harnesses.map((row) => ({ label: row.label, status: row.status })),
       theme,
-      contrast,
       textSize,
       loadError: error,
     });
