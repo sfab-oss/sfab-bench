@@ -1,6 +1,6 @@
 import type { ChatStatus } from "ai";
 import { Hash, Mic } from "lucide-react";
-import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref, type RefObject } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject, type Ref, type RefObject } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   askUserComposerPlaceholder,
@@ -102,6 +102,7 @@ function ChatInputInner({
   historyMessages,
   sendBlockReason,
   inputRef,
+  cancelVoiceRef,
 }: {
   disabled: boolean;
   onStop?: () => void;
@@ -117,6 +118,7 @@ function ChatInputInner({
   historyMessages: PromptHistoryMessage[];
   sendBlockReason: string | null;
   inputRef: RefObject<ComposerHandle | null>;
+  cancelVoiceRef: MutableRefObject<() => void>;
 }) {
   const historyPositionRef = useRef<PromptHistoryPosition | null>(null);
   const { review, selectedId, title } = useStore(
@@ -174,6 +176,7 @@ function ChatInputInner({
     inputRef.current?.setText(next);
     inputRef.current?.focus();
   });
+  cancelVoiceRef.current = voice.cancel;
 
   useEffect(() => {
     if (!voice.active) return;
@@ -320,6 +323,7 @@ export type GalleryChatHandle = {
   captureDraft: () => void;
   clear: () => void;
   focus: () => void;
+  cancelVoice: () => void;
 };
 
 export function GalleryChatInput({
@@ -353,6 +357,7 @@ export function GalleryChatInput({
 }) {
   const askRef = useRef<AskUserQuestionsHandle>(null);
   const composerRef = useRef<ComposerHandle>(null);
+  const cancelVoiceRef = useRef<() => void>(() => {});
   const [activeQuestion, setActiveQuestion] = useState<AskUserQuestion | null>(
     pendingAsk?.input.questions[0] ?? null,
   );
@@ -391,6 +396,9 @@ export function GalleryChatInput({
       focus: () => {
         composerRef.current?.focus();
       },
+      cancelVoice: () => {
+        cancelVoiceRef.current();
+      },
     }),
     [threadId],
   );
@@ -417,6 +425,7 @@ export function GalleryChatInput({
             <ChatInputInner
               attached={attached}
               canStop={canStop}
+              cancelVoiceRef={cancelVoiceRef}
               disabled={disabled}
               historyMessages={historyMessages}
               inputRef={composerRef}

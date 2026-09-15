@@ -114,6 +114,7 @@ export function ChatPanel({
       return;
     }
     if (wasCompactOpen && compact && !open) {
+      composerRef.current?.cancelVoice();
       toggleRef?.current?.focus();
     }
   }, [compact, open, toggleRef]);

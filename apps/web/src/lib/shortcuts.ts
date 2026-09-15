@@ -5,7 +5,7 @@
  *
  * Esc consumes in this order; only the first matching layer runs:
  * mention list → open popover/select → command palette/dialogs →
- * compact chat sheet → voice recording cancel.
+ * voice recording cancel → compact chat sheet.
  * Esc never hides docked chat or clears the CAD selection.
  */
 
@@ -74,11 +74,6 @@ export function shortcut(id: ShortcutId): Shortcut {
 
 export function isMacPlatform(platform: string, userAgent = ""): boolean {
   return /Mac|iPhone|iPad|iPod/.test(platform) || /Mac OS X/.test(userAgent);
-}
-
-export function liveMac(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return isMacPlatform(navigator.platform, navigator.userAgent);
 }
 
 type EditableProbe = {
@@ -194,7 +189,7 @@ function keysMatchEvent(event: KeyEventLike, keys: readonly string[], mac: boole
   return aliases.some((alias) => alias === event.key || alias.toLowerCase() === event.key.toLowerCase());
 }
 
-export const ESC_ORDER = ["mention", "popover-select", "dialog", "compact-chat", "voice"] as const;
+export const ESC_ORDER = ["mention", "popover-select", "dialog", "voice", "compact-chat"] as const;
 export type EscLayer = (typeof ESC_ORDER)[number];
 
 export type EscLayersOpen = {
@@ -211,14 +206,16 @@ export type EscProbe = {
   mention: boolean;
   popoverOrSelect: boolean;
   dialog: boolean;
+  voice: boolean;
 };
 
 export function probeEscLayers(root: QueryRoot | null): EscProbe {
-  if (!root) return { mention: false, popoverOrSelect: false, dialog: false };
+  if (!root) return { mention: false, popoverOrSelect: false, dialog: false, voice: false };
   return {
     mention: Boolean(root.querySelector("[data-mention-list]")),
     popoverOrSelect: Boolean(root.querySelector("[data-slot='popover-content'], [data-slot='select-content']")),
     dialog: Boolean(root.querySelector("[data-slot='dialog-content']")),
+    voice: Boolean(root.querySelector("[data-voice-recording]")),
   };
 }
 
@@ -226,8 +223,8 @@ export function activeEscLayer(open: EscLayersOpen): EscLayer | null {
   if (open.mention) return "mention";
   if (open.popoverOrSelect) return "popover-select";
   if (open.dialog) return "dialog";
-  if (open.compactChat) return "compact-chat";
   if (open.voice) return "voice";
+  if (open.compactChat) return "compact-chat";
   return null;
 }
 

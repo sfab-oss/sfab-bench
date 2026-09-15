@@ -2,6 +2,7 @@ import { CHAT_DEFAULT_WIDTH, CHAT_MAX_WIDTH, CHAT_MIN_WIDTH, chatWidthAfterKey }
 import {
   SETTINGS_SHORTCUTS,
   SHORTCUTS,
+  ESC_ORDER,
   activeEscLayer,
   compactChatSheetOpen,
   escBelongsTo,
@@ -152,12 +153,17 @@ expect(
 expect(isEditableTarget({ tagName: "INPUT" }), "input is editable");
 expect(isEditableTarget({ tagName: "BUTTON" }) === false, "button is not editable");
 
+expect(ESC_ORDER.join(",") === "mention,popover-select,dialog,voice,compact-chat", "esc order");
+
 expect(activeEscLayer({ mention: true, dialog: true }) === "mention", "mention before dialog");
 expect(activeEscLayer({ popoverOrSelect: true, dialog: true }) === "popover-select", "popover before dialog");
 expect(activeEscLayer({ dialog: true, compactChat: true }) === "dialog", "dialog before compact");
-expect(activeEscLayer({ compactChat: true, voice: true }) === "compact-chat", "compact before voice");
-expect(activeEscLayer({ voice: true }) === "voice", "voice last");
-expect(escBelongsTo("voice", { compactChat: true, voice: true }) === false, "voice yields to compact");
+expect(activeEscLayer({ compactChat: true, voice: true }) === "voice", "voice before compact");
+expect(activeEscLayer({ voice: true }) === "voice", "voice without compact");
+expect(activeEscLayer({ compactChat: true }) === "compact-chat", "compact last");
+expect(escBelongsTo("compact-chat", { compactChat: true, voice: true }) === false, "compact yields to voice");
+expect(escBelongsTo("voice", { compactChat: true, voice: true }), "voice wins over compact");
+expect(escBelongsTo("voice", { dialog: true, voice: true }) === false, "voice yields to dialog");
 expect(escBelongsTo("compact-chat", { dialog: true, compactChat: true }) === false, "compact yields to dialog");
 expect(escBelongsTo("compact-chat", { compactChat: true }), "compact when nothing higher");
 
@@ -167,7 +173,15 @@ const probe = probeEscLayers({
     return null;
   },
 });
-expect(Boolean(probe.mention && !probe.dialog), "probe finds mention");
+expect(Boolean(probe.mention && !probe.dialog && !probe.voice), "probe finds mention");
+expect(
+  probeEscLayers({
+    querySelector(sel: string) {
+      return sel.includes("data-voice-recording") ? { id: "voice" } : null;
+    },
+  }).voice,
+  "probe finds voice",
+);
 expect(
   compactChatSheetOpen({
     querySelector(sel: string) {

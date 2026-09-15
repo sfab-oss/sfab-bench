@@ -45,6 +45,7 @@ export function VoiceRecordBar({
       role="status"
       aria-live="polite"
       aria-label={transcribing ? "Transcribing" : `Recording ${formatVoiceTime(elapsedMs)}`}
+      data-voice-recording=""
     >
       <Button
         type="button"

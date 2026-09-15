@@ -127,7 +127,7 @@ function Tree({
         onOpenChange={(next) => toggle(node.path, next)}
       >
         <CollapsibleTrigger
-          className="flex h-8 w-full min-w-0 items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
+          className="flex h-8 w-full min-w-0 items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring [&>svg]:size-4 [&>svg]:shrink-0"
         >
           <ChevronRight className="shrink-0 transition-transform" />
           <Folder className="shrink-0" />
@@ -371,7 +371,6 @@ export function FileTree({
         {dirs.length > 0 ? (
           <SidebarGroupAction title="Collapse all" aria-label="Collapse all" onClick={collapseAll}>
             <ChevronRight className="rotate-90" />
-            <span className="sr-only">Collapse all</span>
           </SidebarGroupAction>
         ) : null}
         <SidebarGroupContent>
