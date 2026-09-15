@@ -64,9 +64,11 @@ function useWindowWidth() {
 function ChatToggle({
   compact,
   buttonRef,
+  hidden,
 }: {
   compact: boolean;
   buttonRef: RefObject<HTMLButtonElement | null>;
+  hidden?: boolean;
 }) {
   const setChatOpen = useStore((s) => s.setChatOpen);
   const setCompactChatOpen = useStore((s) => s.setCompactChatOpen);
@@ -79,6 +81,8 @@ function ChatToggle({
         size="icon-sm"
         className="h-9 w-9"
         title="Show chat"
+        tabIndex={hidden ? -1 : undefined}
+        aria-hidden={hidden || undefined}
         onClick={() => (compact ? setCompactChatOpen(true) : setChatOpen(true))}
       >
         <PanelRight />
@@ -271,8 +275,11 @@ function Overlay({
           <div className="pointer-events-none absolute top-4 right-3 z-10 flex items-start gap-2">
             <EnterXr />
             {project.path ? (
-              <div className={showChatToggle ? undefined : "pointer-events-none sr-only"}>
-                <ChatToggle buttonRef={chatToggleRef} compact={compactChat} />
+              <div
+                className={showChatToggle ? undefined : "pointer-events-none sr-only"}
+                aria-hidden={showChatToggle ? undefined : true}
+              >
+                <ChatToggle buttonRef={chatToggleRef} compact={compactChat} hidden={!showChatToggle} />
               </div>
             ) : null}
           </div>

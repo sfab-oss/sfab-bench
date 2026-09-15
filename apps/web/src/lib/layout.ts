@@ -27,8 +27,8 @@ export const OVERLAY_BOTTOM = 24;
 export const OVERLAY_BOTH_THRESHOLD = 620;
 export const DETAIL_COMPACT_THRESHOLD = 480;
 export const OVERLAY_MAX_HEIGHT_CAP = 32 * 16;
-/** Five 36px tools + gap-0.5 + p-1 + border. */
-export const TOOLBAR_WIDTH = 196;
+/** Five 36px tools + gap-0.5 + p-1 + border (~198 measured). */
+export const TOOLBAR_WIDTH = 198;
 export const TOOLBAR_TOP = 16;
 export const CHAT_TOGGLE_RESERVE = 44;
 /** "Enter Studio" pill + wrapper padding/border. */

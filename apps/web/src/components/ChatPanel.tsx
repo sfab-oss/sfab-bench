@@ -58,6 +58,7 @@ export function ChatPanel({
   const [live, setLive] = useState(false);
   const messagesRef = useRef<GalleryChatMessage[]>([]);
   const compactOpenRef = useRef(false);
+  const panelRef = useRef<HTMLElement>(null);
   const { threads, threadId, initialMessages, refreshThreads, newThread, openThread } = useViewerChat();
   useEffect(() => {
     void loadHarnesses();
@@ -87,13 +88,18 @@ export function ChatPanel({
   useEffect(() => {
     if (!compact || !open) return;
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key !== "Escape") return;
-      if (document.querySelector("[data-mention-list]")) return;
-      ev.preventDefault();
-      onClose();
+      if (ev.key === "Escape") {
+        // Capture so we see popovers/selects before Base UI unmounts them.
+        if (ev.defaultPrevented || floatingDismissOpen()) return;
+        ev.preventDefault();
+        onClose();
+        return;
+      }
+      if (ev.key !== "Tab" || floatingDismissOpen()) return;
+      wrapTab(ev, panelRef.current);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, [compact, open, onClose]);
 
   const onResizeDown = (ev: ReactMouseEvent) => {
@@ -124,13 +130,19 @@ export function ChatPanel({
       {compact && open ? (
         <button
           type="button"
+          tabIndex={-1}
+          aria-hidden="true"
           aria-label="Close chat"
           className="fixed inset-0 z-40 bg-black/30"
           onClick={onClose}
         />
       ) : null}
       <aside
+        ref={panelRef}
+        role={compact && open ? "dialog" : undefined}
+        aria-modal={compact && open ? true : undefined}
         aria-label="Assistant"
+        tabIndex={compact && open ? -1 : undefined}
         className={cn(
           "@container/chat flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden border-l border-border bg-background",
           compact ? "fixed inset-y-0 right-0 z-50 max-w-[90vw]" : "relative shrink-0",
@@ -232,6 +244,43 @@ export function ChatPanel({
     </aside>
     </>
   );
+}
+
+function floatingDismissOpen(): boolean {
+  return Boolean(
+    document.querySelector("[data-mention-list], [data-slot='popover-content'], [data-slot='select-content']"),
+  );
+}
+
+function tabbableIn(root: HTMLElement): HTMLElement[] {
+  const selector =
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])';
+  return Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((el) => {
+    if (el.tabIndex < 0) return false;
+    if (el.closest("[aria-hidden='true']")) return false;
+    return el.getClientRects().length > 0;
+  });
+}
+
+function wrapTab(ev: KeyboardEvent, root: HTMLElement | null) {
+  if (!root) return;
+  const active = document.activeElement;
+  if (active instanceof Node && !root.contains(active)) return;
+  const nodes = tabbableIn(root);
+  if (nodes.length === 0) {
+    ev.preventDefault();
+    root.focus();
+    return;
+  }
+  const first = nodes[0];
+  const last = nodes[nodes.length - 1];
+  if (ev.shiftKey && active === first) {
+    ev.preventDefault();
+    last.focus();
+  } else if (!ev.shiftKey && active === last) {
+    ev.preventDefault();
+    first.focus();
+  }
 }
 
 async function copyConversationJson(conversation: {

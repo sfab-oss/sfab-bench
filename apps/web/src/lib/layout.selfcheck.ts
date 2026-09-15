@@ -40,7 +40,7 @@ expect(COMPACT_CHAT_BREAKPOINT === 980, "T3 compact breakpoint");
 expect(OVERLAY_BOTH_THRESHOLD === 620, "PartTree + Detail + gaps");
 expect(PART_TREE_WIDTH === 280, "PartTree width");
 expect(DETAIL_WIDTH === 260, "Detail width");
-expect(TOOLBAR_WIDTH === 196, "toolbar pill width");
+expect(TOOLBAR_WIDTH === 198, "toolbar pill width");
 
 expect(preferredChatWidth(100) === CHAT_MIN_WIDTH, "stored below min");
 expect(preferredChatWidth(900) === CHAT_MAX_WIDTH, "stored above max");
