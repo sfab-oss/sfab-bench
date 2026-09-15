@@ -1,5 +1,5 @@
 import { ChevronRight, EllipsisVertical, FileBox, Folder } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from "react";
 
 import {
   Collapsible,
@@ -30,6 +30,7 @@ import {
   catalogEmptyReason,
   clampContextMenuPosition,
   defaultExpandedDirPaths,
+  fileContextMenuIndexAfterKey,
   findFileTreeProject,
   loadFileTreeProjects,
   saveFileTreeProjects,
@@ -69,6 +70,7 @@ function CopyPathItem({ path, onDone }: { path: string; onDone?: () => void }) {
     <button
       type="button"
       role="menuitem"
+      tabIndex={0}
       className="flex w-full rounded-md px-2 py-1.5 text-left text-sm text-popover-foreground hover:bg-accent"
       onClick={() => {
         void copyRelativePath(path).then(() => onDone?.());
@@ -92,6 +94,11 @@ function FileRow({
 }) {
   const [menu, setMenu] = useState<{ left: number; top: number } | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const rowRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = useCallback(() => {
+    setMenu(null);
+    requestAnimationFrame(() => rowRef.current?.focus());
+  }, []);
   const active = node.path === current;
   const name = node.name || fileName(node.path);
   const inner = (
@@ -101,6 +108,7 @@ function FileRow({
     </>
   );
   const shared = {
+    ref: rowRef,
     isActive: active,
     title: node.path,
     onClick: () => onPick(node.path),
@@ -150,18 +158,61 @@ function FileRow({
       </Popover>
       {menu ? (
         <>
-          <FileContextDismiss open onClose={() => setMenu(null)} />
-          <div
-            role="menu"
-            className="fixed z-50 w-48 rounded-md border border-border bg-popover p-1 shadow-md"
-            style={{ left: menu.left, top: menu.top }}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <CopyPathItem path={node.path} onDone={() => setMenu(null)} />
-          </div>
+          <FileContextDismiss open onClose={closeMenu} />
+          <FileContextMenu left={menu.left} top={menu.top} onClose={closeMenu}>
+            <CopyPathItem path={node.path} onDone={closeMenu} />
+          </FileContextMenu>
         </>
       ) : null}
     </Item>
+  );
+}
+
+function FileContextMenu({
+  left,
+  top,
+  onClose,
+  children,
+}: {
+  left: number;
+  top: number;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const first = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
+    first?.focus();
+  }, []);
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+      return;
+    }
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+    if (items.length === 0) return;
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    const next = fileContextMenuIndexAfterKey(event.key, Math.max(current, 0), items.length);
+    if (next == null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    items[next]?.focus();
+  };
+  return (
+    <div
+      ref={menuRef}
+      role="menu"
+      data-slot="popover-content"
+      aria-label="File actions"
+      className="fixed z-50 w-48 rounded-md border border-border bg-popover p-1 shadow-md"
+      style={{ left, top }}
+      onMouseDown={(event) => event.stopPropagation()}
+      onKeyDown={onKeyDown}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -170,7 +221,10 @@ function FileContextDismiss({ open, onClose }: { open: boolean; onClose: () => v
     if (!open) return;
     const close = () => onClose();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      close();
     };
     const id = window.setTimeout(() => {
       window.addEventListener("mousedown", close);

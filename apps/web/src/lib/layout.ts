@@ -164,6 +164,41 @@ export function fitCardsReady(input: {
   return true;
 }
 
+/**
+ * Identity of the load-fit pose. Selection / Detail / Measure are omitted on
+ * purpose: clicking a part must not re-Home the camera. Compact chat is a
+ * modal overlay and is also omitted.
+ */
+export type LoadFitKey = {
+  partsExpanded: boolean;
+  partsChip: boolean;
+  partsHeight: number;
+  canvasWidth: number;
+  canvasHeight: number;
+};
+
+export function loadFitKey(input: LoadFitKey): string {
+  const parts = input.partsExpanded ? "x" : input.partsChip ? "c" : "-";
+  return `${parts}:${input.partsHeight}:${Math.round(input.canvasWidth)}x${Math.round(input.canvasHeight)}`;
+}
+
+export type LoadFitRepeat = "fit" | "sync" | "skip";
+
+/**
+ * Repeat-load-fit decision after the first Home for this URL.
+ * `"sync"` absorbs a tree-height change caused by selection (e.g. revealing
+ * ancestors) so clearing the selection later does not Home either.
+ */
+export function shouldRepeatLoadFit(
+  prevKey: string | null,
+  nextKey: string,
+  options: { selectionActive?: boolean } = {},
+): LoadFitRepeat {
+  if (prevKey === null || prevKey === nextKey) return "skip";
+  if (options.selectionActive) return "sync";
+  return "fit";
+}
+
 /** Treat PartTree / Detail as full-height side columns (area 6). */
 export function fitBesideInsets(input: FitInsetInput): FitInsets {
   const left = input.partsExpanded

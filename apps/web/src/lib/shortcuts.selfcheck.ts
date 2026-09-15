@@ -166,6 +166,15 @@ expect(escBelongsTo("voice", { compactChat: true, voice: true }), "voice wins ov
 expect(escBelongsTo("voice", { dialog: true, voice: true }) === false, "voice yields to dialog");
 expect(escBelongsTo("compact-chat", { dialog: true, compactChat: true }) === false, "compact yields to dialog");
 expect(escBelongsTo("compact-chat", { compactChat: true }), "compact when nothing higher");
+expect(escBelongsTo("compact-chat", { compactChat: true, popoverOrSelect: true }) === false, "compact yields to file context menu");
+expect(
+  probeEscLayers({
+    querySelector(sel: string) {
+      return sel.includes("popover-content") ? { id: "file-menu" } : null;
+    },
+  }).popoverOrSelect,
+  "file context menu slot is a popover layer",
+);
 
 const probe = probeEscLayers({
   querySelector(sel: string) {

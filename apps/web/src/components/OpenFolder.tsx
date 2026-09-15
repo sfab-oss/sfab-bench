@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { StartTruncatedPath } from "@/components/StartTruncatedPath";
+import { useXrSession } from "@/hooks/useXrSession";
 import { desktopBridge } from "@/lib/desktop";
 import { isMacPlatform } from "@/lib/files-rail";
 import { matchesShortcut } from "@/lib/shortcuts";
@@ -98,6 +99,7 @@ export function RecentFiles({ recents, onPick }: { recents: string[]; onPick: (p
 }
 
 export function useOpenFolder(canRegister: boolean) {
+  const xrSession = useXrSession();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [recents, setRecents] = useState<ProjectRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -166,7 +168,7 @@ export function useOpenFolder(canRegister: boolean) {
   }, [canRegister]);
 
   useEffect(() => {
-    if (!canRegister || desktopBridge()) return;
+    if (!canRegister || desktopBridge() || xrSession) return;
     const mac = isMacPlatform(navigator.platform, navigator.userAgent);
     const onKey = (event: KeyboardEvent) => {
       if (!matchesShortcut(event, "open-folder", { mac, activeElement: document.activeElement })) return;
@@ -175,7 +177,7 @@ export function useOpenFolder(canRegister: boolean) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [canRegister, requestOpen]);
+  }, [canRegister, requestOpen, xrSession]);
 
   return { canRegister, recents, error, dialogOpen, setDialogOpen, requestOpen, pickRecent };
 }
