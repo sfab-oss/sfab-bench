@@ -17,7 +17,6 @@ export type ShortcutId =
   | "command-palette"
   | "composer-send"
   | "composer-newline"
-  | "composer-recall"
   | "composer-mention"
   | "escape"
   | "ask-user-choose";
@@ -41,7 +40,6 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: "open-folder", keys: ["Mod", "O"], label: "Open folder", scope: "global", ignoreEditable: true },
   { id: "composer-send", keys: ["Enter"], label: "Send", scope: "composer" },
   { id: "composer-newline", keys: ["Shift", "Enter"], label: "New line", scope: "composer" },
-  { id: "composer-recall", keys: ["↑"], label: "Recall previous prompt", scope: "composer" },
   { id: "composer-mention", keys: ["#"], label: "Mention a part", scope: "composer" },
   { id: "ask-user-choose", keys: ["1–9"], label: "Choose an answer", scope: "ask-user", ignoreEditable: true },
   {

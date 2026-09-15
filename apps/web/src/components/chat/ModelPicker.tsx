@@ -25,6 +25,8 @@ import { HARNESS_IDS, HARNESS_LABEL, type HarnessId } from "@/lib/harness";
 import { useStore } from "@/state/store";
 import { cn } from "@/lib/utils";
 
+type HarnessCatalog = ReturnType<typeof useHarnesses>;
+
 function ModelListSkeleton() {
   return (
     <div className="flex flex-col gap-1 p-1">
@@ -64,11 +66,11 @@ function StatusDot({ status }: { status: string }) {
   return <span className={cn("absolute right-0.5 bottom-0.5 size-1.5 rounded-full ring-1 ring-popover", tone)} />;
 }
 
-export function ModelPicker() {
+export function ModelPicker({ catalog }: { catalog: HarnessCatalog }) {
   const chatHarness = useStore((s) => s.chatHarness);
   const chatModel = useStore((s) => s.chatModel);
   const setChatSelection = useStore((s) => s.setChatSelection);
-  const { harnesses, ready, error, refresh } = useHarnesses();
+  const { harnesses, ready, error, refresh } = catalog;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [rail, setRail] = useState<HarnessId>(chatHarness);
@@ -77,33 +79,6 @@ export function ModelPicker() {
   useEffect(() => {
     if (open) setRail(chatHarness);
   }, [open, chatHarness]);
-
-  useEffect(() => {
-    if (!open) return;
-    const { documentElement, body } = document;
-    const previousOverscroll = documentElement.style.overscrollBehavior;
-    const previousOverflow = body.style.overflow;
-    documentElement.style.overscrollBehavior = "contain";
-    body.style.overflow = "hidden";
-    const allow = (target: EventTarget | null) =>
-      target instanceof Element && target.closest("[data-model-picker-content]");
-    const onWheel = (event: WheelEvent) => {
-      if (allow(event.target)) return;
-      event.preventDefault();
-    };
-    const onTouchMove = (event: TouchEvent) => {
-      if (allow(event.target)) return;
-      event.preventDefault();
-    };
-    document.addEventListener("wheel", onWheel, { capture: true, passive: false });
-    document.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
-    return () => {
-      document.removeEventListener("wheel", onWheel, { capture: true });
-      document.removeEventListener("touchmove", onTouchMove, { capture: true });
-      documentElement.style.overscrollBehavior = previousOverscroll;
-      body.style.overflow = previousOverflow;
-    };
-  }, [open]);
 
   const active = harnesses.find((h) => h.id === rail);
   const selectedHarness = harnesses.find((h) => h.id === chatHarness);
@@ -138,11 +113,9 @@ export function ModelPicker() {
   const notReady = active != null && active.status !== "ready";
 
   const star = (slug: string) => {
-    setFavorites((cur) => {
-      const next = toggleModelFavorite(cur, rail, slug);
-      persistFavorites(next);
-      return next;
-    });
+    const next = toggleModelFavorite(favorites, rail, slug);
+    persistFavorites(next);
+    setFavorites(next);
   };
 
   return (
@@ -175,19 +148,20 @@ export function ModelPicker() {
         side="top"
         data-model-picker-content
         className="flex h-72 w-80 gap-1 overflow-hidden overscroll-contain p-1"
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex w-10 shrink-0 flex-col gap-0.5 border-r border-border pr-1">
           {HARNESS_IDS.map((id) => {
             const info = harnesses.find((h) => h.id === id);
-            const status = info?.status ?? "error";
+            const railTitle = info ? harnessStatusTitle(HARNESS_LABEL[id], info.status) : HARNESS_LABEL[id];
             return (
               <Button
                 key={id}
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                title={harnessStatusTitle(HARNESS_LABEL[id], status)}
-                aria-label={harnessStatusTitle(HARNESS_LABEL[id], status)}
+                title={railTitle}
+                aria-label={railTitle}
                 className={cn("relative size-9", rail === id && "bg-accent")}
                 onClick={() => {
                   setRail(id);

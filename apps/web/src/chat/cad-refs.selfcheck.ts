@@ -1,4 +1,4 @@
-import { parseEditorContent } from "../components/ui/composer";
+import { parseEditorContent } from "../components/ui/chat-input";
 import {
   CAD_MENTION_FACE_CAP,
   CAD_MENTION_LIST_CAP,
@@ -144,7 +144,6 @@ expect(
 );
 expect(manyFaces.truncated, "face overflow sets truncated");
 
-expect(CAD_MENTION_FACE_CAP === 50, "face cap is the manager default");
 expect(cadMentionQueryCloses("post  "), "two trailing spaces close");
 expect(cadMentionQueryCloses("post\n"), "newline closes");
 expect(!cadMentionQueryCloses("post "), "one trailing space stays open");

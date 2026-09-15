@@ -1,3 +1,11 @@
+/**
+ * Local patches vs simple-ai `ui/chat-input`:
+ * - Esc destroys the suggestion renderer so Enter cannot pick from a hidden list.
+ * - `data-mention-list` on the popup mount node (Esc-layer probe); z-index 70 above the compact sheet.
+ * - Mention parse/`renderText` emits node id so chips send `#o…` refs, not labels.
+ * - `allowSpaces` / `queryCloses` on MentionConfig so `#` queries can include spaces.
+ * - Mention option `onMouseDown` preventDefault so click selects before the editor blurs.
+ */
 import { Extension, mergeAttributes } from "@tiptap/core";
 import { Mention as MentionExtension } from "@tiptap/extension-mention";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -14,6 +22,7 @@ import {
   AtSignIcon,
   Loader2Icon,
   SquareIcon,
+  XIcon,
 } from "lucide-react";
 import {
   type ComponentProps,
@@ -30,15 +39,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { composerDocFromPrompt, EMPTY_PROMPT_REASON } from "@/chat/composer-recovery";
 import { InputGroup, InputGroupButton } from "@/components/ui/input-group";
 import { cn } from "@/lib/utils";
-
-export const COMPOSER_MENTION_LIST_ID = "composer-mention-list";
-
-export function mentionOptionId(id: string): string {
-  return `composer-mention-option-${id.replace(/[^A-Za-z0-9_-]+/g, "-")}`;
-}
 
 export interface BaseMentionItem {
   id: string;
@@ -54,8 +56,6 @@ export interface MentionConfig<T extends BaseMentionItem> {
   /** Fixed at mount — changing it later has no effect. */
   allowSpaces?: boolean;
   queryCloses?: (query: string) => boolean;
-  emptyMessage?: string;
-  getFooter?: (items: T[]) => string | undefined;
 }
 
 export type MentionConfigs = Record<string, MentionConfig<BaseMentionItem>>;
@@ -63,26 +63,24 @@ export type MentionConfigs = Record<string, MentionConfig<BaseMentionItem>>;
 type SelectedMentionItems = Record<string, Map<string, BaseMentionItem>>;
 
 // Mapped + intersection shape — cannot be an interface.
-export type ComposerParsed<Items extends Record<string, BaseMentionItem>> = {
+export type ChatInputParsed<Items extends Record<string, BaseMentionItem>> = {
   text: string;
 } & { [K in keyof Items]?: Items[K][] };
 
-export interface ComposerHandle {
+export interface ChatInputHandle {
   clear: () => void;
   focus: () => void;
   getText: () => string;
   setText: (text: string) => void;
   insertText: (text: string) => void;
-  submit: () => void;
-  isReady: () => boolean;
 }
 
-interface ComposerHelpers {
+interface ChatInputHelpers {
   clear: () => void;
   focus: () => void;
 }
 
-interface ComposerContextValue {
+interface ChatInputContextValue {
   editor: Editor | null;
   setEditor: (editor: Editor | null) => void;
   submit: () => void;
@@ -93,12 +91,6 @@ interface ComposerContextValue {
   mentions: MentionConfigs | undefined;
   mentionsRef: RefObject<MentionConfigs | undefined>;
   selectedItemsRef: RefObject<SelectedMentionItems>;
-  suggestionOpenRef: RefObject<boolean>;
-  onPromptHistoryRef: RefObject<((direction: "backward" | "forward") => boolean) | undefined>;
-  mentionLabelsForRef: RefObject<((text: string) => Record<string, string>) | undefined>;
-  onDraftChangeRef: RefObject<((text: string) => void) | undefined>;
-  sendDisabledReason?: string | null;
-  canStop?: boolean;
 }
 
 function filterStaticItems<T extends BaseMentionItem>(
@@ -119,9 +111,14 @@ function resolveMentionItems<T extends BaseMentionItem>(
   return filterStaticItems(config.items, query);
 }
 
-function mentionTypeFromConfigs(mentions: MentionConfigs | undefined): string | undefined {
-  const key = mentions ? Object.keys(mentions)[0] : undefined;
-  return key ? `${key}-mention` : undefined;
+function textToDoc(text: string): JSONContent {
+  return {
+    type: "doc",
+    content: text.split("\n").map((line) => ({
+      type: "paragraph",
+      ...(line ? { content: [{ type: "text", text: line }] } : {}),
+    })),
+  };
 }
 
 interface MentionListHandle {
@@ -134,9 +131,6 @@ interface MentionListProps<T extends BaseMentionItem> {
   command: (item: { id: string; label: string }) => void;
   renderItem?: (item: T, selected: boolean) => ReactNode;
   onSelectItem?: (item: T) => void;
-  emptyMessage?: string;
-  footer?: string;
-  editor?: Editor | null;
   ref?: React.Ref<MentionListHandle>;
 }
 
@@ -146,9 +140,6 @@ function MentionList<T extends BaseMentionItem>({
   command,
   renderItem,
   onSelectItem,
-  emptyMessage,
-  footer,
-  editor,
   ref,
 }: MentionListProps<T>) {
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -181,29 +172,6 @@ function MentionList<T extends BaseMentionItem>({
     });
   };
 
-  useLayoutEffect(() => {
-    const el = editor?.view.dom;
-    if (!el) return;
-    el.setAttribute("role", "combobox");
-    el.setAttribute("aria-autocomplete", "list");
-    el.setAttribute("aria-haspopup", "listbox");
-    el.setAttribute("aria-expanded", "true");
-    el.setAttribute("aria-controls", COMPOSER_MENTION_LIST_ID);
-    return () => {
-      el.setAttribute("aria-expanded", "false");
-      el.removeAttribute("aria-controls");
-      el.removeAttribute("aria-activedescendant");
-    };
-  }, [editor]);
-
-  useLayoutEffect(() => {
-    const el = editor?.view.dom;
-    if (!el) return;
-    const active = items[selectedIndex];
-    if (active) el.setAttribute("aria-activedescendant", mentionOptionId(active.id));
-    else el.removeAttribute("aria-activedescendant");
-  }, [editor, items, selectedIndex]);
-
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }) => {
       if (event.key === "ArrowUp") {
@@ -224,26 +192,14 @@ function MentionList<T extends BaseMentionItem>({
 
   if (loading && items.length === 0) {
     return (
-      <div
-        id={COMPOSER_MENTION_LIST_ID}
-        role="listbox"
-        aria-label="Mentions"
-        className="min-w-48 rounded-md bg-popover px-2 py-1.5 text-muted-foreground text-sm shadow-md ring-1 ring-foreground/10"
-        data-mention-list
-      >
+      <div className="min-w-48 rounded-md bg-popover px-2 py-1.5 text-muted-foreground text-sm shadow-md ring-1 ring-foreground/10">
         Loading…
       </div>
     );
   }
 
   return (
-    <div
-      id={COMPOSER_MENTION_LIST_ID}
-      role="listbox"
-      aria-label="Mentions"
-      className="flex max-h-48 min-w-56 max-w-72 flex-col overflow-y-auto overflow-x-hidden rounded-md bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
-      data-mention-list
-    >
+    <div className="flex max-h-48 min-w-48 max-w-64 flex-col overflow-y-auto overflow-x-hidden rounded-md bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10">
       {items.length ? (
         items.map((item, index) => (
           <button
@@ -251,16 +207,12 @@ function MentionList<T extends BaseMentionItem>({
               "relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
               selectedIndex === index && "bg-accent text-accent-foreground"
             )}
-            id={mentionOptionId(item.id)}
             key={item.id}
             onClick={() => selectItem(index)}
             onMouseDown={(event) => event.preventDefault()}
             ref={(el) => {
               itemRefs.current[index] = el;
             }}
-            role="option"
-            aria-selected={selectedIndex === index}
-            tabIndex={-1}
             type="button"
           >
             {renderItem ? (
@@ -272,14 +224,9 @@ function MentionList<T extends BaseMentionItem>({
         ))
       ) : (
         <div className="px-2 py-1.5 text-muted-foreground text-sm">
-          {emptyMessage ?? "No results found"}
+          No results found
         </div>
       )}
-      {footer ? (
-        <div className="px-2 py-1.5 text-muted-foreground text-xs">
-          {footer}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -287,8 +234,7 @@ function MentionList<T extends BaseMentionItem>({
 function createMentionSuggestion(
   key: string,
   mentionsRef: RefObject<MentionConfigs | undefined>,
-  selectedItemsRef: RefObject<SelectedMentionItems>,
-  suggestionOpenRef: RefObject<boolean>
+  selectedItemsRef: RefObject<SelectedMentionItems>
 ) {
   return {
     items: ({ query }: { query: string }) => {
@@ -309,25 +255,17 @@ function createMentionSuggestion(
         selectedItemsRef.current[key].set(item.id, item);
       };
 
-      const listProps = (props: SuggestionProps<BaseMentionItem>) => {
-        const config = mentionsRef.current?.[key];
-        return {
-          items: props.items,
-          loading: props.loading,
-          command: props.command,
-          renderItem: config?.render,
-          onSelectItem: rememberItem,
-          emptyMessage: config?.emptyMessage,
-          footer: config?.getFooter?.(props.items),
-          editor: props.editor,
-        };
-      };
-
       return {
         onStart: (props: SuggestionProps<BaseMentionItem>) => {
-          suggestionOpenRef.current = true;
+          const config = mentionsRef.current?.[key];
           component = new ReactRenderer(MentionList, {
-            props: listProps(props),
+            props: {
+              items: props.items,
+              loading: props.loading,
+              command: props.command,
+              renderItem: config?.render,
+              onSelectItem: rememberItem,
+            },
             editor: props.editor,
           });
           // The mount wrapper is the positioned element (appended to body,
@@ -337,7 +275,14 @@ function createMentionSuggestion(
           unmount = props.mount(component.element);
         },
         onUpdate: (props: SuggestionProps<BaseMentionItem>) => {
-          component?.updateProps(listProps(props));
+          const config = mentionsRef.current?.[key];
+          component?.updateProps({
+            items: props.items,
+            loading: props.loading,
+            command: props.command,
+            renderItem: config?.render,
+            onSelectItem: rememberItem,
+          });
         },
         onKeyDown: (props: SuggestionKeyDownProps) => {
           if (props.event.key === "Escape") {
@@ -345,13 +290,13 @@ function createMentionSuggestion(
             props.event.stopPropagation();
             unmount?.();
             unmount = undefined;
-            suggestionOpenRef.current = false;
+            component?.destroy();
+            component = null;
             return true;
           }
           return component?.ref?.onKeyDown(props) ?? false;
         },
         onExit: () => {
-          suggestionOpenRef.current = false;
           unmount?.();
           unmount = undefined;
           component?.destroy();
@@ -365,20 +310,14 @@ function createMentionSuggestion(
 function buildMentionExtensions(
   mentionsRef: RefObject<MentionConfigs | undefined>,
   selectedItemsRef: RefObject<SelectedMentionItems>,
-  suggestionOpenRef: RefObject<boolean>,
   initialMentions: MentionConfigs | undefined
 ) {
   return Object.entries(initialMentions ?? {}).map(([key, config]) => {
     const trigger = config.trigger || "@";
-    const mentionName = `${key}-mention`;
     const MentionPlugin = MentionExtension.extend({
-      name: mentionName,
-      // Pin the package default: backspace deletes the whole chip.
-      atom: true,
+      name: `${key}-mention`,
       renderHTML({ node, HTMLAttributes }) {
         const chipClassName = mentionsRef.current?.[key]?.chipClassName;
-        const id = String(node.attrs.id ?? "");
-        const label = String(node.attrs.label ?? node.attrs.id ?? "");
         return [
           "span",
           mergeAttributes(HTMLAttributes, {
@@ -386,9 +325,8 @@ function buildMentionExtensions(
               "rounded-sm bg-primary px-1 py-0.5 text-primary-foreground no-underline",
               chipClassName
             ),
-            title: id,
           }),
-          label,
+          `${trigger}${node.attrs.label ?? node.attrs.id}`,
         ];
       },
       renderText({ node }) {
@@ -397,13 +335,12 @@ function buildMentionExtensions(
     });
 
     return MentionPlugin.configure({
-      deleteTriggerWithBackspace: true,
       suggestion: {
         char: trigger,
         allowSpaces: config.allowSpaces ?? false,
         allow: ({ state, range }) => {
           const $from = state.doc.resolve(range.from);
-          const type = state.schema.nodes[mentionName];
+          const type = state.schema.nodes[`${key}-mention`];
           if (!type || !$from.parent.type.contentMatch.matchType(type)) {
             return false;
           }
@@ -416,12 +353,7 @@ function buildMentionExtensions(
           }
           return true;
         },
-        ...createMentionSuggestion(
-          key,
-          mentionsRef,
-          selectedItemsRef,
-          suggestionOpenRef
-        ),
+        ...createMentionSuggestion(key, mentionsRef, selectedItemsRef),
       },
     });
   });
@@ -489,54 +421,51 @@ export function parseEditorContent(
   return { text: text.trim(), ...buckets };
 }
 
-const ComposerContext = createContext<ComposerContextValue | null>(null);
+const ChatInputContext = createContext<ChatInputContextValue | null>(null);
 
-function useComposerContext() {
-  const ctx = useContext(ComposerContext);
+function useChatInputContext() {
+  const ctx = useContext(ChatInputContext);
   if (!ctx) {
-    throw new Error("Composer components must be used within <Composer>");
+    throw new Error("ChatInput components must be used within <ChatInput>");
   }
   return ctx;
 }
 
-type SharedComposerProps = {
+type SharedChatInputProps = {
   status?: ChatStatus;
   onStop?: () => void;
   disabled?: boolean;
   defaultValue?: string;
   className?: string;
   children: ReactNode;
-  sendDisabledReason?: string | null;
-  /** Show Stop while a turn is live even if useChat status is not streaming (get_viewer). */
-  canStop?: boolean;
-  onPromptHistory?: (direction: "backward" | "forward") => boolean;
-  mentionLabelsFor?: (text: string) => Record<string, string>;
-  onDraftChange?: (text: string) => void;
-  /** Imperative handle (clear/focus/getText/setText/insertText/submit), not the DOM node. */
-  ref?: Ref<ComposerHandle>;
+  /** Imperative handle (clear/focus/getText/setText/insertText), not the DOM node. */
+  ref?: Ref<ChatInputHandle>;
 } & Omit<
   ComponentProps<"div">,
   "children" | "onSubmit" | "defaultValue" | "ref"
 >;
 
-type ComposerPropsWithMentions<Items extends Record<string, BaseMentionItem>> =
-  SharedComposerProps & {
+type ChatInputPropsWithMentions<Items extends Record<string, BaseMentionItem>> =
+  SharedChatInputProps & {
     mentions: { [K in keyof Items]: MentionConfig<Items[K]> };
-    onSubmit: (parsed: ComposerParsed<Items>, helpers: ComposerHelpers) => void;
+    onSubmit: (
+      parsed: ChatInputParsed<Items>,
+      helpers: ChatInputHelpers
+    ) => void;
   };
 
-type ComposerPropsWithoutMentions = SharedComposerProps & {
+type ChatInputPropsWithoutMentions = SharedChatInputProps & {
   mentions?: undefined;
-  onSubmit: (parsed: { text: string }, helpers: ComposerHelpers) => void;
+  onSubmit: (parsed: { text: string }, helpers: ChatInputHelpers) => void;
 };
 
-export function Composer<Items extends Record<string, BaseMentionItem>>(
-  props: ComposerPropsWithMentions<Items>
+export function ChatInput<Items extends Record<string, BaseMentionItem>>(
+  props: ChatInputPropsWithMentions<Items>
 ): React.JSX.Element;
-export function Composer(
-  props: ComposerPropsWithoutMentions
+export function ChatInput(
+  props: ChatInputPropsWithoutMentions
 ): React.JSX.Element;
-export function Composer({
+export function ChatInput({
   mentions,
   onSubmit,
   status,
@@ -546,32 +475,20 @@ export function Composer({
   className,
   children,
   ref,
-  sendDisabledReason,
-  canStop,
-  onPromptHistory,
-  mentionLabelsFor,
-  onDraftChange,
   ...props
-}: SharedComposerProps & {
+}: SharedChatInputProps & {
   mentions?: MentionConfigs;
   // Runtime parse is untyped; overloads restore Items at the call site.
   // biome-ignore lint/suspicious/noExplicitAny: overload boundary
-  onSubmit: (parsed: any, helpers: ComposerHelpers) => void;
+  onSubmit: (parsed: any, helpers: ChatInputHelpers) => void;
 }) {
   const [editor, setEditor] = useState<Editor | null>(null);
   const mentionsRef = useRef(mentions);
   const onSubmitRef = useRef(onSubmit);
   const selectedItemsRef = useRef<SelectedMentionItems>({});
-  const suggestionOpenRef = useRef(false);
-  const onPromptHistoryRef = useRef(onPromptHistory);
-  const mentionLabelsForRef = useRef(mentionLabelsFor);
-  const onDraftChangeRef = useRef(onDraftChange);
 
   mentionsRef.current = mentions;
   onSubmitRef.current = onSubmit;
-  onPromptHistoryRef.current = onPromptHistory;
-  mentionLabelsForRef.current = mentionLabelsFor;
-  onDraftChangeRef.current = onDraftChange;
 
   const parse = useCallback(() => {
     if (!editor) {
@@ -597,12 +514,10 @@ export function Composer({
     if (disabled) {
       return;
     }
-    if (status === "submitted" || status === "streaming") {
-      return;
-    }
     const parsed = parse();
+    editor?.commands.blur();
     onSubmitRef.current(parsed, { clear, focus });
-  }, [clear, disabled, focus, parse, status]);
+  }, [clear, disabled, editor, focus, parse]);
 
   useImperativeHandle(
     ref,
@@ -611,25 +526,16 @@ export function Composer({
       focus,
       getText: () => parse().text,
       setText: (text) => {
-        editor?.commands.setContent(
-          composerDocFromPrompt(
-            text,
-            mentionTypeFromConfigs(mentionsRef.current),
-            mentionLabelsForRef.current?.(text),
-          ),
-        );
-        editor?.commands.focus("end");
+        editor?.commands.setContent(textToDoc(text));
       },
       insertText: (text) => {
         editor?.chain().focus().insertContent(text).run();
       },
-      submit,
-      isReady: () => Boolean(editor && !editor.isDestroyed),
     }),
-    [clear, editor, focus, parse, submit]
+    [clear, editor, focus, parse]
   );
 
-  const contextValue = useMemo<ComposerContextValue>(
+  const contextValue = useMemo<ChatInputContextValue>(
     () => ({
       editor,
       setEditor,
@@ -641,52 +547,33 @@ export function Composer({
       mentions,
       mentionsRef,
       selectedItemsRef,
-      suggestionOpenRef,
-      onPromptHistoryRef,
-      mentionLabelsForRef,
-      onDraftChangeRef,
-      sendDisabledReason,
-      canStop,
     }),
-    [canStop, defaultValue, disabled, editor, mentions, onStop, sendDisabledReason, status, submit]
+    [defaultValue, disabled, editor, mentions, onStop, status, submit]
   );
 
-  useEffect(() => {
-    if (!editor) return;
-    const sync = () => onDraftChangeRef.current?.(parse().text);
-    editor.on("update", sync);
-    return () => {
-      editor.off("update", sync);
-    };
-  }, [editor, parse]);
-
   return (
-    <ComposerContext.Provider value={contextValue}>
+    <ChatInputContext.Provider value={contextValue}>
       <InputGroup
         className={cn("h-auto", className)}
-        data-slot="composer"
+        data-slot="chat-input"
         {...props}
       >
         {children}
       </InputGroup>
-    </ComposerContext.Provider>
+    </ChatInputContext.Provider>
   );
 }
 
 const SubmitEnter = Extension.create({
-  name: "composerSubmitEnter",
+  name: "chatInputSubmitEnter",
   addOptions() {
     return {
       getOnEnter: (): (() => void) => () => undefined,
-      isSuggestionOpen: (): boolean => false,
     };
   },
   addKeyboardShortcuts() {
     return {
       Enter: () => {
-        if (this.options.isSuggestionOpen?.()) {
-          return false;
-        }
         this.options.getOnEnter()?.();
         return true;
       },
@@ -694,33 +581,7 @@ const SubmitEnter = Extension.create({
   },
 });
 
-const PromptHistory = Extension.create({
-  name: "composerPromptHistory",
-  addOptions() {
-    return {
-      isSuggestionOpen: (): boolean => false,
-      onStep: (_direction: "backward" | "forward"): boolean => false,
-    };
-  },
-  addKeyboardShortcuts() {
-    return {
-      ArrowUp: () => {
-        if (this.options.isSuggestionOpen?.()) {
-          return false;
-        }
-        return this.options.onStep?.("backward") ?? false;
-      },
-      ArrowDown: () => {
-        if (this.options.isSuggestionOpen?.()) {
-          return false;
-        }
-        return this.options.onStep?.("forward") ?? false;
-      },
-    };
-  },
-});
-
-export function ComposerEditor({
+export function ChatInputEditor({
   placeholder = "Type a message...",
   className,
   autoFocus,
@@ -737,10 +598,7 @@ export function ComposerEditor({
     mentions,
     mentionsRef,
     selectedItemsRef,
-    suggestionOpenRef,
-    onPromptHistoryRef,
-    mentionLabelsForRef,
-  } = useComposerContext();
+  } = useChatInputContext();
 
   const initialMentionsRef = useRef(mentions);
   const placeholderRef = useRef(placeholder);
@@ -766,17 +624,10 @@ export function ComposerEditor({
       }),
       SubmitEnter.configure({
         getOnEnter: () => onEnterRef.current,
-        isSuggestionOpen: () => suggestionOpenRef.current,
-      }),
-      PromptHistory.configure({
-        isSuggestionOpen: () => suggestionOpenRef.current,
-        onStep: (direction: "backward" | "forward") =>
-          onPromptHistoryRef.current?.(direction) ?? false,
       }),
       ...buildMentionExtensions(
         mentionsRef,
         selectedItemsRef,
-        suggestionOpenRef,
         initialMentionsRef.current
       ),
     ],
@@ -785,21 +636,13 @@ export function ComposerEditor({
 
   const editor = useEditor({
     extensions,
-    content: composerDocFromPrompt(
-      defaultValue ?? "",
-      mentionTypeFromConfigs(initialMentionsRef.current),
-      mentionLabelsForRef.current?.(defaultValue ?? ""),
-    ),
+    content: defaultValue ?? "",
     editable: !disabled,
     autofocus: autoFocus ? "end" : false,
     immediatelyRender: false,
     editorProps: {
       attributes: {
         "data-slot": "input-group-control",
-        role: "combobox",
-        "aria-autocomplete": "list",
-        "aria-expanded": "false",
-        "aria-haspopup": "listbox",
         class: cn(
           "tiptap max-w-none flex-1 rounded-none border-0 bg-transparent py-2 shadow-none outline-none ring-0 focus-visible:ring-0 aria-invalid:ring-0 dark:bg-transparent"
         ),
@@ -818,11 +661,6 @@ export function ComposerEditor({
     }
   }, [disabled, editor]);
 
-  useEffect(() => {
-    if (!autoFocus || !editor) return;
-    editor.commands.focus("end");
-  }, [autoFocus, editor]);
-
   return (
     <EditorContent
       className={cn(
@@ -840,55 +678,36 @@ export function ComposerEditor({
   );
 }
 
-export function ComposerSubmitButton({
+export function ChatInputSubmitButton({
   className,
   disabled,
   children,
   ...props
 }: ComponentProps<typeof InputGroupButton>) {
   const {
-    editor,
     submit,
     status,
     onStop,
     disabled: contextDisabled,
-    sendDisabledReason,
-    canStop,
-  } = useComposerContext();
-  const [emptyPrompt, setEmptyPrompt] = useState(true);
-
-  useEffect(() => {
-    if (!editor) return;
-    const sync = () => setEmptyPrompt(!editor.getText().trim());
-    sync();
-    editor.on("update", sync);
-    editor.on("create", sync);
-    return () => {
-      editor.off("update", sync);
-      editor.off("create", sync);
-    };
-  }, [editor]);
+  } = useChatInputContext();
 
   const isInFlight = status === "submitted" || status === "streaming";
-  const actAsStop = (isInFlight || Boolean(canStop)) && onStop !== undefined;
-  const reason = actAsStop
-    ? null
-    : (sendDisabledReason ?? (emptyPrompt ? EMPTY_PROMPT_REASON : null));
-  const blocked = Boolean(reason) || (disabled ?? contextDisabled) || isInFlight;
-  const label = actAsStop ? "Stop" : (reason ?? "Send");
+  const actAsStop = isInFlight && onStop !== undefined;
 
   let icon = <ArrowUpIcon className="size-4" />;
   if (actAsStop) {
     icon = <SquareIcon className="size-4" />;
   } else if (isInFlight) {
     icon = <Loader2Icon className="size-4 animate-spin" />;
+  } else if (status === "error") {
+    icon = <XIcon className="size-4" />;
   }
 
-  const button = (
+  return (
     <InputGroupButton
-      aria-label={label}
+      aria-label={actAsStop ? "Stop" : "Send"}
       className={className}
-      disabled={actAsStop ? false : blocked}
+      disabled={(disabled ?? contextDisabled) || (isInFlight && !actAsStop)}
       onClick={(event) => {
         event.preventDefault();
         if (actAsStop) {
@@ -898,33 +717,23 @@ export function ComposerSubmitButton({
         }
       }}
       size="icon-sm"
-      title={label}
       type="button"
       variant="default"
       {...props}
     >
       {children ?? icon}
-      <span className="sr-only">{label}</span>
+      <span className="sr-only">{actAsStop ? "Stop" : "Send"}</span>
     </InputGroupButton>
   );
-
-  if (!actAsStop && reason) {
-    return (
-      <span className="inline-flex" title={reason}>
-        {button}
-      </span>
-    );
-  }
-  return button;
 }
 
-export function ComposerMentionButton({
+export function ChatInputMentionButton({
   trigger,
   className,
   children,
   ...props
 }: ComponentProps<typeof InputGroupButton> & { trigger?: string }) {
-  const { editor, mentions } = useComposerContext();
+  const { editor, mentions } = useChatInputContext();
 
   const configs = mentions ? Object.values(mentions) : [];
   const resolvedTrigger = trigger ?? configs[0]?.trigger;
@@ -949,3 +758,4 @@ export function ComposerMentionButton({
     </InputGroupButton>
   );
 }
+

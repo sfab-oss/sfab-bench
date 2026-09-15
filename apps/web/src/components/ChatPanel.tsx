@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKe
 
 import { CadRefTitle } from "@/components/chat/CadRefTitle";
 import { ChatMessageRow } from "@/components/chat/chat-message-parts";
-import { GalleryChatInput, type GalleryChatHandle, type GalleryPromptMessage } from "@/components/chat/composer";
+import { GalleryChatInput, type GalleryChatHandle, type GalleryPromptMessage } from "@/components/chat/chat-input";
 import { HistoryPopover } from "@/components/chat/HistoryPopover";
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import {
@@ -43,9 +43,9 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
-import { loadHarnesses } from "@/hooks/useHarnesses";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { jsonApi } from "@/lib/api";
+import { copyText } from "@/lib/settings";
 import { HIDDEN_CHAT_NOTICE, hiddenChatNotice } from "@/lib/feedback";
 import { CHAT_DEFAULT_WIDTH, CHAT_MAX_WIDTH, CHAT_MIN_WIDTH, chatWidthAfterKey, clampChatDrag } from "@/lib/layout";
 import { escBelongsTo, probeEscLayers } from "@/lib/shortcuts";
@@ -85,9 +85,6 @@ export function ChatPanel({
   const projectPath = useProjectSession().project.path;
   const { threads, threadId, initialMessages, refreshThreads, newThread, openThread, registerTabTurn } =
     useViewerChat();
-  useEffect(() => {
-    void loadHarnesses();
-  }, []);
   useEffect(() => {
     const prev = prevTabStatus.current;
     prevTabStatus.current = tabStatus;
@@ -419,22 +416,7 @@ async function copyConversationJson(conversation: {
   title: string;
   messages: GalleryChatMessage[];
 }) {
-  try {
-    await navigator.clipboard.writeText(JSON.stringify(conversation, jsonSafe, 2));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function jsonSafe(_key: string, value: unknown) {
-  if (typeof value === "bigint") return value.toString();
-  if (typeof File !== "undefined" && value instanceof File) {
-    return { type: "File", name: value.name, mimeType: value.type, size: value.size };
-  }
-  if (value instanceof ArrayBuffer) return { type: "ArrayBuffer", byteLength: value.byteLength };
-  if (ArrayBuffer.isView(value)) return { type: value.constructor.name, length: value.byteLength };
-  return value;
+  return copyText(JSON.stringify(conversation, null, 2));
 }
 
 
@@ -665,7 +647,6 @@ function ChatSession({
       </MessageScrollerProvider>
       <GalleryChatInput
         canStop={pendingViewer !== null}
-        historyMessages={messages}
         loadingModel={loadingModel}
         modelLoaded={Boolean(url) && progress === null}
         onAnswerAskUser={onAnswerAskUser}

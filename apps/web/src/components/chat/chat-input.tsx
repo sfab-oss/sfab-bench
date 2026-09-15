@@ -16,27 +16,23 @@ import {
   type CadMentionItem,
 } from "@/chat/cad-refs";
 import {
-  buildPromptHistoryEntries,
   captureSessionDraft,
   COMPOSER_HINT,
   composerPlaceholder,
+  EMPTY_PROMPT_REASON,
   getSessionDraft,
-  mentionLabelsForPrompt,
   providerSendBlockReason,
   sendDisabledReason,
   setSessionDraft,
-  stepPromptHistory,
-  type PromptHistoryMessage,
-  type PromptHistoryPosition,
 } from "@/chat/composer-recovery";
 import { AskUserQuestionsPanel, type AskUserQuestionsHandle } from "@/components/chat/AskUserQuestionsPanel";
 import {
-  Composer,
-  ComposerEditor,
-  type ComposerHandle,
-  ComposerMentionButton,
-  ComposerSubmitButton,
-} from "@/components/ui/composer";
+  ChatInput,
+  ChatInputEditor,
+  type ChatInputHandle,
+  ChatInputMentionButton,
+  ChatInputSubmitButton,
+} from "@/components/ui/chat-input";
 import { Button } from "@/components/ui/button";
 import { InputGroupAddon } from "@/components/ui/input-group";
 import { useHarnesses } from "@/hooks/useHarnesses";
@@ -54,6 +50,8 @@ import { VoiceRecordBar } from "./VoiceRecordBar";
 export interface GalleryPromptMessage {
   text: string;
 }
+
+type HarnessCatalog = ReturnType<typeof useHarnesses>;
 
 function selectedPartFaceOrds(
   parts: { id: number; object: { children: readonly unknown[] } }[] | undefined,
@@ -99,10 +97,10 @@ function ChatInputInner({
   restorePrompt,
   canStop,
   loadingModel,
-  historyMessages,
   sendBlockReason,
   inputRef,
   cancelVoiceRef,
+  catalog,
 }: {
   disabled: boolean;
   onStop?: () => void;
@@ -115,12 +113,13 @@ function ChatInputInner({
   restorePrompt: string | null;
   canStop: boolean;
   loadingModel: boolean;
-  historyMessages: PromptHistoryMessage[];
   sendBlockReason: string | null;
-  inputRef: RefObject<ComposerHandle | null>;
+  inputRef: RefObject<ChatInputHandle | null>;
   cancelVoiceRef: MutableRefObject<() => void>;
+  catalog: HarnessCatalog;
 }) {
-  const historyPositionRef = useRef<PromptHistoryPosition | null>(null);
+  const draftTouchedRef = useRef(false);
+  const [draftText, setDraftText] = useState(() => getSessionDraft(threadId));
   const { review, selectedId, title } = useStore(
     useShallow((s) => ({
       review: s.review,
@@ -146,28 +145,23 @@ function ChatInputInner({
     () => selectedPartFaceOrds(review?.parts, selectedId),
     [review, selectedId],
   );
-  const truncatedRef = useRef(false);
   const mentions = useMemo(
     () => ({
       part: {
         trigger: "#",
         allowSpaces: true,
         queryCloses: cadMentionQueryCloses,
-        emptyMessage: hasCadParts ? "No parts match" : "Open a STEP to mention parts",
-        getFooter: () => (truncatedRef.current ? "Keep typing to narrow…" : undefined),
         items: (query: string) => {
-          const result = filterCadMentionCatalog(catalogParts, query, {
+          return filterCadMentionCatalog(catalogParts, query, {
             fileStem,
             selectedPart,
             faces,
-          });
-          truncatedRef.current = result.truncated;
-          return result.items;
+          }).items;
         },
         render: (item: CadMentionItem) => <PartMentionRow item={item} />,
       },
     }),
-    [catalogParts, faces, fileStem, hasCadParts, selectedPart],
+    [catalogParts, faces, fileStem, selectedPart],
   );
   const mentionTitle = hasCadParts ? "Mention a part (#)" : "Open a STEP to mention parts";
   const voice = useVoiceInput((text) => {
@@ -175,6 +169,8 @@ function ChatInputInner({
     const next = !cur.trim() ? text : /[\s\n]$/.test(cur) ? `${cur}${text}` : `${cur} ${text}`;
     inputRef.current?.setText(next);
     inputRef.current?.focus();
+    setDraftText(next);
+    captureSessionDraft(threadId, next);
   });
   cancelVoiceRef.current = voice.cancel;
 
@@ -196,23 +192,22 @@ function ChatInputInner({
     return () => window.removeEventListener("keydown", onKey);
   }, [voice.active, voice.cancel]);
 
-  const draftTouchedRef = useRef(false);
-  useEffect(() => {
-    const id = threadId;
-    draftTouchedRef.current = false;
-    return () => {
-      if (!inputRef.current?.isReady()) return;
-      captureSessionDraft(id, inputRef.current.getText());
-    };
-  }, [inputRef, threadId]);
-
   useEffect(() => {
     if (!restorePrompt) return;
     const cur = inputRef.current?.getText() ?? "";
     if (cur.trim()) return;
     inputRef.current?.setText(restorePrompt);
     inputRef.current?.focus();
-  }, [restorePrompt]);
+    setDraftText(restorePrompt);
+    captureSessionDraft(threadId, restorePrompt);
+  }, [inputRef, restorePrompt, threadId]);
+
+  const syncDraft = () => {
+    const text = inputRef.current?.getText() ?? "";
+    if (text) draftTouchedRef.current = true;
+    if (text || draftTouchedRef.current) captureSessionDraft(threadId, text);
+    setDraftText(text);
+  };
 
   const reason = sendDisabledReason({
     loadingModel,
@@ -220,50 +215,44 @@ function ChatInputInner({
     askPlaceholder: placeholder,
     providerReason: sendBlockReason,
   });
+  const inFlight = status === "submitted" || status === "streaming";
+  const emptyPrompt = !draftText.trim();
+  const sendReason = inFlight || canStop ? null : reason ?? (emptyPrompt ? EMPTY_PROMPT_REASON : null);
+  const submitStatus: ChatStatus =
+    canStop && status !== "submitted" && status !== "streaming" ? "streaming" : status;
+
+  const submitButton = (
+    <ChatInputSubmitButton
+      disabled={inFlight || canStop ? undefined : Boolean(sendReason)}
+      title={sendReason ?? "Send"}
+    />
+  );
 
   return (
     <div className="w-full">
-      <Composer
-        canStop={canStop}
+      <ChatInput
         className={attached ? "rounded-none border-0 bg-transparent shadow-none dark:bg-transparent" : "rounded-2xl"}
         defaultValue={getSessionDraft(threadId)}
         disabled={disabled}
-        mentionLabelsFor={(text) => mentionLabelsForPrompt(text, catalogParts, fileStem)}
         mentions={mentions}
-        onDraftChange={(text) => {
-          // Ignore the editor's empty mount update, but store a clear the user made.
-          if (text) draftTouchedRef.current = true;
-          if (text || draftTouchedRef.current) captureSessionDraft(threadId, text);
-        }}
-        onPromptHistory={(direction) => {
-          const current = inputRef.current?.getText() ?? "";
-          const step = stepPromptHistory({
-            direction,
-            entries: buildPromptHistoryEntries(historyMessages),
-            position: historyPositionRef.current,
-            currentPrompt: current,
-          });
-          if (!step) return false;
-          historyPositionRef.current = step.position;
-          inputRef.current?.setText(step.prompt);
-          return true;
-        }}
+        onBlur={syncDraft}
+        onInput={syncDraft}
         onStop={onStop}
         onSubmit={(parsed, { clear, focus }) => {
           if (voice.active) return;
           const trimmed = parsed.text.trim();
           if (!trimmed || lockSend || loadingModel || sendBlockReason) return;
-          historyPositionRef.current = null;
           setSessionDraft(threadId, "");
+          setDraftText("");
+          draftTouchedRef.current = false;
           clear();
           focus();
           Promise.resolve(onSubmit({ text: trimmed })).catch(() => undefined);
         }}
         ref={inputRef}
-        sendDisabledReason={reason}
-        status={status}
+        status={submitStatus}
       >
-      <ComposerEditor
+      <ChatInputEditor
         autoFocus
         className={voice.active ? "invisible pointer-events-none" : undefined}
         placeholder={placeholder}
@@ -273,16 +262,16 @@ function ChatInputInner({
         aria-hidden={voice.active}
         className={cn("flex-wrap gap-y-1 pt-1 @[360px]/chat:flex-nowrap", voice.active && "invisible pointer-events-none")}
       >
-        <ModelPicker />
+        <ModelPicker catalog={catalog} />
         <EffortSelect />
-        <ComposerMentionButton
+        <ChatInputMentionButton
           aria-label="Mention a part (#)"
           disabled={!hasCadParts}
           title={mentionTitle}
           variant="ghost"
         >
           <Hash />
-        </ComposerMentionButton>
+        </ChatInputMentionButton>
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <Button
             type="button"
@@ -295,7 +284,7 @@ function ChatInputInner({
           >
             <Mic />
           </Button>
-          <ComposerSubmitButton />
+          {sendReason ? <span className="inline-flex" title={sendReason}>{submitButton}</span> : submitButton}
         </div>
       </InputGroupAddon>
       {voice.active ? (
@@ -311,7 +300,7 @@ function ChatInputInner({
           />
         </div>
       ) : null}
-    </Composer>
+    </ChatInput>
       {voice.error && !voice.active ? (
         <p className="px-2 pt-1 text-xs text-error">{voice.error}</p>
       ) : null}
@@ -339,7 +328,6 @@ export function GalleryChatInput({
   canStop = false,
   loadingModel = false,
   modelLoaded = false,
-  historyMessages = [],
   ref,
 }: {
   disabled?: boolean;
@@ -353,11 +341,11 @@ export function GalleryChatInput({
   canStop?: boolean;
   loadingModel?: boolean;
   modelLoaded?: boolean;
-  historyMessages?: PromptHistoryMessage[];
   ref?: Ref<GalleryChatHandle>;
 }) {
   const askRef = useRef<AskUserQuestionsHandle>(null);
-  const composerRef = useRef<ComposerHandle>(null);
+  const inputRef = useRef<ChatInputHandle>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const cancelVoiceRef = useRef<() => void>(() => {});
   const [activeQuestion, setActiveQuestion] = useState<AskUserQuestion | null>(
     pendingAsk?.input.questions[0] ?? null,
@@ -373,10 +361,10 @@ export function GalleryChatInput({
     modelLoaded,
   });
   const harness = useStore((s) => s.chatHarness);
-  const { harnesses, ready } = useHarnesses();
-  const info = harnesses.find((h) => h.id === harness);
+  const catalog = useHarnesses();
+  const info = catalog.harnesses.find((h) => h.id === harness);
   const sendBlockReason = providerSendBlockReason({
-    ready,
+    ready: catalog.ready,
     label: HARNESS_LABEL[harness],
     status: info?.status,
     detail: info?.detail,
@@ -386,27 +374,25 @@ export function GalleryChatInput({
     ref,
     () => ({
       captureDraft: () => {
-        const handle = composerRef.current;
-        if (!handle?.isReady()) return;
-        captureSessionDraft(threadId, handle.getText());
+        captureSessionDraft(threadId, inputRef.current?.getText() ?? "");
       },
       clear: () => {
         setSessionDraft(threadId, "");
-        composerRef.current?.clear();
+        inputRef.current?.clear();
       },
       focus: () => {
-        composerRef.current?.focus();
+        inputRef.current?.focus();
       },
       cancelVoice: () => {
         cancelVoiceRef.current();
       },
-      isReady: () => Boolean(composerRef.current?.isReady()),
+      isReady: () => Boolean(rootRef.current?.querySelector("[data-slot=input-group-control]")),
     }),
     [threadId],
   );
 
   return (
-    <div className="relative bottom-0 z-10 w-full min-w-0 overflow-x-hidden bg-background pt-2" data-chat-composer>
+    <div className="relative bottom-0 z-10 w-full min-w-0 overflow-x-hidden bg-background pt-2" data-chat-composer ref={rootRef}>
       <div className="mx-auto w-full min-w-0 p-2 @[360px]/chat:px-4 @[360px]/chat:pb-4">
         <div
           className={cn(
@@ -427,10 +413,10 @@ export function GalleryChatInput({
             <ChatInputInner
               attached={attached}
               canStop={canStop}
+              catalog={catalog}
               cancelVoiceRef={cancelVoiceRef}
               disabled={disabled}
-              historyMessages={historyMessages}
-              inputRef={composerRef}
+              inputRef={inputRef}
               loadingModel={loadingModel}
               lockSend={lockSend}
               onStop={onStop}
@@ -450,7 +436,7 @@ export function GalleryChatInput({
           </div>
         </div>
         <p className="hidden px-2 pt-1 text-[11px] text-muted-foreground @[360px]/chat:block">{COMPOSER_HINT}</p>
-        <ProviderStatus />
+        <ProviderStatus catalog={catalog} />
       </div>
     </div>
   );

@@ -30,7 +30,6 @@ expect(SHORTCUTS.some((row) => row.id === "open-folder" && row.scope === "global
 expect(SHORTCUTS.some((row) => row.id === "command-palette" && row.scope === "global"), "palette in registry");
 expect(SHORTCUTS.some((row) => row.id === "composer-send" && row.scope === "composer"), "send in registry");
 expect(SHORTCUTS.some((row) => row.id === "composer-newline" && row.scope === "composer"), "newline in registry");
-expect(SHORTCUTS.some((row) => row.id === "composer-recall" && row.scope === "composer"), "recall in registry");
 expect(SHORTCUTS.some((row) => row.id === "composer-mention" && row.scope === "composer"), "mention in registry");
 expect(SHORTCUTS.some((row) => row.id === "escape"), "esc in registry");
 expect(SHORTCUTS.some((row) => row.id === "ask-user-choose" && row.scope === "ask-user"), "ask-user in registry");
@@ -140,7 +139,6 @@ expect(
   matchesShortcut({ key: "Enter", shiftKey: true }, "composer-newline", { mac: true }),
   "Shift+Enter newline",
 );
-expect(matchesShortcut({ key: "ArrowUp" }, "composer-recall", { mac: true }), "ArrowUp recall");
 expect(matchesShortcut({ key: "#", shiftKey: true }, "composer-mention", { mac: true }), "hash mention");
 expect(matchesShortcut({ key: "Escape" }, "escape", { mac: true }), "Escape");
 expect(matchesShortcut({ key: "5" }, "ask-user-choose", { mac: true }), "digit 5");
