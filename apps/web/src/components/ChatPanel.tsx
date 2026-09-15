@@ -1,13 +1,21 @@
 import { useChat } from "@ai-sdk/react";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
-import { Check, Copy, EllipsisVertical, History, MessageCircleDashedIcon, PanelRight, Plus } from "lucide-react";
+import { Check, Copy, EllipsisVertical, MessageCircleDashedIcon, PanelRight, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 
+import { CadRefTitle } from "@/components/chat/CadRefTitle";
 import { ChatMessageRow } from "@/components/chat/chat-message-parts";
 import { GalleryChatInput, type GalleryChatHandle, type GalleryPromptMessage } from "@/components/chat/composer";
+import { HistoryPopover } from "@/components/chat/HistoryPopover";
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
-import { persistThread, useViewerChat } from "@/components/chat/useViewerChat";
+import {
+  peekThreadMessages,
+  persistThread,
+  readSavedThread,
+  useViewerChat,
+} from "@/components/chat/useViewerChat";
 import { lastUserPromptText, mapChatErrorMessage, isWorkspaceBusyError } from "@/chat/composer-recovery";
+import { currentThreadIsEmpty, decideNewChatAction, firstUserLine } from "@/chat/history";
 import { finishPersistMessages, isTurnErrorPart } from "@/chat/persist-thread";
 import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
 import { findPendingAskUserQuestions, type AskUserQuestionsOutput } from "@/chat/ask-user-questions";
@@ -17,7 +25,7 @@ import { LiveDot } from "@/components/brand/LiveDot";
 import { CrashCard } from "@/components/CrashCard";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import {
   Empty,
@@ -35,6 +43,7 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
 import { loadHarnesses } from "@/hooks/useHarnesses";
+import { useProjectSession } from "@/hooks/useProjectSession";
 import { jsonApi } from "@/lib/api";
 import { CHAT_DEFAULT_WIDTH, clampChatDrag } from "@/lib/layout";
 import { cn } from "@/lib/utils";
@@ -57,15 +66,34 @@ export function ChatPanel({
   const setWidth = useStore((s) => s.setChatWidth);
   const [resizing, setResizing] = useState(false);
   const [live, setLive] = useState(false);
+  const [sessionPreview, setSessionPreview] = useState<string | null>(null);
+  const [tabStatus, setTabStatus] = useState({ streaming: false, askUser: false, error: false });
   const messagesRef = useRef<GalleryChatMessage[]>([]);
+  const messagesThreadIdRef = useRef<string | null>(null);
+  const newChatLock = useRef(false);
   const compactOpenRef = useRef(false);
   const panelRef = useRef<HTMLElement>(null);
   const stopTurnRef = useRef<(() => void) | null>(null);
   const captureDraftRef = useRef<(() => void) | null>(null);
-  const { threads, threadId, initialMessages, refreshThreads, newThread, openThread } = useViewerChat();
+  const composerRef = useRef<GalleryChatHandle>(null);
+  const projectPath = useProjectSession().project.path;
+  const { threads, threadId, initialMessages, refreshThreads, newThread, openThread, registerTabTurn } =
+    useViewerChat();
   useEffect(() => {
     void loadHarnesses();
   }, []);
+
+  const onSessionMeta = useCallback(
+    (meta: { preview: string | null; streaming: boolean; askUser: boolean; error: boolean }) => {
+      setSessionPreview(meta.preview);
+      setTabStatus((prev) =>
+        prev.streaming === meta.streaming && prev.askUser === meta.askUser && prev.error === meta.error
+          ? prev
+          : { streaming: meta.streaming, askUser: meta.askUser, error: meta.error },
+      );
+    },
+    [],
+  );
 
   const persistWidth = useCallback(
     (next: number) => {
@@ -142,6 +170,60 @@ export function ChatPanel({
   };
 
   const active = threads.find((t) => t.id === threadId);
+  const headerTitle = active?.title ?? "Assistant";
+  const currentEmpty = currentThreadIsEmpty({
+    threadId,
+    liveThreadId: messagesThreadIdRef.current,
+    liveCount: messagesRef.current.length,
+    initialCount: initialMessages.length,
+  });
+
+  const startNewChat = () => {
+    if (newChatLock.current) return;
+    newChatLock.current = true;
+    void (async () => {
+      try {
+        const emptyNow = currentThreadIsEmpty({
+          threadId,
+          liveThreadId: messagesThreadIdRef.current,
+          liveCount: messagesRef.current.length,
+          initialCount: initialMessages.length,
+        });
+        const saved = readSavedThread(projectPath);
+        const skipIds = saved && saved !== threadId ? [saved] : [];
+        const rejected = new Set<string>();
+        while (true) {
+          const decision = decideNewChatAction({
+            currentId: threadId,
+            currentEmpty: emptyNow,
+            threads,
+            skipIds,
+            rejectedIds: rejected,
+          });
+          if (decision.action === "focus") {
+            composerRef.current?.focus();
+            return;
+          }
+          if (decision.action === "create") {
+            captureDraftRef.current?.();
+            stopTurnRef.current?.();
+            await newThread();
+            return;
+          }
+          const peeked = await peekThreadMessages(decision.id);
+          if (peeked && peeked.length === 0) {
+            captureDraftRef.current?.();
+            stopTurnRef.current?.();
+            await openThread(decision.id);
+            return;
+          }
+          rejected.add(decision.id);
+        }
+      } finally {
+        newChatLock.current = false;
+      }
+    })();
+  };
 
   return (
     <>
@@ -195,9 +277,9 @@ export function ChatPanel({
         <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-4" />
         <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
           {live ? <LiveDot /> : null}
-          <div className="min-w-0 truncate text-sm font-medium">{active?.title ?? "Assistant"}</div>
+          <CadRefTitle className="min-w-0 truncate text-sm font-medium" title={headerTitle} />
         </div>
-        <ChatSettingsMenu
+        <ChatExportMenu
           onCopyJson={() =>
             copyConversationJson({
               id: threadId,
@@ -206,53 +288,28 @@ export function ChatPanel({
             })
           }
         />
-        <Popover>
-          <PopoverTrigger
-            render={<Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" title="Chat history" />}
-          >
-            <History />
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-64 p-1">
-            {threads.length === 0 ? (
-              <div className="px-2 py-1.5 text-xs text-muted-foreground">No chats yet</div>
-            ) : (
-              <ul className="max-h-72 overflow-y-auto">
-                {threads.map((t) => (
-                  <li key={t.id}>
-                    <PopoverClose
-                      className={cn(
-                        "flex w-full truncate rounded-sm px-2 py-1.5 text-left text-sm",
-                        t.id === threadId
-                          ? "bg-accent font-medium text-accent-foreground"
-                          : "text-muted-foreground hover:bg-accent",
-                      )}
-                      onClick={() => {
-                        if (t.id === threadId) return;
-                        captureDraftRef.current?.();
-                        // Stop only while this tab holds a live turn (ref is null when idle).
-                        stopTurnRef.current?.();
-                        void openThread(t.id);
-                      }}
-                    >
-                      {t.title}
-                    </PopoverClose>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </PopoverContent>
-        </Popover>
+        <HistoryPopover
+          currentEmpty={currentEmpty}
+          currentPreview={sessionPreview}
+          currentStatus={tabStatus}
+          onOpenThread={(id) => {
+            if (id === threadId) return;
+            captureDraftRef.current?.();
+            stopTurnRef.current?.();
+            void openThread(id);
+          }}
+          refreshThreads={refreshThreads}
+          threadId={threadId}
+          threads={threads}
+        />
         <Button
           type="button"
           variant="ghost"
           size="sm"
           className="h-8 w-8 p-0"
           title="New chat"
-          onClick={() => {
-            captureDraftRef.current?.();
-            stopTurnRef.current?.();
-            void newThread();
-          }}
+          aria-label="New chat"
+          onClick={startNewChat}
         >
           <Plus />
         </Button>
@@ -271,10 +328,14 @@ export function ChatPanel({
             threadId={threadId}
             initialMessages={initialMessages}
             messagesRef={messagesRef}
+            messagesThreadIdRef={messagesThreadIdRef}
             onLive={setLive}
+            onMeta={onSessionMeta}
             onPersist={() => void refreshThreads()}
+            registerTabTurn={registerTabTurn}
             stopTurnRef={stopTurnRef}
             captureDraftRef={captureDraftRef}
+            composerRef={composerRef}
           />
         ) : null}
       </RenderErrorBoundary>
@@ -343,17 +404,20 @@ function jsonSafe(_key: string, value: unknown) {
   return value;
 }
 
-function ChatSettingsMenu({ onCopyJson }: { onCopyJson: () => Promise<boolean> }) {
-  const [copied, setCopied] = useState(false);
+
+function ChatExportMenu({ onCopyJson }: { onCopyJson: () => Promise<boolean> }) {
+  const [copied, setCopied] = useState<"idle" | "copied" | "error">("idle");
 
   return (
     <Popover
       onOpenChange={(open) => {
-        if (!open) setCopied(false);
+        if (!open) setCopied("idle");
       }}
     >
       <PopoverTrigger
-        render={<Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" title="Chat settings" />}
+        render={
+          <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" title="Export" aria-label="Export" />
+        }
       >
         <EllipsisVertical />
       </PopoverTrigger>
@@ -363,12 +427,12 @@ function ChatSettingsMenu({ onCopyJson }: { onCopyJson: () => Promise<boolean> }
           className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
           onClick={() => {
             void onCopyJson().then((ok) => {
-              if (ok) setCopied(true);
+              setCopied(ok ? "copied" : "error");
             });
           }}
         >
-          {copied ? <Check className="size-4 shrink-0" /> : <Copy className="size-4 shrink-0" />}
-          {copied ? "Copied" : "Copy conversation as JSON"}
+          {copied === "copied" ? <Check className="size-4 shrink-0" /> : <Copy className="size-4 shrink-0" />}
+          {copied === "copied" ? "Copied" : copied === "error" ? "Couldn't copy" : "Copy conversation as JSON"}
         </button>
       </PopoverContent>
     </Popover>
@@ -379,21 +443,28 @@ function ChatSession({
   threadId,
   initialMessages,
   messagesRef,
+  messagesThreadIdRef,
   onLive,
+  onMeta,
   onPersist,
+  registerTabTurn,
   stopTurnRef,
   captureDraftRef,
+  composerRef,
 }: {
   threadId: string;
   initialMessages: GalleryChatMessage[];
   messagesRef: RefObject<GalleryChatMessage[]>;
+  messagesThreadIdRef: RefObject<string | null>;
   onLive: (live: boolean) => void;
+  onMeta: (meta: { preview: string | null; streaming: boolean; askUser: boolean; error: boolean }) => void;
   onPersist: () => void;
+  registerTabTurn: (streaming: boolean, stop: (() => void) | null) => void;
   stopTurnRef: RefObject<(() => void) | null>;
   captureDraftRef: RefObject<(() => void) | null>;
+  composerRef: RefObject<GalleryChatHandle | null>;
 }) {
   const turnErrorRef = useRef<string | null>(null);
-  const composerRef = useRef<GalleryChatHandle>(null);
   const progress = useStore((s) => s.progress);
   const url = useStore((s) => s.url);
   const { messages, sendMessage, status, error, stop, regenerate, addToolOutput } = useChat({
@@ -439,11 +510,16 @@ function ChatSession({
     };
   }, [live, abortWorkspaceTurn, stopTurnRef]);
   useEffect(() => {
+    registerTabTurn(busy, busy ? abortWorkspaceTurn : null);
+    return () => registerTabTurn(false, null);
+  }, [busy, abortWorkspaceTurn, registerTabTurn]);
+  useEffect(() => {
     onLive(live);
     return () => onLive(false);
   }, [live, onLive]);
   useLiveViewerTools(messages as GalleryChatMessage[], addToolOutput, busy);
   messagesRef.current = messages as GalleryChatMessage[];
+  messagesThreadIdRef.current = threadId;
   const streamingMessageId = busy && messages.at(-1)?.role === "assistant" ? (messages.at(-1)?.id ?? null) : null;
   const lastPrompt = lastUserPromptText(messages);
 
@@ -479,6 +555,15 @@ function ChatSession({
     (lastMessage.parts ?? []).some(isTurnErrorPart)
       ? lastMessage.id
       : null;
+
+  useEffect(() => {
+    onMeta({
+      preview: firstUserLine(messages),
+      streaming: busy,
+      askUser: pendingAsk !== null,
+      error: liveError || Boolean(tailErrorId),
+    });
+  }, [messages, busy, pendingAsk, liveError, tailErrorId, onMeta]);
 
   return (
     <>

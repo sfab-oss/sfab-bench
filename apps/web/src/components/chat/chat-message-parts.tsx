@@ -1,13 +1,12 @@
 import {
   type DynamicToolUIPart,
-  isTextUIPart,
   isToolUIPart,
   type ToolUIPart,
   type UIMessagePart,
   type UITools,
 } from "ai";
 import { CheckIcon, CircleIcon, CopyIcon } from "lucide-react";
-import type { ComponentProps } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { Streamdown } from "streamdown";
 import {
   isAskUserQuestionsPart,
@@ -48,6 +47,7 @@ import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
 import type { AIDataPart } from "./ai-types";
 import type { GalleryChatMessage } from "./mock-chat-messages";
+import { messagePlainText } from "./useViewerChat";
 
 function CadRefChip({ token }: { token: string }) {
   const label = useStore((s) => {
@@ -131,10 +131,17 @@ function MarkdownBody({
   return (
     <Streamdown
       className={cn(
-        "size-full text-base [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-        className
+        "size-full min-w-0 max-w-full overflow-x-hidden text-base [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+        "[&_ul]:my-2 [&_ul]:list-outside [&_ul]:list-disc [&_ul]:pl-5",
+        "[&_ol]:my-2 [&_ol]:list-outside [&_ol]:list-decimal [&_ol]:pl-5",
+        "[&_li]:my-0.5 [&_ul_ul]:list-[circle] [&_ol_ul]:list-[circle]",
+        "[&_[data-streamdown=code-block]]:min-w-0 [&_[data-streamdown=code-block]]:max-w-full",
+        "[&_[data-streamdown=code-block-body]]:min-w-0 [&_[data-streamdown=code-block-body]]:max-w-full",
+        "[&_[data-streamdown=code-block-body]_pre]:max-w-full [&_[data-streamdown=code-block-body]_pre]:overflow-x-auto [&_[data-streamdown=code-block-body]_pre]:whitespace-pre-wrap [&_[data-streamdown=code-block-body]_pre]:break-words",
+        className,
       )}
       components={hasCadRefs ? CAD_REF_COMPONENTS : undefined}
+      data-slot="chat-markdown"
     >
       {markdown}
     </Streamdown>
@@ -327,6 +334,48 @@ function GalleryMessagePart({
   return null;
 }
 
+function CopyMessageButton({ text }: { text: string }) {
+  const [state, setState] = useState<"idle" | "copied" | "error">("idle");
+  const timer = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timer.current != null) window.clearTimeout(timer.current);
+    },
+    [],
+  );
+
+  const label = state === "copied" ? "Copied" : state === "error" ? "Couldn't copy" : "Copy";
+
+  return (
+    <Button
+      aria-label={label}
+      className={cn(state !== "idle" && "h-6 w-auto px-2")}
+      onClick={() => {
+        void navigator.clipboard.writeText(text).then(
+          () => {
+            if (timer.current != null) window.clearTimeout(timer.current);
+            setState("copied");
+            timer.current = window.setTimeout(() => setState("idle"), 1500);
+          },
+          () => {
+            if (timer.current != null) window.clearTimeout(timer.current);
+            setState("error");
+            timer.current = window.setTimeout(() => setState("idle"), 1500);
+          },
+        );
+      }}
+      size="icon-xs"
+      title={label}
+      type="button"
+      variant="ghost"
+    >
+      {state === "copied" ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
+      {state === "copied" ? "Copied" : state === "error" ? "Couldn't copy" : null}
+    </Button>
+  );
+}
+
 function workedDurationSeconds(
   message: GalleryChatMessage
 ): number | undefined {
@@ -348,10 +397,7 @@ export function ChatMessageRow({
   onRetry?: () => void;
   onStop?: () => void;
 }) {
-  const textForCopy = message.parts
-    .filter(isTextUIPart)
-    .map((part) => part.text)
-    .join("\n\n");
+  const textForCopy = messagePlainText(message);
   const align = message.role === "user" ? "end" : "start";
   const lastPartIndex = message.parts.length - 1;
   const duration = workedDurationSeconds(message);
@@ -398,18 +444,15 @@ export function ChatMessageRow({
               return partRow(segment.item.part, segment.item.index);
             })
           : message.parts.map((part, partIndex) => partRow(part, partIndex))}
-        {message.role === "assistant" && textForCopy ? (
-          <MessageFooter>
-            <Button
-              aria-label="Copy"
-              onClick={() => navigator.clipboard.writeText(textForCopy)}
-              size="icon-xs"
-              title="Copy"
-              type="button"
-              variant="ghost"
-            >
-              <CopyIcon className="size-3.5" />
-            </Button>
+        {textForCopy ? (
+          <MessageFooter
+            className={
+              message.role === "user"
+                ? "max-h-0 overflow-hidden p-0 opacity-0 transition-[max-height,opacity] group-hover/message:max-h-8 group-hover/message:opacity-100 group-focus-within/message:max-h-8 group-focus-within/message:opacity-100"
+                : undefined
+            }
+          >
+            <CopyMessageButton text={textForCopy} />
           </MessageFooter>
         ) : null}
       </MessageContent>

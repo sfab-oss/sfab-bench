@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import { jsonApi } from "@/lib/api";
@@ -32,6 +32,9 @@ type ViewerChatValue = {
   refreshThreads: () => Promise<ThreadRow[] | undefined>;
   newThread: () => Promise<void>;
   openThread: (id: string) => Promise<void>;
+  tabStreaming: boolean;
+  stopTabTurn: () => void;
+  registerTabTurn: (streaming: boolean, stop: (() => void) | null) => void;
 };
 
 const ViewerChatContext = createContext<ViewerChatValue | null>(null);
@@ -40,7 +43,8 @@ function threadKey(path: string) {
   return `sfab-bench.thread:${path}`;
 }
 
-function readSavedThread(path: string) {
+/** Last thread id this origin wrote for the folder (shared across same-browser tabs). */
+export function readSavedThread(path: string) {
   if (!path) return null;
   try {
     return localStorage.getItem(threadKey(path));
@@ -86,14 +90,29 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [initialMessages, setInitialMessages] = useState<GalleryChatMessage[]>([]);
+  const [tabStreaming, setTabStreaming] = useState(false);
+  const stopTabTurnRef = useRef<(() => void) | null>(null);
+
+  const registerTabTurn = useCallback((streaming: boolean, stop: (() => void) | null) => {
+    setTabStreaming(streaming);
+    stopTabTurnRef.current = stop;
+  }, []);
+
+  const stopTabTurn = useCallback(() => {
+    stopTabTurnRef.current?.();
+  }, []);
 
   const refreshThreads = useCallback(async () => {
     if (!projectPath) return [];
-    const res = await jsonApi.threads.$get();
-    if (!res.ok) return;
-    const rows = (await res.json()) as ThreadRow[];
-    setThreads(rows);
-    return rows;
+    try {
+      const res = await jsonApi.threads.$get();
+      if (!res.ok) return;
+      const rows = (await res.json()) as ThreadRow[];
+      setThreads(rows);
+      return rows;
+    } catch {
+      return;
+    }
   }, [projectPath]);
 
   const openThread = useCallback(
@@ -127,6 +146,8 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
     setThreadId(null);
     setInitialMessages([]);
     setThreads([]);
+    setTabStreaming(false);
+    stopTabTurnRef.current = null;
   }, [projectPath]);
 
   useEffect(() => {
@@ -177,8 +198,21 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
       refreshThreads,
       newThread,
       openThread,
+      tabStreaming,
+      stopTabTurn,
+      registerTabTurn,
     }),
-    [threads, threadId, initialMessages, refreshThreads, newThread, openThread],
+    [
+      threads,
+      threadId,
+      initialMessages,
+      refreshThreads,
+      newThread,
+      openThread,
+      tabStreaming,
+      stopTabTurn,
+      registerTabTurn,
+    ],
   );
 
   return <ViewerChatContext.Provider value={value}>{children}</ViewerChatContext.Provider>;
@@ -196,6 +230,18 @@ export function persistThread(threadId: string, messages: GalleryChatMessage[]) 
     param: { id: threadId },
     json: { messages },
   });
+}
+
+/** GET messages without opening the thread. `null` if the fetch failed. */
+export async function peekThreadMessages(id: string): Promise<GalleryChatMessage[] | null> {
+  try {
+    const res = await jsonApi.threads[":id"].$get({ param: { id } });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { messages?: GalleryChatMessage[] };
+    return body.messages ?? [];
+  } catch {
+    return null;
+  }
 }
 
 export function messagePlainText(message: GalleryChatMessage) {

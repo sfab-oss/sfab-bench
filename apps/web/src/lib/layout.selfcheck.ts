@@ -1,6 +1,7 @@
 import {
   CANVAS_MIN_WIDTH,
   CHAT_DEFAULT_WIDTH,
+  CHAT_LIVE_CHIP_RESERVE,
   CHAT_MAX_WIDTH,
   CHAT_MIN_WIDTH,
   COMPACT_CHAT_BREAKPOINT,
@@ -116,6 +117,9 @@ expect(toolbarRightReserve(false, false) === 12, "padding only");
 expect(toolbarRightReserve(true, false) === 12 + 44, "chat toggle");
 expect(toolbarRightReserve(false, true) === 12 + 140, "Enter Studio");
 expect(toolbarRightReserve(true, true) === 12 + 140 + 44 + 8, "both plus gap");
+expect(CHAT_LIVE_CHIP_RESERVE === 220, "hidden-chat live chip width");
+expect(toolbarRightReserve(true, false, true) === 12 + 220, "live chip");
+expect(toolbarRightReserve(true, true, true) === 12 + 140 + 220 + 8, "live chip plus Enter Studio");
 
 const needed = FILES_RAIL_WIDTH + CHAT_MIN_WIDTH + CANVAS_MIN_WIDTH;
 expect(needed === 1064, "rail + min chat + canvas");

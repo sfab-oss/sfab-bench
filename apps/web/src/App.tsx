@@ -6,7 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 import { LiveDot } from "@/components/brand/LiveDot";
 import { Lockup } from "@/components/brand/Lockup";
 import { ChatPanel } from "@/components/ChatPanel";
-import { ViewerChatProvider } from "@/components/chat/useViewerChat";
+import { ViewerChatProvider, useViewerChat } from "@/components/chat/useViewerChat";
 import { CrashCard } from "@/components/CrashCard";
 import {
   BrowseFolderDialog,
@@ -72,6 +72,34 @@ function ChatToggle({
 }) {
   const setChatOpen = useStore((s) => s.setChatOpen);
   const setCompactChatOpen = useStore((s) => s.setCompactChatOpen);
+  const { tabStreaming, stopTabTurn } = useViewerChat();
+  const show = () => (compact ? setCompactChatOpen(true) : setChatOpen(true));
+  if (tabStreaming) {
+    return (
+      <div className="pointer-events-auto flex items-center gap-1.5 rounded-xl border border-border bg-card/95 px-2 py-1 text-xs shadow-lg">
+        <LiveDot className="animate-pulse" />
+        <span>Replying…</span>
+        <span className="text-muted-foreground">·</span>
+        <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={stopTabTurn}>
+          Stop
+        </Button>
+        <span className="text-muted-foreground">·</span>
+        <Button
+          ref={buttonRef}
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 px-1.5 text-xs"
+          title="Show chat"
+          tabIndex={hidden ? -1 : undefined}
+          aria-hidden={hidden || undefined}
+          onClick={show}
+        >
+          Show chat
+        </Button>
+      </div>
+    );
+  }
   return (
     <div className="pointer-events-auto rounded-xl border border-border bg-card/95 shadow-lg">
       <Button
@@ -83,7 +111,7 @@ function ChatToggle({
         title="Show chat"
         tabIndex={hidden ? -1 : undefined}
         aria-hidden={hidden || undefined}
-        onClick={() => (compact ? setCompactChatOpen(true) : setChatOpen(true))}
+        onClick={show}
       >
         <PanelRight />
         <span className="sr-only">Show chat</span>
@@ -171,10 +199,11 @@ function Overlay({
     ? detailPanelWidth(canvasWidth, overlays.detailCompact, partsChip)
     : 0;
   const showChatToggle = Boolean(project.path) && (compactChat ? !compactChatOpen : !chatOpen);
+  const { tabStreaming } = useViewerChat();
   const { ar, vr, ready: xrReady } = useXrSupport();
   const enterXr = xrReady && (ar || vr);
   const leftReserve = treeOpen ? 12 : 52;
-  const rightReserve = toolbarRightReserve(showChatToggle, Boolean(enterXr));
+  const rightReserve = toolbarRightReserve(showChatToggle, Boolean(enterXr), showChatToggle && tabStreaming);
   const toolbar = toolbarLayout({ canvasWidth, leftReserve, rightReserve });
   const cameraMoved = useStore((s) => s.cameraMoved);
   const settledFitUrl = useRef<string | null>(null);
