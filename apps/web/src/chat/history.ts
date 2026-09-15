@@ -1,6 +1,6 @@
 import { parseCadRefs } from "@/chat/cad-refs";
+import { stripViewerStamp } from "@/chat/composer-recovery";
 
-export const HISTORY_POLL_MS = 10_000;
 export const EMPTY_THREAD_TITLE = "New chat";
 
 export type TitleSegment =
@@ -34,7 +34,7 @@ export function titleRefSegments(title: string, labelForRef: (ref: string) => st
   return out;
 }
 
-/** Relative `updated_at`. Ticks at minute boundaries; sub-minute stays "just now". */
+/** Relative `updated_at`. */
 export function formatRelativeTime(updatedAt: number, nowMs: number): string {
   if (!Number.isFinite(updatedAt) || updatedAt <= 0) return "";
   const diff = nowMs - updatedAt;
@@ -48,23 +48,16 @@ export function formatRelativeTime(updatedAt: number, nowMs: number): string {
   return new Date(updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export function msUntilNextMinuteTick(nowMs: number): number {
-  const rem = nowMs % MINUTE_MS;
-  return rem === 0 ? MINUTE_MS : MINUTE_MS - rem;
-}
-
 export function firstUserLine(
   messages: { role?: string; parts?: { type?: string; text?: string }[] }[],
 ): string | null {
   for (const message of messages) {
     if (message.role !== "user") continue;
-    const text = (message.parts ?? [])
-      .flatMap((part) => (part.type === "text" && part.text ? [part.text] : []))
-      .join("\n")
-      .split("\n")
-      .filter((line) => !line.startsWith("[viewer]"))
-      .join("\n")
-      .trim();
+    const text = stripViewerStamp(
+      (message.parts ?? [])
+        .flatMap((part) => (part.type === "text" && part.text ? [part.text] : []))
+        .join("\n"),
+    );
     if (!text) continue;
     const line = text
       .split("\n")

@@ -5,9 +5,7 @@ import {
   EMPTY_THREAD_TITLE,
   firstUserLine,
   formatRelativeTime,
-  HISTORY_POLL_MS,
   isEmptyHistoryTitle,
-  msUntilNextMinuteTick,
   partitionHistoryRows,
   threadRowPip,
   titleRefSegments,
@@ -17,7 +15,6 @@ function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
 }
 
-expect(HISTORY_POLL_MS === 10_000, "history poll is ~10s");
 expect(isEmptyHistoryTitle("New chat"), "default title is empty");
 expect(isEmptyHistoryTitle("  New chat  "), "trimmed default title is empty");
 expect(isEmptyHistoryTitle(""), "blank title is empty");
@@ -33,8 +30,6 @@ expect(formatRelativeTime(now - 5 * 60 * 60_000, now) === "5 hr ago", "five hour
 expect(formatRelativeTime(now - 24 * 60 * 60_000, now) === "1 day ago", "one day");
 expect(formatRelativeTime(now - 3 * 24 * 60 * 60_000, now) === "3 days ago", "three days");
 expect(formatRelativeTime(0, now) === "", "missing timestamp");
-expect(msUntilNextMinuteTick(now) === 60_000, "exact minute waits a full minute");
-expect(msUntilNextMinuteTick(now + 15_000) === 45_000, "aligns to the next minute");
 
 const labeled = titleRefSegments("Look at #o1.1 please", (ref) => (ref === "#o1.1" ? "Bracket" : null));
 expect(labeled.length === 3, "text / ref / text");

@@ -4,9 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   EMPTY_THREAD_TITLE,
   formatRelativeTime,
-  HISTORY_POLL_MS,
   isEmptyHistoryTitle,
-  msUntilNextMinuteTick,
   partitionHistoryRows,
   threadRowPip,
   type ThreadPip,
@@ -16,24 +14,6 @@ import { CadRefTitle } from "@/components/chat/CadRefTitle";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-
-function useMinuteTick(enabled: boolean) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!enabled) return;
-    setNow(Date.now());
-    let interval = 0;
-    const timeout = window.setTimeout(() => {
-      setNow(Date.now());
-      interval = window.setInterval(() => setNow(Date.now()), 60_000);
-    }, msUntilNextMinuteTick(Date.now()));
-    return () => {
-      window.clearTimeout(timeout);
-      if (interval) window.clearInterval(interval);
-    };
-  }, [enabled]);
-  return now;
-}
 
 function StatusPip({ pip }: { pip: ThreadPip }) {
   if (!pip) return null;
@@ -73,7 +53,7 @@ export function HistoryPopover({
   const [open, setOpen] = useState(false);
   const [refreshError, setRefreshError] = useState(false);
   const [showEmpty, setShowEmpty] = useState(false);
-  const now = useMinuteTick(open);
+  const now = Date.now();
 
   const refresh = useCallback(async () => {
     const rows = await refreshThreads();
@@ -83,8 +63,6 @@ export function HistoryPopover({
   useEffect(() => {
     if (!open) return;
     void refresh();
-    const id = window.setInterval(() => void refresh(), HISTORY_POLL_MS);
-    return () => window.clearInterval(id);
   }, [open, refresh]);
 
   const { visible, emptyHidden } = partitionHistoryRows(threads, threadId, currentEmpty);

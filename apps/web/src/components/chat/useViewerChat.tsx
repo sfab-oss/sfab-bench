@@ -15,6 +15,7 @@ import {
 } from "@/lib/harness";
 import { store, useStore } from "@/state/store";
 import { shouldPersistMessages } from "@/chat/persist-thread";
+import { stripViewerStamp } from "@/chat/composer-recovery";
 
 export type ThreadRow = {
   id: string;
@@ -260,11 +261,9 @@ export async function peekThreadMessages(id: string): Promise<GalleryChatMessage
 }
 
 export function messagePlainText(message: GalleryChatMessage) {
-  return (message.parts ?? [])
-    .flatMap((part) => (part.type === "text" && "text" in part ? [part.text] : []))
-    .join("\n")
-    .split("\n")
-    .filter((line) => !line.startsWith("[viewer]"))
-    .join("\n")
-    .trim();
+  return stripViewerStamp(
+    (message.parts ?? [])
+      .flatMap((part) => (part.type === "text" && "text" in part ? [part.text] : []))
+      .join("\n"),
+  );
 }
