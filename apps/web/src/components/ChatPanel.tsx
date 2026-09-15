@@ -1,27 +1,21 @@
 import { useChat } from "@ai-sdk/react";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
-import { Check, Copy, EllipsisVertical, History, MessageCircleDashedIcon, PanelRight, Plus } from "lucide-react";
+import { Check, Copy, EllipsisVertical, MessageCircleDashedIcon, PanelRight, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 
+import { CadRefTitle } from "@/components/chat/CadRefTitle";
 import { ChatMessageRow } from "@/components/chat/chat-message-parts";
 import { GalleryChatInput, type GalleryChatHandle, type GalleryPromptMessage } from "@/components/chat/composer";
+import { HistoryPopover } from "@/components/chat/HistoryPopover";
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
-import { persistThread, useViewerChat } from "@/components/chat/useViewerChat";
-import { lastUserPromptText, mapChatErrorMessage, isWorkspaceBusyError } from "@/chat/composer-recovery";
-import { resolveCadRef } from "@/chat/cad-refs";
 import {
-  decideNewChatAction,
-  EMPTY_THREAD_TITLE,
-  firstUserLine,
-  formatRelativeTime,
-  HISTORY_POLL_MS,
-  isEmptyHistoryTitle,
-  msUntilNextMinuteTick,
-  partitionHistoryRows,
-  threadRowPip,
-  titleRefSegments,
-  type ThreadPip,
-} from "@/chat/history";
+  peekThreadMessages,
+  persistThread,
+  readSavedThread,
+  useViewerChat,
+} from "@/components/chat/useViewerChat";
+import { lastUserPromptText, mapChatErrorMessage, isWorkspaceBusyError } from "@/chat/composer-recovery";
+import { currentThreadIsEmpty, decideNewChatAction, firstUserLine } from "@/chat/history";
 import { finishPersistMessages, isTurnErrorPart } from "@/chat/persist-thread";
 import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
 import { findPendingAskUserQuestions, type AskUserQuestionsOutput } from "@/chat/ask-user-questions";
@@ -31,7 +25,7 @@ import { LiveDot } from "@/components/brand/LiveDot";
 import { CrashCard } from "@/components/CrashCard";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import {
   Empty,
@@ -49,11 +43,11 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
 import { loadHarnesses } from "@/hooks/useHarnesses";
+import { useProjectSession } from "@/hooks/useProjectSession";
 import { jsonApi } from "@/lib/api";
 import { CHAT_DEFAULT_WIDTH, clampChatDrag } from "@/lib/layout";
-import { partLabelFileStem } from "@/lib/part-label";
 import { cn } from "@/lib/utils";
-import { store, useStore } from "@/state/store";
+import { useStore } from "@/state/store";
 
 export function ChatPanel({
   width,
@@ -72,15 +66,17 @@ export function ChatPanel({
   const setWidth = useStore((s) => s.setChatWidth);
   const [resizing, setResizing] = useState(false);
   const [live, setLive] = useState(false);
-  const [currentEmpty, setCurrentEmpty] = useState(true);
   const [sessionPreview, setSessionPreview] = useState<string | null>(null);
   const [tabStatus, setTabStatus] = useState({ streaming: false, askUser: false, error: false });
   const messagesRef = useRef<GalleryChatMessage[]>([]);
+  const messagesThreadIdRef = useRef<string | null>(null);
+  const newChatLock = useRef(false);
   const compactOpenRef = useRef(false);
   const panelRef = useRef<HTMLElement>(null);
   const stopTurnRef = useRef<(() => void) | null>(null);
   const captureDraftRef = useRef<(() => void) | null>(null);
   const composerRef = useRef<GalleryChatHandle>(null);
+  const projectPath = useProjectSession().project.path;
   const { threads, threadId, initialMessages, refreshThreads, newThread, openThread, registerTabTurn } =
     useViewerChat();
   useEffect(() => {
@@ -88,8 +84,7 @@ export function ChatPanel({
   }, []);
 
   const onSessionMeta = useCallback(
-    (meta: { empty: boolean; preview: string | null; streaming: boolean; askUser: boolean; error: boolean }) => {
-      setCurrentEmpty(meta.empty);
+    (meta: { preview: string | null; streaming: boolean; askUser: boolean; error: boolean }) => {
       setSessionPreview(meta.preview);
       setTabStatus((prev) =>
         prev.streaming === meta.streaming && prev.askUser === meta.askUser && prev.error === meta.error
@@ -176,20 +171,58 @@ export function ChatPanel({
 
   const active = threads.find((t) => t.id === threadId);
   const headerTitle = active?.title ?? "Assistant";
+  const currentEmpty = currentThreadIsEmpty({
+    threadId,
+    liveThreadId: messagesThreadIdRef.current,
+    liveCount: messagesRef.current.length,
+    initialCount: initialMessages.length,
+  });
 
   const startNewChat = () => {
-    const decision = decideNewChatAction({ currentId: threadId, currentEmpty, threads });
-    if (decision.action === "focus") {
-      composerRef.current?.focus();
-      return;
-    }
-    captureDraftRef.current?.();
-    stopTurnRef.current?.();
-    if (decision.action === "open") {
-      void openThread(decision.id);
-      return;
-    }
-    void newThread();
+    if (newChatLock.current) return;
+    newChatLock.current = true;
+    void (async () => {
+      try {
+        const emptyNow = currentThreadIsEmpty({
+          threadId,
+          liveThreadId: messagesThreadIdRef.current,
+          liveCount: messagesRef.current.length,
+          initialCount: initialMessages.length,
+        });
+        const saved = readSavedThread(projectPath);
+        const skipIds = saved && saved !== threadId ? [saved] : [];
+        const rejected = new Set<string>();
+        while (true) {
+          const decision = decideNewChatAction({
+            currentId: threadId,
+            currentEmpty: emptyNow,
+            threads,
+            skipIds,
+            rejectedIds: rejected,
+          });
+          if (decision.action === "focus") {
+            composerRef.current?.focus();
+            return;
+          }
+          if (decision.action === "create") {
+            captureDraftRef.current?.();
+            stopTurnRef.current?.();
+            await newThread();
+            return;
+          }
+          const peeked = await peekThreadMessages(decision.id);
+          if (peeked && peeked.length === 0) {
+            captureDraftRef.current?.();
+            stopTurnRef.current?.();
+            await openThread(decision.id);
+            return;
+          }
+          rejected.add(decision.id);
+        }
+      } finally {
+        newChatLock.current = false;
+      }
+    })();
   };
 
   return (
@@ -295,6 +328,7 @@ export function ChatPanel({
             threadId={threadId}
             initialMessages={initialMessages}
             messagesRef={messagesRef}
+            messagesThreadIdRef={messagesThreadIdRef}
             onLive={setLive}
             onMeta={onSessionMeta}
             onPersist={() => void refreshThreads()}
@@ -370,186 +404,6 @@ function jsonSafe(_key: string, value: unknown) {
   return value;
 }
 
-function useMinuteTick() {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    let interval = 0;
-    const timeout = window.setTimeout(() => {
-      setNow(Date.now());
-      interval = window.setInterval(() => setNow(Date.now()), 60_000);
-    }, msUntilNextMinuteTick(Date.now()));
-    return () => {
-      window.clearTimeout(timeout);
-      if (interval) window.clearInterval(interval);
-    };
-  }, []);
-  return now;
-}
-
-// A stable empty list: a fresh `[]` from the selector re-renders forever when no model is open.
-const NO_PARTS: NonNullable<ReturnType<typeof store.getState>["review"]>["parts"] = [];
-
-function CadRefTitle({ title, className }: { title: string; className?: string }) {
-  const parts = useStore((s) => s.review?.parts ?? NO_PARTS);
-  const fileLabel = useStore((s) => s.title);
-  const fileStem = partLabelFileStem(parts.length, fileLabel);
-  const segments = titleRefSegments(title, (ref) => resolveCadRef(ref, parts, fileStem)?.label ?? null);
-  return (
-    <span className={className} title={title}>
-      {segments.map((seg, i) =>
-        seg.type === "text" ? (
-          <span key={i}>{seg.value}</span>
-        ) : (
-          <span key={`${seg.ref}-${i}`} title={seg.ref}>
-            {seg.label}
-          </span>
-        ),
-      )}
-    </span>
-  );
-}
-
-function StatusPip({ pip }: { pip: ThreadPip }) {
-  if (!pip) return null;
-  const label = pip === "streaming" ? "Replying" : pip === "ask-user" ? "Waiting on you" : "Error";
-  if (pip === "streaming") {
-    return <LiveDot className="animate-pulse" title={label} />;
-  }
-  return (
-    <span
-      aria-label={label}
-      className={cn(
-        "inline-block size-1.5 shrink-0 rounded-full",
-        pip === "ask-user" ? "bg-amber-500" : "bg-destructive",
-      )}
-      title={label}
-    />
-  );
-}
-
-function HistoryPopover({
-  threads,
-  threadId,
-  currentEmpty,
-  currentPreview,
-  currentStatus,
-  refreshThreads,
-  onOpenThread,
-}: {
-  threads: { id: string; title: string; updated_at: number }[];
-  threadId: string | null;
-  currentEmpty: boolean;
-  currentPreview: string | null;
-  currentStatus: { streaming: boolean; askUser: boolean; error: boolean };
-  refreshThreads: () => Promise<unknown>;
-  onOpenThread: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [refreshError, setRefreshError] = useState(false);
-  const [showEmpty, setShowEmpty] = useState(false);
-  const now = useMinuteTick();
-
-  const refresh = useCallback(async () => {
-    const rows = await refreshThreads();
-    setRefreshError(rows === undefined);
-  }, [refreshThreads]);
-
-  useEffect(() => {
-    if (!open) return;
-    void refresh();
-    const id = window.setInterval(() => void refresh(), HISTORY_POLL_MS);
-    return () => window.clearInterval(id);
-  }, [open, refresh]);
-
-  const { visible, emptyHidden } = partitionHistoryRows(threads, threadId, currentEmpty);
-  const rows = showEmpty ? [...visible, ...emptyHidden] : visible;
-
-  return (
-    <Popover
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) setShowEmpty(false);
-      }}
-    >
-      <PopoverTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            title="Chat history"
-            aria-label="Chat history"
-          />
-        }
-      >
-        <History />
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 p-1">
-        {refreshError ? (
-          <div className="px-2 py-1 text-[11px] text-destructive" role="status">
-            Couldn't refresh
-          </div>
-        ) : null}
-        {threads.length === 0 ? (
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">No chats yet</div>
-        ) : (
-          <ul className="max-h-80 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
-            {rows.map((t) => {
-              const current = t.id === threadId;
-              const empty = current ? currentEmpty : isEmptyHistoryTitle(t.title);
-              const preview = current && isEmptyHistoryTitle(t.title) ? currentPreview : null;
-              const pip = threadRowPip({
-                rowId: t.id,
-                currentId: threadId,
-                streaming: currentStatus.streaming,
-                askUser: currentStatus.askUser,
-                error: currentStatus.error,
-              });
-              return (
-                <li key={t.id}>
-                  <PopoverClose
-                    className={cn(
-                      "flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left",
-                      current ? "bg-accent font-medium text-accent-foreground" : "hover:bg-accent",
-                      empty && !current && "text-muted-foreground",
-                    )}
-                    onClick={() => onOpenThread(t.id)}
-                  >
-                    <StatusPip pip={pip} />
-                    <span className="min-w-0 flex-1">
-                      <CadRefTitle
-                        className="block truncate text-sm"
-                        title={t.title.trim() ? t.title : EMPTY_THREAD_TITLE}
-                      />
-                      {preview ? (
-                        <span className="mt-0.5 block truncate text-[11px] font-normal text-muted-foreground">
-                          <CadRefTitle title={preview} />
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="shrink-0 pt-0.5 text-[11px] font-normal text-muted-foreground">
-                      {formatRelativeTime(t.updated_at, now)}
-                    </span>
-                  </PopoverClose>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {emptyHidden.length > 0 ? (
-          <button
-            type="button"
-            className="mt-0.5 w-full rounded-sm px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent"
-            onClick={() => setShowEmpty((v) => !v)}
-          >
-            {showEmpty ? "Hide empty" : `Show empty (${emptyHidden.length})`}
-          </button>
-        ) : null}
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 function ChatExportMenu({ onCopyJson }: { onCopyJson: () => Promise<boolean> }) {
   const [copied, setCopied] = useState<"idle" | "copied" | "error">("idle");
@@ -589,6 +443,7 @@ function ChatSession({
   threadId,
   initialMessages,
   messagesRef,
+  messagesThreadIdRef,
   onLive,
   onMeta,
   onPersist,
@@ -600,8 +455,9 @@ function ChatSession({
   threadId: string;
   initialMessages: GalleryChatMessage[];
   messagesRef: RefObject<GalleryChatMessage[]>;
+  messagesThreadIdRef: RefObject<string | null>;
   onLive: (live: boolean) => void;
-  onMeta: (meta: { empty: boolean; preview: string | null; streaming: boolean; askUser: boolean; error: boolean }) => void;
+  onMeta: (meta: { preview: string | null; streaming: boolean; askUser: boolean; error: boolean }) => void;
   onPersist: () => void;
   registerTabTurn: (streaming: boolean, stop: (() => void) | null) => void;
   stopTurnRef: RefObject<(() => void) | null>;
@@ -663,6 +519,7 @@ function ChatSession({
   }, [live, onLive]);
   useLiveViewerTools(messages as GalleryChatMessage[], addToolOutput, busy);
   messagesRef.current = messages as GalleryChatMessage[];
+  messagesThreadIdRef.current = threadId;
   const streamingMessageId = busy && messages.at(-1)?.role === "assistant" ? (messages.at(-1)?.id ?? null) : null;
   const lastPrompt = lastUserPromptText(messages);
 
@@ -701,7 +558,6 @@ function ChatSession({
 
   useEffect(() => {
     onMeta({
-      empty: messages.length === 0,
       preview: firstUserLine(messages),
       streaming: busy,
       askUser: pendingAsk !== null,

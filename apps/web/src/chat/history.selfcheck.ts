@@ -1,5 +1,7 @@
 import {
+  currentThreadIsEmpty,
   decideNewChatAction,
+  emptyReuseCandidates,
   EMPTY_THREAD_TITLE,
   firstUserLine,
   formatRelativeTime,
@@ -52,9 +54,10 @@ expect(preview === "How tall is #o1.2.1?", "preview strips the viewer stamp");
 expect(firstUserLine([{ role: "assistant", parts: [{ type: "text", text: "hi" }] }]) === null, "no user");
 expect(firstUserLine([{ role: "user", parts: [{ type: "text", text: "[viewer] x\n" }] }]) === null, "stamp-only");
 
-const empty = { id: "e1", title: EMPTY_THREAD_TITLE };
-const otherEmpty = { id: "e2", title: EMPTY_THREAD_TITLE };
-const named = { id: "n1", title: "second question" };
+const empty = { id: "e1", title: EMPTY_THREAD_TITLE, updated_at: 10 };
+const otherEmpty = { id: "e2", title: EMPTY_THREAD_TITLE, updated_at: 20 };
+const named = { id: "n1", title: "second question", updated_at: 30 };
+const titledNew = { id: "t1", title: EMPTY_THREAD_TITLE, updated_at: 40 };
 
 expect(decideNewChatAction({ currentId: "e1", currentEmpty: true, threads: [empty, named] }).action === "focus", "empty current focuses");
 expect(
@@ -63,8 +66,62 @@ expect(
       "e1",
   "reuse the existing empty",
 );
+expect(
+  (decideNewChatAction({
+    currentId: "n1",
+    currentEmpty: false,
+    threads: [empty, otherEmpty, named],
+  }) as { id?: string }).id === "e2",
+  "prefer the most recently updated empty",
+);
+expect(
+  decideNewChatAction({
+    currentId: "n1",
+    currentEmpty: false,
+    threads: [empty, otherEmpty, named],
+    rejectedIds: ["e2"],
+  }).action === "open" &&
+    (decideNewChatAction({
+      currentId: "n1",
+      currentEmpty: false,
+      threads: [empty, otherEmpty, named],
+      rejectedIds: ["e2"],
+    }) as { id?: string }).id === "e1",
+  "skip a candidate that GET showed was not empty",
+);
+expect(
+  decideNewChatAction({
+    currentId: "n1",
+    currentEmpty: false,
+    threads: [titledNew, named],
+    skipIds: ["t1"],
+  }).action === "create",
+  "do not reuse another tab's saved thread",
+);
 expect(decideNewChatAction({ currentId: "n1", currentEmpty: false, threads: [named] }).action === "create", "no empty to reuse");
 expect(decideNewChatAction({ currentId: null, currentEmpty: true, threads: [] }).action === "create", "hydrate create");
+expect(
+  emptyReuseCandidates({
+    currentId: "n1",
+    threads: [empty, titledNew, otherEmpty],
+    skipIds: ["t1"],
+  }).join(",") === "e2,e1",
+  "candidates newest first, skipping saved",
+);
+
+expect(
+  currentThreadIsEmpty({ threadId: "e1", liveThreadId: "e1", liveCount: 0, initialCount: 3 }) === true,
+  "live empty wins over stale initial",
+);
+expect(
+  currentThreadIsEmpty({ threadId: "e2", liveThreadId: "e1", liveCount: 4, initialCount: 0 }) === true,
+  "new threadId uses initial until the session writes",
+);
+expect(
+  currentThreadIsEmpty({ threadId: "n1", liveThreadId: "n1", liveCount: 2, initialCount: 0 }) === false,
+  "live messages mean not empty",
+);
+expect(currentThreadIsEmpty({ threadId: null, liveThreadId: null, liveCount: 0, initialCount: 0 }) === false, "no thread");
 
 const split = partitionHistoryRows([named, empty, otherEmpty], "n1", false);
 expect(split.visible.length === 1 && split.visible[0]?.id === "n1", "named stays visible");

@@ -43,7 +43,8 @@ function threadKey(path: string) {
   return `sfab-bench.thread:${path}`;
 }
 
-function readSavedThread(path: string) {
+/** Last thread id this origin wrote for the folder (shared across same-browser tabs). */
+export function readSavedThread(path: string) {
   if (!path) return null;
   try {
     return localStorage.getItem(threadKey(path));
@@ -229,6 +230,18 @@ export function persistThread(threadId: string, messages: GalleryChatMessage[]) 
     param: { id: threadId },
     json: { messages },
   });
+}
+
+/** GET messages without opening the thread. `null` if the fetch failed. */
+export async function peekThreadMessages(id: string): Promise<GalleryChatMessage[] | null> {
+  try {
+    const res = await jsonApi.threads[":id"].$get({ param: { id } });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { messages?: GalleryChatMessage[] };
+    return body.messages ?? [];
+  } catch {
+    return null;
+  }
 }
 
 export function messagePlainText(message: GalleryChatMessage) {

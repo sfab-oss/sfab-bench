@@ -75,14 +75,48 @@ export function firstUserLine(
   return null;
 }
 
+/** Live session wins; until that ChatSession has written the ref, use initialMessages. */
+export function currentThreadIsEmpty(input: {
+  threadId: string | null;
+  liveThreadId: string | null;
+  liveCount: number;
+  initialCount: number;
+}): boolean {
+  if (!input.threadId) return false;
+  if (input.liveThreadId === input.threadId) return input.liveCount === 0;
+  return input.initialCount === 0;
+}
+
+export function emptyReuseCandidates(input: {
+  currentId: string | null;
+  threads: { id: string; title: string; updated_at: number }[];
+  skipIds?: Iterable<string>;
+  rejectedIds?: Iterable<string>;
+}): string[] {
+  const skip = new Set(input.skipIds);
+  for (const id of input.rejectedIds ?? []) skip.add(id);
+  if (input.currentId) skip.add(input.currentId);
+  return input.threads
+    .filter((row) => isEmptyHistoryTitle(row.title) && !skip.has(row.id))
+    .slice()
+    .sort((a, b) => b.updated_at - a.updated_at || a.id.localeCompare(b.id))
+    .map((row) => row.id);
+}
+
+/**
+ * Next + action from local data. `action: "open"` is a candidate — the caller
+ * must GET that thread and require `messages.length === 0` before switching.
+ */
 export function decideNewChatAction(input: {
   currentId: string | null;
   currentEmpty: boolean;
-  threads: { id: string; title: string }[];
+  threads: { id: string; title: string; updated_at: number }[];
+  skipIds?: Iterable<string>;
+  rejectedIds?: Iterable<string>;
 }): NewChatAction {
   if (input.currentEmpty && input.currentId) return { action: "focus" };
-  const empty = input.threads.find((row) => row.id !== input.currentId && isEmptyHistoryTitle(row.title));
-  if (empty) return { action: "open", id: empty.id };
+  const id = emptyReuseCandidates(input)[0];
+  if (id) return { action: "open", id };
   return { action: "create" };
 }
 
