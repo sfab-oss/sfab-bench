@@ -155,14 +155,34 @@ export function ChatPanel({
     const isCompactOpen = compact && open;
     compactOpenRef.current = isCompactOpen;
     if (isCompactOpen && !wasCompactOpen) {
-      const el = document.querySelector<HTMLElement>("[data-chat-composer] .ProseMirror");
-      el?.focus();
+      panelRef.current?.focus();
       return;
     }
     if (wasCompactOpen && compact && !open) {
       toggleRef?.current?.focus();
     }
   }, [compact, open, toggleRef]);
+
+  useEffect(() => {
+    if (!compact || !open || !threadId) return;
+    let cancelled = false;
+    let timer = 0;
+    const started = Date.now();
+    const tryFocus = () => {
+      if (cancelled) return;
+      if (composerRef.current?.isReady()) {
+        composerRef.current.focus();
+        return;
+      }
+      if (Date.now() - started > 1000) return;
+      timer = window.setTimeout(tryFocus, 16);
+    };
+    tryFocus();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [compact, open, threadId]);
 
   // Hidden chat stays mounted (docked or compact), so stop any recording when it closes.
   useEffect(() => {
@@ -172,34 +192,17 @@ export function ChatPanel({
   useEffect(() => {
     if (!compact || !open) return;
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") {
-        // Capture so we see popovers/selects before Base UI unmounts them.
-        if (ev.defaultPrevented) return;
-        const layers = { ...probeEscLayers(document), compactChat: true };
-        if (!escBelongsTo("compact-chat", layers)) return;
-        ev.preventDefault();
-        onClose();
-        return;
-      }
-      if (ev.key !== "Tab" || floatingDismissOpen()) return;
-      backwards = ev.shiftKey;
-      wrapTab(ev, panelRef.current);
-    };
-    // Tab order can leave the panel from any element, not only the last one; pull focus back.
-    let backwards = false;
-    const onFocusIn = (ev: FocusEvent) => {
-      const root = panelRef.current;
-      const target = ev.target;
-      if (!root || !(target instanceof HTMLElement) || root.contains(target)) return;
-      if (floatingDismissOpen() || target.closest("[data-mention-list]")) return;
-      const nodes = tabbableIn(root);
-      (backwards ? nodes[nodes.length - 1] : nodes[0])?.focus();
+      if (ev.key !== "Escape") return;
+      // Capture so we see popovers/selects before Base UI unmounts them.
+      if (ev.defaultPrevented) return;
+      const layers = { ...probeEscLayers(document), compactChat: true };
+      if (!escBelongsTo("compact-chat", layers)) return;
+      ev.preventDefault();
+      onClose();
     };
     document.addEventListener("keydown", onKey, true);
-    document.addEventListener("focusin", onFocusIn);
     return () => {
       document.removeEventListener("keydown", onKey, true);
-      document.removeEventListener("focusin", onFocusIn);
     };
   }, [compact, open, onClose]);
 
@@ -305,11 +308,13 @@ export function ChatPanel({
         aria-label="Assistant"
         aria-hidden={compact && !open ? true : undefined}
         inert={compact && !open ? true : undefined}
+        tabIndex={compact ? -1 : undefined}
+        data-compact-chat={compact && open ? "" : undefined}
         className={cn(
           "@container/chat flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden border-l border-border bg-background",
           compact
             ? cn(
-                "fixed inset-y-0 right-0 z-50 max-w-[90vw] transition-transform duration-200 ease-out",
+                "fixed inset-y-0 right-0 z-50 max-w-[90vw] outline-none transition-transform duration-200 ease-out",
                 open ? "translate-x-0" : "pointer-events-none translate-x-full",
               )
             : "relative shrink-0",
@@ -417,42 +422,6 @@ export function ChatPanel({
     </aside>
     </>
   );
-}
-
-function floatingDismissOpen(): boolean {
-  const probe = probeEscLayers(document);
-  return Boolean(probe.mention || probe.popoverOrSelect || probe.dialog);
-}
-
-function tabbableIn(root: HTMLElement): HTMLElement[] {
-  const selector =
-    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])';
-  return Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((el) => {
-    if (el.tabIndex < 0) return false;
-    if (el.closest("[aria-hidden='true']")) return false;
-    return el.getClientRects().length > 0;
-  });
-}
-
-function wrapTab(ev: KeyboardEvent, root: HTMLElement | null) {
-  if (!root) return;
-  const active = document.activeElement;
-  if (active instanceof Node && !root.contains(active)) return;
-  const nodes = tabbableIn(root);
-  if (nodes.length === 0) {
-    ev.preventDefault();
-    root.focus();
-    return;
-  }
-  const first = nodes[0];
-  const last = nodes[nodes.length - 1];
-  if (ev.shiftKey && active === first) {
-    ev.preventDefault();
-    last.focus();
-  } else if (!ev.shiftKey && active === last) {
-    ev.preventDefault();
-    first.focus();
-  }
 }
 
 async function copyConversationJson(conversation: {
@@ -622,7 +591,6 @@ function ChatSession({
   };
 
   const retryFailedTurn = () => {
-    composerRef.current?.clear();
     void regenerate();
   };
 

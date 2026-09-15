@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { desktopBridge } from "@/lib/desktop";
 import { fetchPairingInfo, rotatePairingInfo, type PairingInfo } from "@/lib/pairing";
+import { copyText } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 function formatCode(code: string) {
@@ -20,20 +21,11 @@ function remainingLabel(expiresAt: number, now: number) {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-async function copy(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 type CopyFlash = "copied" | "failed" | null;
 
 function copyLabel(state: CopyFlash, idle: string) {
   if (state === "copied") return "Copied";
-  if (state === "failed") return "Couldn't copy";
+  if (state === "failed") return "Copy failed";
   return idle;
 }
 
@@ -105,7 +97,7 @@ export function QuestJoinPanel({
       setQrBtn(null);
       return;
     }
-    if (focusedOnOpen.current || !copyUrlRef.current) return;
+    if (focusedOnOpen.current || !copyUrlRef.current || !info?.pairUrl) return;
     copyUrlRef.current.focus();
     focusedOnOpen.current = true;
   }, [open, info]);
@@ -151,7 +143,7 @@ export function QuestJoinPanel({
                 type="button"
                 className="mt-1 w-full rounded-lg bg-muted px-3 py-2 text-left font-mono text-sm leading-snug break-all text-foreground hover:bg-accent"
                 onClick={() => {
-                  if (info.pairUrl) void copy(info.pairUrl).then((ok) => setUrlRow(ok ? "copied" : "failed"));
+                  if (info.pairUrl) void copyText(info.pairUrl).then((ok) => setUrlRow(ok ? "copied" : "failed"));
                 }}
               >
                 <span className="block">{info.pairUrl ?? "No LAN address. Connect this Mac to Wi-Fi."}</span>
@@ -174,7 +166,7 @@ export function QuestJoinPanel({
                       size="sm"
                       variant="ghost"
                       className="mt-2 h-7 px-2"
-                      onClick={() => void copy(info.fragmentUrl!).then((ok) => setQrBtn(ok ? "copied" : "failed"))}
+                      onClick={() => void copyText(info.fragmentUrl!).then((ok) => setQrBtn(ok ? "copied" : "failed"))}
                     >
                       {copyLabel(qrBtn, "Copy phone link")}
                     </Button>
@@ -192,8 +184,9 @@ export function QuestJoinPanel({
               type="button"
               size="sm"
               variant="secondary"
+              disabled={!info?.pairUrl}
               onClick={() => {
-                if (info?.pairUrl) void copy(info.pairUrl).then((ok) => setUrlBtn(ok ? "copied" : "failed"));
+                if (info?.pairUrl) void copyText(info.pairUrl).then((ok) => setUrlBtn(ok ? "copied" : "failed"));
               }}
             >
               {copyLabel(urlBtn, "Copy URL")}
@@ -204,7 +197,7 @@ export function QuestJoinPanel({
                   type="button"
                   size="sm"
                   variant="secondary"
-                  onClick={() => void copy(info.code).then((ok) => setCodeBtn(ok ? "copied" : "failed"))}
+                  onClick={() => void copyText(info.code).then((ok) => setCodeBtn(ok ? "copied" : "failed"))}
                 >
                   {copyLabel(codeBtn, "Copy code")}
                 </Button>

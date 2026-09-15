@@ -324,6 +324,7 @@ export type GalleryChatHandle = {
   clear: () => void;
   focus: () => void;
   cancelVoice: () => void;
+  isReady: () => boolean;
 };
 
 export function GalleryChatInput({
@@ -399,6 +400,7 @@ export function GalleryChatInput({
       cancelVoice: () => {
         cancelVoiceRef.current();
       },
+      isReady: () => Boolean(composerRef.current?.isReady()),
     }),
     [threadId],
   );

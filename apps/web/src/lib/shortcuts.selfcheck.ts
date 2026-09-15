@@ -192,9 +192,17 @@ expect(
   "probe finds voice",
 );
 expect(
+  probeEscLayers({
+    querySelector(sel: string) {
+      return sel.includes("alert-dialog-content") ? { id: "alert" } : null;
+    },
+  }).dialog,
+  "alert-dialog slot is a dialog layer",
+);
+expect(
   compactChatSheetOpen({
     querySelector(sel: string) {
-      return sel.includes('aria-label="Assistant"') ? { id: "sheet" } : null;
+      return sel.includes("data-compact-chat") ? { id: "sheet" } : null;
     },
   }),
   "compact sheet probe",

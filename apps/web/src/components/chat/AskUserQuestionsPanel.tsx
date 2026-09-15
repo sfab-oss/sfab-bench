@@ -139,7 +139,10 @@ export function AskUserQuestionsPanel({
       }}
     >
       <div className="px-3 pt-2">
-        <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md py-1 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
+        <CollapsibleTrigger
+          aria-disabled={keepOpen || undefined}
+          className="flex w-full items-center gap-2 rounded-md py-1 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
           <span className="shrink-0">{question.header ?? "Question"}</span>
           {open ? null : (
             <span className="min-w-0 flex-1 truncate font-normal">{question.question}</span>
