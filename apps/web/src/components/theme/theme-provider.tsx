@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { AppearancePrefsProvider } from "@/components/theme/appearance-prefs";
 import { bindThemeApplier, STUDIO_HEX, type Appearance } from "@/lib/appearance";
 import { desktopBridge } from "@/lib/desktop";
 import { store } from "@/state/store";
@@ -132,5 +133,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [theme, resolvedTheme, setTheme],
   );
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={value}>
+      <AppearancePrefsProvider>{children}</AppearancePrefsProvider>
+    </ThemeContext.Provider>
+  );
 }
