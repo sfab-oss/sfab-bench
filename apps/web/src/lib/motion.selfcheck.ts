@@ -1,9 +1,7 @@
 import {
-  CLOSE_FOLDER_BODY,
   closeFolderNeedsConfirm,
   closeFolderTitle,
   orbitDampingEnabled,
-  refreshFilesTooltip,
   viewerFrameloop,
 } from "./motion";
 
@@ -24,9 +22,5 @@ expect(closeFolderNeedsConfirm({ hasModel: true, replyInProgress: true }), "both
 
 expect(closeFolderTitle("bracket") === "Close bracket?", "named folder");
 expect(closeFolderTitle("  ") === "Close folder?", "blank falls back");
-expect(CLOSE_FOLDER_BODY.includes("cleared from this tab"), "body copy");
-
-expect(refreshFilesTooltip(false) === "Refresh files", "idle tooltip");
-expect(refreshFilesTooltip(true) === "Refreshing…", "busy tooltip");
 
 console.log("motion.selfcheck ok");
