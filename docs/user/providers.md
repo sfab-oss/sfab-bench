@@ -16,6 +16,9 @@ usual locations. If nothing is connected, the picker still shows static
 defaults. Codex and OpenCode also need `pnpm` on that same PATH to install
 their bootstrap into `~/.sfab-bench/harness/` (not the CAD folder).
 
-Voice input posts to `/api/transcribe` through AI Gateway. Set
-`AI_GATEWAY_API_KEY` on the Mac before `pnpm dev`. Optional: `STT_MODEL`
-(default `openai/whisper-1`). Restart after adding the key.
+Voice input posts to `/api/transcribe` through AI Gateway. That key is
+**not** used for Codex, Cursor, Grok, or OpenCode — those stay on the
+Mac login (`codex login`, `agent login`, …). Set the voice key in
+**Settings**, or `STT_AI_GATEWAY_API_KEY` on the Mac. Optional:
+`STT_MODEL` (default `openai/whisper-1`). Restart after adding the env
+var.

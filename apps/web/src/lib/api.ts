@@ -29,7 +29,7 @@ export function authHeaders(): Record<string, string> {
 
 function skipProjectPath(pathname: string) {
   const clean = pathname.replace(/\/$/, "") || "/";
-  return clean === "/api/me" || clean === "/api/pair" || clean === "/api/pairing";
+  return clean === "/api/me" || clean === "/api/pair" || clean === "/api/pairing" || clean === "/api/settings/stt";
 }
 
 function withProject(input: RequestInfo | URL): RequestInfo | URL {

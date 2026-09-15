@@ -31,6 +31,8 @@ managed tools, OpenCode/Codex bootstrap under `harness/`).
 | `SFAB_BENCH_PROJECT` | (none) | Folder to open on boot |
 | `SFAB_BENCH_API_PORT` | `8787` | Dev API (loopback) |
 | `SFAB_BENCH_PUBLIC_PORT` | `7322` | Vite / serve HTTPS port |
+| `STT_AI_GATEWAY_API_KEY` | (none) | Voice input. Settings on the Mac can set the same key. Not used for chat. |
+| `STT_MODEL` | `openai/whisper-1` | Whisper model id for `/api/transcribe` |
 
 `pnpm build` also builds the desktop shell.
 After it, `pnpm serve` is one HTTPS process on `:7322`.

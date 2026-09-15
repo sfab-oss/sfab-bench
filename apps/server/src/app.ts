@@ -23,6 +23,7 @@ import {
 } from "./projects";
 import { createThread, getThread, listThreads, saveMessages, saveThreadPrefs } from "./threads-db";
 import { handleTranscribe } from "./transcribe";
+import { setStoredSttApiKey, sttApiKey } from "./stt";
 import { rememberOpenedFile, snapshotFor, stopSessionRun } from "./session";
 import {
   DEFAULT_CHAT_EFFORT,
@@ -56,6 +57,10 @@ const openProjectSchema = z.object({
 
 const recentFileSchema = z.object({
   path: z.string().min(1),
+});
+
+const sttKeySchema = z.object({
+  apiKey: z.string(),
 });
 
 const sessionPrefsSchema = z.object({
@@ -138,6 +143,19 @@ export const api = new Hono<AppEnv>()
     return c.json(result);
   })
   .get("/me", (c) => c.json({ principal: publicPrincipal(c.get("principal")) }))
+  .get("/settings/stt", (c) => {
+    const denied = denyLoopback(c);
+    if (denied) return denied;
+    const { source } = sttApiKey();
+    return c.json({ configured: source !== null, source });
+  })
+  .put("/settings/stt", zValidator("json", sttKeySchema), (c) => {
+    const denied = denyLoopback(c);
+    if (denied) return denied;
+    setStoredSttApiKey(c.req.valid("json").apiKey);
+    const { source } = sttApiKey();
+    return c.json({ configured: source !== null, source });
+  })
   .get("/pairing", (c) => {
     if (c.get("principal").kind !== "loopback") {
       return c.json({ error: "pairing info is only for this Mac" }, 403);
