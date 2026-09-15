@@ -1,7 +1,18 @@
 import { partDisplayName } from "@/lib/part-label";
 
 /** Longest-match occurrence / face token. No spaces. */
-export const CAD_REF_RE = /#o\d+(?:\.\d+)*(?:\.f\d+)?/g;
+export const CAD_REF_TOKEN_RE = /#o\d+(?:\.\d+)*(?:\.f\d+)?/;
+
+/**
+ * Cad ref with a leading boundary: start of string, or a character that is not
+ * letter / digit / `_` / `/` / `#` / `@` / `+` / `.` / `-`.
+ */
+export const CAD_REF_RE = new RegExp(
+  `(?:^|[^A-Za-z0-9_/#@+.-])(${CAD_REF_TOKEN_RE.source})`,
+  "g",
+);
+
+export const CAD_REF_HREF_PREFIX = "#cad-ref:";
 
 export const CAD_MENTION_LIST_CAP = 50;
 export const CAD_MENTION_FACE_CAP = 50;
@@ -15,13 +26,6 @@ export type CadRefHit = {
 export type CadRefSegment =
   | { type: "text"; text: string }
   | { type: "ref"; ref: string };
-
-export type EditorJsonNode = {
-  type?: string;
-  text?: string;
-  attrs?: Record<string, unknown>;
-  content?: EditorJsonNode[];
-};
 
 export type CadMentionCatalogPart = {
   name: string;
@@ -46,8 +50,7 @@ export type ResolvedCadRef = {
 type CodeRange = { start: number; end: number };
 
 export function isCadRefToken(text: string): boolean {
-  const re = new RegExp(`^${CAD_REF_RE.source}$`);
-  return re.test(text);
+  return new RegExp(`^${CAD_REF_TOKEN_RE.source}$`).test(text);
 }
 
 export function partRefFromCadRef(ref: string): string {
@@ -56,6 +59,19 @@ export function partRefFromCadRef(ref: string): string {
 
 export function cadMentionQueryCloses(query: string): boolean {
   return query.endsWith("  ") || query.includes("\n");
+}
+
+export function cadRefHref(ref: string): string {
+  return `${CAD_REF_HREF_PREFIX}${ref.slice(1)}`;
+}
+
+export function cadRefFromHref(href: string | undefined | null): string | null {
+  if (!href) return null;
+  const hashIndex = href.indexOf(CAD_REF_HREF_PREFIX);
+  const hash = hashIndex >= 0 ? href.slice(hashIndex) : href;
+  if (!hash.startsWith(CAD_REF_HREF_PREFIX)) return null;
+  const ref = `#${hash.slice(CAD_REF_HREF_PREFIX.length)}`;
+  return isCadRefToken(ref) ? ref : null;
 }
 
 function markdownFenceRanges(text: string): CodeRange[] {
@@ -118,6 +134,16 @@ function markdownCodeRanges(text: string): CodeRange[] {
   return [...fences, ...markdownInlineCodeRanges(text, fences)];
 }
 
+function markdownLinkRanges(text: string): CodeRange[] {
+  const ranges: CodeRange[] = [];
+  const re = /\[[^\]\n]*\]\([^)]*\)/g;
+  for (const match of text.matchAll(re)) {
+    const start = match.index ?? 0;
+    ranges.push({ start, end: start + match[0].length });
+  }
+  return ranges;
+}
+
 function overlaps(hit: CadRefHit, ranges: CodeRange[]): boolean {
   return ranges.some((range) => hit.start < range.end && range.start < hit.end);
 }
@@ -126,8 +152,10 @@ export function parseCadRefs(text: string): CadRefHit[] {
   const hits: CadRefHit[] = [];
   const re = new RegExp(CAD_REF_RE.source, "g");
   for (const match of text.matchAll(re)) {
-    const start = match.index ?? 0;
-    hits.push({ start, end: start + match[0].length, ref: match[0] });
+    const ref = match[1];
+    if (!ref) continue;
+    const start = (match.index ?? 0) + match[0].length - ref.length;
+    hits.push({ start, end: start + ref.length, ref });
   }
   return hits;
 }
@@ -155,39 +183,19 @@ export function splitCadRefSegments(
   return segments;
 }
 
-export function flattenEditorJson(json: EditorJsonNode): string {
-  let text = "";
-
-  function recurse(node: EditorJsonNode) {
-    if (node.type === "text" && node.text) {
-      text += node.text;
-      return;
-    }
-    if (node.type === "hardBreak") {
-      text += "\n";
-      return;
-    }
-    if (node.type?.endsWith("-mention")) {
-      text += String(node.attrs?.id ?? "");
-      return;
-    }
-    if (node.content) {
-      for (const child of node.content) {
-        recurse(child);
-      }
-      if (node.type === "paragraph") {
-        text += "\n\n";
-      }
-    }
+/** Wrap prose refs as markdown links so one markdown render can keep lists/emphasis. */
+export function linkifyCadRefsInMarkdown(text: string): string {
+  const protectedRanges = [...markdownCodeRanges(text), ...markdownLinkRanges(text)];
+  const hits = parseCadRefs(text).filter((hit) => !overlaps(hit, protectedRanges));
+  let out = "";
+  let cursor = 0;
+  for (const hit of hits) {
+    if (hit.start < cursor) continue;
+    out += text.slice(cursor, hit.start);
+    out += `[${hit.ref}](${cadRefHref(hit.ref)})`;
+    cursor = hit.end;
   }
-
-  if (json.content) {
-    for (const node of json.content) {
-      recurse(node);
-    }
-  }
-
-  return text.trim();
+  return out + text.slice(cursor);
 }
 
 export function resolveCadRef(
@@ -231,10 +239,12 @@ export function filterCadMentionCatalog(
     selectedPart?: CadMentionCatalogPart;
     faces?: readonly { ord: number }[];
     limit?: number;
+    faceLimit?: number;
   },
 ): { items: CadMentionItem[]; truncated: boolean } {
   const fileStem = options?.fileStem;
   const limit = options?.limit ?? CAD_MENTION_LIST_CAP;
+  const faceLimit = options?.faceLimit ?? CAD_MENTION_FACE_CAP;
   const partItems: CadMentionItem[] = [];
   for (const part of parts) {
     if (!part.cadRef) continue;
@@ -252,25 +262,16 @@ export function filterCadMentionCatalog(
   const selected = options?.selectedPart;
   const faces = options?.faces;
   if (selected?.cadRef && faces?.length) {
-    const selectedDisplay = partDisplayName(selected, selected.cadRef, fileStem);
     for (const face of faces) {
       const cadRef = `${selected.cadRef}.f${face.ord}`;
       const name = `Face ${face.ord}`;
-      if (
-        !catalogHits(
-          [name, `f${face.ord}`, cadRef, selectedDisplay, selected.name, selected.cadRef],
-          query,
-        )
-      ) {
-        continue;
-      }
+      if (!catalogHits([name, `f${face.ord}`, cadRef], query)) continue;
       faceItems.push({ id: cadRef, name, cadRef, kind: "face" });
     }
   }
 
-  const combined = [...partItems, ...faceItems];
   return {
-    items: combined.slice(0, limit),
-    truncated: combined.length > limit,
+    items: [...partItems.slice(0, limit), ...faceItems.slice(0, faceLimit)],
+    truncated: partItems.length > limit || faceItems.length > faceLimit,
   };
 }

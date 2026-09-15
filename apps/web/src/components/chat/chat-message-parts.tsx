@@ -7,12 +7,13 @@ import {
   type UITools,
 } from "ai";
 import { CheckIcon, CircleIcon, CopyIcon } from "lucide-react";
+import type { ComponentProps } from "react";
 import { Streamdown } from "streamdown";
 import {
   isAskUserQuestionsPart,
   parseAskUserQuestionsInput,
 } from "@/chat/ask-user-questions";
-import { resolveCadRef, splitCadRefSegments } from "@/chat/cad-refs";
+import { resolveCadRef, cadRefFromHref, linkifyCadRefsInMarkdown } from "@/chat/cad-refs";
 import { turnErrorText } from "@/chat/persist-thread";
 import { AskUserAnsweredCard } from "@/components/chat/AskUserQuestionsPanel";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -77,6 +78,23 @@ function CadRefChip({ token }: { token: string }) {
   );
 }
 
+function CadRefAnchor({
+  href,
+  children,
+  node: _node,
+  ...props
+}: ComponentProps<"a"> & { node?: unknown }) {
+  const token = cadRefFromHref(href);
+  if (!token) {
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    );
+  }
+  return <CadRefChip token={token} />;
+}
+
 function MarkdownBody({
   children,
   className,
@@ -84,32 +102,17 @@ function MarkdownBody({
   children: string;
   className?: string;
 }) {
-  const segments = splitCadRefSegments(children, { skipCode: true });
-  const streamClass = cn(
-    "size-full text-base [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-    className
-  );
-  if (!segments.some((segment) => segment.type === "ref")) {
-    return <Streamdown className={streamClass}>{children}</Streamdown>;
-  }
-
+  const markdown = linkifyCadRefsInMarkdown(children);
   return (
-    <div className={streamClass}>
-      {segments.map((segment, index) => {
-        if (segment.type === "ref") {
-          return <CadRefChip key={`ref-${index}-${segment.ref}`} token={segment.ref} />;
-        }
-        if (!segment.text) return null;
-        if (!segment.text.trim()) {
-          return <span key={`space-${index}`}>{segment.text}</span>;
-        }
-        return (
-          <Streamdown className="inline [&>p]:my-0 [&>p]:inline" key={`text-${index}`}>
-            {segment.text}
-          </Streamdown>
-        );
-      })}
-    </div>
+    <Streamdown
+      className={cn(
+        "size-full text-base [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+        className
+      )}
+      components={{ a: CadRefAnchor }}
+    >
+      {markdown}
+    </Streamdown>
   );
 }
 

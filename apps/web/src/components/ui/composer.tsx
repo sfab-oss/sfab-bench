@@ -343,6 +343,7 @@ function buildMentionExtensions(
     });
 
     return MentionPlugin.configure({
+      deleteTriggerWithBackspace: true,
       suggestion: {
         char: trigger,
         allowSpaces: config.allowSpaces ?? false,

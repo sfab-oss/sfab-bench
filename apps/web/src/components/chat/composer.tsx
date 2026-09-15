@@ -10,7 +10,6 @@ import {
 } from "@/chat/ask-user-questions";
 import {
   CAD_MENTION_FACE_CAP,
-  CAD_MENTION_LIST_CAP,
   cadMentionQueryCloses,
   filterCadMentionCatalog,
   type CadMentionCatalogPart,
@@ -105,12 +104,16 @@ function ChatInputInner({
   );
   const hasCadParts = catalogParts.length > 0;
   const fileStem = partLabelFileStem(review?.parts.length ?? 0, title);
-  const selectedRaw = selectedId !== null ? review?.parts[selectedId] : undefined;
-  const selectedPart =
-    selectedRaw?.cadRef != null
-      ? { name: selectedRaw.name, cadRef: selectedRaw.cadRef }
-      : undefined;
-  const faces = selectedPartFaceOrds(review?.parts, selectedId);
+  const selectedPart = useMemo(() => {
+    const selectedRaw = selectedId !== null ? review?.parts[selectedId] : undefined;
+    if (selectedRaw?.cadRef == null) return undefined;
+    return { name: selectedRaw.name, cadRef: selectedRaw.cadRef };
+  }, [review, selectedId]);
+  const faces = useMemo(
+    () => selectedPartFaceOrds(review?.parts, selectedId),
+    [review, selectedId],
+  );
+  const truncatedRef = useRef(false);
   const mentions = useMemo(
     () => ({
       part: {
@@ -118,14 +121,16 @@ function ChatInputInner({
         allowSpaces: true,
         queryCloses: cadMentionQueryCloses,
         emptyMessage: hasCadParts ? "No parts match" : "Open a STEP to mention parts",
-        getFooter: (items: CadMentionItem[]) =>
-          items.length >= CAD_MENTION_LIST_CAP ? "Keep typing to narrow…" : undefined,
-        items: (query: string) =>
-          filterCadMentionCatalog(catalogParts, query, {
+        getFooter: () => (truncatedRef.current ? "Keep typing to narrow…" : undefined),
+        items: (query: string) => {
+          const result = filterCadMentionCatalog(catalogParts, query, {
             fileStem,
             selectedPart,
             faces,
-          }).items,
+          });
+          truncatedRef.current = result.truncated;
+          return result.items;
+        },
         render: (item: CadMentionItem) => <PartMentionRow item={item} />,
       },
     }),
