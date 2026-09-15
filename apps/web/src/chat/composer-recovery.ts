@@ -1,6 +1,7 @@
 import type { JSONContent } from "@tiptap/react";
 
 import { parseCadRefs, resolveCadRef } from "@/chat/cad-refs";
+import { providerLoginSendReason } from "@/chat/model-picker";
 
 /** Workspace mutex (ADR 0003). Server body is "a reply is already in progress". */
 export const WORKSPACE_BUSY_MESSAGE = "a reply is already in progress in this folder";
@@ -179,7 +180,7 @@ export function providerSendBlockReason(input: {
   detail?: string;
 }): string | null {
   if (!input.ready || !input.status || input.status === "ready") return null;
-  return `${input.label} is not ready. ${input.detail ?? input.status}`;
+  return providerLoginSendReason({ label: input.label, status: input.status, detail: input.detail });
 }
 
 export function sendDisabledReason(input: {

@@ -262,7 +262,7 @@ function ChatInputInner({
       <InputGroupAddon
         align="block-end"
         aria-hidden={voice.active}
-        className={cn("flex-wrap gap-y-1 pt-1", voice.active && "invisible pointer-events-none")}
+        className={cn("flex-wrap gap-y-1 pt-1 @[360px]/chat:flex-nowrap", voice.active && "invisible pointer-events-none")}
       >
         <ModelPicker />
         <EffortSelect />
@@ -274,7 +274,7 @@ function ChatInputInner({
         >
           <Hash />
         </ComposerMentionButton>
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           <Button
             type="button"
             variant="ghost"

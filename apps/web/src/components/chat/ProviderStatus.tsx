@@ -1,15 +1,15 @@
+import { ProviderLoginHint } from "@/components/chat/ProviderLoginHint";
 import { useHarnesses } from "@/hooks/useHarnesses";
-import { HARNESS_LABEL } from "@/lib/harness";
 import { useStore } from "@/state/store";
 
 export function ProviderStatus() {
   const harness = useStore((s) => s.chatHarness);
-  const { harnesses, ready } = useHarnesses();
+  const { harnesses, ready, refresh } = useHarnesses();
   const info = harnesses.find((h) => h.id === harness);
   if (!ready || !info || info.status === "ready") return null;
   return (
-    <p className="px-2 pb-1 text-xs text-amber-800 dark:text-amber-400">
-      {HARNESS_LABEL[harness]} is not ready. {info.detail ?? info.status}
-    </p>
+    <div className="px-2 pb-1">
+      <ProviderLoginHint info={info} onCheckAgain={() => refresh("retry")} />
+    </div>
   );
 }
