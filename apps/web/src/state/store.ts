@@ -234,6 +234,7 @@ export const store = createStore<State>()(
         selectedId: null,
         pickedRef: null,
         hiddenIds: new Set(),
+        tool: "select",
         measure: { a: null, b: null },
       });
       return;
@@ -247,6 +248,7 @@ export const store = createStore<State>()(
       selectedId: null,
       pickedRef: null,
       hiddenIds: new Set(),
+      tool: "select",
       measure: { a: null, b: null },
     });
     try {
