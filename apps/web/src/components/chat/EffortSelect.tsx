@@ -1,6 +1,10 @@
+import { ChevronDown } from "lucide-react";
+
+import { EFFORT_TRIGGER_TITLE } from "@/chat/model-picker";
 import {
   CHAT_EFFORTS,
   CHAT_EFFORT_LABEL,
+  HARNESS_LABEL,
   harnessSupportsEffort,
   isChatEffort,
 } from "@/lib/harness";
@@ -11,7 +15,21 @@ export function EffortSelect() {
   const harness = useStore((s) => s.chatHarness);
   const effort = useStore((s) => s.chatEffort);
   const setChatEffort = useStore((s) => s.setChatEffort);
-  if (!harnessSupportsEffort(harness)) return null;
+  const supported = harnessSupportsEffort(harness);
+  if (!supported) {
+    return (
+      <button
+        type="button"
+        disabled
+        aria-label="Reasoning effort"
+        title={`Effort isn't available for ${HARNESS_LABEL[harness]}`}
+        className="inline-flex h-7 max-w-20 min-w-0 cursor-not-allowed items-center gap-1 rounded-md px-1.5 text-xs text-muted-foreground opacity-50 outline-none select-none @[360px]/chat:max-w-none"
+      >
+        <span className="min-w-0 truncate">Effort</span>
+        <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+      </button>
+    );
+  }
   return (
     <Select
       modal={false}
@@ -21,7 +39,11 @@ export function EffortSelect() {
         if (value && isChatEffort(value)) setChatEffort(value);
       }}
     >
-      <SelectTrigger aria-label="Reasoning effort" className="max-w-20 min-w-0 @[360px]/chat:max-w-none">
+      <SelectTrigger
+        aria-label="Reasoning effort"
+        title={EFFORT_TRIGGER_TITLE}
+        className="max-w-20 min-w-0 @[360px]/chat:max-w-none"
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

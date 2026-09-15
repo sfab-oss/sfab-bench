@@ -114,7 +114,7 @@ expect(mapChatErrorMessage(null) === null, "null error");
 
 expect(
   providerSendBlockReason({ ready: true, label: "Codex", status: "needs-auth", detail: "Run `codex login`." }) ===
-    "Codex is not ready. Run `codex login`.",
+    "Codex isn't signed in — run `codex login`",
   "reuse provider status sentence",
 );
 expect(providerSendBlockReason({ ready: true, label: "Codex", status: "ready" }) === null, "ready is not a block");
@@ -131,8 +131,8 @@ expect(
   "ask-user lock",
 );
 expect(
-  sendDisabledReason({ providerReason: "Codex is not ready. Run `codex login`.", emptyPrompt: true }) ===
-    "Codex is not ready. Run `codex login`.",
+  sendDisabledReason({ providerReason: "Codex isn't signed in — run `codex login`", emptyPrompt: true }) ===
+    "Codex isn't signed in — run `codex login`",
   "provider before empty",
 );
 expect(sendDisabledReason({}) === null, "can send");
