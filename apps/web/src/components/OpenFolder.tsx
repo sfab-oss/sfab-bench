@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { StartTruncatedPath } from "@/components/StartTruncatedPath";
 import { useXrSession } from "@/hooks/useXrSession";
 import { desktopBridge } from "@/lib/desktop";
-import { isMacPlatform } from "@/lib/files-rail";
+import { isMacPlatform } from "@/lib/shortcuts";
 import { matchesShortcut } from "@/lib/shortcuts";
 import {
   browsePath,

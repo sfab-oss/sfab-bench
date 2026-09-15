@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { Lockup } from "@/components/brand/Lockup";
@@ -15,15 +15,16 @@ import {
   SidebarInput,
   SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { WorkbenchSettings } from "@/components/WorkbenchSettings";
 import { ConnectionStatusDot } from "@/components/ConnectionStatusDot";
 import type { CatalogState } from "@/hooks/useCatalog";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { commandPaletteShortcutLabel } from "@/lib/command-palette";
-import { isMacPlatform } from "@/lib/files-rail";
+import { filesRailToggleTitle } from "@/lib/files-rail";
 import { refreshFilesTooltip } from "@/lib/motion";
-import { shortcutTooltip } from "@/lib/shortcuts";
+import { isMacPlatform, matchesShortcut, shortcutTooltip } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
 
@@ -50,6 +51,18 @@ export function DesktopSidebar({
     typeof navigator === "undefined" ? "" : navigator.platform,
     typeof navigator === "undefined" ? "" : navigator.userAgent,
   );
+  const { toggleSidebar } = useSidebar();
+  const filesTitle = filesRailToggleTitle(mac);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!matchesShortcut(event, "toggle-files", { mac, activeElement: document.activeElement })) return;
+      event.preventDefault();
+      toggleSidebar();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mac, toggleSidebar]);
 
   return (
     <Sidebar collapsible="offcanvas">
@@ -62,7 +75,7 @@ export function DesktopSidebar({
               <Lockup />
             </div>
           )}
-          <SidebarTrigger className="mt-0.5" />
+          <SidebarTrigger className="mt-0.5" title={filesTitle} />
         </div>
         {hasProject && folder.error ? (
           <p className="px-2 text-xs text-error">{folder.error}</p>
@@ -122,7 +135,7 @@ export function DesktopSidebar({
           />
         </div>
       </SidebarFooter>
-      <SidebarRail />
+      <SidebarRail title={filesTitle} />
     </Sidebar>
   );
 }
