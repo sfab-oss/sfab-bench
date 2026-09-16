@@ -95,7 +95,7 @@ export function isResumePayload(value: unknown): value is ResumePayload {
 export function isUnusableResumeError(err: unknown): boolean {
   const name = err instanceof Error ? err.name : "";
   const msg = err instanceof Error ? err.message : String(err);
-  if (name === "AI_HarnessError" || name === "AI_HarnessCapabilityUnsupportedError") return true;
+  if (name === "AI_HarnessCapabilityUnsupportedError") return true;
   return /ACP lifecycle state|Lifecycle state|does not support resume|Cold ACP session restoration/i.test(msg);
 }
 

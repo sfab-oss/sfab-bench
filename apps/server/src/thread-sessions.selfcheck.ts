@@ -70,6 +70,12 @@ expect(isUnusableResumeError(new Error("ACP lifecycle state is incompatible with
 const schemaErr = new Error("Lifecycle state failed schema validation");
 schemaErr.name = "AI_HarnessError";
 expect(isUnusableResumeError(schemaErr), "schema failure is unusable");
+const unsupported = new Error("sandbox provider does not support resume");
+unsupported.name = "AI_HarnessCapabilityUnsupportedError";
+expect(isUnusableResumeError(unsupported), "missing resumeSession is unusable");
+const transient = new Error("rate limited");
+transient.name = "AI_HarnessError";
+expect(!isUnusableResumeError(transient), "a generic harness error keeps the stored payload");
 expect(!isUnusableResumeError(new Error("ECONNREFUSED")), "a transport error keeps the stored payload");
 
 const db = new DatabaseSync(":memory:");

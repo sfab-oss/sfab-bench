@@ -48,6 +48,9 @@ function sessionKey(root: string, harness: HarnessId, chatId: string) {
 }
 
 export function priorMessages(continueTurn: boolean, bodyMessages: UIMessage[], stamped: UIMessage): UIMessage[] {
+  // Tool continuations must send the full client payload. A normal turn is the
+  // last user message only: the harness collapses any array to that anyway
+  // (`_resolvePromptTurnInput`). Sqlite history does not restore vendor memory.
   return continueTurn ? bodyMessages : [stamped];
 }
 
