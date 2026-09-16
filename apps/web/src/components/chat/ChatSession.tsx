@@ -106,7 +106,7 @@ export function ChatSession({
   const turnErrorRef = useRef<string | null>(null);
   const progress = useStore((s) => s.progress);
   const url = useStore((s) => s.url);
-  const { messages, sendMessage, status, error, stop, regenerate, addToolOutput } = useChat({
+  const { messages, sendMessage, status, error, stop, regenerate, addToolOutput, setMessages } = useChat({
     id: threadId,
     throttle: 50,
     messages: initialMessages,
@@ -120,6 +120,9 @@ export function ChatSession({
       turnErrorRef.current = null;
       const toSave = finishPersistMessages(next as GalleryChatMessage[], isError, text);
       if (!toSave) return;
+      // Persist already stamps data-error; live state must use it or the turn
+      // collapses to a Worked chip until reload.
+      if (isError) setMessages(toSave);
       void persistThread(threadId, toSave).then(
         (res) => {
           if (res && "ok" in res && res.ok === false) {
