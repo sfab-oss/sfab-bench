@@ -98,6 +98,13 @@ function resolvePath(root: string, p: string, extra: string[] = []) {
     root,
     ...extra,
     join(home, ".agents"),
+    // Grok is the only adapter that writes its instructions to the real home:
+    // `synchronizeInstructions` puts an AGENTS.md in `~/.grok` at the top of
+    // every turn, and there is no setting to redirect it. `~/.ai-sdk` is the
+    // ACP bridge state dir — it reaches disk via `spawn` today, so it has not
+    // been refused yet, but it belongs on the same list.
+    join(home, ".grok"),
+    join(home, ".ai-sdk"),
     join(home, ".config", "opencode"),
     join(home, ".opencode"),
     join(home, ".local", "share", "opencode"),

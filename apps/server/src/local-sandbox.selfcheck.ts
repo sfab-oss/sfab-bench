@@ -32,6 +32,18 @@ expect(
 const homeOpenCode = join(homedir(), ".opencode", "cache");
 expect(projectCwd(root, homeOpenCode) === normalize(homeOpenCode), "allowed host paths stay");
 
+// Grok writes `~/.grok/AGENTS.md` at the top of every turn and offers no way to
+// redirect it, so refusing that path killed every Grok turn.
+const grokInstructions = join(homedir(), ".grok");
+expect(projectCwd(root, grokInstructions) === normalize(grokInstructions), "Grok may write its own config dir");
+let refused = false;
+try {
+  projectCwd(root, join(homedir(), ".ssh"));
+} catch {
+  refused = true;
+}
+expect(refused, "the allow-list is still a list — an unrelated home dir is refused");
+
 const cmd = `node bridge.mjs --workdir '${cacheSession}' --bridge-state-dir '${stateDir}/.agent-runs/abc/bridge' --skills-dir '${join(homedir(), ".agents", "skills")}'`;
 const pinned = pinProjectWorkdir(cmd, root, stateDir);
 expect(pinned.includes(`--workdir '${root}'`), `bridge --workdir is the project, got ${pinned}`);
