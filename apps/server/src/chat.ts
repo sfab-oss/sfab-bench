@@ -1,4 +1,4 @@
-import { type HarnessAgentSession } from "@ai-sdk/harness/agent";
+import { type HarnessAgentResumeSessionState, type HarnessAgentSession } from "@ai-sdk/harness/agent";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -28,33 +28,113 @@ import {
 } from "./session";
 import { dropTrailingHarnessErrors, harnessErrorText, harnessErrorsAsTurnParts } from "./chat-stream";
 import { messagesToPersist, withTurnError } from "./chat-persist";
-import { saveMessages } from "./threads-db";
+import { dropThreadSession, loadThreadSession, saveMessages, saveThreadSession } from "./threads-db";
+import {
+  isResumePayload,
+  isUnusableResumeError,
+  LOST_CONTEXT_LINE,
+  lostContext,
+  nativeIdFromResume,
+  resumeFromStored,
+  shouldPersistPark,
+  stripResumeCredentials,
+} from "./thread-sessions";
 import { runViewerContext } from "./viewer-context";
 
 const sessions = new Map<string, Promise<HarnessAgentSession>>();
 
-function sessionKey(root: string, harness: HarnessId, chatId: string, effort: ChatEffort) {
-  return `${root}:${harness}:${effort}:${chatId}`;
+function sessionKey(root: string, harness: HarnessId, chatId: string) {
+  return `${root}:${harness}:${chatId}`;
 }
 
-export function resetChatSessions() {
-  sessions.clear();
+export function priorMessages(continueTurn: boolean, bodyMessages: UIMessage[], stamped: UIMessage): UIMessage[] {
+  // Tool continuations must send the full client payload. A normal turn is the
+  // last user message only: the harness collapses any array to that anyway
+  // (`_resolvePromptTurnInput`). Sqlite history does not restore vendor memory.
+  return continueTurn ? bodyMessages : [stamped];
 }
 
-function sessionFor(root: string, harness: HarnessId, chatId: string, effort: ChatEffort) {
-  const key = sessionKey(root, harness, chatId, effort);
-  let pending = sessions.get(key);
-  if (!pending) {
-    pending = getAgent(harness, effort, root)
-      // Thread id only. Effort in this string became a colon in the session folder name.
-      .createSession({ sessionId: chatId })
-      .catch((err) => {
-        sessions.delete(key);
-        throw err;
-      });
-    sessions.set(key, pending);
+function persistChat(chatId: string, next: UIMessage[], root: string) {
+  try {
+    const ok = saveMessages(chatId, root, next);
+    if (!ok) console.error("[chat] persist skipped (no thread)", chatId);
+  } catch (err) {
+    console.error("[chat] persist failed", err);
   }
-  return pending;
+}
+
+function persistIdleSession(
+  chatId: string,
+  root: string,
+  harness: HarnessId,
+  state: unknown,
+  nativeId: string | null,
+) {
+  let last: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      saveThreadSession(chatId, root, harness, state, nativeId);
+      return;
+    } catch (err) {
+      last = err;
+    }
+  }
+  throw last instanceof Error ? last : new Error("failed to persist harness session");
+}
+
+async function createLiveSession(
+  root: string,
+  harness: HarnessId,
+  chatId: string,
+  effort: ChatEffort,
+  resumeFrom?: HarnessAgentResumeSessionState,
+) {
+  return getAgent(harness, effort, root).createSession({
+    sessionId: chatId,
+    ...(resumeFromStored(resumeFrom) as { resumeFrom?: HarnessAgentResumeSessionState }),
+  });
+}
+
+async function sessionFor(
+  root: string,
+  harness: HarnessId,
+  chatId: string,
+  effort: ChatEffort,
+): Promise<{ session: HarnessAgentSession; lostContext: boolean }> {
+  const key = sessionKey(root, harness, chatId);
+  const pending = sessions.get(key);
+  if (pending) return { session: await pending, lostContext: false };
+
+  const stored = loadThreadSession(chatId, harness);
+  let resumeFrom: HarnessAgentResumeSessionState | undefined;
+  let lost = false;
+  if (stored) {
+    if (!isResumePayload(stored.state)) {
+      dropThreadSession(chatId, harness);
+      lost = true;
+    } else {
+      resumeFrom = stored.state as HarnessAgentResumeSessionState;
+    }
+  }
+
+  const start = async () => {
+    if (!resumeFrom) return createLiveSession(root, harness, chatId, effort);
+    try {
+      return await createLiveSession(root, harness, chatId, effort, resumeFrom);
+    } catch (err) {
+      if (!isUnusableResumeError(err)) throw err;
+      dropThreadSession(chatId, harness);
+      lost = true;
+      return createLiveSession(root, harness, chatId, effort);
+    }
+  };
+
+  const promise = start().catch((err) => {
+    sessions.delete(key);
+    throw err;
+  });
+  sessions.set(key, promise);
+  return { session: await promise, lostContext: lost };
 }
 
 type ChatBody = {
@@ -97,15 +177,6 @@ function stampUser(last: UIMessage, snapshot: ViewerSnapshot): UIMessage {
  */
 export function lastIsToolContinuation(last: UIMessage): boolean {
   return lastAssistantMessageIsCompleteWithToolCalls({ messages: [last] });
-}
-
-function persistChat(chatId: string, next: UIMessage[], root: string) {
-  try {
-    const ok = saveMessages(chatId, root, next);
-    if (!ok) console.error("[chat] persist skipped (no thread)", chatId);
-  } catch (err) {
-    console.error("[chat] persist failed", err);
-  }
 }
 
 export async function handleChat(req: Request, root: string): Promise<Response> {
@@ -159,6 +230,8 @@ export async function handleChat(req: Request, root: string): Promise<Response> 
   return createUIMessageStreamResponse({
     stream: createUIMessageStream({
       execute: async ({ writer }) => {
+        const key = sessionKey(root, harness, chatId);
+        let session: HarnessAgentSession | undefined;
         try {
           await runViewerContext(
             {
@@ -171,19 +244,17 @@ export async function handleChat(req: Request, root: string): Promise<Response> 
               },
             },
             async () => {
-              const key = sessionKey(root, harness, chatId, effort);
-              const isNew = !sessions.has(key);
               const agent = getAgent(harness, effort, root);
-              const session = await sessionFor(root, harness, chatId, effort);
+              const resolved = await sessionFor(root, harness, chatId, effort);
+              session = resolved.session;
+              if (resolved.lostContext) {
+                writer.write({ type: "data-error", data: { message: LOST_CONTEXT_LINE } });
+              }
               const model =
                 typeof body.model === "string" && body.model.trim()
                   ? body.model.trim()
                   : DEFAULT_HARNESS_MODEL[harness];
-              const prior = continueTurn
-                ? body.messages
-                : isNew
-                  ? [...history, stamped]
-                  : [stamped];
+              const prior = priorMessages(continueTurn, body.messages, stamped);
               const result = await agent.stream({
                 session,
                 messages: await convertToModelMessages(prior),
@@ -198,8 +269,39 @@ export async function handleChat(req: Request, root: string): Promise<Response> 
               );
               setSessionRunStatus(root, "streaming");
               writer.merge(ui as never);
+              try {
+                await result.text;
+              } catch {
+                /* stream failed; idle-check below still applies */
+              }
             },
           );
+
+          if (!session || run.signal.aborted) return;
+          // do not detach during get_viewer — the live handle stays in the Map
+          if (session.hasUnfinishedTurn()) return;
+          let payload: HarnessAgentResumeSessionState;
+          try {
+            payload = await session.detach();
+          } finally {
+            sessions.delete(key);
+          }
+          if (
+            !shouldPersistPark({
+              unfinished: false,
+              aborted: run.signal.aborted,
+              continueFrom: payload.continueFrom,
+            })
+          ) {
+            return;
+          }
+          const stripped = stripResumeCredentials(payload);
+          const nextNative = nativeIdFromResume(harness, stripped);
+          const prev = loadThreadSession(chatId, harness);
+          persistIdleSession(chatId, root, harness, stripped, nextNative);
+          if (lostContext(prev?.native_id, nextNative)) {
+            writer.write({ type: "data-error", data: { message: LOST_CONTEXT_LINE } });
+          }
         } catch (err) {
           if (!run.signal.aborted) {
             writer.write({ type: "data-error", data: { message: harnessErrorText(err) } });

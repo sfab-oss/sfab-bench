@@ -6,7 +6,7 @@
  */
 import type { UIMessage } from "ai";
 
-import { lastIsToolContinuation } from "./chat";
+import { lastIsToolContinuation, priorMessages } from "./chat";
 
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
@@ -70,5 +70,15 @@ expect(
   ),
   "a stale tool before the last step-start does not block the turn",
 );
+
+const stamped: UIMessage = { id: "u", role: "user", parts: [{ type: "text", text: "now" }] };
+const history: UIMessage[] = [
+  { id: "h", role: "user", parts: [{ type: "text", text: "earlier" }] },
+  stamped,
+];
+const continued = priorMessages(true, history, stamped);
+expect(continued === history, "continueTurn returns body.messages");
+const fresh = priorMessages(false, history, stamped);
+expect(fresh.length === 1 && fresh[0] === stamped, "a normal user turn does not replay history");
 
 console.log("chat-continuation.selfcheck ok");

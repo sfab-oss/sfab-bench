@@ -98,4 +98,18 @@ expect(
 expect(!("PNPM_PACKAGE_NAME" in clean), "the child is not part of our package");
 expect(sandboxEnv(launcher, { NODE_OPTIONS: "--enable-source-maps" }).NODE_OPTIONS === "--enable-source-maps", "an explicit override still wins");
 
+const sandbox = createLocalSandbox(root);
+expect(typeof sandbox.resumeSession === "function", "resumeSession exists");
+if (!sandbox.resumeSession) throw new Error("resumeSession exists");
+const sameA = await sandbox.createSession({ sessionId: "same" });
+const sameB = await sandbox.createSession({ sessionId: "same" });
+expect(sameA.id === "same" && sameB.id === "same", "createSession({ sessionId }) pins sandbox.id");
+expect(sameA.id === sameB.id, "two createSession({ sessionId: same }) have equal id");
+const resumed = await sandbox.resumeSession({ sessionId: "same" });
+expect(resumed.id === sameA.id, "resumeSession({ sessionId: same }) returns that same id");
+expect(
+  { bridge: { sandboxId: sameA.id } }.bridge.sandboxId === sameA.id,
+  "ACP-shaped bridge.sandboxId matches the sandbox id the adapter will check",
+);
+
 console.log("local-sandbox.selfcheck ok");

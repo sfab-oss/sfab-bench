@@ -154,21 +154,30 @@ export function pinProjectWorkdir(command: string, root: string, stateDir?: stri
   });
 }
 
+function sandboxSessionId(sessionId?: string) {
+  return sessionId ?? randomUUID();
+}
+
+async function openLocalSession(root: string, sessionId?: string) {
+  const stateDir = harnessHome();
+  await mkdir(stateDir, { recursive: true });
+  return createLocalSession(root, stateDir, sessionId);
+}
+
 export function createLocalSandbox(root: string): HarnessV1SandboxProvider {
   installExitHandlers();
   return {
     specificationVersion: "harness-sandbox-v1",
     providerId: "local-host",
-    createSession: async () => {
-      const stateDir = harnessHome();
-      await mkdir(stateDir, { recursive: true });
-      return createLocalSession(root, stateDir);
-    },
+    createSession: async (options) => openLocalSession(root, options?.sessionId),
+    // sandbox.id must equal the harness sessionId so ACP detach payloads
+    // (bridge.sandboxId) can resume. vercel/ai#19108.
+    resumeSession: async (options) => openLocalSession(root, options.sessionId),
   };
 }
 
-function createLocalSession(root: string, stateDir: string): HarnessV1NetworkSandboxSession {
-  const id = randomUUID();
+function createLocalSession(root: string, stateDir: string, sessionId?: string): HarnessV1NetworkSandboxSession {
+  const id = sandboxSessionId(sessionId);
   const children = new Set<ChildProcess>();
   const files: Experimental_SandboxSession = {
     description: `Local workspace at ${root}`,
