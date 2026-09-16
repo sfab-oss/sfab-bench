@@ -2,6 +2,12 @@ import type { UIMessage } from "ai";
 
 import type { SessionThreadPrefs } from "@sfab-bench/contract";
 import { db } from "./db";
+import {
+  applyThreadSessionsSchema,
+  dropThreadSession as dropThreadSessionIn,
+  loadThreadSession as loadThreadSessionIn,
+  saveThreadSession as saveThreadSessionIn,
+} from "./thread-sessions";
 
 export type ThreadRow = {
   id: string;
@@ -47,6 +53,8 @@ if (!threadCols.some((col) => col.name === "model")) {
 if (!threadCols.some((col) => col.name === "effort")) {
   db.exec("ALTER TABLE threads ADD COLUMN effort TEXT");
 }
+
+applyThreadSessionsSchema(db);
 
 const THREAD_SELECT =
   "SELECT id, workspace, title, created_at, updated_at, owner, harness, model, effort FROM threads";
@@ -134,4 +142,22 @@ export function saveMessages(id: string, workspace: string, messages: UIMessage[
     throw err;
   }
   return true;
+}
+
+export function saveThreadSession(
+  threadId: string,
+  workspace: string,
+  harness: string,
+  state: unknown,
+  nativeId: string | null,
+) {
+  return saveThreadSessionIn(db, { threadId, workspace, harness, state, nativeId });
+}
+
+export function loadThreadSession(threadId: string, harness: string) {
+  return loadThreadSessionIn(db, threadId, harness);
+}
+
+export function dropThreadSession(threadId: string, harness: string) {
+  dropThreadSessionIn(db, threadId, harness);
 }
