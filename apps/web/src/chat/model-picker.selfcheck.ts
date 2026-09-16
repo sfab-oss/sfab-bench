@@ -30,9 +30,9 @@ expect(
 expect(
   loginCommandFromStatus({
     status: "needs-auth",
-    detail: "Run `agent login` on the Mac, or set CURSOR_API_KEY.",
-  }) === "agent login",
-  "cursor detail backtick",
+    detail: "A Mac Cursor login is not visible to this app.",
+  }) === null,
+  "cursor detail has no runnable command",
 );
 expect(
   loginCommandFromStatus({
@@ -64,9 +64,11 @@ expect(codexHint.secondary === "or set OPENAI_API_KEY.", "needs-auth keeps env a
 const cursorHint = loginHintCopy({
   label: "Cursor",
   status: "needs-auth",
-  detail: "Run `agent login` on the Mac, or set CURSOR_API_KEY.",
+  detail: "A Mac Cursor login is not visible to this app.",
 });
-expect(cursorHint.secondary === "or set CURSOR_API_KEY.", "cursor env alternative");
+expect(cursorHint.command === null, "cursor has no login command");
+expect(cursorHint.headline === "Cursor isn't signed in.", "cursor headline without run-this");
+expect(cursorHint.secondary === "A Mac Cursor login is not visible to this app.", "cursor keeps the honest detail");
 
 const grokHint = loginHintCopy({
   label: "Grok",
@@ -96,6 +98,14 @@ expect(
     detail: "Run `codex login` on the Mac, or set OPENAI_API_KEY.",
   }) === "Codex isn't signed in — run `codex login`",
   "needs-auth send copy",
+);
+expect(
+  providerLoginSendReason({
+    label: "Cursor",
+    status: "needs-auth",
+    detail: "A Mac Cursor login is not visible to this app.",
+  }) === "Cursor isn't signed in",
+  "cursor send copy has no fake login command",
 );
 expect(
   providerLoginSendReason({
