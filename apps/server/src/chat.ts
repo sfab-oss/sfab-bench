@@ -95,7 +95,7 @@ function stampUser(last: UIMessage, snapshot: ViewerSnapshot): UIMessage {
  * result for. A model emitting a provider `bash` alongside one of our viewer
  * tools therefore resubmitted and got "expected a user message or tool result".
  */
-function lastIsToolContinuation(last: UIMessage): boolean {
+export function lastIsToolContinuation(last: UIMessage): boolean {
   return lastAssistantMessageIsCompleteWithToolCalls({ messages: [last] });
 }
 
@@ -132,6 +132,14 @@ export async function handleChat(req: Request, root: string): Promise<Response> 
   // install is a plain send failure with the prompt kept, not a dead turn.
   const installFailed = await ensureProvisioned(root, harness);
   if (installFailed) return new Response(installFailed, { status: 503 });
+
+  // That wait is the longest gap in the handler, and `abort` does not replay
+  // for a listener added afterwards — so a stop during the install would
+  // otherwise be dropped and start a turn nobody is waiting for, locking the
+  // folder to 409 until it ends. We drop out here instead of passing the
+  // signal into the install: the install is shared, and one folder giving up
+  // must not cancel it for another.
+  if (req.signal.aborted) return new Response(null, { status: 499 });
 
   const run = startSessionRun(root);
   if (!run) {

@@ -100,11 +100,8 @@ function resolvePath(root: string, p: string, extra: string[] = []) {
     join(home, ".agents"),
     // Grok is the only adapter that writes its instructions to the real home:
     // `synchronizeInstructions` puts an AGENTS.md in `~/.grok` at the top of
-    // every turn, and there is no setting to redirect it. `~/.ai-sdk` is the
-    // ACP bridge state dir — it reaches disk via `spawn` today, so it has not
-    // been refused yet, but it belongs on the same list.
+    // every turn, and there is no setting to redirect it.
     join(home, ".grok"),
-    join(home, ".ai-sdk"),
     join(home, ".config", "opencode"),
     join(home, ".opencode"),
     join(home, ".local", "share", "opencode"),
@@ -115,11 +112,18 @@ function resolvePath(root: string, p: string, extra: string[] = []) {
 }
 
 /**
- * Where adapters write `.harness-bootstrap/` and `.agent-runs/`: one directory
- * for the machine, not the CAD folder and not one per folder. A bridge install
- * is the same three files whatever is open, and run state is already keyed by
- * session id, so sharing turns a ~540 MB install per folder into one per
- * harness. The agent still works in the project — `projectCwd` decides that.
+ * Where adapters write `.harness-bootstrap/`: one directory for the machine,
+ * not the CAD folder and not one per folder. A bridge install is the same three
+ * files whatever is open, and the vendor's marker is keyed by the install
+ * recipe rather than the project, so sharing turns a ~540 MB install per folder
+ * into one per harness. Per-session state does not collide either: ACP keeps it
+ * under `$HOME/.ai-sdk/harness-acp/<id>/<hash(sessionId)>/`, off this tree.
+ * The agent still works in the project — `projectCwd` decides that.
+ *
+ * Note this dir is also on the file-API allow-list, so one chat can read
+ * another's session files here. The shell can already do that, but if that
+ * stops being acceptable this is where to split them.
+ *
  * Remove when `workspace: localWorkspace({ path })` ships (vercel/ai#19108).
  */
 export function harnessHome(appHome = APP_HOME): string {

@@ -1,8 +1,9 @@
 /**
- * First use of a harness installs its bridge into `~/.sfab-bench/harness/<id>/`
- * with pnpm — about twelve seconds, once per folder. Left to the agent that
- * install runs inside the first turn, so a failure kills the turn instead of
- * the send. This runs it first, and reports why in one line.
+ * First use of a harness installs its bridge into
+ * `~/.sfab-bench/harness/shared/.harness-bootstrap/<id>/` with pnpm — about
+ * twelve seconds, once per machine. Left to the agent, that install runs inside
+ * the first turn, so a failure kills the turn instead of the send. This runs it
+ * first, and reports why in one line.
  */
 
 import { prepareHarnessSandboxTemplate } from "@ai-sdk/harness/agent";
@@ -15,7 +16,10 @@ import { createLocalSandbox } from "./local-sandbox";
 export function installFailureDetail(id: HarnessId, err: unknown): string {
   const label = HARNESS_LABEL[id];
   const message = err instanceof Error ? err.message : String(err);
-  const offline = /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|network/i.test(message);
+  // Only the resolver/socket codes. A bare "network" substring matched things
+  // that had nothing to do with reachability, so the line claimed the registry
+  // was unreachable when it wasn't.
+  const offline = /\b(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENETUNREACH)\b/.test(message);
   return offline
     ? `Could not install ${label} — no connection to the registry.`
     : `Could not install ${label}.`;
