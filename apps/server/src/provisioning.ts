@@ -1,0 +1,54 @@
+/**
+ * First use of a harness installs its bridge into `~/.sfab-bench/harness/<id>/`
+ * with pnpm — about twelve seconds, once per folder. Left to the agent that
+ * install runs inside the first turn, so a failure kills the turn instead of
+ * the send. This runs it first, and reports why in one line.
+ */
+
+import { prepareHarnessSandboxTemplate } from "@ai-sdk/harness/agent";
+
+import { HARNESS_LABEL, type HarnessId } from "@sfab-bench/contract";
+import { harnessAdapter } from "./agent";
+import { createLocalSandbox } from "./local-sandbox";
+
+/** One line for the user. The command output goes to the server log. */
+export function installFailureDetail(id: HarnessId, err: unknown): string {
+  const label = HARNESS_LABEL[id];
+  const message = err instanceof Error ? err.message : String(err);
+  const offline = /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|network/i.test(message);
+  return offline
+    ? `Could not install ${label} — no connection to the registry.`
+    : `Could not install ${label}.`;
+}
+
+/** Only in-flight installs. "Installed" lives on disk, as the vendor's marker. */
+const inflight = new Map<string, Promise<string | null>>();
+
+/**
+ * Resolves `null` once the harness is installed, or a reason why it isn't.
+ * Concurrent sends join one install. Nothing is remembered afterwards: the
+ * vendor's marker makes an installed harness a fast no-op, and a failed
+ * install is simply tried again by the next send.
+ */
+export function ensureProvisioned(root: string, id: HarnessId): Promise<string | null> {
+  const key = `${root}:${id}`;
+  const running = inflight.get(key);
+  if (running) return running;
+
+  const run = prepareHarnessSandboxTemplate({
+    harness: harnessAdapter(id),
+    sandboxProvider: createLocalSandbox(root),
+  })
+    .then<string | null>(() => null)
+    .catch<string | null>((err) => {
+      console.error(`[provisioning] ${id} install failed`, err);
+      return installFailureDetail(id, err);
+    })
+    .then((reason) => {
+      inflight.delete(key);
+      return reason;
+    });
+
+  inflight.set(key, run);
+  return run;
+}

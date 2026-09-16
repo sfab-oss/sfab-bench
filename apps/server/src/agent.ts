@@ -23,6 +23,31 @@ function reasoning(effort: ChatEffort): ReasoningLevel | undefined {
   return effort === "default" ? undefined : effort;
 }
 
+/** The adapter alone, so provisioning can run a bootstrap without an agent. */
+export function harnessAdapter(id: HarnessId, effort: ChatEffort = "default") {
+  const level = reasoning(effort);
+  if (id === "codex") {
+    return createCodex({
+      // Direct = Mac login / provider env. Not AI Gateway (that key is STT-only).
+      auth: "direct",
+      ...(level ? { reasoningEffort: level } : {}),
+    });
+  }
+  if (id === "cursor") return createCursor({ auth: "direct" });
+  if (id === "grok-build") {
+    return createGrokBuild({
+      auth: "direct",
+      ...(level ? { reasoningEffort: level } : {}),
+    });
+  }
+  return createOpenCode({
+    // OpenCode has no `direct`. Isolated env so STT's Gateway key is not inherited.
+    auth: {},
+    provider: "zai-coding-plan",
+    ...(level ? { reasoningVariant: level } : {}),
+  });
+}
+
 function makeAgent(id: HarnessId, effort: ChatEffort, root: string) {
   const shared = {
     sandbox: createLocalSandbox(root),
@@ -35,16 +60,12 @@ function makeAgent(id: HarnessId, effort: ChatEffort, root: string) {
       model: options.model,
     }),
   };
-  const level = reasoning(effort);
+  const harness = harnessAdapter(id, effort);
 
   if (id === "codex") {
     return new HarnessAgent({
       id: `sfab-codex-${effort}`,
-      harness: createCodex({
-        // Direct = Mac login / provider env. Not AI Gateway (that key is STT-only).
-        auth: "direct",
-        ...(level ? { reasoningEffort: level } : {}),
-      }),
+      harness,
       model: DEFAULT_HARNESS_MODEL.codex,
       ...shared,
     });
@@ -52,7 +73,7 @@ function makeAgent(id: HarnessId, effort: ChatEffort, root: string) {
   if (id === "cursor") {
     return new HarnessAgent({
       id: "sfab-cursor",
-      harness: createCursor({ auth: "direct" }),
+      harness,
       model: DEFAULT_HARNESS_MODEL.cursor,
       ...shared,
     });
@@ -60,22 +81,14 @@ function makeAgent(id: HarnessId, effort: ChatEffort, root: string) {
   if (id === "grok-build") {
     return new HarnessAgent({
       id: `sfab-grok-build-${effort}`,
-      harness: createGrokBuild({
-        auth: "direct",
-        ...(level ? { reasoningEffort: level } : {}),
-      }),
+      harness,
       model: DEFAULT_HARNESS_MODEL["grok-build"],
       ...shared,
     });
   }
   return new HarnessAgent({
     id: `sfab-opencode-${effort}`,
-    harness: createOpenCode({
-      // OpenCode has no `direct`. Isolated env so STT's Gateway key is not inherited.
-      auth: {},
-      provider: "zai-coding-plan",
-      ...(level ? { reasoningVariant: level } : {}),
-    }),
+    harness,
     model: process.env.OPENCODE_MODEL ?? DEFAULT_HARNESS_MODEL.opencode,
     ...shared,
   });

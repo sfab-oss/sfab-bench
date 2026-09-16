@@ -18,6 +18,7 @@ import {
 } from "@sfab-bench/contract";
 import { emptySnapshot, type ViewerSnapshot } from "@sfab-bench/contract";
 import { getAgent } from "./agent";
+import { ensureProvisioned } from "./provisioning";
 import {
   endSessionRun,
   rememberOpenedFile,
@@ -123,6 +124,11 @@ export async function handleChat(req: Request, root: string): Promise<Response> 
   if (!last) {
     return new Response("missing message", { status: 400 });
   }
+
+  // First use installs the harness bridge. Wait for it here, so a failed
+  // install is a plain send failure with the prompt kept, not a dead turn.
+  const installFailed = await ensureProvisioned(root, harness);
+  if (installFailed) return new Response(installFailed, { status: 503 });
 
   const run = startSessionRun(root);
   if (!run) {

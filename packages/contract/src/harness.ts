@@ -6,6 +6,11 @@ export function isHarnessId(value: string): value is HarnessId {
   return (HARNESS_IDS as readonly string[]).includes(value);
 }
 
+/** What a probe can say about a harness. Server and web read the same list. */
+export const HARNESS_STATUSES = ["ready", "missing-cli", "needs-auth", "error"] as const;
+
+export type HarnessStatus = (typeof HARNESS_STATUSES)[number];
+
 export const HARNESS_LABEL: Record<HarnessId, string> = {
   opencode: "OpenCode",
   codex: "Codex",

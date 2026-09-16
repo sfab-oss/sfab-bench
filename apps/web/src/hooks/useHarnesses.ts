@@ -10,9 +10,9 @@ import {
 import { apiFetch } from "@/lib/api";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { projectUrl } from "@/lib/project-query";
-import type { HarnessId } from "@/lib/harness";
+import type { HarnessId, HarnessStatus } from "@/lib/harness";
 
-export type HarnessStatus = "ready" | "missing-cli" | "needs-auth" | "error";
+export type { HarnessStatus };
 
 export type HarnessModel = { id: string; name: string; slug: string; group?: string };
 
