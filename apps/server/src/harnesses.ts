@@ -44,11 +44,10 @@ function readJson(path: string): unknown {
 }
 
 function cursorLoggedIn() {
-  if (envSet("CURSOR_API_KEY")) return true;
-  const cfg = readJson(join(homedir(), ".cursor", "cli-config.json"));
-  if (!cfg || typeof cfg !== "object") return false;
-  const auth = (cfg as { authInfo?: { email?: unknown; userId?: unknown } }).authInfo;
-  return Boolean(auth && (auth.email || auth.userId));
+  // The Cursor adapter installs with privateHome, so the CLI's HOME is the
+  // bootstrap dir. A Mac `agent login` (keychain + ~/.cursor) is invisible
+  // to that process. The only credential the adapter forwards is CURSOR_API_KEY.
+  return envSet("CURSOR_API_KEY");
 }
 
 function grokLoggedIn() {
@@ -111,7 +110,7 @@ function probeCursor(): HarnessInfo {
     id: "cursor",
     label: HARNESS_LABEL.cursor,
     status: authed ? "ready" : "needs-auth",
-    detail: authed ? undefined : "Run `agent login` on the Mac, or set CURSOR_API_KEY.",
+    detail: authed ? undefined : "A Mac Cursor login is not visible to this app.",
     defaultModel: DEFAULT_HARNESS_MODEL.cursor,
     models: staticModels("cursor"),
   };

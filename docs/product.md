@@ -13,7 +13,8 @@ sphere-robot as historical analysis
 
 A CAD workbench that hosts the same class of agents T3 Code hosts
 (Codex, Claude Code, Cursor, Grok, OpenCode), using logins already on
-the Mac. T3 is inspiration for install, pairing, and provider handling.
+the Mac. Cursor is listed but a Mac login is not visible to this app
+yet. T3 is inspiration for install, pairing, and provider handling.
 T3 is never a client or a host of this app.
 
 Three jobs, kept separate:
