@@ -3,6 +3,7 @@ import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
+  lastAssistantMessageIsCompleteWithToolCalls,
   toUIMessageStream,
   type UIMessage,
 } from "ai";
@@ -85,15 +86,17 @@ function stampUser(last: UIMessage, snapshot: ViewerSnapshot): UIMessage {
   };
 }
 
+/**
+ * The client resubmits a tool turn when the SDK's own predicate says so
+ * (`sendAutomaticallyWhen` in ChatSession/XrChatRuntime), so this gate has to
+ * be that same predicate — not a copy of it. The copy had drifted twice: it
+ * judged every part instead of only the last step, and it counted
+ * provider-executed tools, which the harness runs itself and never reports a
+ * result for. A model emitting a provider `bash` alongside one of our viewer
+ * tools therefore resubmitted and got "expected a user message or tool result".
+ */
 function lastIsToolContinuation(last: UIMessage): boolean {
-  if (last.role !== "assistant") return false;
-  const tools = (last.parts ?? []).filter(
-    (part) => part.type === "dynamic-tool" || (typeof part.type === "string" && part.type.startsWith("tool-")),
-  );
-  if (tools.length === 0) return false;
-  return tools.every(
-    (part) => "state" in part && (part.state === "output-available" || part.state === "output-error"),
-  );
+  return lastAssistantMessageIsCompleteWithToolCalls({ messages: [last] });
 }
 
 function persistChat(chatId: string, next: UIMessage[], root: string) {
