@@ -3,6 +3,7 @@ import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
+  lastAssistantMessageIsCompleteWithToolCalls,
   toUIMessageStream,
   type UIMessage,
 } from "ai";
@@ -18,6 +19,7 @@ import {
 } from "@sfab-bench/contract";
 import { emptySnapshot, type ViewerSnapshot } from "@sfab-bench/contract";
 import { getAgent } from "./agent";
+import { ensureProvisioned } from "./provisioning";
 import {
   endSessionRun,
   rememberOpenedFile,
@@ -84,15 +86,17 @@ function stampUser(last: UIMessage, snapshot: ViewerSnapshot): UIMessage {
   };
 }
 
-function lastIsToolContinuation(last: UIMessage): boolean {
-  if (last.role !== "assistant") return false;
-  const tools = (last.parts ?? []).filter(
-    (part) => part.type === "dynamic-tool" || (typeof part.type === "string" && part.type.startsWith("tool-")),
-  );
-  if (tools.length === 0) return false;
-  return tools.every(
-    (part) => "state" in part && (part.state === "output-available" || part.state === "output-error"),
-  );
+/**
+ * The client resubmits a tool turn when the SDK's own predicate says so
+ * (`sendAutomaticallyWhen` in ChatSession/XrChatRuntime), so this gate has to
+ * be that same predicate — not a copy of it. The copy had drifted twice: it
+ * judged every part instead of only the last step, and it counted
+ * provider-executed tools, which the harness runs itself and never reports a
+ * result for. A model emitting a provider `bash` alongside one of our viewer
+ * tools therefore resubmitted and got "expected a user message or tool result".
+ */
+export function lastIsToolContinuation(last: UIMessage): boolean {
+  return lastAssistantMessageIsCompleteWithToolCalls({ messages: [last] });
 }
 
 function persistChat(chatId: string, next: UIMessage[], root: string) {
@@ -123,6 +127,19 @@ export async function handleChat(req: Request, root: string): Promise<Response> 
   if (!last) {
     return new Response("missing message", { status: 400 });
   }
+
+  // First use installs the harness bridge. Wait for it here, so a failed
+  // install is a plain send failure with the prompt kept, not a dead turn.
+  const installFailed = await ensureProvisioned(root, harness);
+  if (installFailed) return new Response(installFailed, { status: 503 });
+
+  // That wait is the longest gap in the handler, and `abort` does not replay
+  // for a listener added afterwards — so a stop during the install would
+  // otherwise be dropped and start a turn nobody is waiting for, locking the
+  // folder to 409 until it ends. We drop out here instead of passing the
+  // signal into the install: the install is shared, and one folder giving up
+  // must not cancel it for another.
+  if (req.signal.aborted) return new Response(null, { status: 499 });
 
   const run = startSessionRun(root);
   if (!run) {

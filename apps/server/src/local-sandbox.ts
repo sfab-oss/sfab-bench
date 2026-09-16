@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -16,10 +16,31 @@ import type {
 
 const live = new Set<ChildProcess>();
 
+/**
+ * Markers of *our* launcher, which a sandbox command must not inherit:
+ * `pnpm exec` exports its lifecycle config, and `tsx --watch` (dev.ts) exports
+ * the loader and watch vars. They change how a nested Node or package manager
+ * behaves. `WATCH_REPORT_DEPENDENCIES` is the one that bites: with it set,
+ * Node 26 worker threads post `watch:require` messages to their parent, and
+ * pnpm's worker pool reads the first of those as the reply to its own request
+ * ("Cannot destructure property 'verified'"), so every harness bootstrap
+ * install fails under `pnpm dev`.
+ */
+const LAUNCHER_ENV = /^(npm_|pnpm_config_|PNPM_PACKAGE_NAME$|PNPM_SCRIPT_SRC_DIR$|NODE_OPTIONS$|NODE_PATH$|WATCH_REPORT_DEPENDENCIES$)/;
+
+/** A sandbox command runs as if from a clean shell in the folder, not as our child. */
+export function sandboxEnv(base: NodeJS.ProcessEnv, extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(base)) {
+    if (!LAUNCHER_ENV.test(key)) out[key] = value;
+  }
+  return { ...out, ...extra };
+}
+
 function spawnShell(command: string, cwd: string, env?: NodeJS.ProcessEnv) {
   const child = spawn(command, {
     cwd,
-    env: { ...process.env, ...env },
+    env: sandboxEnv(process.env, env),
     shell: true,
     detached: true,
     stdio: ["ignore", "pipe", "pipe"],
@@ -77,6 +98,10 @@ function resolvePath(root: string, p: string, extra: string[] = []) {
     root,
     ...extra,
     join(home, ".agents"),
+    // Grok is the only adapter that writes its instructions to the real home:
+    // `synchronizeInstructions` puts an AGENTS.md in `~/.grok` at the top of
+    // every turn, and there is no setting to redirect it.
+    join(home, ".grok"),
     join(home, ".config", "opencode"),
     join(home, ".opencode"),
     join(home, ".local", "share", "opencode"),
@@ -87,13 +112,22 @@ function resolvePath(root: string, p: string, extra: string[] = []) {
 }
 
 /**
- * Where adapters write `.harness-bootstrap/` and `.agent-runs/`.
- * Not the CAD folder — they still key that off `defaultWorkingDirectory`.
+ * Where adapters write `.harness-bootstrap/`: one directory for the machine,
+ * not the CAD folder and not one per folder. A bridge install is the same three
+ * files whatever is open, and the vendor's marker is keyed by the install
+ * recipe rather than the project, so sharing turns a ~540 MB install per folder
+ * into one per harness. Per-session state does not collide either: ACP keeps it
+ * under `$HOME/.ai-sdk/harness-acp/<id>/<hash(sessionId)>/`, off this tree.
+ * The agent still works in the project — `projectCwd` decides that.
+ *
+ * Note this dir is also on the file-API allow-list, so one chat can read
+ * another's session files here. The shell can already do that, but if that
+ * stops being acceptable this is where to split them.
+ *
  * Remove when `workspace: localWorkspace({ path })` ships (vercel/ai#19108).
  */
-export function harnessHome(root: string, appHome = APP_HOME): string {
-  const id = createHash("sha256").update(normalize(root)).digest("hex").slice(0, 16);
-  return join(appHome, "harness", id);
+export function harnessHome(appHome = APP_HOME): string {
+  return join(appHome, "harness", "shared");
 }
 
 /** Spawn/run: coding commands in the open folder; bootstrap stays in the cache. */
@@ -126,7 +160,7 @@ export function createLocalSandbox(root: string): HarnessV1SandboxProvider {
     specificationVersion: "harness-sandbox-v1",
     providerId: "local-host",
     createSession: async () => {
-      const stateDir = harnessHome(root);
+      const stateDir = harnessHome();
       await mkdir(stateDir, { recursive: true });
       return createLocalSession(root, stateDir);
     },

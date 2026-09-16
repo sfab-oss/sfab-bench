@@ -83,10 +83,8 @@ function parseModelsCli(stdout: string): OpenCodeProvider[] {
 
 export function opencodeBinCandidates(root?: string | null, home = homedir()): string[] {
   const candidates: string[] = [];
-  if (root) {
-    candidates.push(join(harnessHome(root, join(home, ".sfab-bench")), ".harness-bootstrap/opencode/node_modules/.bin/opencode"));
-    candidates.push(join(root, ".harness-bootstrap/opencode/node_modules/.bin/opencode"));
-  }
+  candidates.push(join(harnessHome(join(home, ".sfab-bench")), ".harness-bootstrap/opencode/node_modules/.bin/opencode"));
+  if (root) candidates.push(join(root, ".harness-bootstrap/opencode/node_modules/.bin/opencode"));
   candidates.push(join(home, ".sfab-bench/tools/opencode/node_modules/.bin/opencode"));
   candidates.push(join(home, ".opencode/bin/opencode"));
   candidates.push("/opt/homebrew/bin/opencode");

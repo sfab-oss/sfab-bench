@@ -6,6 +6,11 @@ export function isHarnessId(value: string): value is HarnessId {
   return (HARNESS_IDS as readonly string[]).includes(value);
 }
 
+/** What a probe can say about a harness. Server and web read the same list. */
+export const HARNESS_STATUSES = ["ready", "missing-cli", "needs-auth", "error"] as const;
+
+export type HarnessStatus = (typeof HARNESS_STATUSES)[number];
+
 export const HARNESS_LABEL: Record<HarnessId, string> = {
   opencode: "OpenCode",
   codex: "Codex",
@@ -39,7 +44,7 @@ export function harnessSupportsEffort(id: HarnessId) {
 export const DEFAULT_HARNESS_MODEL: Record<HarnessId, string> = {
   opencode: "zai-coding-plan/glm-5.3-flash",
   codex: "gpt-5.5",
-  cursor: "gpt-5.6-luna",
+  cursor: "composer-2.5",
   "grok-build": "grok-4.6",
 };
 
@@ -49,9 +54,17 @@ export const STATIC_HARNESS_MODELS: Record<Exclude<HarnessId, "opencode">, { id:
     { id: "gpt-5.4", name: "GPT-5.4" },
     { id: "gpt-5.6-luna", name: "GPT-5.6 Luna" },
   ],
+  // Base ids only. `@ai-sdk/harness-cursor` hardcodes
+  // `parameterizedModelPicker: true`, so Cursor matches the name strictly and
+  // rejects a variant like `claude-4.6-sonnet-medium` from
+  // `session/set_config_option` with `-32602` — and puts the reason in
+  // `error.data`, so the turn dies on a bare "Invalid params". Effort is a
+  // separate knob there, which is why `harnessSupportsEffort` excludes cursor.
+  // Do not verify one of these with `cursor-agent -p`: that path uses a lenient
+  // resolver that normalises variant strings, and will accept ids ACP refuses.
   cursor: [
-    { id: "gpt-5.6-luna", name: "GPT-5.6 Luna" },
-    { id: "claude-4.6-sonnet-medium", name: "Claude 4.6 Sonnet" },
+    { id: "composer-2.5", name: "Composer 2.5" },
+    { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
     { id: "grok-4.6", name: "Grok 4.6" },
   ],
   "grok-build": [

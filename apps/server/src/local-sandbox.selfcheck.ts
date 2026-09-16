@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, normalize } from "node:path";
 
-import { harnessHome, pinProjectWorkdir, projectCwd } from "./local-sandbox";
+import { createLocalSandbox, harnessHome, pinProjectWorkdir, projectCwd, sandboxEnv } from "./local-sandbox";
 
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
@@ -10,9 +10,30 @@ function expect(cond: boolean, label: string) {
 
 const root = mkdtempSync(join(tmpdir(), "sfab-sandbox-cwd-"));
 const appHome = mkdtempSync(join(tmpdir(), "sfab-app-home-"));
-const stateDir = harnessHome(root, appHome);
+const stateDir = harnessHome(appHome);
 expect(stateDir.startsWith(join(appHome, "harness") + "/"), "state lives under APP_HOME/harness");
 expect(!stateDir.startsWith(root + "/") && stateDir !== root, "state is not the CAD folder");
+expect(
+  stateDir === join(appHome, "harness", "shared"),
+  "one named home for the machine, so a second folder reuses the install",
+);
+
+// The claim above is about behaviour, not about a string: the sandbox a second
+// CAD folder gets must land on the same install. Asserting the literal alone
+// passed just as happily when the path was per-folder.
+const otherRoot = mkdtempSync(join(tmpdir(), "sfab-sandbox-cwd-"));
+const [sessionA, sessionB] = await Promise.all([
+  createLocalSandbox(root).createSession({}),
+  createLocalSandbox(otherRoot).createSession({}),
+]);
+expect(
+  sessionA.defaultWorkingDirectory === sessionB.defaultWorkingDirectory,
+  "two folders share one harness home",
+);
+expect(
+  sessionA.defaultWorkingDirectory !== root && sessionA.defaultWorkingDirectory !== otherRoot,
+  "and it is neither folder",
+);
 
 const nested = join(root, "opencode-abc:high");
 const cacheSession = join(stateDir, "opencode-abc");
@@ -28,6 +49,18 @@ expect(
 const homeOpenCode = join(homedir(), ".opencode", "cache");
 expect(projectCwd(root, homeOpenCode) === normalize(homeOpenCode), "allowed host paths stay");
 
+// Grok writes `~/.grok/AGENTS.md` at the top of every turn and offers no way to
+// redirect it, so refusing that path killed every Grok turn.
+const grokInstructions = join(homedir(), ".grok");
+expect(projectCwd(root, grokInstructions) === normalize(grokInstructions), "Grok may write its own config dir");
+let refused = false;
+try {
+  projectCwd(root, join(homedir(), ".ssh"));
+} catch {
+  refused = true;
+}
+expect(refused, "the allow-list is still a list — an unrelated home dir is refused");
+
 const cmd = `node bridge.mjs --workdir '${cacheSession}' --bridge-state-dir '${stateDir}/.agent-runs/abc/bridge' --skills-dir '${join(homedir(), ".agents", "skills")}'`;
 const pinned = pinProjectWorkdir(cmd, root, stateDir);
 expect(pinned.includes(`--workdir '${root}'`), `bridge --workdir is the project, got ${pinned}`);
@@ -40,5 +73,29 @@ expect(
   pinProjectWorkdir(`node x --workdir '${tmpdir()}/scratch'`, root, stateDir).includes(`${tmpdir()}/scratch`),
   "workdir outside project and cache is left alone",
 );
+
+const launcher = {
+  PATH: "/usr/bin",
+  HOME: "/Users/someone",
+  PNPM_HOME: "/Users/someone/Library/pnpm",
+  WATCH_REPORT_DEPENDENCIES: "1",
+  NODE_OPTIONS: "--import tsx",
+  NODE_PATH: "/repo/node_modules/tsx/node_modules",
+  npm_command: "exec",
+  npm_config_user_agent: "pnpm/11.21.0",
+  pnpm_config_verify_deps_before_run: "false",
+  PNPM_PACKAGE_NAME: "@sfab-bench/server",
+};
+const clean = sandboxEnv(launcher);
+expect(clean.PATH === "/usr/bin" && clean.HOME === "/Users/someone", "the real environment survives");
+expect(clean.PNPM_HOME === launcher.PNPM_HOME, "a user's pnpm install is not a launcher marker");
+expect(!("WATCH_REPORT_DEPENDENCIES" in clean), "tsx --watch does not leak into pnpm's workers");
+expect(!("NODE_OPTIONS" in clean) && !("NODE_PATH" in clean), "our loader does not follow the child");
+expect(
+  !Object.keys(clean).some((k) => k.startsWith("npm_") || k.startsWith("pnpm_config_")),
+  "pnpm exec lifecycle config is dropped",
+);
+expect(!("PNPM_PACKAGE_NAME" in clean), "the child is not part of our package");
+expect(sandboxEnv(launcher, { NODE_OPTIONS: "--enable-source-maps" }).NODE_OPTIONS === "--enable-source-maps", "an explicit override still wins");
 
 console.log("local-sandbox.selfcheck ok");

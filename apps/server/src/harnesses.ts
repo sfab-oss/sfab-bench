@@ -8,10 +8,11 @@ import {
   HARNESS_LABEL,
   STATIC_HARNESS_MODELS,
   type HarnessId,
+  type HarnessStatus,
 } from "@sfab-bench/contract";
 import { listOpenCodeModels } from "./models";
 
-export type HarnessStatus = "ready" | "missing-cli" | "needs-auth" | "error";
+export type { HarnessStatus };
 
 export type HarnessModel = {
   id: string;
