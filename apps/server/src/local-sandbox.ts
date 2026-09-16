@@ -16,10 +16,31 @@ import type {
 
 const live = new Set<ChildProcess>();
 
+/**
+ * Markers of *our* launcher, which a sandbox command must not inherit:
+ * `pnpm exec` exports its lifecycle config, and `tsx --watch` (dev.ts) exports
+ * the loader and watch vars. They change how a nested Node or package manager
+ * behaves. `WATCH_REPORT_DEPENDENCIES` is the one that bites: with it set,
+ * Node 26 worker threads post `watch:require` messages to their parent, and
+ * pnpm's worker pool reads the first of those as the reply to its own request
+ * ("Cannot destructure property 'verified'"), so every harness bootstrap
+ * install fails under `pnpm dev`.
+ */
+const LAUNCHER_ENV = /^(npm_|pnpm_config_|PNPM_PACKAGE_NAME$|PNPM_SCRIPT_SRC_DIR$|NODE_OPTIONS$|NODE_PATH$|WATCH_REPORT_DEPENDENCIES$)/;
+
+/** A sandbox command runs as if from a clean shell in the folder, not as our child. */
+export function sandboxEnv(base: NodeJS.ProcessEnv, extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(base)) {
+    if (!LAUNCHER_ENV.test(key)) out[key] = value;
+  }
+  return { ...out, ...extra };
+}
+
 function spawnShell(command: string, cwd: string, env?: NodeJS.ProcessEnv) {
   const child = spawn(command, {
     cwd,
-    env: { ...process.env, ...env },
+    env: sandboxEnv(process.env, env),
     shell: true,
     detached: true,
     stdio: ["ignore", "pipe", "pipe"],
