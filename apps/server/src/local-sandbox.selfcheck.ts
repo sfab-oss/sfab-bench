@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, normalize } from "node:path";
 
-import { harnessHome, pinProjectWorkdir, projectCwd, sandboxEnv } from "./local-sandbox";
+import { createLocalSandbox, harnessHome, pinProjectWorkdir, projectCwd, sandboxEnv } from "./local-sandbox";
 
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
@@ -16,6 +16,23 @@ expect(!stateDir.startsWith(root + "/") && stateDir !== root, "state is not the 
 expect(
   stateDir === join(appHome, "harness", "shared"),
   "one named home for the machine, so a second folder reuses the install",
+);
+
+// The claim above is about behaviour, not about a string: the sandbox a second
+// CAD folder gets must land on the same install. Asserting the literal alone
+// passed just as happily when the path was per-folder.
+const otherRoot = mkdtempSync(join(tmpdir(), "sfab-sandbox-cwd-"));
+const [sessionA, sessionB] = await Promise.all([
+  createLocalSandbox(root).createSession({}),
+  createLocalSandbox(otherRoot).createSession({}),
+]);
+expect(
+  sessionA.defaultWorkingDirectory === sessionB.defaultWorkingDirectory,
+  "two folders share one harness home",
+);
+expect(
+  sessionA.defaultWorkingDirectory !== root && sessionA.defaultWorkingDirectory !== otherRoot,
+  "and it is neither folder",
 );
 
 const nested = join(root, "opencode-abc:high");

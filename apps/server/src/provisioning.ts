@@ -28,23 +28,35 @@ export function installFailureDetail(id: HarnessId, err: unknown): string {
 /** Only in-flight installs. "Installed" lives on disk, as the vendor's marker. */
 const inflight = new Map<string, Promise<string | null>>();
 
+/** The result is discarded — only whether it settled matters. */
+type Prepare = (root: string, id: HarnessId) => Promise<unknown>;
+
+const defaultPrepare: Prepare = (root, id) =>
+  prepareHarnessSandboxTemplate({
+    harness: harnessAdapter(id),
+    sandboxProvider: createLocalSandbox(root),
+  });
+
 /**
  * Resolves `null` once the harness is installed, or a reason why it isn't.
  * Concurrent sends join one install. Nothing is remembered afterwards: the
  * vendor's marker makes an installed harness a fast no-op, and a failed
  * install is simply tried again by the next send.
  */
-export function ensureProvisioned(root: string, id: HarnessId): Promise<string | null> {
+export function ensureProvisioned(
+  root: string,
+  id: HarnessId,
+  // The install itself, injectable so the self-check can drive the joining and
+  // the forgetting without a twelve-second pnpm run.
+  prepare: Prepare = defaultPrepare,
+): Promise<string | null> {
   // Keyed by harness alone: the bridge is installed once for the machine, so
   // two folders sending at the same time must join one install, not race it.
   const key = id;
   const running = inflight.get(key);
   if (running) return running;
 
-  const run = prepareHarnessSandboxTemplate({
-    harness: harnessAdapter(id),
-    sandboxProvider: createLocalSandbox(root),
-  })
+  const run = prepare(root, id)
     .then<string | null>(() => null)
     .catch<string | null>((err) => {
       console.error(`[provisioning] ${id} install failed`, err);
