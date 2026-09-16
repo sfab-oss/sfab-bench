@@ -30,6 +30,18 @@ expect(skipEmpty === null, "error without text does not PUT empty assistant");
 const withText = finishPersistMessages([user], true, "Bootstrap command failed");
 expect(withText !== null && withText.length === 2, "error text becomes a persisted turn");
 
+const midTurn = {
+  id: "a",
+  role: "assistant" as const,
+  parts: [{ type: "step-start" as const }, { type: "reasoning" as const }, { type: "tool-bash" as const }],
+};
+const stamped = finishPersistMessages([user, midTurn], true, "expected a user message or tool result");
+expect(stamped !== null && stamped.length === 2, "mid-turn error keeps the assistant row");
+expect(
+  ((stamped?.[1]?.parts ?? []) as { type?: string }[]).some((p) => p.type === "data-error"),
+  "mid-turn error stamps data-error onto the worked parts",
+);
+
 const ok = finishPersistMessages([user, text], false, null);
 expect(ok !== null && ok.length === 2, "success persist unchanged");
 

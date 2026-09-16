@@ -58,7 +58,7 @@ function XrChatSessionRuntime({
   const sendRef = useRef<(text: string) => void>(() => {});
 
   const turnErrorRef = useRef<string | null>(null);
-  const { messages, sendMessage, status, error, stop, addToolOutput } = useChat({
+  const { messages, sendMessage, status, error, stop, addToolOutput, setMessages } = useChat({
     id: threadId,
     throttle: 50,
     messages: initialMessages,
@@ -72,6 +72,7 @@ function XrChatSessionRuntime({
       turnErrorRef.current = null;
       const toSave = finishPersistMessages(next as GalleryChatMessage[], isError, text);
       if (!toSave) return;
+      if (isError) setMessages(toSave);
       void persistThread(threadId, toSave).then(onPersist);
     },
   });
