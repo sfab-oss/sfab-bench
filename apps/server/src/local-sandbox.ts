@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -108,13 +108,15 @@ function resolvePath(root: string, p: string, extra: string[] = []) {
 }
 
 /**
- * Where adapters write `.harness-bootstrap/` and `.agent-runs/`.
- * Not the CAD folder — they still key that off `defaultWorkingDirectory`.
+ * Where adapters write `.harness-bootstrap/` and `.agent-runs/`: one directory
+ * for the machine, not the CAD folder and not one per folder. A bridge install
+ * is the same three files whatever is open, and run state is already keyed by
+ * session id, so sharing turns a ~540 MB install per folder into one per
+ * harness. The agent still works in the project — `projectCwd` decides that.
  * Remove when `workspace: localWorkspace({ path })` ships (vercel/ai#19108).
  */
-export function harnessHome(root: string, appHome = APP_HOME): string {
-  const id = createHash("sha256").update(normalize(root)).digest("hex").slice(0, 16);
-  return join(appHome, "harness", id);
+export function harnessHome(appHome = APP_HOME): string {
+  return join(appHome, "harness", "shared");
 }
 
 /** Spawn/run: coding commands in the open folder; bootstrap stays in the cache. */
@@ -147,7 +149,7 @@ export function createLocalSandbox(root: string): HarnessV1SandboxProvider {
     specificationVersion: "harness-sandbox-v1",
     providerId: "local-host",
     createSession: async () => {
-      const stateDir = harnessHome(root);
+      const stateDir = harnessHome();
       await mkdir(stateDir, { recursive: true });
       return createLocalSession(root, stateDir);
     },

@@ -10,9 +10,13 @@ function expect(cond: boolean, label: string) {
 
 const root = mkdtempSync(join(tmpdir(), "sfab-sandbox-cwd-"));
 const appHome = mkdtempSync(join(tmpdir(), "sfab-app-home-"));
-const stateDir = harnessHome(root, appHome);
+const stateDir = harnessHome(appHome);
 expect(stateDir.startsWith(join(appHome, "harness") + "/"), "state lives under APP_HOME/harness");
 expect(!stateDir.startsWith(root + "/") && stateDir !== root, "state is not the CAD folder");
+expect(
+  stateDir === join(appHome, "harness", "shared"),
+  "one named home for the machine, so a second folder reuses the install",
+);
 
 const nested = join(root, "opencode-abc:high");
 const cacheSession = join(stateDir, "opencode-abc");

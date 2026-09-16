@@ -31,7 +31,9 @@ const inflight = new Map<string, Promise<string | null>>();
  * install is simply tried again by the next send.
  */
 export function ensureProvisioned(root: string, id: HarnessId): Promise<string | null> {
-  const key = `${root}:${id}`;
+  // Keyed by harness alone: the bridge is installed once for the machine, so
+  // two folders sending at the same time must join one install, not race it.
+  const key = id;
   const running = inflight.get(key);
   if (running) return running;
 
