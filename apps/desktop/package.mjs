@@ -7,8 +7,8 @@
  * copy. `app/` gets its own package.json with only the dependencies the bundled
  * server still loads at runtime, installed flat with npm.
  *
- * Signing is auto-detected from the environment (T3's rule: omitting secrets
- * only makes the artefact unsigned). `CSC_NAME` or `CSC_LINK` → electron-builder
+ * Signing is auto-detected from the environment: omitting secrets only makes
+ * the artefact unsigned. `CSC_NAME` or `CSC_LINK` → electron-builder
  * signs. Notary env (`APPLE_ID` + app-specific password + `APPLE_TEAM_ID`, or an
  * API key) → notarize. Otherwise: identity null, then ad-hoc `codesign -`, then
  * `ditto --keepParent` so the zip keeps that signature.
