@@ -27,6 +27,7 @@ Run from the **monorepo root**:
 | Open a folder then serve | `pnpm cli open /abs/path` |
 | Open a folder then Vite | `pnpm cli open /abs/path --dev` |
 | Type check | `pnpm typecheck` |
+| Docs site (local) | `pnpm --filter @sfab-bench/docs dev` |
 | Format + lint (fix) | `pnpm lint:fix` |
 | Lint (check only) | `pnpm lint:check` |
 | Self-checks | `pnpm test` |
@@ -50,6 +51,7 @@ Mac tab: `https://127.0.0.1:7322`. Quest needs the LAN host, not loopback.
 - **Web client** → `apps/web/src/`
 - **Desktop shell** → `apps/desktop/src/`
 - **Shared types** → `packages/contract/`
+- **Docs site** → `apps/docs/` (manifesto + `/docs`; local `:7323`)
 - **How agents use the viewer** → [`.agents/skills/sfab-bench/`](.agents/skills/sfab-bench/)
 
 `.claude/CLAUDE.md` is a copy of this file. `.claude/skills/sfab-bench`

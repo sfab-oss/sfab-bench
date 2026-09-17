@@ -1,0 +1,18 @@
+---
+title: Quest
+description: Same Wi-Fi as the Mac. Quest Browser, not an APK.
+---
+
+1. On the Mac tab at `https://127.0.0.1:7322`, open **Settings** at the
+   bottom of the files sidebar and click **Enter Quest**, or read the QR
+   printed by `pnpm dev` / `pnpm serve`.
+2. On the headset, open `https://<mac-ip>:7322/pair`, accept the cert
+   once, type the 6-character code.
+3. Allow WebXR, then **Enter Studio**.
+
+Join URLs always use port **7322**. After pairing, the headset stores a
+device token and can open the viewer without typing the code again.
+
+Mac and Quest share recents, the thread list for a given folder, and
+messages at rest. Each client keeps its own loaded STEP, selection,
+camera, and live chat.

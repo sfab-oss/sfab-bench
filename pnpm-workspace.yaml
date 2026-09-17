@@ -6,6 +6,8 @@ allowBuilds:
   # Windows installer packaging, pulled in by electron-builder. We do not ship Windows.
   electron-winstaller: false
   esbuild: true
+  # Cloudflare worker runtime, used by `apps/docs` via wrangler / vite plugin.
+  workerd: true
 
 minimumReleaseAgeExclude:
   - zod@4.6.5

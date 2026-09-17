@@ -1,0 +1,89 @@
+/*
+ * SFab shared brand colour layer — accent + de-emphasis tokens on top of the
+ * shadcn palette in `globals.css`. Imported by both docs and platform.
+ * Deliberately excludes the core palette and typography: each app owns those
+ * (docs goes pure black/white + brand fonts; platform keeps shadcn's lifted base
+ * + system font). Values are oklch, tuned to read on both surfaces.
+ *
+ * Brand family: rosa mexicano is the identity accent. Five extras are placed
+ * at equal 60° OKLCH hue steps from rosa (incl. the true complement at +180°)
+ * for maximum perceptual separation — badges, charts, markers; never CTAs.
+ */
+
+:root {
+  --brand: oklch(0.59 0.24 357); /* #e4007c rosa mexicano — fills, markers */
+  --brand-link: oklch(0.55 0.24 357); /* link text on light */
+  --brand-foreground: oklch(0 0 0);
+
+  /* Brand extras — OKLCH-uniform companions (H = 357 + n·60), L matched to rosa */
+  --brand-amber: oklch(0.59 0.18 57); /* H57 */
+  --brand-chartreuse: oklch(0.59 0.18 117); /* H117 */
+  --brand-teal: oklch(0.59 0.18 177); /* H177 · true complement */
+  --brand-azure: oklch(0.59 0.18 237); /* H237 */
+  --brand-violet: oklch(0.59 0.18 297); /* H297 */
+
+  --dot: oklch(0 0 0 / 0.16); /* dot-field backdrop */
+}
+
+.dark {
+  --brand-link: oklch(0.7 0.2 357); /* link text on dark */
+  --brand-amber: oklch(0.78 0.14 57);
+  --brand-chartreuse: oklch(0.8 0.14 117);
+  --brand-teal: oklch(0.78 0.12 177);
+  --brand-azure: oklch(0.76 0.14 237);
+  --brand-violet: oklch(0.76 0.14 297);
+  --dot: oklch(1 0 0 / 0.14);
+}
+
+/* Expose as utilities (text-brand, bg-brand-teal, …), tracking the active theme. */
+@theme inline {
+  --color-brand: var(--brand);
+  --color-brand-link: var(--brand-link);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-amber: var(--brand-amber);
+  --color-brand-chartreuse: var(--brand-chartreuse);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-azure: var(--brand-azure);
+  --color-brand-violet: var(--brand-violet);
+
+  --animate-blink: sfab-blink 1s steps(1, end) infinite;
+  --animate-spark: sfab-spark 1.6s steps(10, end) infinite;
+  --animate-shimmer: tw-shimmer var(--shimmer-duration, 2s) linear infinite;
+
+  @keyframes sfab-blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  @keyframes sfab-spark {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.25;
+    }
+  }
+  @keyframes tw-shimmer {
+    0% {
+      background-position: 200% center;
+    }
+    100% {
+      background-position: -200% center;
+    }
+  }
+}
+
+@utility shimmer {
+  -webkit-text-fill-color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    currentColor 0%,
+    color-mix(in oklab, currentColor 35%, transparent) 45%,
+    currentColor 90%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  background-size: 200% auto;
+  animation: var(--animate-shimmer);
+}

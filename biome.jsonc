@@ -12,6 +12,9 @@
       "!**/apps/desktop/app.prev",
       "!**/apps/desktop/release",
       "!**/apps/server/fixtures/external",
+      "!**/apps/docs/.source",
+      "!**/apps/docs/src/routeTree.gen.ts",
+      "!**/apps/docs/worker-configuration.d.ts",
       "!**/pnpm-lock.yaml"
     ]
   },

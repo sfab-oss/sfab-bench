@@ -58,7 +58,7 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 6 | **done** | Desktop layout (files left, model tree on canvas, chat right, provider status). TipTap `#` mentions from parts / faces / `#o…`; chips flatten to those refs; click a ref in the transcript selects on this tab |
 | 7 | **partial** | Local CLI (`pnpm cli serve` / `dev` / `open`) prints URL, QR, pairing code. **`npx sfab-bench`: not until the repo is public** |
 | 8 | later | `--tunnel` (pairing already required for non-loopback). Do not start until someone needs Quest off this LAN |
-| 9 | later | Docs app (`apps/docs`, `llms.txt`). After a public install path, not before |
+| 9 | **partial** | Docs app (`apps/docs`, `llms.txt`). Local manifesto + user docs + desktop placeholder mock. Cloudflare `bench.sfab.dev` and making the GitHub repo public: later, together. Linking the real `apps/web` client (and XR in that preview): later. |
 | 10 | **done** | Electron shell: native folder dialog, server starts with the app, keep-alive ([ADR 0005](decisions/0005-electron-shell.md)). `pnpm desktop:package` writes the `.app` and a `ditto` zip; signs with `CSC_NAME` when present, otherwise ad-hoc. Notarisation: gated on an Apple identity on the packaging Mac. |
 | 11 | later | Account `principal.kind`. Only when 8 is used by more than one person |
 | 12 | **done** | OCCT WASM loader. STEP opens with no Python ([ADR 0004](decisions/0004-occt-via-opencascade-js.md)) |
@@ -66,10 +66,11 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 14 | **done** | sessions-02 — `?project=` as tab state, switcher sets the tab instead of `POST /api/project`, paired clients pick from recents, ⌘O targets the window's tab. Welcome is `/`; a folder with no `?file=` is an empty scene. |
 | 15 | **done** | ship-01 — tag `v0.1.0`: `bin` field, Releases zip via `ditto`, signing auto-detect with today's ad-hoc fallback, `install.md` recipe "now". `v0.1.1` restores Codex/OpenCode in the packaged app. `v0.2.0` is the desktop UX + harness + sessions cut. |
 | 16 | later | ship-02 — `sfab-bench app [dir]`, binary inside the `.app`, "Open at login". Not until the `.app` sits in `/Applications` and launches from the Dock |
+| 17 | later | IWER in the packaged `.app`: confirm the zip does not ship or inject IWER; a future marketing-demo force-install must not leak into Quest LAN or the `.app`. |
 
 ## Do not build
 
-Sign-in, a relay, a component registry, a docs site, a mobile app, a
+Sign-in, a relay, a component registry, a mobile app, a
 background service (Login Items is not one), thread-scoped cwd or a
 thread sidebar as primary navigation, a diff or terminal panel, a
 second tessellator, Tailscale integration, Fusion / CAD-tool integration,
@@ -78,6 +79,10 @@ Windows anything, merging sfab-cad.
 Electron came off this list on 2026-09-14 by direct ask, as a shell only
 ([ADR 0005](decisions/0005-electron-shell.md)). A second UI inside it is
 still not a thing we build.
+
+`apps/docs` came off the “do not build a docs site” line on 2026-09-17 by
+direct ask. It is a marketing/docs worker, not a second CAD UI. The
+hero workbench is a desktop placeholder until we link `apps/web`.
 
 ## How to run
 
