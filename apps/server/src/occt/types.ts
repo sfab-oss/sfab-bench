@@ -131,7 +131,10 @@ export interface Explorer extends Deletable {
 type Ctor<T, A extends unknown[] = unknown[]> = new (...args: A) => T;
 
 export interface OpenCascade {
-  FS: { writeFile(path: string, data: Uint8Array): void; unlink(path: string): void };
+  FS: {
+    writeFile(path: string, data: Uint8Array): void;
+    unlink(path: string): void;
+  };
   /** Whole wasm heap. Its length is what the recycle watermark watches. */
   HEAPU8: Uint8Array;
   HEAPU16: Uint16Array;
@@ -170,14 +173,23 @@ export interface OpenCascade {
       out: GProps,
       onlyClosed: boolean,
       useSpan: boolean,
-      cgFlag: boolean,
+      cgFlag: boolean
     ): void;
-    SurfaceProperties_1(shape: Shape, out: GProps, useSpan: boolean, cgFlag: boolean): void;
+    SurfaceProperties_1(
+      shape: Shape,
+      out: GProps,
+      useSpan: boolean,
+      cgFlag: boolean
+    ): void;
   };
   Bnd_Box_1: Ctor<Box & Deletable>;
   BRepBndLib: { Add(shape: Shape, box: Box, useTriangulation: boolean): void };
   TopExp_Explorer_2: Ctor<Explorer>;
-  TopAbs_ShapeEnum: { TopAbs_FACE: Enum; TopAbs_SHELL: Enum; TopAbs_SHAPE: Enum };
+  TopAbs_ShapeEnum: {
+    TopAbs_FACE: Enum;
+    TopAbs_SHELL: Enum;
+    TopAbs_SHAPE: Enum;
+  };
   TopAbs_Orientation: { TopAbs_REVERSED: Enum };
   TopoDS: { Face_1(shape: Shape): Shape };
   TopLoc_Location_1: Ctor<Location>;

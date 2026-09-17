@@ -23,21 +23,31 @@ function hoistUnnamed(objs: Object3D[], review: CadReview): Object3D[] {
  * Part children of `parent`, hoisting unnamed GLB wrappers so the model tree
  * and Selection panel share the same `(1.2)` suffixes.
  */
-export function siblingRows(review: CadReview, parent: Object3D | null | undefined): Object3D[] {
+export function siblingRows(
+  review: CadReview,
+  parent: Object3D | null | undefined
+): Object3D[] {
   let level = parent ?? null;
   while (level && !review.partByObject.has(level) && level !== review.root) {
     const up = level.parent;
     if (!up) break;
     level = up;
   }
-  if (!level || level === review.root) return hoistUnnamed(treeTops(review), review);
+  if (!level || level === review.root)
+    return hoistUnnamed(treeTops(review), review);
   return hoistUnnamed(namedKids(level, review), review);
 }
 
-export function partQueryHits(rawName: string, displayName: string, query: string): boolean {
+export function partQueryHits(
+  rawName: string,
+  displayName: string,
+  query: string
+): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return rawName.toLowerCase().includes(q) || displayName.toLowerCase().includes(q);
+  return (
+    rawName.toLowerCase().includes(q) || displayName.toLowerCase().includes(q)
+  );
 }
 
 /**
@@ -47,7 +57,7 @@ export function partQueryHits(rawName: string, displayName: string, query: strin
  */
 export function filterPartTree<T extends PartTreeItem>(
   nodes: T[],
-  query: string,
+  query: string
 ): { nodes: T[]; expandKeys: string[] } {
   const q = query.trim();
   if (!q) return { nodes, expandKeys: [] };

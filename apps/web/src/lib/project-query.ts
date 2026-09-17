@@ -2,7 +2,9 @@
 
 export function projectUrl(): string {
   if (typeof window === "undefined") return "";
-  return new URLSearchParams(window.location.search).get("project")?.trim() ?? "";
+  return (
+    new URLSearchParams(window.location.search).get("project")?.trim() ?? ""
+  );
 }
 
 /**
@@ -20,13 +22,15 @@ export function syncProjectQuery(path: string, opts?: { clearFile?: boolean }) {
   else next.searchParams.delete("project");
   if (changed && opts?.clearFile !== false) next.searchParams.delete("file");
   const want = next.pathname + next.search + next.hash;
-  const have = window.location.pathname + window.location.search + window.location.hash;
+  const have =
+    window.location.pathname + window.location.search + window.location.hash;
   if (want !== have) window.history.replaceState(null, "", want);
   if (changed) window.dispatchEvent(new Event("sfab-project"));
 }
 
 export function appendProjectQuery(url: URL): URL {
   const project = projectUrl();
-  if (project && !url.searchParams.has("project")) url.searchParams.set("project", project);
+  if (project && !url.searchParams.has("project"))
+    url.searchParams.set("project", project);
   return url;
 }

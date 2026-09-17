@@ -6,7 +6,11 @@ export const VOICE_MAX_MS = 30_000;
 
 function pickMime(): string | undefined {
   const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
-  return candidates.find((type) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type));
+  return candidates.find(
+    (type) =>
+      typeof MediaRecorder !== "undefined" &&
+      MediaRecorder.isTypeSupported(type)
+  );
 }
 
 export type VoiceState = "idle" | "recording" | "transcribing" | "error";
@@ -51,20 +55,28 @@ export function useVoiceInput(onText: (text: string) => void) {
       timerRef.current = null;
     }
     stopMeter();
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current?.getTracks().forEach((t) => {
+      t.stop();
+    });
     streamRef.current = null;
     recRef.current = null;
   }, [stopMeter]);
 
-  useEffect(() => () => {
-    abortRef.current?.abort();
-    release();
-  }, [release]);
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+      release();
+    },
+    [release]
+  );
 
   const startMeter = useCallback((stream: MediaStream) => {
     startedAt.current = Date.now();
     setElapsedMs(0);
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const AC =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
     if (!AC) {
       const tick = () => {
         setElapsedMs(Date.now() - startedAt.current);
@@ -119,7 +131,10 @@ export function useVoiceInput(onText: (text: string) => void) {
     if (startingRef.current || recRef.current) return;
     setError(null);
     skipRef.current = false;
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    if (
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === "undefined"
+    ) {
       setError("Microphone is not available in this browser");
       setState("error");
       return;
@@ -130,12 +145,17 @@ export function useVoiceInput(onText: (text: string) => void) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       if (gen !== genRef.current) {
         startingRef.current = false;
-        stream.getTracks().forEach((t) => t.stop());
+        stream.getTracks().forEach((t) => {
+          t.stop();
+        });
         return;
       }
       streamRef.current = stream;
       const mime = pickMime();
-      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      const rec = new MediaRecorder(
+        stream,
+        mime ? { mimeType: mime } : undefined
+      );
       chunksRef.current = [];
       rec.ondataavailable = (ev) => {
         if (ev.data.size > 0) chunksRef.current.push(ev.data);
@@ -165,7 +185,10 @@ export function useVoiceInput(onText: (text: string) => void) {
           signal: ac.signal,
         })
           .then(async (res) => {
-            const body = (await res.json()) as { text?: string; error?: string };
+            const body = (await res.json()) as {
+              text?: string;
+              error?: string;
+            };
             if (!res.ok) throw new Error(body.error || res.statusText);
             const text = body.text?.trim() ?? "";
             if (text) onTextRef.current(text);
@@ -199,7 +222,7 @@ export function useVoiceInput(onText: (text: string) => void) {
       setError(
         name === "NotAllowedError"
           ? "Microphone permission denied. Allow it for this site, then tap again."
-          : "Could not open the microphone",
+          : "Could not open the microphone"
       );
       setState("error");
     }

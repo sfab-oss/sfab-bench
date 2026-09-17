@@ -1,7 +1,14 @@
 import { readFileSync } from "node:fs";
 
 import { openCascade } from "./runtime";
-import type { Deletable, Embound, Label, OpenCascade, ShapeTool, ColorTool } from "./types";
+import type {
+  ColorTool,
+  Deletable,
+  Embound,
+  Label,
+  OpenCascade,
+  ShapeTool,
+} from "./types";
 
 /**
  * An XCAF document: the assembly graph OCCT builds from a STEP file, with the
@@ -25,7 +32,8 @@ function readExtended(oc: OpenCascade, str: Embound): string {
   const base = oc.HEAPU32[str.$$.ptr >> 2]!;
   const length = oc.HEAPU32[(str.$$.ptr >> 2) + 1]!;
   let out = "";
-  for (let i = 0; i < length; i += 1) out += String.fromCharCode(oc.HEAPU16[(base >> 1) + i]!);
+  for (let i = 0; i < length; i += 1)
+    out += String.fromCharCode(oc.HEAPU16[(base >> 1) + i]!);
   return out;
 }
 
@@ -53,7 +61,11 @@ export function labelName(oc: OpenCascade, label: Label): string | null {
 }
 
 /** Surface colour as `[r, g, b, a]` in 0..1, or null when the label carries none. */
-export function labelColor(oc: OpenCascade, colorTool: ColorTool, label: Label): number[] | null {
+export function labelColor(
+  oc: OpenCascade,
+  colorTool: ColorTool,
+  label: Label
+): number[] | null {
   for (const type of [
     oc.XCAFDoc_ColorType.XCAFDoc_ColorSurf,
     oc.XCAFDoc_ColorType.XCAFDoc_ColorGen,
@@ -79,7 +91,7 @@ export function labelColor(oc: OpenCascade, colorTool: ColorTool, label: Label):
 export function childLabels(
   oc: OpenCascade,
   label: Label,
-  keep: (child: Label) => boolean,
+  keep: (child: Label) => boolean
 ): Label[] {
   const out: Label[] = [];
   // Only the iterator is ours. The labels it yields are views into OCCT's own
@@ -96,7 +108,9 @@ export function childLabels(
 /** The label a component instance points at, or null if the reference is broken. */
 export function referredLabel(oc: OpenCascade, component: Label): Label | null {
   const referred = new oc.TDF_Label();
-  return oc.XCAFDoc_ShapeTool.GetReferredShape(component, referred) ? referred : null;
+  return oc.XCAFDoc_ShapeTool.GetReferredShape(component, referred)
+    ? referred
+    : null;
 }
 
 /** A component's placement as a row-major 4x4, the layout `loadStepPackage` expects. */
@@ -105,7 +119,8 @@ export function componentMatrix(oc: OpenCascade, component: Label): number[] {
   const m = new Array<number>(16).fill(0);
   m[15] = 1;
   for (let row = 1; row <= 3; row += 1) {
-    for (let col = 1; col <= 4; col += 1) m[(row - 1) * 4 + (col - 1)] = trsf.Value(row, col);
+    for (let col = 1; col <= 4; col += 1)
+      m[(row - 1) * 4 + (col - 1)] = trsf.Value(row, col);
   }
   return m;
 }
@@ -161,7 +176,8 @@ export async function readStep(absPath: string): Promise<StepDocument> {
     if (status.value !== oc.IFSelect_ReturnStatus.IFSelect_RetDone.value) {
       throw new Error(`STEP could not be read (status ${status.value})`);
     }
-    if (!reader.Transfer_1(handle)) throw new Error("STEP carried no transferable shapes");
+    if (!reader.Transfer_1(handle))
+      throw new Error("STEP carried no transferable shapes");
     const main = document.Main();
     const shapeHandle = oc.XCAFDoc_DocumentTool.ShapeTool(main);
     const colorHandle = oc.XCAFDoc_DocumentTool.ColorTool(main);

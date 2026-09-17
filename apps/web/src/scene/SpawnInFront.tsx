@@ -15,7 +15,7 @@ const right = new THREE.Vector3();
 export function faceToward(
   obj: THREE.Object3D,
   camera: THREE.Camera,
-  lookAt?: THREE.Vector3,
+  lookAt?: THREE.Vector3
 ) {
   camera.getWorldPosition(pos);
   const px = lookAt?.x ?? obj.position.x;
@@ -31,7 +31,7 @@ export function faceToward(
 export function placeAtGaze(
   obj: THREE.Object3D,
   camera: THREE.Camera,
-  { distance = 1.2, drop = 0.2, face = false, resetScale = true, side = 0 } = {},
+  { distance = 1.2, drop = 0.2, face = false, resetScale = true, side = 0 } = {}
 ) {
   camera.getWorldPosition(pos);
   camera.getWorldQuaternion(quat);
@@ -52,7 +52,8 @@ export function placeAtGaze(
   if (side) {
     right.set(1, 0, 0).applyQuaternion(quat);
     right.y = 0;
-    if (right.lengthSq() > 1e-6) obj.position.addScaledVector(right.normalize(), side);
+    if (right.lengthSq() > 1e-6)
+      obj.position.addScaledVector(right.normalize(), side);
   }
   if (face) faceToward(obj, camera);
   else obj.quaternion.identity();
@@ -68,7 +69,7 @@ export function SpawnInFront() {
       placed: s.placed,
       setRecenter: s.setRecenter,
       setModelScale: s.setModelScale,
-    })),
+    }))
   );
   const pending = useRef(false);
 

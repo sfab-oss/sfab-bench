@@ -5,7 +5,9 @@ import { ensureOffer, joinInfo } from "./pairing";
 
 function formatCode(code: string) {
   const compact = code.replace(/\s/g, "");
-  return compact.length === 6 ? `${compact.slice(0, 3)} ${compact.slice(3)}` : compact;
+  return compact.length === 6
+    ? `${compact.slice(0, 3)} ${compact.slice(3)}`
+    : compact;
 }
 
 export function printJoinBanner(mode: "dev" | "serve") {
@@ -23,7 +25,9 @@ export function printJoinBanner(mode: "dev" | "serve") {
   console.log(`  Mac     ${mac}`);
   if (quest) console.log(`  Quest   ${quest}`);
   else console.log("  Quest   (no LAN address — connect this Mac to Wi-Fi)");
-  console.log(`  Code    ${formatCode(info.code)}  (about five minutes, single use)`);
+  console.log(
+    `  Code    ${formatCode(info.code)}  (about five minutes, single use)`
+  );
   if (qrValue) {
     console.log("");
     console.log(renderUnicodeCompact(qrValue));

@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { createConnection } from "node:net";
 import { fileURLToPath } from "node:url";
 
@@ -10,7 +10,12 @@ const webRoot = fileURLToPath(new URL("../../web", import.meta.url));
 const children: ChildProcess[] = [];
 let shutting = false;
 
-function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}) {
+function run(
+  command: string,
+  args: string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv = {}
+) {
   const child = spawn(command, args, {
     cwd,
     stdio: "inherit",
@@ -41,7 +46,8 @@ function waitForPort(port: number, host: string, ms: number) {
       });
       sock.on("error", () => {
         sock.destroy();
-        if (Date.now() - start > ms) reject(new Error(`API did not listen on ${host}:${port}`));
+        if (Date.now() - start > ms)
+          reject(new Error(`API did not listen on ${host}:${port}`));
         else setTimeout(tryOnce, 50);
       });
     };

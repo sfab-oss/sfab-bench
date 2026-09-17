@@ -30,7 +30,8 @@ function multiply(parent: number[], child: number[]): number[] {
   for (let row = 0; row < 4; row += 1) {
     for (let col = 0; col < 4; col += 1) {
       let sum = 0;
-      for (let k = 0; k < 4; k += 1) sum += parent[row * 4 + k]! * child[k * 4 + col]!;
+      for (let k = 0; k < 4; k += 1)
+        sum += parent[row * 4 + k]! * child[k * 4 + col]!;
       out[row * 4 + col] = sum;
     }
   }
@@ -59,7 +60,7 @@ function walkLabel(
   name: string,
   world: number[],
   /** Already resolved for this node: see the call sites below. */
-  color: number[] | null,
+  color: number[] | null
 ): StepAssemblyNode {
   const shapeTool = oc.XCAFDoc_ShapeTool;
   const isAssembly = shapeTool.IsAssembly(definition);
@@ -72,7 +73,9 @@ function walkLabel(
   };
 
   if (isAssembly) {
-    const components = childLabels(oc, definition, (child) => shapeTool.IsComponent(child));
+    const components = childLabels(oc, definition, (child) =>
+      shapeTool.IsComponent(child)
+    );
     components.forEach((component, index) => {
       const referred = referredLabel(oc, component);
       if (!referred) return;
@@ -90,7 +93,7 @@ function walkLabel(
         // A definition painted grey that is placed as a red instance is red.
         labelColor(oc, colorTool, component) ??
           labelColor(oc, colorTool, referred) ??
-          color,
+          color
       );
       node.children.push(child);
       node.leafPartIds.push(...child.leafPartIds);
@@ -128,7 +131,10 @@ function walkLabel(
  * could be handed and then act on, resolving to nothing. A tree of geometry should
  * only contain geometry.
  */
-function prune(node: StepAssemblyNode, drawn: Set<string>): StepAssemblyNode | null {
+function prune(
+  node: StepAssemblyNode,
+  drawn: Set<string>
+): StepAssemblyNode | null {
   if (!node.children.length) {
     return drawn.has(node.id) ? { ...node, leafPartIds: [node.id] } : null;
   }
@@ -137,12 +143,16 @@ function prune(node: StepAssemblyNode, drawn: Set<string>): StepAssemblyNode | n
     .filter((child): child is StepAssemblyNode => child !== null);
   // An assembly of nothing but annotation goes the same way its children did.
   if (!children.length) return null;
-  return { ...node, children, leafPartIds: children.flatMap((child) => child.leafPartIds) };
+  return {
+    ...node,
+    children,
+    leafPartIds: children.flatMap((child) => child.leafPartIds),
+  };
 }
 
 function worldBounds(
   occurrences: StepOccurrence[],
-  bounds: Map<string, { min: number[]; max: number[] }>,
+  bounds: Map<string, { min: number[]; max: number[] }>
 ): StepPackage["bbox"] {
   const min: [number, number, number] = [Infinity, Infinity, Infinity];
   const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
@@ -178,7 +188,10 @@ function worldBounds(
  * — a 26MB assembly is 25 seconds. `occt/build.ts` is the entry point that gets
  * that off the server's event loop; this is what it ends up running.
  */
-export async function buildPackageHere(stepAbs: string, dest: string): Promise<void> {
+export async function buildPackageHere(
+  stepAbs: string,
+  dest: string
+): Promise<void> {
   const started = Date.now();
   const document = await readStep(stepAbs);
   const { oc, shapeTool, colorTool } = document;
@@ -186,7 +199,7 @@ export async function buildPackageHere(stepAbs: string, dest: string): Promise<v
     const stem = basename(stepAbs).replace(/\.(step|stp)$/i, "");
     const walk: Walk = { occurrences: [], definitions: new Map() };
     const frees = childLabels(oc, shapeTool.BaseLabel(), (label) =>
-      oc.XCAFDoc_ShapeTool.IsFree(label),
+      oc.XCAFDoc_ShapeTool.IsFree(label)
     );
     if (!frees.length) throw new Error("STEP has no shapes");
 
@@ -194,11 +207,24 @@ export async function buildPackageHere(stepAbs: string, dest: string): Promise<v
     if (frees.length === 1) {
       const free = frees[0]!;
       root = walkLabel(
-        oc, colorTool, walk, free, "o1", stem, IDENTITY, labelColor(oc, colorTool, free),
+        oc,
+        colorTool,
+        walk,
+        free,
+        "o1",
+        stem,
+        IDENTITY,
+        labelColor(oc, colorTool, free)
       );
       root.name = stem;
     } else {
-      root = { id: "o1", name: stem, nodeType: "assembly", children: [], leafPartIds: [] };
+      root = {
+        id: "o1",
+        name: stem,
+        nodeType: "assembly",
+        children: [],
+        leafPartIds: [],
+      };
       frees.forEach((free, index) => {
         const child = walkLabel(
           oc,
@@ -208,7 +234,7 @@ export async function buildPackageHere(stepAbs: string, dest: string): Promise<v
           `o1.${index + 1}`,
           labelName(oc, free) ?? `${stem}_${index + 1}`,
           IDENTITY,
-          labelColor(oc, colorTool, free),
+          labelColor(oc, colorTool, free)
         );
         root.children.push(child);
         root.leafPartIds.push(...child.leafPartIds);
@@ -231,7 +257,9 @@ export async function buildPackageHere(stepAbs: string, dest: string): Promise<v
       if (!mesh.indices.length) continue;
       const hash = createHash("sha256");
       for (const array of [mesh.positions, mesh.indices, mesh.faceOrds]) {
-        hash.update(Buffer.from(array.buffer, array.byteOffset, array.byteLength));
+        hash.update(
+          Buffer.from(array.buffer, array.byteOffset, array.byteLength)
+        );
       }
       const id = hash.digest("hex").slice(0, 16);
       componentOf.set(entry, id);
@@ -250,7 +278,10 @@ export async function buildPackageHere(stepAbs: string, dest: string): Promise<v
       occurrences.push({ ...rest, component });
     }
 
-    const shown = prune(root, new Set(occurrences.map((occurrence) => occurrence.id)));
+    const shown = prune(
+      root,
+      new Set(occurrences.map((occurrence) => occurrence.id))
+    );
     if (!shown) throw new Error(`${basename(stepAbs)} has no surfaces to draw`);
 
     const pkg: StepPackage = {
@@ -266,7 +297,7 @@ export async function buildPackageHere(stepAbs: string, dest: string): Promise<v
     writeFileSync(join(dest, "assembly.json"), JSON.stringify(pkg));
     console.log(
       `[occt] ${basename(stepAbs)}: ${occurrences.length} occurrences, ` +
-        `${Object.keys(components).length} components, ${triangles} triangles, ${Date.now() - started}ms`,
+        `${Object.keys(components).length} components, ${triangles} triangles, ${Date.now() - started}ms`
     );
   } finally {
     document.close();

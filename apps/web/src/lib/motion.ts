@@ -6,7 +6,8 @@ export const MOTION_READY_VALUE = "ready";
 export const CLOSE_FOLDER_EVENT = "sfab-close-folder";
 export const REFRESH_FILES_EVENT = "sfab-refresh-files";
 
-export const CLOSE_FOLDER_BODY = "The open model and chat will be cleared from this tab.";
+export const CLOSE_FOLDER_BODY =
+  "The open model and chat will be cleared from this tab.";
 
 export function orbitDampingEnabled(prefersReduce: boolean): boolean {
   return !prefersReduce;
@@ -17,7 +18,10 @@ export function viewerFrameloop(xrSessionActive: boolean): "always" | "demand" {
   return xrSessionActive ? "always" : "demand";
 }
 
-export function closeFolderNeedsConfirm(input: { hasModel: boolean; replyInProgress: boolean }): boolean {
+export function closeFolderNeedsConfirm(input: {
+  hasModel: boolean;
+  replyInProgress: boolean;
+}): boolean {
   return input.hasModel || input.replyInProgress;
 }
 

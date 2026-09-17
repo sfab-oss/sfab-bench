@@ -35,15 +35,27 @@ const server = join(here, "..", "server");
 assertHarnessBridgeAssets(server, "server node_modules");
 
 const packager = readFileSync(join(here, "package.mjs"), "utf8");
-expect(packager.includes("restoreHarnessBridgeAssets"), "package.mjs still restores harness bridge files");
-expect(packager.includes("assertHarnessBridgeAssets"), "package.mjs still asserts those files after restore");
+expect(
+  packager.includes("restoreHarnessBridgeAssets"),
+  "package.mjs still restores harness bridge files"
+);
+expect(
+  packager.includes("assertHarnessBridgeAssets"),
+  "package.mjs still asserts those files after restore"
+);
 
 const main = readFileSync(join(here, "src", "main.ts"), "utf8");
-expect(main.includes("loginLikePath()"), "desktop fork env still gets a login-like PATH");
+expect(
+  main.includes("loginLikePath()"),
+  "desktop fork env still gets a login-like PATH"
+);
 
 const app = join(here, "release", "mac-arm64", "sfab-bench.app");
 if (existsSync(app)) {
-  assertHarnessBridgeAssets(join(app, "Contents", "Resources", "app"), "packaged app");
+  assertHarnessBridgeAssets(
+    join(app, "Contents", "Resources", "app"),
+    "packaged app"
+  );
   console.log("package.selfcheck ok (including packaged app)");
 } else {
   console.log("package.selfcheck ok (no packaged app; skipped .app check)");

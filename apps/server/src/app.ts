@@ -1,15 +1,40 @@
-import { zValidator } from "@hono/zod-validator";
 import type { HttpBindings } from "@hono/node-server";
+import { zValidator } from "@hono/zod-validator";
+import {
+  DEFAULT_CHAT_EFFORT,
+  DEFAULT_HARNESS,
+  DEFAULT_HARNESS_MODEL,
+  isChatEffort,
+  isHarnessId,
+} from "@sfab-bench/contract";
+import type { UIMessage } from "ai";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { UIMessage } from "ai";
-
-import { handleCadPkg, handleProjectFile, resolveArtifact, shownUrl } from "./cad-pkg";
+import {
+  handleCadPkg,
+  handleProjectFile,
+  resolveArtifact,
+  shownUrl,
+} from "./cad-pkg";
 import { handleChat } from "./chat";
 import { listHarnesses } from "./harnesses";
 import { listOpenCodeModels } from "./models";
-import { ensureOffer, joinInfo, labelFromUserAgent, mintOffer, redeemCode, redeemFragment } from "./pairing";
-import { hasScope, publicPrincipal, resolvePrincipal, runWithPrincipal, type ClientPrincipal, type Scope } from "./principal";
+import {
+  ensureOffer,
+  joinInfo,
+  labelFromUserAgent,
+  mintOffer,
+  redeemCode,
+  redeemFragment,
+} from "./pairing";
+import {
+  type ClientPrincipal,
+  hasScope,
+  publicPrincipal,
+  resolvePrincipal,
+  runWithPrincipal,
+  type Scope,
+} from "./principal";
 import {
   catalogRevision,
   currentProject,
@@ -21,17 +46,16 @@ import {
   projectRow,
   resolveRequestRoot,
 } from "./projects";
-import { createThread, getThread, listThreads, saveMessages, saveThreadPrefs } from "./threads-db";
-import { handleTranscribe } from "./transcribe";
-import { setStoredSttApiKey, sttApiKey } from "./stt";
 import { rememberOpenedFile, snapshotFor, stopSessionRun } from "./session";
+import { setStoredSttApiKey, sttApiKey } from "./stt";
 import {
-  DEFAULT_CHAT_EFFORT,
-  DEFAULT_HARNESS,
-  DEFAULT_HARNESS_MODEL,
-  isChatEffort,
-  isHarnessId,
-} from "@sfab-bench/contract";
+  createThread,
+  getThread,
+  listThreads,
+  saveMessages,
+  saveThreadPrefs,
+} from "./threads-db";
+import { handleTranscribe } from "./transcribe";
 
 export type AppEnv = {
   Bindings: HttpBindings;
@@ -69,17 +93,29 @@ const sessionPrefsSchema = z.object({
   effort: z.string().optional(),
 });
 
-function denyScope(c: { get: (key: "principal") => ClientPrincipal; json: (body: unknown, status: 403) => Response }, scope: Scope) {
+function denyScope(
+  c: {
+    get: (key: "principal") => ClientPrincipal;
+    json: (body: unknown, status: 403) => Response;
+  },
+  scope: Scope
+) {
   if (hasScope(c.get("principal"), scope)) return null;
   return c.json({ error: "missing scope" }, 403);
 }
 
-function denyLoopback(c: { get: (key: "principal") => ClientPrincipal; json: (body: unknown, status: 403) => Response }) {
+function denyLoopback(c: {
+  get: (key: "principal") => ClientPrincipal;
+  json: (body: unknown, status: 403) => Response;
+}) {
   if (c.get("principal").kind === "loopback") return null;
   return c.json({ error: "only for this Mac" }, 403);
 }
 
-function denyNoProject(c: { get: (key: "projectRoot") => string | undefined; json: (body: unknown, status: 409) => Response }) {
+function denyNoProject(c: {
+  get: (key: "projectRoot") => string | undefined;
+  json: (body: unknown, status: 409) => Response;
+}) {
   if (c.get("projectRoot")) return null;
   return c.json({ error: "open a folder first" }, 409);
 }
@@ -100,13 +136,21 @@ function projectPayload(root?: string | null) {
   };
 }
 
-function prefsFromBody(body: { harness?: string; model?: string; effort?: string }) {
-  const harness = body.harness && isHarnessId(body.harness) ? body.harness : DEFAULT_HARNESS;
+function prefsFromBody(body: {
+  harness?: string;
+  model?: string;
+  effort?: string;
+}) {
+  const harness =
+    body.harness && isHarnessId(body.harness) ? body.harness : DEFAULT_HARNESS;
   const model =
     typeof body.model === "string" && body.model.trim()
       ? body.model.trim()
       : DEFAULT_HARNESS_MODEL[harness];
-  const effort = body.effort && isChatEffort(body.effort) ? body.effort : DEFAULT_CHAT_EFFORT;
+  const effort =
+    body.effort && isChatEffort(body.effort)
+      ? body.effort
+      : DEFAULT_CHAT_EFFORT;
   return { harness, model, effort };
 }
 
@@ -126,7 +170,10 @@ export const api = new Hono<AppEnv>()
     } catch (err) {
       const status = (err as { status?: number }).status ?? 400;
       if (status === 400 || status === 403) {
-        return c.json({ error: err instanceof Error ? err.message : String(err) }, status as 400 | 403);
+        return c.json(
+          { error: err instanceof Error ? err.message : String(err) },
+          status as 400 | 403
+        );
       }
       throw err;
     }
@@ -137,8 +184,11 @@ export const api = new Hono<AppEnv>()
     const label = labelFromUserAgent(c.req.header("user-agent") ?? undefined);
     const code = body.code?.trim() ?? "";
     const fragment = body.fragment?.trim() ?? "";
-    const result = code ? redeemCode(code, label) : redeemFragment(fragment, label);
-    if (result === "expired") return c.json({ error: "pairing code expired" }, 410);
+    const result = code
+      ? redeemCode(code, label)
+      : redeemFragment(fragment, label);
+    if (result === "expired")
+      return c.json({ error: "pairing code expired" }, 410);
     if (result === "invalid") return c.json({ error: "pairing failed" }, 401);
     return c.json(result);
   })
@@ -181,7 +231,10 @@ export const api = new Hono<AppEnv>()
       return c.json(projectPayload(row.path));
     } catch (err) {
       const status = (err as { status?: number }).status ?? 400;
-      return c.json({ error: err instanceof Error ? err.message : String(err) }, status as 400);
+      return c.json(
+        { error: err instanceof Error ? err.message : String(err) },
+        status as 400
+      );
     }
   })
   .get("/browse", (c) => {
@@ -191,14 +244,18 @@ export const api = new Hono<AppEnv>()
       return c.json(listBrowse(c.req.query("path")));
     } catch (err) {
       const status = (err as { status?: number }).status ?? 400;
-      return c.json({ error: err instanceof Error ? err.message : String(err) }, status as 400);
+      return c.json(
+        { error: err instanceof Error ? err.message : String(err) },
+        status as 400
+      );
     }
   })
   .get("/catalog", (c) => {
     const denied = denyScope(c, "view");
     if (denied) return denied;
     const root = c.get("projectRoot");
-    if (!root) return c.json({ files: [], recents: [], revision: catalogRevision() });
+    if (!root)
+      return c.json({ files: [], recents: [], revision: catalogRevision() });
     return c.json({
       files: listProjectFiles(root),
       recents: listFileRecents(root),
@@ -220,7 +277,10 @@ export const api = new Hono<AppEnv>()
       return c.json({ recents: rememberOpenedFile(shownUrl(resolved), root) });
     } catch (err) {
       const status = (err as { status?: number }).status ?? 400;
-      return c.json({ error: err instanceof Error ? err.message : String(err) }, status as 400);
+      return c.json(
+        { error: err instanceof Error ? err.message : String(err) },
+        status as 400
+      );
     }
   })
   .post("/chat/stop", (c) => {
@@ -269,7 +329,13 @@ export const api = new Hono<AppEnv>()
     const denied = denyScope(c, "chat") ?? denyNoProject(c);
     if (denied) return denied;
     const { messages } = c.req.valid("json");
-    if (!saveMessages(c.req.param("id"), c.get("projectRoot")!, messages as UIMessage[])) {
+    if (
+      !saveMessages(
+        c.req.param("id"),
+        c.get("projectRoot")!,
+        messages as UIMessage[]
+      )
+    ) {
       return c.json({ error: "not found" }, 404);
     }
     return c.json({ ok: true });

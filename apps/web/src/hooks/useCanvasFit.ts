@@ -72,7 +72,7 @@ export function useCanvasFit(input: {
         detailHeight,
         canvasWidth,
         canvasHeight,
-      }),
+      })
     );
     if (!review) {
       settledFitUrl.current = null;

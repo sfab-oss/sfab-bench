@@ -1,22 +1,43 @@
 import { PanelRight, Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
-
-import { CadRefTitle } from "@/components/chat/CadRefTitle";
-import { ChatExportMenu, ChatSession, copyConversationJson } from "@/components/chat/ChatSession";
-import { type GalleryChatHandle } from "@/components/chat/chat-input";
-import { HistoryPopover } from "@/components/chat/HistoryPopover";
-import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
-import { peekThreadMessages, readSavedThread, useViewerChat } from "@/components/chat/useViewerChat";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { currentThreadIsEmpty, decideNewChatAction } from "@/chat/history";
 import { LiveDot } from "@/components/brand/LiveDot";
 import { CrashCard } from "@/components/CrashCard";
+import { CadRefTitle } from "@/components/chat/CadRefTitle";
+import {
+  ChatExportMenu,
+  ChatSession,
+  copyConversationJson,
+} from "@/components/chat/ChatSession";
+import type { GalleryChatHandle } from "@/components/chat/chat-input";
+import { HistoryPopover } from "@/components/chat/HistoryPopover";
+import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
+import {
+  peekThreadMessages,
+  readSavedThread,
+  useViewerChat,
+} from "@/components/chat/useViewerChat";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Button } from "@/components/ui/button";
-import { showToast } from "@/components/ui/toast";
 import { Separator } from "@/components/ui/separator";
+import { showToast } from "@/components/ui/toast";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { HIDDEN_CHAT_NOTICE, hiddenChatNotice } from "@/lib/feedback";
-import { CHAT_DEFAULT_WIDTH, CHAT_MAX_WIDTH, CHAT_MIN_WIDTH, chatWidthAfterKey, clampChatDrag } from "@/lib/layout";
+import {
+  CHAT_DEFAULT_WIDTH,
+  CHAT_MAX_WIDTH,
+  CHAT_MIN_WIDTH,
+  chatWidthAfterKey,
+  clampChatDrag,
+} from "@/lib/layout";
 import { escBelongsTo, probeEscLayers } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
@@ -41,7 +62,11 @@ export function ChatPanel({
   const [resizing, setResizing] = useState(false);
   const [live, setLive] = useState(false);
   const [sessionPreview, setSessionPreview] = useState<string | null>(null);
-  const [tabStatus, setTabStatus] = useState({ streaming: false, askUser: false, error: false });
+  const [tabStatus, setTabStatus] = useState({
+    streaming: false,
+    askUser: false,
+    error: false,
+  });
   const prevTabStatus = useRef(tabStatus);
   const messagesRef = useRef<GalleryChatMessage[]>([]);
   const messagesThreadIdRef = useRef<string | null>(null);
@@ -52,8 +77,15 @@ export function ChatPanel({
   const captureDraftRef = useRef<(() => void) | null>(null);
   const composerRef = useRef<GalleryChatHandle>(null);
   const projectPath = useProjectSession().project.path;
-  const { threads, threadId, initialMessages, refreshThreads, newThread, openThread, registerTabTurn } =
-    useViewerChat();
+  const {
+    threads,
+    threadId,
+    initialMessages,
+    refreshThreads,
+    newThread,
+    openThread,
+    registerTabTurn,
+  } = useViewerChat();
   useEffect(() => {
     const prev = prevTabStatus.current;
     prevTabStatus.current = tabStatus;
@@ -70,22 +102,33 @@ export function ChatPanel({
   }, [open, tabStatus, compact, setChatOpen, setCompactChatOpen]);
 
   const onSessionMeta = useCallback(
-    (meta: { preview: string | null; streaming: boolean; askUser: boolean; error: boolean }) => {
+    (meta: {
+      preview: string | null;
+      streaming: boolean;
+      askUser: boolean;
+      error: boolean;
+    }) => {
       setSessionPreview(meta.preview);
       setTabStatus((prev) =>
-        prev.streaming === meta.streaming && prev.askUser === meta.askUser && prev.error === meta.error
+        prev.streaming === meta.streaming &&
+        prev.askUser === meta.askUser &&
+        prev.error === meta.error
           ? prev
-          : { streaming: meta.streaming, askUser: meta.askUser, error: meta.error },
+          : {
+              streaming: meta.streaming,
+              askUser: meta.askUser,
+              error: meta.error,
+            }
       );
     },
-    [],
+    []
   );
 
   const persistWidth = useCallback(
     (next: number) => {
       setWidth(clampChatDrag(next, window.innerWidth, treeOpen));
     },
-    [setWidth, treeOpen],
+    [setWidth, treeOpen]
   );
   const dragRef = useRef<{ startX: number; startW: number } | null>(null);
 
@@ -172,13 +215,23 @@ export function ChatPanel({
   }, [compact, open, onClose]);
 
   const onResizeKeyDown = (ev: ReactKeyboardEvent<HTMLDivElement>) => {
-    const next = chatWidthAfterKey(ev.key, ev.shiftKey, width, window.innerWidth, treeOpen);
+    const next = chatWidthAfterKey(
+      ev.key,
+      ev.shiftKey,
+      width,
+      window.innerWidth,
+      treeOpen
+    );
     if (next == null) return;
     ev.preventDefault();
     persistWidth(next);
   };
 
-  const resizeMax = clampChatDrag(CHAT_MAX_WIDTH, typeof window === "undefined" ? width : window.innerWidth, treeOpen);
+  const resizeMax = clampChatDrag(
+    CHAT_MAX_WIDTH,
+    typeof window === "undefined" ? width : window.innerWidth,
+    treeOpen
+  );
 
   const onResizeDown = (ev: ReactMouseEvent) => {
     ev.preventDefault();
@@ -252,7 +305,7 @@ export function ChatPanel({
           aria-label="Close chat"
           className={cn(
             "fixed inset-0 z-40 bg-black/30 transition-opacity duration-200",
-            open ? "opacity-100" : "pointer-events-none opacity-0",
+            open ? "opacity-100" : "pointer-events-none opacity-0"
           )}
           onClick={onClose}
         />
@@ -271,111 +324,117 @@ export function ChatPanel({
           compact
             ? cn(
                 "fixed inset-y-0 right-0 z-50 max-w-[90vw] outline-none transition-transform duration-200 ease-out",
-                open ? "translate-x-0" : "pointer-events-none translate-x-full",
+                open ? "translate-x-0" : "pointer-events-none translate-x-full"
               )
             : "relative shrink-0",
-          !compact && !open && "hidden",
+          !compact && !open && "hidden"
         )}
         style={{ width }}
       >
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize chat"
-        aria-valuemin={CHAT_MIN_WIDTH}
-        aria-valuemax={resizeMax}
-        aria-valuenow={width}
-        tabIndex={0}
-        className={cn(
-          "absolute inset-y-0 left-0 z-10 w-2 cursor-col-resize bg-transparent outline-none hover:bg-border focus-visible:bg-border focus-visible:ring-2 focus-visible:ring-ring/50",
-          resizing && "bg-muted-foreground",
-        )}
-        title="Drag to resize chat. Double-click to reset."
-        onMouseDown={onResizeDown}
-        onKeyDown={onResizeKeyDown}
-        onDoubleClick={(ev) => {
-          ev.preventDefault();
-          persistWidth(CHAT_DEFAULT_WIDTH);
-        }}
-      />
-      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-7"
-          title="Hide chat"
-          aria-label="Hide chat"
-          onClick={onClose}
-        >
-          <PanelRight />
-        </Button>
-        <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-4" />
-        <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
-          {live ? <LiveDot /> : null}
-          <CadRefTitle className="min-w-0 truncate text-sm font-medium" title={headerTitle} />
-        </div>
-        <ChatExportMenu
-          onCopyJson={() =>
-            copyConversationJson({
-              id: threadId,
-              title: active?.title ?? "Assistant",
-              messages: messagesRef.current,
-            })
-          }
-        />
-        <HistoryPopover
-          currentEmpty={currentEmpty}
-          currentPreview={sessionPreview}
-          currentStatus={tabStatus}
-          onOpenThread={(id) => {
-            if (id === threadId) return;
-            captureDraftRef.current?.();
-            stopTurnRef.current?.();
-            void openThread(id);
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize chat"
+          aria-valuemin={CHAT_MIN_WIDTH}
+          aria-valuemax={resizeMax}
+          aria-valuenow={width}
+          tabIndex={0}
+          className={cn(
+            "absolute inset-y-0 left-0 z-10 w-2 cursor-col-resize bg-transparent outline-none hover:bg-border focus-visible:bg-border focus-visible:ring-2 focus-visible:ring-ring/50",
+            resizing && "bg-muted-foreground"
+          )}
+          title="Drag to resize chat. Double-click to reset."
+          onMouseDown={onResizeDown}
+          onKeyDown={onResizeKeyDown}
+          onDoubleClick={(ev) => {
+            ev.preventDefault();
+            persistWidth(CHAT_DEFAULT_WIDTH);
           }}
-          refreshThreads={refreshThreads}
-          threadId={threadId}
-          threads={threads}
         />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 p-0"
-          title="New chat"
-          aria-label="New chat"
-          onClick={startNewChat}
-        >
-          <Plus />
-        </Button>
-      </header>
-      <RenderErrorBoundary
-        resetKeys={[threadId]}
-        fallback={({ error, reset }) => (
-          <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-            <CrashCard error={error} onRetry={reset} />
-          </div>
-        )}
-      >
-        {threadId ? (
-          <ChatSession
-            key={threadId}
-            threadId={threadId}
-            initialMessages={initialMessages}
-            messagesRef={messagesRef}
-            messagesThreadIdRef={messagesThreadIdRef}
-            onLive={setLive}
-            onMeta={onSessionMeta}
-            onPersist={() => void refreshThreads()}
-            registerTabTurn={registerTabTurn}
-            stopTurnRef={stopTurnRef}
-            captureDraftRef={captureDraftRef}
-            composerRef={composerRef}
+        <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-7"
+            title="Hide chat"
+            aria-label="Hide chat"
+            onClick={onClose}
+          >
+            <PanelRight />
+          </Button>
+          <Separator
+            orientation="vertical"
+            className="mx-1 data-[orientation=vertical]:h-4"
           />
-        ) : null}
-      </RenderErrorBoundary>
-    </aside>
+          <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
+            {live ? <LiveDot /> : null}
+            <CadRefTitle
+              className="min-w-0 truncate text-sm font-medium"
+              title={headerTitle}
+            />
+          </div>
+          <ChatExportMenu
+            onCopyJson={() =>
+              copyConversationJson({
+                id: threadId,
+                title: active?.title ?? "Assistant",
+                messages: messagesRef.current,
+              })
+            }
+          />
+          <HistoryPopover
+            currentEmpty={currentEmpty}
+            currentPreview={sessionPreview}
+            currentStatus={tabStatus}
+            onOpenThread={(id) => {
+              if (id === threadId) return;
+              captureDraftRef.current?.();
+              stopTurnRef.current?.();
+              void openThread(id);
+            }}
+            refreshThreads={refreshThreads}
+            threadId={threadId}
+            threads={threads}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="New chat"
+            aria-label="New chat"
+            onClick={startNewChat}
+          >
+            <Plus />
+          </Button>
+        </header>
+        <RenderErrorBoundary
+          resetKeys={[threadId]}
+          fallback={({ error, reset }) => (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+              <CrashCard error={error} onRetry={reset} />
+            </div>
+          )}
+        >
+          {threadId ? (
+            <ChatSession
+              key={threadId}
+              threadId={threadId}
+              initialMessages={initialMessages}
+              messagesRef={messagesRef}
+              messagesThreadIdRef={messagesThreadIdRef}
+              onLive={setLive}
+              onMeta={onSessionMeta}
+              onPersist={() => void refreshThreads()}
+              registerTabTurn={registerTabTurn}
+              stopTurnRef={stopTurnRef}
+              captureDraftRef={captureDraftRef}
+              composerRef={composerRef}
+            />
+          ) : null}
+        </RenderErrorBoundary>
+      </aside>
     </>
   );
 }

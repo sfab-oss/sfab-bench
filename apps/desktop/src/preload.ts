@@ -7,8 +7,10 @@ import { contextBridge, ipcRenderer } from "electron";
  */
 contextBridge.exposeInMainWorld("sfabBench", {
   desktop: true,
-  pickFolder: (): Promise<string | null> => ipcRenderer.invoke("sfab:pick-folder"),
-  setTheme: (theme: "light" | "dark" | "system"): void => ipcRenderer.send("sfab:theme", theme),
+  pickFolder: (): Promise<string | null> =>
+    ipcRenderer.invoke("sfab:pick-folder"),
+  setTheme: (theme: "light" | "dark" | "system"): void =>
+    ipcRenderer.send("sfab:theme", theme),
 });
 
 ipcRenderer.on("sfab:open-folder", (_event, path: unknown) => {

@@ -48,14 +48,16 @@ export function catalogKindLabel(kind: CatalogEntry["kind"]): string {
 
 export function flattenCatalog(files: CatalogEntry[]): CatalogEntry[] {
   return [...files].sort((a, b) =>
-    catalogLabel(a.path).localeCompare(catalogLabel(b.path), undefined, { sensitivity: "base" }),
+    catalogLabel(a.path).localeCompare(catalogLabel(b.path), undefined, {
+      sensitivity: "base",
+    })
   );
 }
 
 /** Recents that still exist, then the rest of the catalog A–Z (no duplicate rows). */
 export function catalogSections(
   files: CatalogEntry[],
-  recents: string[],
+  recents: string[]
 ): { recents: CatalogEntry[]; rest: CatalogEntry[] } {
   const byPath = new Map(files.map((f) => [f.path, f]));
   const recentRows: CatalogEntry[] = [];
@@ -66,7 +68,10 @@ export function catalogSections(
     recentRows.push(hit);
     seen.add(path);
   }
-  return { recents: recentRows, rest: flattenCatalog(files).filter((f) => !seen.has(f.path)) };
+  return {
+    recents: recentRows,
+    rest: flattenCatalog(files).filter((f) => !seen.has(f.path)),
+  };
 }
 
 export type CatalogDir = {
@@ -115,13 +120,28 @@ export function catalogTree(files: CatalogEntry[]): CatalogNode[] {
       cur = next;
     }
     const name = parts[parts.length - 1]!;
-    cur.files.push({ type: "file", name, path: entry.path, kind: entry.kind, entry });
+    cur.files.push({
+      type: "file",
+      name,
+      path: entry.path,
+      kind: entry.kind,
+      entry,
+    });
   }
   const freeze = (dir: MutableDir): CatalogNode[] => {
     const dirs: CatalogDir[] = [...dir.dirs.values()]
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }))
-      .map((child) => ({ type: "dir" as const, name: child.name, path: child.path, children: freeze(child) }));
-    const listed = dir.files.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+      .sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+      )
+      .map((child) => ({
+        type: "dir" as const,
+        name: child.name,
+        path: child.path,
+        children: freeze(child),
+      }));
+    const listed = dir.files.sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+    );
     return [...dirs, ...listed];
   };
   return freeze(root);
@@ -143,7 +163,10 @@ function catalogQueryHit(path: string, name: string, q: string) {
   );
 }
 
-export function filterCatalogTree(nodes: CatalogNode[], query: string): CatalogNode[] {
+export function filterCatalogTree(
+  nodes: CatalogNode[],
+  query: string
+): CatalogNode[] {
   const q = query.trim().toLowerCase();
   if (!q) return nodes;
   const walk = (list: CatalogNode[]): CatalogNode[] => {

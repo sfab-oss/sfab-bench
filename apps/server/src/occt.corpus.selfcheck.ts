@@ -1,14 +1,13 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { StepPackage } from "@sfab-bench/contract";
-
-import { checkPackage, placedMesh } from "./occt/invariants";
-import { readStep, childLabels, labelEntry } from "./occt/document";
-import { tessellate } from "./occt/mesh";
 import { buildStepPackage } from "./occt/build";
+import { childLabels, labelEntry, readStep } from "./occt/document";
+import { checkPackage, placedMesh } from "./occt/invariants";
+import { tessellate } from "./occt/mesh";
 import { meshProps, solidProps } from "./occt/solid";
 import type { Label, OpenCascade, Shape } from "./occt/types";
 
@@ -55,16 +54,23 @@ const relative = (got: number, want: number) =>
   Math.abs(want) < 1e-9 ? Math.abs(got) : Math.abs(got - want) / Math.abs(want);
 
 /** Every leaf definition in the document, keyed by XCAF entry so each is measured once. */
-function leafShapes(oc: OpenCascade, root: Label, into: Map<string, Shape>): void {
+function leafShapes(
+  oc: OpenCascade,
+  root: Label,
+  into: Map<string, Shape>
+): void {
   const shapeTool = oc.XCAFDoc_ShapeTool;
   if (!shapeTool.IsAssembly(root)) {
     const entry = labelEntry(oc, root);
     if (!into.has(entry)) into.set(entry, shapeTool.GetShape_2(root));
     return;
   }
-  for (const component of childLabels(oc, root, (child) => shapeTool.IsComponent(child))) {
+  for (const component of childLabels(oc, root, (child) =>
+    shapeTool.IsComponent(child)
+  )) {
     const referred = new oc.TDF_Label();
-    if (oc.XCAFDoc_ShapeTool.GetReferredShape(component, referred)) leafShapes(oc, referred, into);
+    if (oc.XCAFDoc_ShapeTool.GetReferredShape(component, referred))
+      leafShapes(oc, referred, into);
   }
 }
 
@@ -74,7 +80,9 @@ async function compareToBrep(step: string, label: string): Promise<void> {
   const { oc, shapeTool } = document;
   try {
     const shapes = new Map<string, Shape>();
-    for (const free of childLabels(oc, shapeTool.BaseLabel(), (l) => oc.XCAFDoc_ShapeTool.IsFree(l))) {
+    for (const free of childLabels(oc, shapeTool.BaseLabel(), (l) =>
+      oc.XCAFDoc_ShapeTool.IsFree(l)
+    )) {
       leafShapes(oc, free, shapes);
     }
     if (!shapes.size) return note(`${label}: no leaf solids found`);
@@ -96,49 +104,57 @@ async function compareToBrep(step: string, label: string): Promise<void> {
       // Negative means the triangles wind the other way: the solid is inside out,
       // which a DoubleSide material in the viewer would hide completely.
       if (drawn.volume < 0) {
-        note(`${where}: mesh encloses ${drawn.volume.toFixed(2)}mm³ — winding is reversed`);
+        note(
+          `${where}: mesh encloses ${drawn.volume.toFixed(2)}mm³ — winding is reversed`
+        );
         continue;
       }
       // Zero is a different failure: triangles that enclose nothing, which is an
       // open shell rather than an inverted one.
       if (drawn.volume === 0) {
-        note(`${where}: ${mesh.indices.length / 3} triangles enclose no volume — the surface is not closed`);
+        note(
+          `${where}: ${mesh.indices.length / 3} triangles enclose no volume — the surface is not closed`
+        );
         continue;
       }
       if (relative(drawn.volume, exact.volume) > VOLUME_TOLERANCE) {
         note(
           `${where}: mesh volume ${drawn.volume.toFixed(2)}mm³ vs B-rep ${exact.volume.toFixed(2)}mm³ ` +
-            `(${(relative(drawn.volume, exact.volume) * 100).toFixed(1)}% out)`,
+            `(${(relative(drawn.volume, exact.volume) * 100).toFixed(1)}% out)`
         );
       }
       if (relative(drawn.area, exact.area) > AREA_TOLERANCE) {
         note(
           `${where}: mesh area ${drawn.area.toFixed(2)}mm² vs B-rep ${exact.area.toFixed(2)}mm² ` +
-            `(${(relative(drawn.area, exact.area) * 100).toFixed(1)}% out)`,
+            `(${(relative(drawn.area, exact.area) * 100).toFixed(1)}% out)`
         );
       }
       for (let axis = 0; axis < 3; axis += 1) {
         const gap = Math.max(
           exact.bbox!.min[axis]! - drawn.bbox!.min[axis]!,
-          drawn.bbox!.max[axis]! - exact.bbox!.max[axis]!,
+          drawn.bbox!.max[axis]! - exact.bbox!.max[axis]!
         );
         // The mesh may sit inside the exact box; it must never stick out of it.
         if (gap > BBOX_TOLERANCE) {
-          note(`${where}: mesh escapes the B-rep box on axis ${axis} by ${gap.toFixed(3)}mm`);
+          note(
+            `${where}: mesh escapes the B-rep box on axis ${axis} by ${gap.toFixed(3)}mm`
+          );
         }
       }
       const drift = Math.hypot(
         drawn.centroid[0] - exact.centroid[0],
         drawn.centroid[1] - exact.centroid[1],
-        drawn.centroid[2] - exact.centroid[2],
+        drawn.centroid[2] - exact.centroid[2]
       );
       const span = Math.hypot(
         exact.bbox!.max[0]! - exact.bbox!.min[0]!,
         exact.bbox!.max[1]! - exact.bbox!.min[1]!,
-        exact.bbox!.max[2]! - exact.bbox!.min[2]!,
+        exact.bbox!.max[2]! - exact.bbox!.min[2]!
       );
       if (drift > span * 0.01) {
-        note(`${where}: mesh centre of mass is ${drift.toFixed(3)}mm from the B-rep's`);
+        note(
+          `${where}: mesh centre of mass is ${drift.toFixed(3)}mm from the B-rep's`
+        );
       }
       shape.delete();
     }
@@ -160,36 +176,49 @@ async function compareToBrep(step: string, label: string): Promise<void> {
  * passes every other check in this file. `deep_nest` and `many_instances` exist for
  * exactly that failure and until now were only ever checked against themselves.
  */
-async function compareAssembly(step: string, dir: string, label: string): Promise<void> {
-  const pkg = JSON.parse(readFileSync(join(dir, "assembly.json"), "utf8")) as StepPackage;
+async function compareAssembly(
+  step: string,
+  dir: string,
+  label: string
+): Promise<void> {
+  const pkg = JSON.parse(
+    readFileSync(join(dir, "assembly.json"), "utf8")
+  ) as StepPackage;
   const document = await readStep(step);
   const { oc, shapeTool } = document;
   try {
     // A free label's shape carries its components' locations, so this is the whole
     // document already placed — the thing the package claims to be a copy of.
-    const roots = [...childLabels(oc, shapeTool.BaseLabel(), (l) => oc.XCAFDoc_ShapeTool.IsFree(l))];
+    const roots = [
+      ...childLabels(oc, shapeTool.BaseLabel(), (l) =>
+        oc.XCAFDoc_ShapeTool.IsFree(l)
+      ),
+    ];
     if (roots.length !== 1) return; // nothing in the corpus has two, and the maths below assumes one
     const shape = oc.XCAFDoc_ShapeTool.GetShape_2(roots[0]!);
     const exact = solidProps(oc, shape);
     shape.delete();
 
     const drawn = meshProps(placedMesh(dir, pkg));
-    if (!exact.bbox || !drawn.bbox) return note(`${label}: the assembled document has no bounding box`);
+    if (!exact.bbox || !drawn.bbox)
+      return note(`${label}: the assembled document has no bounding box`);
 
     if (relative(drawn.volume, exact.volume) > VOLUME_TOLERANCE) {
       note(
         `${label} assembled: ${drawn.volume.toFixed(2)}mm³ across ${pkg.occurrences.length} ` +
           `occurrence(s) vs B-rep ${exact.volume.toFixed(2)}mm³ ` +
-          `(${(relative(drawn.volume, exact.volume) * 100).toFixed(1)}% out)`,
+          `(${(relative(drawn.volume, exact.volume) * 100).toFixed(1)}% out)`
       );
     }
     for (let axis = 0; axis < 3; axis += 1) {
       const gap = Math.max(
         exact.bbox.min[axis]! - drawn.bbox.min[axis]!,
-        drawn.bbox.max[axis]! - exact.bbox.max[axis]!,
+        drawn.bbox.max[axis]! - exact.bbox.max[axis]!
       );
       if (gap > BBOX_TOLERANCE) {
-        note(`${label} assembled: geometry escapes the B-rep box on axis ${axis} by ${gap.toFixed(3)}mm`);
+        note(
+          `${label} assembled: geometry escapes the B-rep box on axis ${axis} by ${gap.toFixed(3)}mm`
+        );
       }
     }
     // The sensitive one. A single instance in the wrong place barely changes a
@@ -197,22 +226,26 @@ async function compareAssembly(step: string, dir: string, label: string): Promis
     const drift = Math.hypot(
       drawn.centroid[0] - exact.centroid[0],
       drawn.centroid[1] - exact.centroid[1],
-      drawn.centroid[2] - exact.centroid[2],
+      drawn.centroid[2] - exact.centroid[2]
     );
     const span = Math.hypot(
       exact.bbox.max[0]! - exact.bbox.min[0]!,
       exact.bbox.max[1]! - exact.bbox.min[1]!,
-      exact.bbox.max[2]! - exact.bbox.min[2]!,
+      exact.bbox.max[2]! - exact.bbox.min[2]!
     );
     if (drift > span * 0.01) {
-      note(`${label} assembled: centre of mass is ${drift.toFixed(3)}mm from the B-rep's`);
+      note(
+        `${label} assembled: centre of mass is ${drift.toFixed(3)}mm from the B-rep's`
+      );
     }
   } finally {
     document.close();
   }
 }
 
-const steps = readdirSync(fixtures).filter((f) => /\.(step|stp)$/i.test(f)).sort();
+const steps = readdirSync(fixtures)
+  .filter((f) => /\.(step|stp)$/i.test(f))
+  .sort();
 if (!steps.length) throw new Error(`no fixtures in ${fixtures}`);
 
 for (const file of steps) {
@@ -226,13 +259,19 @@ for (const file of steps) {
 
     const expected = EXPECTED_SIZE_MM[label];
     if (expected) {
-      const box = (JSON.parse(readFileSync(join(dest, "assembly.json"), "utf8")) as StepPackage).bbox;
+      const box = (
+        JSON.parse(
+          readFileSync(join(dest, "assembly.json"), "utf8")
+        ) as StepPackage
+      ).bbox;
       if (!box) note(`${label}: no bbox to measure`);
       else {
         const size = box.max.map((hi, axis) => hi - box.min[axis]!);
         for (let axis = 0; axis < 3; axis += 1) {
           if (Math.abs(size[axis]! - expected[axis]!) > 0.05) {
-            note(`${label}: axis ${axis} is ${size[axis]!.toFixed(3)}mm, expected ${expected[axis]}mm`);
+            note(
+              `${label}: axis ${axis} is ${size[axis]!.toFixed(3)}mm, expected ${expected[axis]}mm`
+            );
           }
         }
       }
@@ -249,7 +288,9 @@ for (const file of steps) {
 // wasm glue loaded through `new Function`, is 330KB of minified emscripten on one
 // line, burying the results this check exists to show.
 if (failures.length) {
-  console.error(`\n${failures.length} corpus failure(s) across ${steps.length} fixtures`);
+  console.error(
+    `\n${failures.length} corpus failure(s) across ${steps.length} fixtures`
+  );
   process.exit(1);
 }
 console.log(`occt.corpus.selfcheck ok (${steps.length} fixtures)`);

@@ -83,7 +83,7 @@ type PoseFillingFrame = XRFrame & {
   fillPoses?: (
     spaces: Iterable<XRSpace>,
     baseSpace: XRSpace,
-    transforms: Float32Array,
+    transforms: Float32Array
   ) => boolean;
 };
 
@@ -170,7 +170,11 @@ type Rig = {
 function createRig(): Rig {
   const jointGeometry = new THREE.SphereGeometry(0.006, 8, 8);
   const jointMaterial = new THREE.MeshBasicMaterial({ color: IDLE_COLOR });
-  const joints = new THREE.InstancedMesh(jointGeometry, jointMaterial, JOINT_COUNT);
+  const joints = new THREE.InstancedMesh(
+    jointGeometry,
+    jointMaterial,
+    JOINT_COUNT
+  );
   joints.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   joints.frustumCulled = false;
   joints.raycast = () => {};
@@ -180,7 +184,7 @@ function createRig(): Rig {
   const boneGeometry = new THREE.BufferGeometry();
   boneGeometry.setAttribute(
     "position",
-    new THREE.BufferAttribute(new Float32Array(BONE_INDEX.length * 3), 3),
+    new THREE.BufferAttribute(new Float32Array(BONE_INDEX.length * 3), 3)
   );
   const boneMaterial = new THREE.LineBasicMaterial({ color: IDLE_COLOR });
   const bones = new THREE.LineSegments(boneGeometry, boneMaterial);
@@ -244,7 +248,12 @@ function jointSpaces(rig: Rig, hand: XRHand) {
 }
 
 /** Fills `rig.positions` / `rig.tracked`; returns true if any joint was posed. */
-function readPoses(frame: XRFrame, refSpace: XRSpace, spaces: XRSpace[], rig: Rig) {
+function readPoses(
+  frame: XRFrame,
+  refSpace: XRSpace,
+  spaces: XRSpace[],
+  rig: Rig
+) {
   const { positions, tracked, matrices } = rig;
   const fillPoses = (frame as PoseFillingFrame).fillPoses;
   if (fillPoses && fillPoses.call(frame, spaces, refSpace, matrices)) {
@@ -299,7 +308,7 @@ function OneHand({ handedness }: { handedness: "left" | "right" }) {
         tmpMatrix.makeTranslation(
           positions[i * 3]!,
           positions[i * 3 + 1]!,
-          positions[i * 3 + 2]!,
+          positions[i * 3 + 2]!
         );
         rig.joints.setMatrixAt(i, tmpMatrix);
       } else {

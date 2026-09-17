@@ -10,16 +10,26 @@ export function takePairingFragment(): string | null {
   return raw;
 }
 
-export async function redeemPairing(body: { code?: string; fragment?: string }) {
+export async function redeemPairing(body: {
+  code?: string;
+  fragment?: string;
+}) {
   const res = await jsonApi.pair.$post({ json: body });
   const payload = (await res.json()) as { token?: string; error?: string };
   if (!res.ok || !payload.token) {
     const error = payload.error || res.statusText;
     const expired = res.status === 410;
-    throw Object.assign(new Error(expired ? "That code expired. Ask the Mac for a new one." : "That code did not work."), {
-      expired,
-      cause: error,
-    });
+    throw Object.assign(
+      new Error(
+        expired
+          ? "That code expired. Ask the Mac for a new one."
+          : "That code did not work."
+      ),
+      {
+        expired,
+        cause: error,
+      }
+    );
   }
   setDeviceToken(payload.token);
 }

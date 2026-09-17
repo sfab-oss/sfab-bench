@@ -19,7 +19,8 @@ export function RecenterOnReset() {
     pending.current -= 1;
     if (pending.current > 0) return;
     const s = store.getState();
-    if (s.placed) placeAtGaze(s.placed, camera, { face: true, resetScale: false });
+    if (s.placed)
+      placeAtGaze(s.placed, camera, { face: true, resetScale: false });
     if (s.cardOpen && s.cardMode === "world") s.bringCard?.();
     s.bringChat?.();
   });

@@ -1,18 +1,26 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
+import {
+  dirname,
+  isAbsolute,
+  join,
+  normalize,
+  relative,
+  resolve,
+} from "node:path";
 import { Readable } from "node:stream";
-
-import { APP_HOME } from "./config";
-
-import type { HarnessV1NetworkSandboxSession, HarnessV1SandboxProvider } from "@ai-sdk/harness";
+import type {
+  HarnessV1NetworkSandboxSession,
+  HarnessV1SandboxProvider,
+} from "@ai-sdk/harness";
 import type {
   Experimental_SandboxProcess,
   Experimental_SandboxSession,
 } from "@ai-sdk/provider-utils";
+import { APP_HOME } from "./config";
 
 const live = new Set<ChildProcess>();
 
@@ -26,10 +34,14 @@ const live = new Set<ChildProcess>();
  * ("Cannot destructure property 'verified'"), so every harness bootstrap
  * install fails under `pnpm dev`.
  */
-const LAUNCHER_ENV = /^(npm_|pnpm_config_|PNPM_PACKAGE_NAME$|PNPM_SCRIPT_SRC_DIR$|NODE_OPTIONS$|NODE_PATH$|WATCH_REPORT_DEPENDENCIES$)/;
+const LAUNCHER_ENV =
+  /^(npm_|pnpm_config_|PNPM_PACKAGE_NAME$|PNPM_SCRIPT_SRC_DIR$|NODE_OPTIONS$|NODE_PATH$|WATCH_REPORT_DEPENDENCIES$)/;
 
 /** A sandbox command runs as if from a clean shell in the folder, not as our child. */
-export function sandboxEnv(base: NodeJS.ProcessEnv, extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+export function sandboxEnv(
+  base: NodeJS.ProcessEnv,
+  extra?: NodeJS.ProcessEnv
+): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(base)) {
     if (!LAUNCHER_ENV.test(key)) out[key] = value;
@@ -131,7 +143,11 @@ export function harnessHome(appHome = APP_HOME): string {
 }
 
 /** Spawn/run: coding commands in the open folder; bootstrap stays in the cache. */
-export function projectCwd(root: string, workingDirectory?: string, stateDir?: string) {
+export function projectCwd(
+  root: string,
+  workingDirectory?: string,
+  stateDir?: string
+) {
   if (!workingDirectory) return root;
   const abs = resolvePath(root, workingDirectory, stateDir ? [stateDir] : []);
   return isInside(root, abs) ? root : abs;
@@ -140,18 +156,25 @@ export function projectCwd(root: string, workingDirectory?: string, stateDir?: s
 const WORKDIR_FLAG = /--workdir\s+(?:'([^']*)'|"([^"]*)"|(\S+))/g;
 
 /** Bridge `--workdir` must be the project, not `<harness>-<session>` under the cache. */
-export function pinProjectWorkdir(command: string, root: string, stateDir?: string) {
+export function pinProjectWorkdir(
+  command: string,
+  root: string,
+  stateDir?: string
+) {
   const project = normalize(root);
   const state = stateDir ? normalize(stateDir) : "";
-  return command.replace(WORKDIR_FLAG, (full, single?: string, double?: string, bare?: string) => {
-    const raw = single ?? double ?? bare ?? "";
-    const abs = normalize(raw);
-    if (abs === project) return full;
-    if (isInside(project, abs) || (state && isInside(state, abs))) {
-      return `--workdir ${posixQuote(project)}`;
+  return command.replace(
+    WORKDIR_FLAG,
+    (full, single?: string, double?: string, bare?: string) => {
+      const raw = single ?? double ?? bare ?? "";
+      const abs = normalize(raw);
+      if (abs === project) return full;
+      if (isInside(project, abs) || (state && isInside(state, abs))) {
+        return `--workdir ${posixQuote(project)}`;
+      }
+      return full;
     }
-    return full;
-  });
+  );
 }
 
 function sandboxSessionId(sessionId?: string) {
@@ -169,28 +192,37 @@ export function createLocalSandbox(root: string): HarnessV1SandboxProvider {
   return {
     specificationVersion: "harness-sandbox-v1",
     providerId: "local-host",
-    createSession: async (options) => openLocalSession(root, options?.sessionId),
+    createSession: async (options) =>
+      openLocalSession(root, options?.sessionId),
     // sandbox.id must equal the harness sessionId so ACP detach payloads
     // (bridge.sandboxId) can resume. vercel/ai#19108.
     resumeSession: async (options) => openLocalSession(root, options.sessionId),
   };
 }
 
-function createLocalSession(root: string, stateDir: string, sessionId?: string): HarnessV1NetworkSandboxSession {
+function createLocalSession(
+  root: string,
+  stateDir: string,
+  sessionId?: string
+): HarnessV1NetworkSandboxSession {
   const id = sandboxSessionId(sessionId);
   const children = new Set<ChildProcess>();
   const files: Experimental_SandboxSession = {
     description: `Local workspace at ${root}`,
     readFile: async ({ path }) => {
       try {
-        return Readable.toWeb(createReadStream(resolvePath(root, path, [stateDir]))) as ReadableStream<Uint8Array>;
+        return Readable.toWeb(
+          createReadStream(resolvePath(root, path, [stateDir]))
+        ) as ReadableStream<Uint8Array>;
       } catch {
         return null;
       }
     },
     readBinaryFile: async ({ path }) => {
       try {
-        return new Uint8Array(await readFile(resolvePath(root, path, [stateDir])));
+        return new Uint8Array(
+          await readFile(resolvePath(root, path, [stateDir]))
+        );
       } catch {
         return null;
       }
@@ -231,14 +263,22 @@ function createLocalSession(root: string, stateDir: string, sessionId?: string):
     writeTextFile: async ({ path, content, encoding }) => {
       const dest = resolvePath(root, path, [stateDir]);
       await mkdir(dirname(dest), { recursive: true });
-      await writeFile(dest, content, { encoding: (encoding as BufferEncoding) ?? "utf8" });
+      await writeFile(dest, content, {
+        encoding: (encoding as BufferEncoding) ?? "utf8",
+      });
     },
     spawn: async ({ command, workingDirectory, env, abortSignal }) => {
       const cwd = projectCwd(root, workingDirectory, stateDir);
-      const child = spawnShell(pinProjectWorkdir(command, root, stateDir), cwd, env);
+      const child = spawnShell(
+        pinProjectWorkdir(command, root, stateDir),
+        cwd,
+        env
+      );
       children.add(child);
       child.once("exit", () => children.delete(child));
-      abortSignal?.addEventListener("abort", () => killTree(child), { once: true });
+      abortSignal?.addEventListener("abort", () => killTree(child), {
+        once: true,
+      });
       const proc: Experimental_SandboxProcess = {
         pid: child.pid,
         stdout: Readable.toWeb(child.stdout!) as ReadableStream<Uint8Array>,
@@ -256,12 +296,18 @@ function createLocalSession(root: string, stateDir: string, sessionId?: string):
     run: async ({ command, workingDirectory, env, abortSignal }) => {
       const cwd = projectCwd(root, workingDirectory, stateDir);
       return new Promise((resolveRun) => {
-        const child = spawnShell(pinProjectWorkdir(command, root, stateDir), cwd, env);
+        const child = spawnShell(
+          pinProjectWorkdir(command, root, stateDir),
+          cwd,
+          env
+        );
         const out: Buffer[] = [];
         const err: Buffer[] = [];
         child.stdout?.on("data", (d) => out.push(d as Buffer));
         child.stderr?.on("data", (d) => err.push(d as Buffer));
-        abortSignal?.addEventListener("abort", () => killTree(child), { once: true });
+        abortSignal?.addEventListener("abort", () => killTree(child), {
+          once: true,
+        });
         child.once("close", (code) => {
           resolveRun({
             exitCode: code ?? 1,
@@ -281,7 +327,8 @@ function createLocalSession(root: string, stateDir: string, sessionId?: string):
     getPortEndpoint: async ({ port, protocol = "ws" }) => ({
       url: `${protocol}://127.0.0.1:${port}`,
     }),
-    getPortUrl: async ({ port, protocol = "ws" }) => `${protocol}://127.0.0.1:${port}`,
+    getPortUrl: async ({ port, protocol = "ws" }) =>
+      `${protocol}://127.0.0.1:${port}`,
     stop: async () => {
       for (const child of children) killTree(child);
     },
@@ -300,5 +347,3 @@ function createLocalSession(root: string, stateDir: string, sessionId?: string):
   };
   return session;
 }
-
-

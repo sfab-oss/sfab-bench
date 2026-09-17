@@ -78,7 +78,9 @@ export function formatDebugReport(input: DebugReportInput): string {
   const harnessLines =
     input.harnesses.length === 0
       ? ["  (none)"]
-      : input.harnesses.map((row) => `  ${row.label}: ${harnessStatusLabel(row.status)}`);
+      : input.harnesses.map(
+          (row) => `  ${row.label}: ${harnessStatusLabel(row.status)}`
+        );
   const error = input.loadError?.trim() ? input.loadError.trim() : "(none)";
   const body = [
     `${input.appName} ${input.version}`,

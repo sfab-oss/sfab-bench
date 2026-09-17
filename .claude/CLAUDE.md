@@ -27,6 +27,8 @@ Run from the **monorepo root**:
 | Open a folder then serve | `pnpm cli open /abs/path` |
 | Open a folder then Vite | `pnpm cli open /abs/path --dev` |
 | Type check | `pnpm typecheck` |
+| Format + lint (fix) | `pnpm lint:fix` |
+| Lint (check only) | `pnpm lint:check` |
 | Self-checks | `pnpm test` |
 | Production build | `pnpm build` |
 | Serve dist + API | `pnpm serve` |

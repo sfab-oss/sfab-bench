@@ -1,16 +1,20 @@
 import {
   createContext,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 
 import { AppearancePrefsProvider } from "@/components/theme/appearance-prefs";
-import { bindThemeApplier, STUDIO_HEX, type Appearance } from "@/lib/appearance";
+import {
+  type Appearance,
+  bindThemeApplier,
+  STUDIO_HEX,
+} from "@/lib/appearance";
 import { desktopBridge } from "@/lib/desktop";
 import { store } from "@/state/store";
 
@@ -26,7 +30,9 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function isThemePreference(value: string | null | undefined): value is ThemePreference {
+function isThemePreference(
+  value: string | null | undefined
+): value is ThemePreference {
   return value === "light" || value === "dark" || value === "system";
 }
 
@@ -41,7 +47,9 @@ function readStoredTheme(): ThemePreference {
 }
 
 function systemAppearance(): Appearance {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 }
 
 function applyAppearance(resolved: Appearance) {
@@ -70,10 +78,10 @@ export function useTheme(): ThemeContextValue {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemePreference>(() =>
-    typeof window === "undefined" ? "system" : readStoredTheme(),
+    typeof window === "undefined" ? "system" : readStoredTheme()
   );
   const [system, setSystem] = useState<Appearance>(() =>
-    typeof window === "undefined" ? "light" : systemAppearance(),
+    typeof window === "undefined" ? "light" : systemAppearance()
   );
   const resolvedTheme: Appearance = theme === "system" ? system : theme;
   const lastResolved = useRef<Appearance | null>(null);
@@ -122,7 +130,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== STORAGE_KEY) return;
-      setThemeState(isThemePreference(event.newValue) ? event.newValue : "system");
+      setThemeState(
+        isThemePreference(event.newValue) ? event.newValue : "system"
+      );
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -130,7 +140,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<ThemeContextValue>(
     () => ({ theme, resolvedTheme, setTheme }),
-    [theme, resolvedTheme, setTheme],
+    [theme, resolvedTheme, setTheme]
   );
 
   return (

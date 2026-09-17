@@ -52,8 +52,14 @@ function parseModelsCli(stdout: string): OpenCodeProvider[] {
     if (!providerId || !modelId || !raw) return;
     try {
       const parsed = JSON.parse(raw) as { id?: string; name?: string };
-      const name = typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : modelId;
-      const id = typeof parsed.id === "string" && parsed.id.trim() ? parsed.id.trim() : modelId;
+      const name =
+        typeof parsed.name === "string" && parsed.name.trim()
+          ? parsed.name.trim()
+          : modelId;
+      const id =
+        typeof parsed.id === "string" && parsed.id.trim()
+          ? parsed.id.trim()
+          : modelId;
       let provider = byId.get(providerId);
       if (!provider) {
         provider = { id: providerId, name: providerId, models: [] };
@@ -66,7 +72,9 @@ function parseModelsCli(stdout: string): OpenCodeProvider[] {
   };
 
   for (const line of lines) {
-    const slugMatch = line.trimStart().startsWith("{") ? null : SLUG_LINE.exec(line);
+    const slugMatch = line.trimStart().startsWith("{")
+      ? null
+      : SLUG_LINE.exec(line);
     if (slugMatch) {
       flush();
       slug = slugMatch[1]!;
@@ -81,11 +89,24 @@ function parseModelsCli(stdout: string): OpenCodeProvider[] {
   }));
 }
 
-export function opencodeBinCandidates(root?: string | null, home = homedir()): string[] {
+export function opencodeBinCandidates(
+  root?: string | null,
+  home = homedir()
+): string[] {
   const candidates: string[] = [];
-  candidates.push(join(harnessHome(join(home, ".sfab-bench")), ".harness-bootstrap/opencode/node_modules/.bin/opencode"));
-  if (root) candidates.push(join(root, ".harness-bootstrap/opencode/node_modules/.bin/opencode"));
-  candidates.push(join(home, ".sfab-bench/tools/opencode/node_modules/.bin/opencode"));
+  candidates.push(
+    join(
+      harnessHome(join(home, ".sfab-bench")),
+      ".harness-bootstrap/opencode/node_modules/.bin/opencode"
+    )
+  );
+  if (root)
+    candidates.push(
+      join(root, ".harness-bootstrap/opencode/node_modules/.bin/opencode")
+    );
+  candidates.push(
+    join(home, ".sfab-bench/tools/opencode/node_modules/.bin/opencode")
+  );
   candidates.push(join(home, ".opencode/bin/opencode"));
   candidates.push("/opt/homebrew/bin/opencode");
   candidates.push("/usr/local/bin/opencode");
@@ -106,9 +127,12 @@ function modelsCwd(root?: string | null): string {
 let cached: { root: string; at: number; value: ModelsResponse } | null = null;
 const CACHE_MS = 10_000;
 
-export async function listOpenCodeModels(root?: string | null): Promise<ModelsResponse> {
+export async function listOpenCodeModels(
+  root?: string | null
+): Promise<ModelsResponse> {
   const key = root ?? "";
-  if (cached && cached.root === key && Date.now() - cached.at < CACHE_MS) return cached.value;
+  if (cached && cached.root === key && Date.now() - cached.at < CACHE_MS)
+    return cached.value;
   const empty: ModelsResponse = { connected: false, providers: [] };
   const bin = opencodeBin(root);
   if (bin !== "opencode" && !existsSync(bin)) {
@@ -123,11 +147,17 @@ export async function listOpenCodeModels(root?: string | null): Promise<ModelsRe
       timeout: 25_000,
     });
     const providers = parseModelsCli(stdout);
-    const value: ModelsResponse = { connected: providers.length > 0, providers };
+    const value: ModelsResponse = {
+      connected: providers.length > 0,
+      providers,
+    };
     cached = { root: key, at: Date.now(), value };
     return value;
   } catch (err) {
-    console.error("[api] opencode models failed", err instanceof Error ? err.message : err);
+    console.error(
+      "[api] opencode models failed",
+      err instanceof Error ? err.message : err
+    );
     cached = { root: key, at: Date.now(), value: empty };
     return empty;
   }

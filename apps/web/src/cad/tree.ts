@@ -11,7 +11,7 @@ function unwrapTreeRoots(root: Object3D): Object3D[] {
 
 export function namedKids(obj: Object3D, review: CadReview): Object3D[] {
   return obj.children.filter(
-    (child) => review.partByObject.has(child) || child.children.length > 0,
+    (child) => review.partByObject.has(child) || child.children.length > 0
   );
 }
 

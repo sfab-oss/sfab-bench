@@ -7,7 +7,13 @@ import { cn } from "@/lib/utils";
 
 type CopyFlash = "idle" | "copied" | "failed";
 
-export function CommandBlock({ command, className }: { command: string; className?: string }) {
+export function CommandBlock({
+  command,
+  className,
+}: {
+  command: string;
+  className?: string;
+}) {
   const [copied, setCopied] = useState<CopyFlash>("idle");
   const timer = useRef<number | null>(null);
   const commandRef = useRef(command);
@@ -39,7 +45,7 @@ export function CommandBlock({ command, className }: { command: string; classNam
     <div
       className={cn(
         "flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 font-mono text-xs",
-        className,
+        className
       )}
     >
       <span className="min-w-0 flex-1 truncate" title={command}>

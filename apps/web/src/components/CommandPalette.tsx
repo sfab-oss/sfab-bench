@@ -1,31 +1,37 @@
 import { Check, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
-
+import type { OpenFolderApi } from "@/components/OpenFolder";
 import { StartTruncatedPath } from "@/components/StartTruncatedPath";
 import { useTheme } from "@/components/theme/theme-provider";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
-import type { OpenFolderApi } from "@/components/OpenFolder";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import {
-  COMMAND_PALETTE_LIST_ID,
   buildCommands,
+  COMMAND_PALETTE_LIST_ID,
   clampActiveIndex,
+  type PaletteCommand,
   paletteOptionId,
   requestOpenSettings,
   visiblePalette,
   wrapActiveIndex,
-  type PaletteCommand,
 } from "@/lib/command-palette";
+import { isCompactChat } from "@/lib/layout";
 import { requestCloseFolder } from "@/lib/motion";
 import { folderName, shortPath } from "@/lib/project";
-import { isCompactChat } from "@/lib/layout";
 import { isMacPlatform, matchesShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
-import { store, useStore } from "@/state/store";
 import type { CatalogEntry } from "@/lib/viewer-snapshot";
+import { store, useStore } from "@/state/store";
 
 const EMPTY_COMMANDS: PaletteCommand[] = [];
 
@@ -58,11 +64,11 @@ export function CommandPalette({
       treeOpen: s.treeOpen,
       chatOpen: s.chatOpen,
       compactChatOpen: s.compactChatOpen,
-    })),
+    }))
   );
   const mac = isMacPlatform(
     typeof navigator === "undefined" ? "" : navigator.platform,
-    typeof navigator === "undefined" ? "" : navigator.userAgent,
+    typeof navigator === "undefined" ? "" : navigator.userAgent
   );
   const chatVisible = compactChat ? compactChatOpen : chatOpen;
 
@@ -100,10 +106,15 @@ export function CommandPalette({
     url,
   ]);
 
-  const items = useMemo(() => visiblePalette(commands, query), [commands, query]);
+  const items = useMemo(
+    () => visiblePalette(commands, query),
+    [commands, query]
+  );
   const active = clampActiveIndex(activeIndex, items.length);
   const activeCommand = items[active];
-  const activeOptionId = activeCommand ? paletteOptionId(activeCommand.id) : undefined;
+  const activeOptionId = activeCommand
+    ? paletteOptionId(activeCommand.id)
+    : undefined;
 
   const finishClose = useCallback((restore: boolean) => {
     setOpen(false);
@@ -151,7 +162,7 @@ export function CommandPalette({
         setTheme(cmd.payload);
       }
     },
-    [folder, setDoc, setTheme],
+    [folder, setDoc, setTheme]
   );
 
   const run = useCallback(
@@ -161,7 +172,7 @@ export function CommandPalette({
       finishClose(false);
       window.setTimeout(() => execute(cmd), 0);
     },
-    [execute, finishClose],
+    [execute, finishClose]
   );
 
   const dialogOpen = folder.dialogOpen;
@@ -178,8 +189,17 @@ export function CommandPalette({
       }
       // Settings, Quest and the Close-folder alert keep focus inside their popup.
       const target = event.target instanceof Element ? event.target : null;
-      if (dialogOpen || target?.closest("[data-slot='dialog-content'], [data-slot='alert-dialog-content']")) return;
-      restoreRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      if (
+        dialogOpen ||
+        target?.closest(
+          "[data-slot='dialog-content'], [data-slot='alert-dialog-content']"
+        )
+      )
+        return;
+      restoreRef.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
       skipRestoreRef.current = false;
       setQuery("");
       setActiveIndex(0);
@@ -266,7 +286,9 @@ export function CommandPalette({
           className="min-h-0 flex-1 overflow-y-auto p-1"
         >
           {items.length === 0 ? (
-            <p className="px-2 py-6 text-center text-sm text-muted-foreground">No results</p>
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+              No results
+            </p>
           ) : (
             <ul>
               {items.map((cmd, index) => {
@@ -282,14 +304,18 @@ export function CommandPalette({
                       tabIndex={-1}
                       className={cn(
                         "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
-                        selected ? "bg-accent text-accent-foreground" : "text-foreground",
+                        selected
+                          ? "bg-accent text-accent-foreground"
+                          : "text-foreground"
                       )}
                       onMouseEnter={() => setActiveIndex(index)}
                       onClick={() => run(cmd)}
                     >
                       <span className="min-w-0 flex-1">
                         <span className="flex min-w-0 items-center gap-2">
-                          {cmd.current ? <Check className="size-3.5 shrink-0" /> : null}
+                          {cmd.current ? (
+                            <Check className="size-3.5 shrink-0" />
+                          ) : null}
                           <span className="min-w-0 truncate">{cmd.title}</span>
                         </span>
                         {cmd.subtitle ? (
@@ -299,7 +325,9 @@ export function CommandPalette({
                           />
                         ) : null}
                       </span>
-                      {cmd.shortcut ? <Kbd className="shrink-0">{cmd.shortcut}</Kbd> : null}
+                      {cmd.shortcut ? (
+                        <Kbd className="shrink-0">{cmd.shortcut}</Kbd>
+                      ) : null}
                     </button>
                   </li>
                 );

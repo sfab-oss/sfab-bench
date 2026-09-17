@@ -79,9 +79,15 @@ export function meshProps(mesh: {
     const a = indices[i]! * 3;
     const b = indices[i + 1]! * 3;
     const c = indices[i + 2]! * 3;
-    const ax = positions[a]!, ay = positions[a + 1]!, az = positions[a + 2]!;
-    const bx = positions[b]!, by = positions[b + 1]!, bz = positions[b + 2]!;
-    const cxv = positions[c]!, cyv = positions[c + 1]!, czv = positions[c + 2]!;
+    const ax = positions[a]!,
+      ay = positions[a + 1]!,
+      az = positions[a + 2]!;
+    const bx = positions[b]!,
+      by = positions[b + 1]!,
+      bz = positions[b + 2]!;
+    const cxv = positions[c]!,
+      cyv = positions[c + 1]!,
+      czv = positions[c + 2]!;
 
     // a · (b × c) / 6 is the signed volume of the tetrahedron origin-a-b-c.
     const nx = by * czv - bz * cyv;
@@ -90,12 +96,16 @@ export function meshProps(mesh: {
     const tetra = (ax * nx + ay * ny + az * nz) / 6;
     volume += tetra;
     // The tetrahedron's own centroid, weighted by its share of the total.
-    cx += tetra * (ax + bx + cxv) / 4;
-    cy += tetra * (ay + by + cyv) / 4;
-    cz += tetra * (az + bz + czv) / 4;
+    cx += (tetra * (ax + bx + cxv)) / 4;
+    cy += (tetra * (ay + by + cyv)) / 4;
+    cz += (tetra * (az + bz + czv)) / 4;
 
-    const ux = bx - ax, uy = by - ay, uz = bz - az;
-    const vx = cxv - ax, vy = cyv - ay, vz = czv - az;
+    const ux = bx - ax,
+      uy = by - ay,
+      uz = bz - az;
+    const vx = cxv - ax,
+      vy = cyv - ay,
+      vz = czv - az;
     const wx = uy * vz - uz * vy;
     const wy = uz * vx - ux * vz;
     const wz = ux * vy - uy * vx;
@@ -111,7 +121,9 @@ export function meshProps(mesh: {
   }
 
   const centroid: [number, number, number] =
-    Math.abs(volume) > 1e-12 ? [cx / volume, cy / volume, cz / volume] : [0, 0, 0];
+    Math.abs(volume) > 1e-12
+      ? [cx / volume, cy / volume, cz / volume]
+      : [0, 0, 0];
   return {
     volume,
     area,

@@ -9,7 +9,10 @@ export type TitleSegment =
 
 export type ThreadPip = "streaming" | "ask-user" | "error" | null;
 
-export type NewChatAction = { action: "focus" } | { action: "open"; id: string } | { action: "create" };
+export type NewChatAction =
+  | { action: "focus" }
+  | { action: "open"; id: string }
+  | { action: "create" };
 
 const MINUTE_MS = 60_000;
 
@@ -18,19 +21,24 @@ export function isEmptyHistoryTitle(title: string): boolean {
   return text === "" || text === EMPTY_THREAD_TITLE;
 }
 
-export function titleRefSegments(title: string, labelForRef: (ref: string) => string | null): TitleSegment[] {
+export function titleRefSegments(
+  title: string,
+  labelForRef: (ref: string) => string | null
+): TitleSegment[] {
   const hits = parseCadRefs(title);
   if (hits.length === 0) return title ? [{ type: "text", value: title }] : [];
   const out: TitleSegment[] = [];
   let cursor = 0;
   for (const hit of hits) {
     if (hit.start < cursor) continue;
-    if (hit.start > cursor) out.push({ type: "text", value: title.slice(cursor, hit.start) });
+    if (hit.start > cursor)
+      out.push({ type: "text", value: title.slice(cursor, hit.start) });
     const label = labelForRef(hit.ref);
     out.push({ type: "ref", ref: hit.ref, label: label ?? hit.ref });
     cursor = hit.end;
   }
-  if (cursor < title.length) out.push({ type: "text", value: title.slice(cursor) });
+  if (cursor < title.length)
+    out.push({ type: "text", value: title.slice(cursor) });
   return out;
 }
 
@@ -45,18 +53,23 @@ export function formatRelativeTime(updatedAt: number, nowMs: number): string {
   if (hours < 24) return hours === 1 ? "1 hr ago" : `${hours} hr ago`;
   const days = Math.floor(hours / 24);
   if (days < 14) return days === 1 ? "1 day ago" : `${days} days ago`;
-  return new Date(updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(updatedAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export function firstUserLine(
-  messages: { role?: string; parts?: { type?: string; text?: string }[] }[],
+  messages: { role?: string; parts?: { type?: string; text?: string }[] }[]
 ): string | null {
   for (const message of messages) {
     if (message.role !== "user") continue;
     const text = stripViewerStamp(
       (message.parts ?? [])
-        .flatMap((part) => (part.type === "text" && part.text ? [part.text] : []))
-        .join("\n"),
+        .flatMap((part) =>
+          part.type === "text" && part.text ? [part.text] : []
+        )
+        .join("\n")
     );
     if (!text) continue;
     const line = text
@@ -116,12 +129,13 @@ export function decideNewChatAction(input: {
 export function partitionHistoryRows<T extends { id: string; title: string }>(
   rows: T[],
   currentId: string | null,
-  currentEmpty: boolean,
+  currentEmpty: boolean
 ): { visible: T[]; emptyHidden: T[] } {
   const visible: T[] = [];
   const emptyHidden: T[] = [];
   for (const row of rows) {
-    const empty = row.id === currentId ? currentEmpty : isEmptyHistoryTitle(row.title);
+    const empty =
+      row.id === currentId ? currentEmpty : isEmptyHistoryTitle(row.title);
     if (empty && row.id !== currentId) emptyHidden.push(row);
     else visible.push(row);
   }

@@ -46,7 +46,13 @@ export type FitInsets = {
 
 const ZERO_INSETS: FitInsets = { left: 0, right: 0, top: 0, bottom: 0 };
 
-let liveFitInsets: FitInsets = { ...ZERO_INSETS, left: OVERLAY_LEFT, right: OVERLAY_RIGHT, top: OVERLAY_TOP, bottom: OVERLAY_BOTTOM };
+let liveFitInsets: FitInsets = {
+  ...ZERO_INSETS,
+  left: OVERLAY_LEFT,
+  right: OVERLAY_RIGHT,
+  top: OVERLAY_TOP,
+  bottom: OVERLAY_BOTTOM,
+};
 
 export function setLiveFitInsets(next: FitInsets) {
   liveFitInsets = next;
@@ -72,7 +78,10 @@ export function isCompactChat(windowWidth: number, railOpen: boolean): boolean {
   return rail + CHAT_MIN_WIDTH + CANVAS_MIN_WIDTH > windowWidth;
 }
 
-export function chatMaxForWindow(windowWidth: number, railOpen: boolean): number {
+export function chatMaxForWindow(
+  windowWidth: number,
+  railOpen: boolean
+): number {
   const rail = railOpen ? FILES_RAIL_WIDTH : 0;
   return Math.max(CHAT_MIN_WIDTH, windowWidth - rail - CANVAS_MIN_WIDTH);
 }
@@ -81,7 +90,11 @@ export function chatMaxForWindow(windowWidth: number, railOpen: boolean): number
  * Width used for layout. An over-wide stored preference is clamped here and
  * not written back until the user drags (or double-clicks) the handle.
  */
-export function chatLayoutWidth(stored: number, windowWidth: number, railOpen: boolean): number {
+export function chatLayoutWidth(
+  stored: number,
+  windowWidth: number,
+  railOpen: boolean
+): number {
   const preferred = preferredChatWidth(stored);
   if (isCompactChat(windowWidth, railOpen)) {
     const max = Math.min(CHAT_MAX_WIDTH, Math.floor(windowWidth * 0.9));
@@ -92,7 +105,11 @@ export function chatLayoutWidth(stored: number, windowWidth: number, railOpen: b
 }
 
 /** Drag / double-click: this value is what we persist. */
-export function clampChatDrag(width: number, windowWidth: number, railOpen: boolean): number {
+export function clampChatDrag(
+  width: number,
+  windowWidth: number,
+  railOpen: boolean
+): number {
   return chatLayoutWidth(width, windowWidth, railOpen);
 }
 
@@ -108,13 +125,17 @@ export function chatWidthAfterKey(
   shiftKey: boolean,
   current: number,
   windowWidth: number,
-  railOpen: boolean,
+  railOpen: boolean
 ): number | null {
-  if (key === "Home") return clampChatDrag(CHAT_MIN_WIDTH, windowWidth, railOpen);
-  if (key === "End") return clampChatDrag(CHAT_MAX_WIDTH, windowWidth, railOpen);
+  if (key === "Home")
+    return clampChatDrag(CHAT_MIN_WIDTH, windowWidth, railOpen);
+  if (key === "End")
+    return clampChatDrag(CHAT_MAX_WIDTH, windowWidth, railOpen);
   const step = shiftKey ? CHAT_RESIZE_STEP_LARGE : CHAT_RESIZE_STEP;
-  if (key === "ArrowLeft") return clampChatDrag(current + step, windowWidth, railOpen);
-  if (key === "ArrowRight") return clampChatDrag(current - step, windowWidth, railOpen);
+  if (key === "ArrowLeft")
+    return clampChatDrag(current + step, windowWidth, railOpen);
+  if (key === "ArrowRight")
+    return clampChatDrag(current - step, windowWidth, railOpen);
   return null;
 }
 
@@ -130,13 +151,26 @@ export function overlayLayout(canvasWidth: number): {
 
 export function overlayMaxHeight(canvasHeight: number): number {
   if (canvasHeight <= 0) return OVERLAY_MAX_HEIGHT_CAP;
-  return Math.max(120, Math.min(OVERLAY_MAX_HEIGHT_CAP, canvasHeight - OVERLAY_TOP - OVERLAY_BOTTOM));
+  return Math.max(
+    120,
+    Math.min(
+      OVERLAY_MAX_HEIGHT_CAP,
+      canvasHeight - OVERLAY_TOP - OVERLAY_BOTTOM
+    )
+  );
 }
 
-export function detailPanelWidth(canvasWidth: number, compact: boolean, partsChip: boolean): number {
+export function detailPanelWidth(
+  canvasWidth: number,
+  compact: boolean,
+  partsChip: boolean
+): number {
   if (!compact) return DETAIL_WIDTH;
   const chip = partsChip ? OVERLAY_LEFT + PART_TREE_CHIP_WIDTH : 0;
-  return Math.max(160, Math.min(DETAIL_WIDTH, canvasWidth - OVERLAY_RIGHT - 12 - chip));
+  return Math.max(
+    160,
+    Math.min(DETAIL_WIDTH, canvasWidth - OVERLAY_RIGHT - 12 - chip)
+  );
 }
 
 export type FitInsetInput = {
@@ -159,7 +193,8 @@ export function fitCardsReady(input: {
   partsHeight: number;
   detailHeight: number;
 }): boolean {
-  if ((input.partsExpanded || input.partsChip) && input.partsHeight <= 0) return false;
+  if ((input.partsExpanded || input.partsChip) && input.partsHeight <= 0)
+    return false;
   if (input.detailVisible && input.detailHeight <= 0) return false;
   return true;
 }
@@ -171,7 +206,9 @@ export function fitBesideInsets(input: FitInsetInput): FitInsets {
     : input.partsChip
       ? OVERLAY_LEFT + PART_TREE_CHIP_WIDTH
       : OVERLAY_LEFT;
-  const right = input.detailVisible ? OVERLAY_RIGHT + input.detailWidth : OVERLAY_RIGHT;
+  const right = input.detailVisible
+    ? OVERLAY_RIGHT + input.detailWidth
+    : OVERLAY_RIGHT;
   return { left, right, top: OVERLAY_TOP, bottom: OVERLAY_BOTTOM };
 }
 
@@ -181,8 +218,14 @@ export function fitBesideInsets(input: FitInsetInput): FitInsets {
  */
 export function fitBelowInsets(input: FitInsetInput): FitInsets {
   const cardH = Math.max(input.partsHeight ?? 0, input.detailHeight ?? 0);
-  const top = cardH > 0 ? OVERLAY_TOP + cardH + OVERLAY_CLUSTER_GAP : OVERLAY_TOP;
-  return { left: OVERLAY_LEFT, right: OVERLAY_RIGHT, top, bottom: OVERLAY_BOTTOM };
+  const top =
+    cardH > 0 ? OVERLAY_TOP + cardH + OVERLAY_CLUSTER_GAP : OVERLAY_TOP;
+  return {
+    left: OVERLAY_LEFT,
+    right: OVERLAY_RIGHT,
+    top,
+    bottom: OVERLAY_BOTTOM,
+  };
 }
 
 /**
@@ -213,7 +256,11 @@ export function fitInsets(input: FitInsetInput): FitInsets {
 }
 
 /** Pull the camera back so the sphere fits in the inset rectangle. */
-export function fitDistanceScale(canvasWidth: number, canvasHeight: number, insets: FitInsets): number {
+export function fitDistanceScale(
+  canvasWidth: number,
+  canvasHeight: number,
+  insets: FitInsets
+): number {
   const availW = Math.max(1, canvasWidth - insets.left - insets.right);
   const availH = Math.max(1, canvasHeight - insets.top - insets.bottom);
   return Math.max(canvasWidth / availW, canvasHeight / availH, 1);
@@ -223,7 +270,11 @@ export function fitDistanceScale(canvasWidth: number, canvasHeight: number, inse
  * Remaining-rect center in NDC. Applied as a camera+target pan so the model
  * sits in the uncovered canvas, not under PartTree/Detail.
  */
-export function fitPanNdc(canvasWidth: number, canvasHeight: number, insets: FitInsets): { x: number; y: number } {
+export function fitPanNdc(
+  canvasWidth: number,
+  canvasHeight: number,
+  insets: FitInsets
+): { x: number; y: number } {
   return {
     x: (insets.left - insets.right) / Math.max(1, canvasWidth),
     y: (insets.bottom - insets.top) / Math.max(1, canvasHeight),
@@ -238,13 +289,25 @@ export function toolbarLayout(input: {
   const { canvasWidth, leftReserve, rightReserve } = input;
   const remaining = canvasWidth - leftReserve - rightReserve;
   if (remaining >= TOOLBAR_WIDTH + 8) {
-    return { stacked: false, left: leftReserve + (remaining - TOOLBAR_WIDTH) / 2, top: TOOLBAR_TOP };
+    return {
+      stacked: false,
+      left: leftReserve + (remaining - TOOLBAR_WIDTH) / 2,
+      top: TOOLBAR_TOP,
+    };
   }
   const maxLeft = Math.max(12, canvasWidth - TOOLBAR_WIDTH - 12);
-  return { stacked: true, left: Math.max(12, Math.min(leftReserve, maxLeft)), top: TOOLBAR_TOP };
+  return {
+    stacked: true,
+    left: Math.max(12, Math.min(leftReserve, maxLeft)),
+    top: TOOLBAR_TOP,
+  };
 }
 
-export function toolbarRightReserve(chatToggle: boolean, enterXr: boolean, liveChip = false): number {
+export function toolbarRightReserve(
+  chatToggle: boolean,
+  enterXr: boolean,
+  liveChip = false
+): number {
   let n = 12;
   if (enterXr) n += ENTER_XR_RESERVE;
   if (chatToggle) n += liveChip ? CHAT_LIVE_CHIP_RESERVE : CHAT_TOGGLE_RESERVE;

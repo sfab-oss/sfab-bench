@@ -1,5 +1,5 @@
-import { useTheme } from "@/components/theme/theme-provider";
 import { useEffect, useState } from "react";
+import { useTheme } from "@/components/theme/theme-provider";
 
 import { readDomAppearance, STUDIO_HEX } from "@/lib/appearance";
 

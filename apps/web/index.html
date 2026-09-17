@@ -1,65 +1,69 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta charset="UTF-8">
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    >
 
     <title>sfab-bench</title>
     <meta
       name="description"
       content="Open a folder, open a STEP, talk. Review CAD on the Mac or in the Quest browser."
-    />
+    >
 
-    <link rel="icon" href="/favicon.ico" sizes="48x48" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.json">
 
     <!-- Matches --studio, so the Quest browser's chrome and the iOS status
          bar do not flash a colour the app never uses. Updated when the theme flips. -->
-    <meta name="theme-color" content="#eeeff1" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="sfab-bench" />
-    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#eeeff1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="sfab-bench">
+    <meta name="mobile-web-app-capable" content="yes">
 
     <!-- The server is on the LAN and pairs by link. Nothing here should be
          indexed or previewed by anything that stumbles onto it. -->
-    <meta name="robots" content="noindex, nofollow" />
+    <meta name="robots" content="noindex, nofollow">
 
     <script>
-      (function () {
-        try {
-          var stored = localStorage.getItem("sfab-bench.theme");
-          var theme = stored || "system";
-          var dark =
-            theme === "dark" ||
-            (theme !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-          if (dark) document.documentElement.classList.add("dark");
-          document.documentElement.style.colorScheme = dark ? "dark" : "light";
-          var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute("content", dark ? "#1a1d21" : "#eeeff1");
-        } catch (_) {}
-      })();
+    (() => {
+      try {
+        var stored = localStorage.getItem("sfab-bench.theme");
+        var theme = stored || "system";
+        var dark =
+          theme === "dark" ||
+          (theme !== "light" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) document.documentElement.classList.add("dark");
+        document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", dark ? "#1a1d21" : "#eeeff1");
+      } catch (_) {}
+    })();
     </script>
     <!-- Clamp/mapping duplicated from src/lib/settings.ts so the first paint matches React. -->
     <script>
-      (function () {
-        try {
-          var root = document.documentElement.style;
-          var size = localStorage.getItem("sfab-bench.text-size");
-          if (size === "small") root.setProperty("--ui-text-scale", "0.875");
-          else if (size === "large") root.setProperty("--ui-text-scale", "1.125");
-        } catch (_) {}
-      })();
+    (() => {
+      try {
+        var root = document.documentElement.style;
+        var size = localStorage.getItem("sfab-bench.text-size");
+        if (size === "small") root.setProperty("--ui-text-scale", "0.875");
+        else if (size === "large") root.setProperty("--ui-text-scale", "1.125");
+      } catch (_) {}
+    })();
     </script>
 
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="sfab-bench" />
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="sfab-bench">
     <meta
       property="og:description"
       content="Open a folder, open a STEP, talk. Review CAD on the Mac or in the Quest browser."
-    />
-    <meta property="og:image" content="/android-chrome-512x512.png" />
+    >
+    <meta property="og:image" content="/android-chrome-512x512.png">
   </head>
   <body>
     <div id="root"></div>

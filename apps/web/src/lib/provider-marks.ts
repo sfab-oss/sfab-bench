@@ -3,7 +3,10 @@ import type { HarnessId } from "@/lib/harness";
 type MarkPath = { d: string; evenodd?: boolean };
 
 /** Path data from https://svgl.app (OpenCode, Codex, Cursor, Grok light). */
-export const PROVIDER_MARK: Record<HarnessId, { viewBox: string; paths: MarkPath[] }> = {
+export const PROVIDER_MARK: Record<
+  HarnessId,
+  { viewBox: string; paths: MarkPath[] }
+> = {
   opencode: {
     viewBox: "0 0 512 512",
     paths: [

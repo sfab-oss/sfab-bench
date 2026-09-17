@@ -11,7 +11,11 @@ export function StartTruncatedPath({
   className?: string;
 }) {
   return (
-    <span className={cn("block min-w-0 truncate", className)} dir="rtl" title={title}>
+    <span
+      className={cn("block min-w-0 truncate", className)}
+      dir="rtl"
+      title={title}
+    >
       <bdi>{path}</bdi>
     </span>
   );

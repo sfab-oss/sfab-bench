@@ -1,4 +1,10 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import {
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,10 +12,10 @@ import { fileURLToPath } from "node:url";
 import type { StepPackage } from "@sfab-bench/contract";
 
 import { buildStepPackage } from "./occt/build";
+import { childLabels, readStep } from "./occt/document";
 import { checkPackage, placedMesh } from "./occt/invariants";
-import { readStep, childLabels } from "./occt/document";
-import { meshProps, solidProps } from "./occt/solid";
 import { briefError, refusedByKernel } from "./occt/runtime";
+import { meshProps, solidProps } from "./occt/solid";
 
 /**
  * The generated corpus against real CAD.
@@ -52,7 +58,9 @@ function stepFiles(dir: string): string[] {
 
 const files = stepFiles(root);
 if (!files.length) {
-  console.log("occt.external.selfcheck skipped — no models fetched (`pnpm corpus:fetch`)");
+  console.log(
+    "occt.external.selfcheck skipped — no models fetched (`pnpm corpus:fetch`)"
+  );
   process.exit(0);
 }
 
@@ -72,19 +80,23 @@ const note = (why: string) => {
  * stc_08 is one closed solid beside one open shell of 271 faces, and comparing the
  * two numbers puts it 23% "out" while both sides are perfectly correct.
  */
-async function exactVolume(step: string): Promise<{ volume: number; openShell: boolean } | null> {
+async function exactVolume(
+  step: string
+): Promise<{ volume: number; openShell: boolean } | null> {
   const document = await readStep(step);
   const { oc, shapeTool } = document;
   try {
     let volume = 0;
     let openShell = false;
-    for (const free of childLabels(oc, shapeTool.BaseLabel(), (l) => oc.XCAFDoc_ShapeTool.IsFree(l))) {
+    for (const free of childLabels(oc, shapeTool.BaseLabel(), (l) =>
+      oc.XCAFDoc_ShapeTool.IsFree(l)
+    )) {
       const shape = oc.XCAFDoc_ShapeTool.GetShape_2(free);
       volume += solidProps(oc, shape).volume;
       const shells = new oc.TopExp_Explorer_2(
         shape,
         oc.TopAbs_ShapeEnum.TopAbs_SHELL,
-        oc.TopAbs_ShapeEnum.TopAbs_SHAPE,
+        oc.TopAbs_ShapeEnum.TopAbs_SHAPE
       );
       for (; shells.More(); shells.Next()) {
         if (!oc.BRep_Tool.IsClosed_1(shells.Current())) openShell = true;
@@ -116,8 +128,12 @@ for (const file of files) {
     // Tier 0–1: hard. These hold for any file, including one nobody has ever opened.
     for (const why of checkPackage(dest)) note(`${label}: ${why}`);
 
-    const pkg = JSON.parse(readFileSync(join(dest, "assembly.json"), "utf8")) as StepPackage;
-    const meshes = readdirSync(join(dest, "components")).filter((f) => f.endsWith(".tess"));
+    const pkg = JSON.parse(
+      readFileSync(join(dest, "assembly.json"), "utf8")
+    ) as StepPackage;
+    const meshes = readdirSync(join(dest, "components")).filter((f) =>
+      f.endsWith(".tess")
+    );
 
     // Tier 2: advisory. A body that is not a closed, consistently wound surface
     // has no volume to compare, which is a fact about the file rather than a
@@ -134,14 +150,15 @@ for (const file of files) {
       verdict = "closed solid beside an open shell — not comparable";
       open += 1;
     } else {
-      const off = (Math.abs(drawn - exact.volume) / Math.abs(exact.volume)) * 100;
+      const off =
+        (Math.abs(drawn - exact.volume) / Math.abs(exact.volume)) * 100;
       verdict = `volume ${off < 2 ? "agrees" : `${off.toFixed(1)}% out`}`;
       closed += 1;
     }
 
     console.log(
       `  ${label.padEnd(42)} ${String(pkg.occurrences.length).padStart(4)} occ  ` +
-        `${String(meshes.length).padStart(4)} comp  ${String(took).padStart(6)}ms  ${verdict}`,
+        `${String(meshes.length).padStart(4)} comp  ${String(took).padStart(6)}ms  ${verdict}`
     );
   } catch (err) {
     // A file OCCT itself will not open is a limitation of the kernel, not a defect
@@ -161,14 +178,18 @@ for (const file of files) {
 
 console.log(
   `\n${files.length} models: ${closed} closed solids, ${open} not closed, ` +
-    `${refused.length} refused by the kernel.`,
+    `${refused.length} refused by the kernel.`
 );
 // Reported rather than thrown. Every failure is already on stderr, and an
 // uncaught throw here makes Node print the current source frame — which, with the
 // wasm glue loaded through `new Function`, is 330KB of minified emscripten on one
 // line, burying the results this check exists to show.
 if (failures.length) {
-  console.error(`\n${failures.length} failure(s) across ${files.length} real models`);
+  console.error(
+    `\n${failures.length} failure(s) across ${files.length} real models`
+  );
   process.exit(1);
 }
-console.log(`occt.external.selfcheck ok (${files.length} models, ${refused.length} unopenable)`);
+console.log(
+  `occt.external.selfcheck ok (${files.length} models, ${refused.length} unopenable)`
+);

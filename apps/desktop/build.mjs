@@ -1,16 +1,20 @@
 #!/usr/bin/env node
-/** Bundles the Electron main process, its preload, and the API server. */
-import { build } from "esbuild";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+/** Bundles the Electron main process, its preload, and the API server. */
+import { build } from "esbuild";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
-const serverPkg = JSON.parse(readFileSync(new URL("../server/package.json", import.meta.url), "utf8"));
+const serverPkg = JSON.parse(
+  readFileSync(new URL("../server/package.json", import.meta.url), "utf8")
+);
 
 // Real npm dependencies stay on disk (some read their own files at runtime, and the
 // 66 MB OCCT wasm has no business inside a bundle). Workspace packages are ours and
 // are TypeScript, so they have to be bundled in.
-const runtimeDeps = Object.keys(serverPkg.dependencies).filter((name) => !name.startsWith("@sfab-bench/"));
+const runtimeDeps = Object.keys(serverPkg.dependencies).filter(
+  (name) => !name.startsWith("@sfab-bench/")
+);
 
 const common = {
   bundle: true,

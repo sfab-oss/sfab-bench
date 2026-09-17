@@ -3,12 +3,11 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { IfInSessionMode, XR } from "@react-three/xr";
 import { Suspense, useCallback, useEffect, useLayoutEffect } from "react";
 import * as THREE from "three";
-
+import { FIT_HOME_DIR, homeFitDirection } from "@/cad/review";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { usePrefersReducedMotion } from "@/hooks/useMotionReady";
 import { useStudioColor } from "@/hooks/useStudioColor";
 import { useXrSession } from "@/hooks/useXrSession";
-import { FIT_HOME_DIR, homeFitDirection } from "@/cad/review";
 import { fitDistanceScale, fitPanNdc, getLiveFitInsets } from "@/lib/layout";
 import { orbitDampingEnabled, viewerFrameloop } from "@/lib/motion";
 import { CadModel } from "@/scene/CadModel";
@@ -16,16 +15,16 @@ import { bindSceneInvalidate } from "@/scene/invalidate";
 import { RecenterOnReset } from "@/scene/RecenterOnReset";
 import { SpawnInFront } from "@/scene/SpawnInFront";
 import { store, useStore } from "@/state/store";
-import { useXrTheme } from "@/xr/ui/theme";
-import { CornerAxes, RightAxes, RightHandAxes } from "@/xr/RightAxes";
-import { ToolDrawer } from "@/xr/ToolDrawer";
 import { HandRig } from "@/xr/hands/HandRig";
 import { HandSkeletons } from "@/xr/hands/HandSkeleton";
 import { HandTools } from "@/xr/hands/HandTools";
 import { WristWatch } from "@/xr/hands/WristWatch";
 import { XRGrab } from "@/xr/hands/XRGrab";
+import { CornerAxes, RightAxes, RightHandAxes } from "@/xr/RightAxes";
+import { ToolDrawer } from "@/xr/ToolDrawer";
 import { CardDock } from "@/xr/ui/CardDock";
 import { ChatDock } from "@/xr/ui/ChatDock";
+import { useXrTheme } from "@/xr/ui/theme";
 import { xrStore } from "@/xrStore";
 
 function StudioFloor() {
@@ -63,46 +62,65 @@ function FitBridge() {
 
   useLayoutEffect(() => {
     setFit((obj, dir) => {
-    const box = new THREE.Box3().setFromObject(obj);
-    if (box.isEmpty() || !(camera instanceof THREE.PerspectiveCamera)) return;
-    const center = box.getCenter(new THREE.Vector3());
-    const radius = box.getSize(new THREE.Vector3()).length() * 0.5;
-    const fov = (camera.fov * Math.PI) / 180;
-    const insets = getLiveFitInsets();
-    const w = gl.domElement.clientWidth;
-    const h = gl.domElement.clientHeight;
-    const scale = fitDistanceScale(w, h, insets);
-    const dist = Math.max((radius / Math.sin(fov / 2)) * 1.2, radius * 1.5, 0.05) * scale;
-    const from =
-      dir?.clone().normalize() ??
-      camera.position.clone().sub(controls?.target ?? new THREE.Vector3()).normalize();
-    if (from.lengthSq() < 1e-6) from.set(...FIT_HOME_DIR).normalize();
-    camera.position.copy(center).addScaledVector(from, dist);
-    if (controls) {
-      controls.target.copy(center);
-      controls.update();
-    }
-    const ndc = fitPanNdc(w, h, insets);
-    if (ndc.x !== 0 || ndc.y !== 0) {
-      camera.updateMatrixWorld();
-      const halfH = dist * Math.tan(fov / 2);
-      const halfW = halfH * camera.aspect;
-      const camRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
-      const camUp = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
-      const shift = camRight.multiplyScalar(-ndc.x * halfW).add(camUp.multiplyScalar(-ndc.y * halfH));
-      camera.position.add(shift);
+      const box = new THREE.Box3().setFromObject(obj);
+      if (box.isEmpty() || !(camera instanceof THREE.PerspectiveCamera)) return;
+      const center = box.getCenter(new THREE.Vector3());
+      const radius = box.getSize(new THREE.Vector3()).length() * 0.5;
+      const fov = (camera.fov * Math.PI) / 180;
+      const insets = getLiveFitInsets();
+      const w = gl.domElement.clientWidth;
+      const h = gl.domElement.clientHeight;
+      const scale = fitDistanceScale(w, h, insets);
+      const dist =
+        Math.max((radius / Math.sin(fov / 2)) * 1.2, radius * 1.5, 0.05) *
+        scale;
+      const from =
+        dir?.clone().normalize() ??
+        camera.position
+          .clone()
+          .sub(controls?.target ?? new THREE.Vector3())
+          .normalize();
+      if (from.lengthSq() < 1e-6) from.set(...FIT_HOME_DIR).normalize();
+      camera.position.copy(center).addScaledVector(from, dist);
       if (controls) {
-        controls.target.add(shift);
+        controls.target.copy(center);
         controls.update();
       }
-    }
-    invalidate();
+      const ndc = fitPanNdc(w, h, insets);
+      if (ndc.x !== 0 || ndc.y !== 0) {
+        camera.updateMatrixWorld();
+        const halfH = dist * Math.tan(fov / 2);
+        const halfW = halfH * camera.aspect;
+        const camRight = new THREE.Vector3().setFromMatrixColumn(
+          camera.matrixWorld,
+          0
+        );
+        const camUp = new THREE.Vector3().setFromMatrixColumn(
+          camera.matrixWorld,
+          1
+        );
+        const shift = camRight
+          .multiplyScalar(-ndc.x * halfW)
+          .add(camUp.multiplyScalar(-ndc.y * halfH));
+        camera.position.add(shift);
+        if (controls) {
+          controls.target.add(shift);
+          controls.update();
+        }
+      }
+      invalidate();
     });
   }, [camera, controls, gl, invalidate, setFit]);
   return null;
 }
 
-function SceneCrashBridge({ error, reset }: { error: unknown; reset: () => void }) {
+function SceneCrashBridge({
+  error,
+  reset,
+}: {
+  error: unknown;
+  reset: () => void;
+}) {
   const setSceneCrash = useStore((s) => s.setSceneCrash);
   useEffect(() => {
     setSceneCrash({ error, reset });
@@ -119,7 +137,7 @@ export function ViewerCanvas() {
   const reduceMotion = usePrefersReducedMotion();
   const onFit = useCallback(
     (obj: THREE.Object3D) => store.getState().fit?.(obj, homeFitDirection()),
-    [],
+    []
   );
 
   return (
@@ -148,7 +166,9 @@ export function ViewerCanvas() {
           <SpawnInFront />
           <RenderErrorBoundary
             resetKeys={[url]}
-            fallback={({ error, reset }) => <SceneCrashBridge error={error} reset={reset} />}
+            fallback={({ error, reset }) => (
+              <SceneCrashBridge error={error} reset={reset} />
+            )}
           >
             <CadModel onFit={onFit} />
           </RenderErrorBoundary>

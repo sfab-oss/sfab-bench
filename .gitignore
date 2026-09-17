@@ -3,7 +3,9 @@ dist/
 .DS_Store
 *.swp
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .env
 .env.*
 !.env.example

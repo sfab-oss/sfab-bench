@@ -1,10 +1,14 @@
 import * as THREE from "three";
-
-import { apiFetch } from "@/lib/api";
 import { buildBoundsTrees } from "@/cad/bvh";
-import { decodeTess, type ComponentMesh } from "@/cad/decodeTess";
-import { cssColor, makeReview, type CadPart, type CadReview } from "@/cad/review";
+import { type ComponentMesh, decodeTess } from "@/cad/decodeTess";
+import {
+  type CadPart,
+  type CadReview,
+  cssColor,
+  makeReview,
+} from "@/cad/review";
 import type { StepAssemblyNode, StepPackage } from "@/cad/stepPackage";
+import { apiFetch } from "@/lib/api";
 
 function cadMatrix(values: number[]): THREE.Matrix4 {
   const m = new THREE.Matrix4();
@@ -25,12 +29,15 @@ function cadMatrix(values: number[]): THREE.Matrix4 {
     values[12]!,
     values[13]!,
     values[14]!,
-    values[15]!,
+    values[15]!
   );
   return m;
 }
 
-function rgba(values: number[] | undefined): { color: THREE.Color; opacity: number } {
+function rgba(values: number[] | undefined): {
+  color: THREE.Color;
+  opacity: number;
+} {
   const r = values?.[0] ?? 0.61;
   const g = values?.[1] ?? 0.64;
   const b = values?.[2] ?? 0.69;
@@ -57,7 +64,7 @@ function geometryFromMesh(mesh: ComponentMesh): THREE.BufferGeometry {
 async function mapPooled<T, R>(
   items: readonly T[],
   concurrency: number,
-  worker: (item: T, index: number) => Promise<R>,
+  worker: (item: T, index: number) => Promise<R>
 ): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let nextIndex = 0;
@@ -68,7 +75,10 @@ async function mapPooled<T, R>(
       results[index] = await worker(items[index]!, index);
     }
   };
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => runWorker());
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    () => runWorker()
+  );
   await Promise.all(workers);
   return results;
 }
@@ -80,7 +90,8 @@ async function fetchPkg(pkgRoot: URL, rel: string): Promise<Response> {
   const text = await res.text();
   try {
     const body = JSON.parse(text) as { error?: string };
-    if (typeof body.error === "string" && body.error) throw new Error(body.error);
+    if (typeof body.error === "string" && body.error)
+      throw new Error(body.error);
   } catch (err) {
     if (err instanceof SyntaxError) {
       /* body was not JSON */
@@ -98,7 +109,10 @@ async function fetchPkg(pkgRoot: URL, rel: string): Promise<Response> {
  * half is pure, and everything the viewer's geometry claims — metres, up-axis,
  * `sitHeight`, and the `#o1.2.f7` refs an agent is handed — is decided here.
  */
-export function buildScene(assembly: StepPackage, meshes: Map<string, ComponentMesh>): CadReview {
+export function buildScene(
+  assembly: StepPackage,
+  meshes: Map<string, ComponentMesh>
+): CadReview {
   const occById = new Map(assembly.occurrences.map((occ) => [occ.id, occ]));
   const geoms = new Map<string, THREE.BufferGeometry>();
   for (const [cid, mesh] of meshes) geoms.set(cid, geometryFromMesh(mesh));
@@ -111,7 +125,11 @@ export function buildScene(assembly: StepPackage, meshes: Map<string, ComponentM
   root.rotation.x = -Math.PI / 2;
 
   const parts: CadPart[] = [];
-  const build = (node: StepAssemblyNode, parent: THREE.Object3D, listed: boolean) => {
+  const build = (
+    node: StepAssemblyNode,
+    parent: THREE.Object3D,
+    listed: boolean
+  ) => {
     const group = new THREE.Group();
     group.name = node.name || node.id;
     group.userData.cadRef = `#${node.id}`;
@@ -133,7 +151,7 @@ export function buildScene(assembly: StepPackage, meshes: Map<string, ComponentM
             transparent: opacity < 0.999,
             opacity,
             depthWrite: opacity >= 0.999,
-          }),
+          })
         );
         mesh.castShadow = false;
         mesh.receiveShadow = false;
@@ -159,9 +177,15 @@ export function buildScene(assembly: StepPackage, meshes: Map<string, ComponentM
   } else {
     for (const occ of assembly.occurrences) {
       build(
-        { id: occ.id, name: occ.name, nodeType: "part", children: [], leafPartIds: [occ.id] },
+        {
+          id: occ.id,
+          name: occ.name,
+          nodeType: "part",
+          children: [],
+          leafPartIds: [occ.id],
+        },
         root,
-        true,
+        true
       );
     }
   }
@@ -169,20 +193,31 @@ export function buildScene(assembly: StepPackage, meshes: Map<string, ComponentM
   // Geometries are shared across occurrences; buildBoundsTrees skips ones already built.
   buildBoundsTrees(root);
 
-  return makeReview({ root, parts, bounds: new THREE.Box3().setFromObject(root) });
+  return makeReview({
+    root,
+    parts,
+    bounds: new THREE.Box3().setFromObject(root),
+  });
 }
 
 export async function loadStepPackage(
   baseUrl: string,
-  onProgress?: (loaded: number, total: number) => void,
+  onProgress?: (loaded: number, total: number) => void
 ): Promise<CadReview> {
-  const pkgRoot = new URL(baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`, window.location.origin);
-  const assembly = (await (await fetchPkg(pkgRoot, "assembly.json")).json()) as StepPackage;
+  const pkgRoot = new URL(
+    baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`,
+    window.location.origin
+  );
+  const assembly = (await (
+    await fetchPkg(pkgRoot, "assembly.json")
+  ).json()) as StepPackage;
   const unique = [...new Set(assembly.occurrences.map((occ) => occ.component))];
   const meshes = new Map<string, ComponentMesh>();
   let done = 0;
   await mapPooled(unique, 8, async (cid) => {
-    const buf = await (await fetchPkg(pkgRoot, `components/${cid}.tess`)).arrayBuffer();
+    const buf = await (
+      await fetchPkg(pkgRoot, `components/${cid}.tess`)
+    ).arrayBuffer();
     meshes.set(cid, decodeTess(new Uint8Array(buf)));
     done += 1;
     onProgress?.(done, unique.length);

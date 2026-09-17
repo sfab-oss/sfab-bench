@@ -11,8 +11,8 @@ import * as THREE from "three";
 import { useShallow } from "zustand/react/shallow";
 
 import { store, useStore } from "@/state/store";
-import { WorldAxes } from "@/xr/WorldAxes";
 import { useXrTheme } from "@/xr/ui/theme";
+import { WorldAxes } from "@/xr/WorldAxes";
 
 const parentQ = new THREE.Quaternion();
 const modelQ = new THREE.Quaternion();
@@ -46,7 +46,10 @@ export function CornerAxes() {
   if (!axesVisible) return null;
   return (
     <GizmoHelper alignment="bottom-right" margin={[72, 72]}>
-      <GizmoViewport axisColors={["#e11d48", "#16a34a", "#2563eb"]} labelColor={theme.text} />
+      <GizmoViewport
+        axisColors={["#e11d48", "#16a34a", "#2563eb"]}
+        labelColor={theme.text}
+      />
     </GizmoHelper>
   );
 }
@@ -55,7 +58,10 @@ export function RightAxes() {
   const session = useXR((s) => s.session);
   const right = useXRInputSourceState("controller", "right");
   const { axesVisible, setAxesVisible } = useStore(
-    useShallow((s) => ({ axesVisible: s.axesVisible, setAxesVisible: s.setAxesVisible })),
+    useShallow((s) => ({
+      axesVisible: s.axesVisible,
+      setAxesVisible: s.setAxesVisible,
+    }))
   );
 
   useXRControllerButtonEvent(right, "a-button", (state) => {

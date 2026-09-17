@@ -7,7 +7,8 @@ export const STUDIO_HEX: Record<Appearance, string> = {
 };
 
 export function readDomAppearance(): Appearance {
-  return typeof document !== "undefined" && document.documentElement.classList.contains("dark")
+  return typeof document !== "undefined" &&
+    document.documentElement.classList.contains("dark")
     ? "dark"
     : "light";
 }

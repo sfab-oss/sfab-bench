@@ -1,9 +1,10 @@
-import { isHarnessId, type HarnessId } from "@/lib/harness";
+import { type HarnessId, isHarnessId } from "@/lib/harness";
 
 export const HARNESS_REFETCH_THROTTLE_MS = 10_000;
 export const MODEL_FAVORITES_KEY = "sfab-bench.model-favorites";
 export const MAX_MODEL_FAVORITES = 24;
-export const EFFORT_TRIGGER_TITLE = "Reasoning effort — how much the model thinks before answering";
+export const EFFORT_TRIGGER_TITLE =
+  "Reasoning effort — how much the model thinks before answering";
 
 export type HarnessRefreshReason = "mount" | "open" | "focus" | "retry";
 
@@ -26,15 +27,22 @@ export type PickerModelGroup = {
 };
 
 /** First backticked span in a harness `detail` string (`codex login`). */
-export function loginCommandFromStatus(input: { status: string; detail?: string }): string | null {
-  if (input.status !== "needs-auth" && input.status !== "missing-cli") return null;
+export function loginCommandFromStatus(input: {
+  status: string;
+  detail?: string;
+}): string | null {
+  if (input.status !== "needs-auth" && input.status !== "missing-cli")
+    return null;
   const match = input.detail?.match(/`([^`]+)`/);
   const command = match?.[1]?.trim();
   return command || null;
 }
 
 /** Drop the `Run \`cmd\` on the Mac` clause; keep env-var alternatives, never values. */
-export function loginDetailSecondary(detail: string | undefined, command: string | null): string | null {
+export function loginDetailSecondary(
+  detail: string | undefined,
+  command: string | null
+): string | null {
   if (!detail?.trim()) return null;
   let rest = detail.trim();
   if (command) {
@@ -46,7 +54,11 @@ export function loginDetailSecondary(detail: string | undefined, command: string
   return rest || null;
 }
 
-export function loginHintCopy(input: { label: string; status: string; detail?: string }): {
+export function loginHintCopy(input: {
+  label: string;
+  status: string;
+  detail?: string;
+}): {
   headline: string;
   command: string | null;
   secondary: string | null;
@@ -66,7 +78,8 @@ export function loginHintCopy(input: { label: string; status: string; detail?: s
     return {
       headline: command
         ? `${input.label} CLI isn't installed. Run this on the Mac, then check again.`
-        : input.detail?.trim() || `${input.label} CLI isn't installed. Install it on the Mac, then check again.`,
+        : input.detail?.trim() ||
+          `${input.label} CLI isn't installed. Install it on the Mac, then check again.`,
       command,
       secondary: command ? secondary : null,
     };
@@ -79,7 +92,10 @@ export function loginHintCopy(input: { label: string; status: string; detail?: s
 }
 
 /** Ignore a catalog response whose folder is no longer the tab's `?project=`. */
-export function shouldAcceptHarnessCatalog(requestProject: string, currentProject: string): boolean {
+export function shouldAcceptHarnessCatalog(
+  requestProject: string,
+  currentProject: string
+): boolean {
   return requestProject.length > 0 && requestProject === currentProject;
 }
 
@@ -90,10 +106,13 @@ export function providerLoginSendReason(input: {
 }): string {
   const command = loginCommandFromStatus(input);
   if (input.status === "needs-auth") {
-    return command ? `${input.label} isn't signed in — run \`${command}\`` : `${input.label} isn't signed in`;
+    return command
+      ? `${input.label} isn't signed in — run \`${command}\``
+      : `${input.label} isn't signed in`;
   }
   if (input.status === "missing-cli") {
-    if (command) return `${input.label} CLI isn't installed — run \`${command}\``;
+    if (command)
+      return `${input.label} CLI isn't installed — run \`${command}\``;
     return input.detail?.trim() || `${input.label} CLI isn't installed`;
   }
   return input.detail?.trim() || `${input.label} is not ready`;
@@ -109,7 +128,11 @@ export function decideHarnessRefetch(input: {
   if (input.inflight) return "reuse-inflight";
   if (input.reason === "focus") {
     const throttle = input.throttleMs ?? HARNESS_REFETCH_THROTTLE_MS;
-    if (input.lastStartedAt != null && input.now - input.lastStartedAt < throttle) return "skip";
+    if (
+      input.lastStartedAt != null &&
+      input.now - input.lastStartedAt < throttle
+    )
+      return "skip";
   }
   return "fetch";
 }
@@ -119,7 +142,8 @@ export function applyHarnessFetchResult<T>(input: {
   list?: readonly T[];
   lastGood: readonly T[] | null;
 }): { list: T[]; error: boolean } {
-  if (input.ok && Array.isArray(input.list)) return { list: [...input.list], error: false };
+  if (input.ok && Array.isArray(input.list))
+    return { list: [...input.list], error: false };
   if (input.lastGood) return { list: [...input.lastGood], error: false };
   return { list: [], error: true };
 }
@@ -137,14 +161,19 @@ export function modelDisplayName(model: PickerModel): string {
 
 export function mergeUnavailableSelection(
   models: readonly PickerModel[],
-  selectedSlug: string | null | undefined,
+  selectedSlug: string | null | undefined
 ): PickerModel[] {
   const list = models.map((model) => ({ ...model }));
   if (!selectedSlug) return list;
   if (list.some((model) => model.slug === selectedSlug)) return list;
   return [
     ...list,
-    { id: selectedSlug, name: modelShortLabel(selectedSlug), slug: selectedSlug, unavailable: true },
+    {
+      id: selectedSlug,
+      name: modelShortLabel(selectedSlug),
+      slug: selectedSlug,
+      unavailable: true,
+    },
   ];
 }
 
@@ -153,7 +182,9 @@ export function pickerTriggerLabel(input: {
   model: PickerModel | null;
   slug: string;
 }): string {
-  const modelName = input.model ? modelDisplayName(input.model) : `${modelShortLabel(input.slug)} (unavailable)`;
+  const modelName = input.model
+    ? modelDisplayName(input.model)
+    : `${modelShortLabel(input.slug)} (unavailable)`;
   return `Model: ${input.harnessLabel} · ${modelName}`;
 }
 
@@ -171,7 +202,12 @@ export function readModelFavorites(raw: string | null): ModelFavorite[] {
     for (const row of parsed) {
       if (!row || typeof row !== "object") continue;
       const rec = row as { harness?: unknown; model?: unknown };
-      if (!isHarnessId(String(rec.harness ?? "")) || typeof rec.model !== "string" || !rec.model) continue;
+      if (
+        !isHarnessId(String(rec.harness ?? "")) ||
+        typeof rec.model !== "string" ||
+        !rec.model
+      )
+        continue;
       const harness = rec.harness as HarnessId;
       const key = favoriteKey(harness, rec.model);
       if (seen.has(key)) continue;
@@ -185,7 +221,9 @@ export function readModelFavorites(raw: string | null): ModelFavorite[] {
   }
 }
 
-export function serializeModelFavorites(favorites: readonly ModelFavorite[]): string {
+export function serializeModelFavorites(
+  favorites: readonly ModelFavorite[]
+): string {
   return JSON.stringify(favorites.slice(0, MAX_MODEL_FAVORITES));
 }
 
@@ -193,18 +231,26 @@ export function toggleModelFavorite(
   favorites: readonly ModelFavorite[],
   harness: HarnessId,
   model: string,
-  max = MAX_MODEL_FAVORITES,
+  max = MAX_MODEL_FAVORITES
 ): ModelFavorite[] {
   const key = favoriteKey(harness, model);
-  const exists = favorites.some((row) => favoriteKey(row.harness, row.model) === key);
-  if (exists) return favorites.filter((row) => favoriteKey(row.harness, row.model) !== key);
-  return [{ harness, model }, ...favorites.filter((row) => favoriteKey(row.harness, row.model) !== key)].slice(0, max);
+  const exists = favorites.some(
+    (row) => favoriteKey(row.harness, row.model) === key
+  );
+  if (exists)
+    return favorites.filter(
+      (row) => favoriteKey(row.harness, row.model) !== key
+    );
+  return [
+    { harness, model },
+    ...favorites.filter((row) => favoriteKey(row.harness, row.model) !== key),
+  ].slice(0, max);
 }
 
 export function isModelFavorite(
   favorites: readonly ModelFavorite[],
   harness: HarnessId,
-  model: string,
+  model: string
 ): boolean {
   const key = favoriteKey(harness, model);
   return favorites.some((row) => favoriteKey(row.harness, row.model) === key);
@@ -234,7 +280,8 @@ export function groupPickerModels(input: {
     const hit = matched.find((model) => model.slug === slug);
     return hit ? [hit] : [];
   });
-  if (favorites.length > 0) groups.push({ group: "Favorites", models: favorites });
+  if (favorites.length > 0)
+    groups.push({ group: "Favorites", models: favorites });
   const byGroup = new Map<string, PickerModel[]>();
   for (const model of matched) {
     if (favoriteSet.has(model.slug)) continue;

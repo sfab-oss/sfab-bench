@@ -1,9 +1,23 @@
-import { existsSync, readdirSync, statSync, watch, type FSWatcher } from "node:fs";
+import {
+  type Dirent,
+  existsSync,
+  type FSWatcher,
+  readdirSync,
+  statSync,
+  watch,
+} from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-
-import { db } from "./db";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import type { CatalogEntry } from "@sfab-bench/contract";
+import { db } from "./db";
 
 const STEP_RE = /\.(step|stp)$/i;
 const GLB_RE = /\.(glb|gltf)$/i;
@@ -116,7 +130,7 @@ export function shouldSkipDir(name: string) {
 
 function walk(dir: string, root: string, acc: CatalogEntry[]) {
   if (acc.length >= MAX_FILES || !existsSync(dir)) return;
-  let ents;
+  let ents: Dirent[];
   try {
     ents = readdirSync(dir, { withFileTypes: true });
   } catch {
@@ -145,12 +159,18 @@ export function listProjectFiles(root: string): CatalogEntry[] {
   return files;
 }
 
-function rowFrom(path: string, lastFile: string | null, openedAt: number): ProjectRow {
+function rowFrom(
+  path: string,
+  lastFile: string | null,
+  openedAt: number
+): ProjectRow {
   return { path, name: basename(path), lastFile, openedAt };
 }
 
 function readRow(abs: string): ProjectRow | null {
-  const row = db.prepare("SELECT path, last_file, opened_at FROM projects WHERE path = ?").get(abs) as
+  const row = db
+    .prepare("SELECT path, last_file, opened_at FROM projects WHERE path = ?")
+    .get(abs) as
     | { path: string; last_file: string | null; opened_at: number }
     | undefined;
   if (!row) return null;
@@ -163,9 +183,17 @@ export function isRegistered(abs: string): boolean {
 
 export function listRecents(limit = 8): ProjectRow[] {
   const rows = db
-    .prepare("SELECT path, last_file, opened_at FROM projects ORDER BY opened_at DESC LIMIT ?")
-    .all(limit) as { path: string; last_file: string | null; opened_at: number }[];
-  return rows.filter((row) => existsSync(row.path)).map((row) => rowFrom(row.path, row.last_file, row.opened_at));
+    .prepare(
+      "SELECT path, last_file, opened_at FROM projects ORDER BY opened_at DESC LIMIT ?"
+    )
+    .all(limit) as {
+    path: string;
+    last_file: string | null;
+    opened_at: number;
+  }[];
+  return rows
+    .filter((row) => existsSync(row.path))
+    .map((row) => rowFrom(row.path, row.last_file, row.opened_at));
 }
 
 function startWatch(root: string) {
@@ -173,7 +201,7 @@ function startWatch(root: string) {
   if (slot.watcher) return;
   try {
     slot.watcher = watch(root, { recursive: true }, (_event, filename) => {
-      const name = filename ? String(filename).split(sep)[0] ?? "" : "";
+      const name = filename ? (String(filename).split(sep)[0] ?? "") : "";
       if (name && skipDir(name)) return;
       if (slot.watchTimer) clearTimeout(slot.watchTimer);
       slot.watchTimer = setTimeout(() => bumpCatalog(root), 250);
@@ -221,7 +249,9 @@ export function currentProject(): ProjectRow | null {
 function assertDirectory(input: string): string {
   const abs = resolve(expandUserPath(input));
   if (!existsSync(abs) || !statSync(abs).isDirectory()) {
-    throw Object.assign(new Error(`not a directory: ${input}`), { status: 400 });
+    throw Object.assign(new Error(`not a directory: ${input}`), {
+      status: 400,
+    });
   }
   return abs;
 }
@@ -233,15 +263,17 @@ function assertDirectory(input: string): string {
  */
 export function registerProject(input: string): ProjectRow {
   const abs = assertDirectory(input);
-  const prev = db.prepare("SELECT last_file, opened_at FROM projects WHERE path = ?").get(abs) as
-    | { last_file: string | null; opened_at: number }
-    | undefined;
+  const prev = db
+    .prepare("SELECT last_file, opened_at FROM projects WHERE path = ?")
+    .get(abs) as { last_file: string | null; opened_at: number } | undefined;
   if (prev) {
     ensureLive(abs);
     return rowFrom(abs, prev.last_file, prev.opened_at);
   }
   const now = Date.now();
-  db.prepare("INSERT INTO projects (path, last_file, opened_at) VALUES (?, ?, ?)").run(abs, null, now);
+  db.prepare(
+    "INSERT INTO projects (path, last_file, opened_at) VALUES (?, ?, ?)"
+  ).run(abs, null, now);
   ensureLive(abs);
   bumpCatalog(abs);
   return rowFrom(abs, null, now);
@@ -255,9 +287,11 @@ export function registerProject(input: string): ProjectRow {
 export function openProject(input: string): ProjectRow {
   const abs = assertDirectory(input);
   const now = Date.now();
-  const prev = db.prepare("SELECT last_file FROM projects WHERE path = ?").get(abs) as { last_file: string | null } | undefined;
+  const prev = db
+    .prepare("SELECT last_file FROM projects WHERE path = ?")
+    .get(abs) as { last_file: string | null } | undefined;
   db.prepare(
-    "INSERT INTO projects (path, last_file, opened_at) VALUES (?, ?, ?) ON CONFLICT(path) DO UPDATE SET opened_at = excluded.opened_at",
+    "INSERT INTO projects (path, last_file, opened_at) VALUES (?, ?, ?) ON CONFLICT(path) DO UPDATE SET opened_at = excluded.opened_at"
   ).run(abs, prev?.last_file ?? null, now);
   ensureLive(abs);
   bumpCatalog(abs);
@@ -274,7 +308,10 @@ export function openProject(input: string): ProjectRow {
  * Paired / account may only name a folder already in recents.
  * No query → the process fallback (boot default).
  */
-export function resolveRequestRoot(requested: string | undefined, kind: ProjectKind): string | null {
+export function resolveRequestRoot(
+  requested: string | undefined,
+  kind: ProjectKind
+): string | null {
   const raw = requested?.trim();
   if (!raw) return fallbackRoot();
   const abs = assertDirectory(raw);
@@ -283,7 +320,9 @@ export function resolveRequestRoot(requested: string | undefined, kind: ProjectK
     return abs;
   }
   if (!isRegistered(abs)) {
-    throw Object.assign(new Error("folder is not on this Mac"), { status: 403 });
+    throw Object.assign(new Error("folder is not on this Mac"), {
+      status: 403,
+    });
   }
   ensureLive(abs);
   return abs;
@@ -292,16 +331,26 @@ export function resolveRequestRoot(requested: string | undefined, kind: ProjectK
 export function setLastFile(rel: string | null, root?: string | null) {
   const target = root ?? fallback;
   if (!target) return;
-  db.prepare("UPDATE projects SET last_file = ? WHERE path = ?").run(rel, target);
+  db.prepare("UPDATE projects SET last_file = ? WHERE path = ?").run(
+    rel,
+    target
+  );
 }
 
-export function listFileRecents(root?: string | null, limit = MAX_FILE_RECENTS): string[] {
+export function listFileRecents(
+  root?: string | null,
+  limit = MAX_FILE_RECENTS
+): string[] {
   const target = root ?? fallback;
   if (!target) return [];
   const rows = db
-    .prepare("SELECT path FROM file_recents WHERE project = ? ORDER BY opened_at DESC LIMIT ?")
+    .prepare(
+      "SELECT path FROM file_recents WHERE project = ? ORDER BY opened_at DESC LIMIT ?"
+    )
     .all(target, limit) as { path: string }[];
-  return rows.map((row) => row.path).filter((rel) => existsSync(join(target, rel)));
+  return rows
+    .map((row) => row.path)
+    .filter((rel) => existsSync(join(target, rel)));
 }
 
 /** Record that someone opened a STEP/GLB. Does not change anyone's viewport. */
@@ -312,7 +361,7 @@ export function touchFileRecent(rel: string, root?: string | null) {
   if (!path) return listFileRecents(target);
   const now = Date.now();
   db.prepare(
-    "INSERT INTO file_recents (project, path, opened_at) VALUES (?, ?, ?) ON CONFLICT(project, path) DO UPDATE SET opened_at = excluded.opened_at",
+    "INSERT INTO file_recents (project, path, opened_at) VALUES (?, ?, ?) ON CONFLICT(project, path) DO UPDATE SET opened_at = excluded.opened_at"
   ).run(target, path, now);
   setLastFile(path, target);
   return listFileRecents(target);
@@ -321,7 +370,9 @@ export function touchFileRecent(rel: string, root?: string | null) {
 export function listBrowse(input?: string) {
   const start = input?.trim() ? resolve(expandUserPath(input)) : homedir();
   if (!existsSync(start) || !statSync(start).isDirectory()) {
-    throw Object.assign(new Error(`not a directory: ${input}`), { status: 400 });
+    throw Object.assign(new Error(`not a directory: ${input}`), {
+      status: 400,
+    });
   }
   const parent = dirname(start);
   const dirs: { name: string; path: string }[] = [];

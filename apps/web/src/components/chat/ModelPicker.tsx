@@ -5,25 +5,30 @@ import {
   groupPickerModels,
   harnessStatusTitle,
   isModelFavorite,
-  mergeUnavailableSelection,
   MODEL_FAVORITES_KEY,
+  type ModelFavorite,
+  mergeUnavailableSelection,
   modelDisplayName,
   pickerTriggerLabel,
   readModelFavorites,
   serializeModelFavorites,
   toggleModelFavorite,
-  type ModelFavorite,
 } from "@/chat/model-picker";
 import { ProviderLoginHint } from "@/components/chat/ProviderLoginHint";
 import { ProviderMark } from "@/components/chat/ProviderMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useHarnesses } from "@/hooks/useHarnesses";
+import type { useHarnesses } from "@/hooks/useHarnesses";
 import { HARNESS_IDS, HARNESS_LABEL, type HarnessId } from "@/lib/harness";
-import { useStore } from "@/state/store";
 import { cn } from "@/lib/utils";
+import { useStore } from "@/state/store";
 
 type HarnessCatalog = ReturnType<typeof useHarnesses>;
 
@@ -63,7 +68,14 @@ function StatusDot({ status }: { status: string }) {
         : status === "missing-cli"
           ? "bg-destructive"
           : "bg-muted-foreground";
-  return <span className={cn("absolute right-0.5 bottom-0.5 size-1.5 rounded-full ring-1 ring-popover", tone)} />;
+  return (
+    <span
+      className={cn(
+        "absolute right-0.5 bottom-0.5 size-1.5 rounded-full ring-1 ring-popover",
+        tone
+      )}
+    />
+  );
 }
 
 export function ModelPicker({ catalog }: { catalog: HarnessCatalog }) {
@@ -84,9 +96,10 @@ export function ModelPicker({ catalog }: { catalog: HarnessCatalog }) {
   const selectedHarness = harnesses.find((h) => h.id === chatHarness);
   const selectedModels = useMemo(
     () => mergeUnavailableSelection(selectedHarness?.models ?? [], chatModel),
-    [selectedHarness, chatModel],
+    [selectedHarness, chatModel]
   );
-  const selectedModel = selectedModels.find((m) => m.slug === chatModel) ?? null;
+  const selectedModel =
+    selectedModels.find((m) => m.slug === chatModel) ?? null;
   const triggerName = selectedModel
     ? modelDisplayName(selectedModel)
     : `${chatModel.includes("/") ? chatModel.slice(chatModel.lastIndexOf("/") + 1) : chatModel} (unavailable)`;
@@ -99,12 +112,14 @@ export function ModelPicker({ catalog }: { catalog: HarnessCatalog }) {
   const groups = useMemo(() => {
     const models = mergeUnavailableSelection(
       active?.models ?? [],
-      rail === chatHarness ? chatModel : null,
+      rail === chatHarness ? chatModel : null
     );
     return groupPickerModels({
       models,
       query,
-      favoriteSlugs: favorites.filter((row) => row.harness === rail).map((row) => row.model),
+      favoriteSlugs: favorites
+        .filter((row) => row.harness === rail)
+        .map((row) => row.model),
       defaultGroup: active?.label ?? "",
     });
   }, [active, chatHarness, chatModel, favorites, query, rail]);
@@ -153,7 +168,9 @@ export function ModelPicker({ catalog }: { catalog: HarnessCatalog }) {
         <div className="flex w-10 shrink-0 flex-col gap-0.5 border-r border-border pr-1">
           {HARNESS_IDS.map((id) => {
             const info = harnesses.find((h) => h.id === id);
-            const railTitle = info ? harnessStatusTitle(HARNESS_LABEL[id], info.status) : HARNESS_LABEL[id];
+            const railTitle = info
+              ? harnessStatusTitle(HARNESS_LABEL[id], info.status)
+              : HARNESS_LABEL[id];
             return (
               <Button
                 key={id}
@@ -187,7 +204,9 @@ export function ModelPicker({ catalog }: { catalog: HarnessCatalog }) {
               <ModelListSkeleton />
             ) : error ? (
               <div className="flex flex-col gap-1.5 px-2 py-1.5">
-                <div className="text-xs text-muted-foreground">Couldn’t load models</div>
+                <div className="text-xs text-muted-foreground">
+                  Couldn’t load models
+                </div>
                 <Button
                   type="button"
                   variant="ghost"
@@ -200,10 +219,15 @@ export function ModelPicker({ catalog }: { catalog: HarnessCatalog }) {
               </div>
             ) : notReady && active ? (
               <div className="px-2 py-1.5">
-                <ProviderLoginHint info={active} onCheckAgain={() => refresh("retry")} />
+                <ProviderLoginHint
+                  info={active}
+                  onCheckAgain={() => refresh("retry")}
+                />
               </div>
             ) : groups.length === 0 ? (
-              <div className="px-2 py-1.5 text-xs text-muted-foreground">No matches</div>
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                No matches
+              </div>
             ) : (
               <ul>
                 {groups.map(({ group, models }) => (
@@ -212,21 +236,24 @@ export function ModelPicker({ catalog }: { catalog: HarnessCatalog }) {
                       <div
                         className={cn(
                           "px-2 py-1 text-[10px] font-medium tracking-wide text-muted-foreground",
-                          group === "Favorites" ? undefined : "uppercase",
+                          group === "Favorites" ? undefined : "uppercase"
                         )}
                       >
                         {group}
                       </div>
                     ) : null}
                     {models.map((m) => {
-                      const selected = rail === chatHarness && m.slug === chatModel;
+                      const selected =
+                        rail === chatHarness && m.slug === chatModel;
                       const favorite = isModelFavorite(favorites, rail, m.slug);
                       return (
                         <div
                           key={m.slug}
                           className={cn(
                             "flex w-full items-center rounded-sm",
-                            selected ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground hover:bg-accent",
+                            selected
+                              ? "bg-accent font-medium text-accent-foreground"
+                              : "text-muted-foreground hover:bg-accent"
                           )}
                         >
                           <PopoverClose
@@ -238,16 +265,29 @@ export function ModelPicker({ catalog }: { catalog: HarnessCatalog }) {
                           <button
                             type="button"
                             className="mr-1 inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
-                            aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
+                            aria-label={
+                              favorite
+                                ? "Remove from favorites"
+                                : "Add to favorites"
+                            }
                             aria-pressed={favorite}
-                            title={favorite ? "Remove from favorites" : "Add to favorites"}
+                            title={
+                              favorite
+                                ? "Remove from favorites"
+                                : "Add to favorites"
+                            }
                             onClick={(ev) => {
                               ev.preventDefault();
                               ev.stopPropagation();
                               star(m.slug);
                             }}
                           >
-                            <Star className={cn("size-3", favorite && "fill-current text-foreground")} />
+                            <Star
+                              className={cn(
+                                "size-3",
+                                favorite && "fill-current text-foreground"
+                              )}
+                            />
                           </button>
                         </div>
                       );

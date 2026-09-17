@@ -33,7 +33,9 @@ export function VoiceSection() {
       .$put({ json: { apiKey } })
       .then(async (res) => {
         if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          const body = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
           throw new Error(body.error || res.statusText);
         }
         const body = (await res.json()) as { source?: SttSource };
@@ -51,7 +53,8 @@ export function VoiceSection() {
     return (
       <div className="space-y-2">
         <label htmlFor="stt-gateway-key" className="text-sm leading-snug">
-          AI Gateway key for voice input (speech-to-text only — chat uses your provider logins)
+          AI Gateway key for voice input (speech-to-text only — chat uses your
+          provider logins)
         </label>
         <Input
           id="stt-gateway-key"
@@ -72,7 +75,8 @@ export function VoiceSection() {
   return (
     <div className="space-y-2">
       <label htmlFor="stt-gateway-key" className="text-sm leading-snug">
-        AI Gateway key for voice input (speech-to-text only — chat uses your provider logins)
+        AI Gateway key for voice input (speech-to-text only — chat uses your
+        provider logins)
       </label>
       <Input
         id="stt-gateway-key"

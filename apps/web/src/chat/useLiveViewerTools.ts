@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
 import type { ChatAddToolOutputFunction } from "ai";
+import { useEffect, useRef } from "react";
 
 import { viewerSnapshot } from "@/cad/viewer-snapshot";
 import {
@@ -19,15 +19,21 @@ function lastAssistantHasPendingTools(messages: GalleryChatMessage[]) {
     if (!part || typeof part !== "object") continue;
     const row = part as { type?: string; state?: string };
     const toolish =
-      row.type === "dynamic-tool" || (typeof row.type === "string" && row.type.startsWith("tool-"));
+      row.type === "dynamic-tool" ||
+      (typeof row.type === "string" && row.type.startsWith("tool-"));
     if (!toolish) continue;
-    if (row.state === "input-available" || row.state === "input-streaming") return true;
+    if (row.state === "input-available" || row.state === "input-streaming")
+      return true;
   }
   return false;
 }
 
-function waitUntilReady(target: string | null, isCancelled: () => boolean): Promise<void> {
-  if (isCancelled() || viewerIsReady(store.getState(), target)) return Promise.resolve();
+function waitUntilReady(
+  target: string | null,
+  isCancelled: () => boolean
+): Promise<void> {
+  if (isCancelled() || viewerIsReady(store.getState(), target))
+    return Promise.resolve();
   return new Promise((resolve) => {
     const unsub = store.subscribe((state) => {
       if (isCancelled() || viewerIsReady(state, target)) {
@@ -46,7 +52,7 @@ function waitUntilReady(target: string | null, isCancelled: () => boolean): Prom
 export function useLiveViewerTools(
   messages: GalleryChatMessage[],
   addToolOutput: ChatAddToolOutputFunction<GalleryChatMessage>,
-  streaming: boolean,
+  streaming: boolean
 ) {
   const seen = useRef(new Set<string>());
   const inFlight = useRef<string | null>(null);
@@ -59,7 +65,7 @@ export function useLiveViewerTools(
           const shown = shownFromPart(
             part as Parameters<typeof shownFromPart>[0],
             index,
-            message.id,
+            message.id
           );
           if (!shown || seen.current.has(shown.key)) return;
           seen.current.add(shown.key);

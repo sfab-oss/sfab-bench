@@ -3,8 +3,9 @@ import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { Lockup } from "@/components/brand/Lockup";
-import { EmptyFolderRail, type OpenFolderApi } from "@/components/OpenFolder";
+import { ConnectionStatusDot } from "@/components/ConnectionStatusDot";
 import { FileTree } from "@/components/FileTree";
+import { EmptyFolderRail, type OpenFolderApi } from "@/components/OpenFolder";
 import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,13 +19,16 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { WorkbenchSettings } from "@/components/WorkbenchSettings";
-import { ConnectionStatusDot } from "@/components/ConnectionStatusDot";
 import type { CatalogState } from "@/hooks/useCatalog";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { commandPaletteShortcutLabel } from "@/lib/command-palette";
 import { filesRailToggleTitle } from "@/lib/files-rail";
 import { refreshFilesTooltip } from "@/lib/motion";
-import { isMacPlatform, matchesShortcut, shortcutTooltip } from "@/lib/shortcuts";
+import {
+  isMacPlatform,
+  matchesShortcut,
+  shortcutTooltip,
+} from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
 
@@ -41,22 +45,34 @@ export function DesktopSidebar({
     useShallow((s) => ({
       url: s.url,
       recentFiles: s.recentFiles,
-    })),
+    }))
   );
-  const { project, setDoc, connectionPhase, connectionLostShown, connectionOfferReload } = useProjectSession();
+  const {
+    project,
+    setDoc,
+    connectionPhase,
+    connectionLostShown,
+    connectionOfferReload,
+  } = useProjectSession();
   const hasProject = Boolean(project.path);
   const { files, error, ready, refreshing, reload } = catalog;
   const [filter, setFilter] = useState("");
   const mac = isMacPlatform(
     typeof navigator === "undefined" ? "" : navigator.platform,
-    typeof navigator === "undefined" ? "" : navigator.userAgent,
+    typeof navigator === "undefined" ? "" : navigator.userAgent
   );
   const { toggleSidebar } = useSidebar();
   const filesTitle = filesRailToggleTitle(mac);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!matchesShortcut(event, "toggle-files", { mac, activeElement: document.activeElement })) return;
+      if (
+        !matchesShortcut(event, "toggle-files", {
+          mac,
+          activeElement: document.activeElement,
+        })
+      )
+        return;
       event.preventDefault();
       toggleSidebar();
     };
@@ -69,7 +85,11 @@ export function DesktopSidebar({
       <SidebarHeader>
         <div className="flex items-start gap-1">
           {hasProject ? (
-            <ProjectSwitcher path={project.path} canRegister={host} onOpenFolder={() => void folder.requestOpen()} />
+            <ProjectSwitcher
+              path={project.path}
+              canRegister={host}
+              onOpenFolder={() => void folder.requestOpen()}
+            />
           ) : (
             <div className="flex min-w-0 flex-1 items-center px-2 py-1.5">
               <Lockup />
@@ -100,7 +120,9 @@ export function DesktopSidebar({
               aria-busy={refreshing || undefined}
               onClick={() => reload({ explicit: true })}
             >
-              <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
+              <RefreshCw
+                className={cn("size-3.5", refreshing && "animate-spin")}
+              />
             </Button>
           </div>
         ) : null}

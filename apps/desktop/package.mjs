@@ -39,19 +39,26 @@ const stage = join(here, "app");
 const next = join(here, "app.next");
 const previous = join(here, "app.prev");
 
-const serverPkg = JSON.parse(readFileSync(join(here, "..", "server", "package.json"), "utf8"));
+const serverPkg = JSON.parse(
+  readFileSync(join(here, "..", "server", "package.json"), "utf8")
+);
 const desktopPkg = JSON.parse(readFileSync(join(here, "package.json"), "utf8"));
 
 const runtimeDeps = Object.fromEntries(
-  Object.entries(serverPkg.dependencies).filter(([name]) => !name.startsWith("@sfab-bench/")),
+  Object.entries(serverPkg.dependencies).filter(
+    ([name]) => !name.startsWith("@sfab-bench/")
+  )
 );
 
 const canSign = Boolean(process.env.CSC_NAME || process.env.CSC_LINK);
 const canNotarise = Boolean(
   (process.env.APPLE_ID &&
-    (process.env.APPLE_APP_SPECIFIC_PASSWORD || process.env.APPLE_ID_PASSWORD) &&
+    (process.env.APPLE_APP_SPECIFIC_PASSWORD ||
+      process.env.APPLE_ID_PASSWORD) &&
     process.env.APPLE_TEAM_ID) ||
-    (process.env.APPLE_API_KEY && process.env.APPLE_API_KEY_ID && process.env.APPLE_API_ISSUER),
+    (process.env.APPLE_API_KEY &&
+      process.env.APPLE_API_KEY_ID &&
+      process.env.APPLE_API_ISSUER)
 );
 
 const run = (cmd, args, cwd) => {
@@ -66,7 +73,9 @@ console.log("[package] building bundles");
 run("node", [join(here, "build.mjs")], here);
 
 if (!existsSync(join(root, "apps", "web", "dist", "index.html"))) {
-  throw new Error("apps/web/dist is missing — run `pnpm --filter @sfab-bench/web build` first");
+  throw new Error(
+    "apps/web/dist is missing — run `pnpm --filter @sfab-bench/web build` first"
+  );
 }
 
 console.log("[package] staging app/");
@@ -74,7 +83,9 @@ rmSync(next, { recursive: true, force: true });
 mkdirSync(next, { recursive: true });
 // Carried over so npm has something to work from; it prunes and adds as needed.
 if (existsSync(join(stage, "node_modules"))) {
-  cpSync(join(stage, "node_modules"), join(next, "node_modules"), { recursive: true });
+  cpSync(join(stage, "node_modules"), join(next, "node_modules"), {
+    recursive: true,
+  });
 }
 writeFileSync(
   join(next, "package.json"),
@@ -91,8 +102,8 @@ writeFileSync(
       dependencies: runtimeDeps,
     },
     null,
-    2,
-  )}\n`,
+    2
+  )}\n`
 );
 for (const file of ["main.cjs", "preload.cjs"]) {
   cpSync(join(here, "dist", file), join(next, file));
@@ -100,10 +111,16 @@ for (const file of ["main.cjs", "preload.cjs"]) {
 for (const file of ["api.mjs", "occt-worker.mjs"]) {
   cpSync(join(here, "..", "server", "dist", file), join(next, file));
 }
-cpSync(join(root, "apps", "web", "dist"), join(next, "web"), { recursive: true });
+cpSync(join(root, "apps", "web", "dist"), join(next, "web"), {
+  recursive: true,
+});
 
 console.log("[package] installing runtime dependencies (npm, flat)");
-run("npm", ["install", "--omit=dev", "--no-audit", "--no-fund", "--loglevel=error"], next);
+run(
+  "npm",
+  ["install", "--omit=dev", "--no-audit", "--no-fund", "--loglevel=error"],
+  next
+);
 
 rmSync(previous, { recursive: true, force: true });
 if (existsSync(stage)) renameSync(stage, previous);
@@ -119,7 +136,7 @@ if (canSign && canNotarise) {
   builderArgs.push("-c.mac.notarize=true");
 }
 console.log(
-  `[package] electron-builder (${canSign ? "signed" : "unsigned"}${canSign && canNotarise ? ", notarize" : ""})`,
+  `[package] electron-builder (${canSign ? "signed" : "unsigned"}${canSign && canNotarise ? ", notarize" : ""})`
 );
 assertHarnessBridgeAssets(stage, "staged app/");
 run(join(here, "node_modules", ".bin", "electron-builder"), builderArgs, here);
@@ -132,9 +149,18 @@ run(join(here, "node_modules", ".bin", "electron-builder"), builderArgs, here);
  */
 function restoreHarnessBridgeAssets(appPath) {
   const stagedAi = join(stage, "node_modules", "@ai-sdk");
-  const packedAi = join(appPath, "Contents", "Resources", "app", "node_modules", "@ai-sdk");
+  const packedAi = join(
+    appPath,
+    "Contents",
+    "Resources",
+    "app",
+    "node_modules",
+    "@ai-sdk"
+  );
   if (!existsSync(stagedAi) || !existsSync(packedAi)) {
-    throw new Error(`harness bridge restore: missing @ai-sdk in stage or ${appPath}`);
+    throw new Error(
+      `harness bridge restore: missing @ai-sdk in stage or ${appPath}`
+    );
   }
   let restored = 0;
   for (const pkg of readdirSync(stagedAi, { withFileTypes: true })) {
@@ -150,8 +176,13 @@ function restoreHarnessBridgeAssets(appPath) {
       restored += 1;
     }
   }
-  console.log(`[package] restored ${restored} harness bridge files into ${appPath}`);
-  assertHarnessBridgeAssets(join(appPath, "Contents", "Resources", "app"), "packaged app");
+  console.log(
+    `[package] restored ${restored} harness bridge files into ${appPath}`
+  );
+  assertHarnessBridgeAssets(
+    join(appPath, "Contents", "Resources", "app"),
+    "packaged app"
+  );
 }
 
 /**
@@ -173,18 +204,35 @@ if (process.platform === "darwin") {
     restoreHarnessBridgeAssets(app);
     if (canSign && process.env.CSC_NAME) {
       console.log(`[package] re-signing ${app}`);
-      run("codesign", ["--force", "--deep", "--options", "runtime", "--sign", process.env.CSC_NAME, app], here);
+      run(
+        "codesign",
+        [
+          "--force",
+          "--deep",
+          "--options",
+          "runtime",
+          "--sign",
+          process.env.CSC_NAME,
+          app,
+        ],
+        here
+      );
       run("codesign", ["--verify", "--deep", "--strict", app], here);
     } else if (!canSign) {
       console.log(`[package] ad-hoc signing ${app}`);
       run("codesign", ["--force", "--deep", "--sign", "-", app], here);
       run("codesign", ["--verify", "--deep", "--strict", app], here);
     } else {
-      console.warn("[package] CSC_LINK signing: restore happened after electron-builder; re-sign before distributing");
+      console.warn(
+        "[package] CSC_LINK signing: restore happened after electron-builder; re-sign before distributing"
+      );
     }
   }
   const arch = process.arch === "arm64" ? "arm64" : process.arch;
-  const zipPath = join(release, `sfab-bench-${desktopPkg.version}-${arch}.app.zip`);
+  const zipPath = join(
+    release,
+    `sfab-bench-${desktopPkg.version}-${arch}.app.zip`
+  );
   rmSync(zipPath, { force: true });
   for (const app of apps) {
     console.log(`[package] ditto ${zipPath}`);

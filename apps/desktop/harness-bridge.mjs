@@ -13,8 +13,12 @@ export const HARNESS_BRIDGE_ASSETS = [
 ];
 
 export function assertHarnessBridgeAssets(root, label) {
-  const missing = HARNESS_BRIDGE_ASSETS.filter((rel) => !existsSync(join(root, rel)));
+  const missing = HARNESS_BRIDGE_ASSETS.filter(
+    (rel) => !existsSync(join(root, rel))
+  );
   if (missing.length) {
-    throw new Error(`${label} missing harness bridge files:\n${missing.join("\n")}`);
+    throw new Error(
+      `${label} missing harness bridge files:\n${missing.join("\n")}`
+    );
   }
 }

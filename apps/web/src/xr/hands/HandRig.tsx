@@ -1,11 +1,11 @@
 import { useXRInputSourceState, XRSpace } from "@react-three/xr";
 import {
   createContext,
+  type ReactNode,
+  type RefObject,
   useCallback,
   useContext,
   useRef,
-  type ReactNode,
-  type RefObject,
 } from "react";
 import type { Object3D } from "three";
 
@@ -49,7 +49,7 @@ export function HandRig({
       ref.current = object;
       wrists[handedness] = object;
     },
-    [handedness],
+    [handedness]
   );
   const wrist = state?.inputSource.hand?.get("wrist");
   if (!wrist) return null;

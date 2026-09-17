@@ -1,21 +1,29 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { stripViewerStamp } from "@/chat/composer-recovery";
+import { shouldPersistMessages } from "@/chat/persist-thread";
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
-import { jsonApi } from "@/lib/api";
 import { showNetworkErrorToast } from "@/components/ui/toast";
 import { useProjectSession } from "@/hooks/useProjectSession";
+import { jsonApi } from "@/lib/api";
 import {
+  type ChatEffort,
   DEFAULT_CHAT_EFFORT,
   DEFAULT_HARNESS,
   DEFAULT_HARNESS_MODEL,
+  type HarnessId,
   isChatEffort,
   isHarnessId,
-  type ChatEffort,
-  type HarnessId,
 } from "@/lib/harness";
 import { store, useStore } from "@/state/store";
-import { shouldPersistMessages } from "@/chat/persist-thread";
-import { stripViewerStamp } from "@/chat/composer-recovery";
 
 export type ThreadRow = {
   id: string;
@@ -65,11 +73,19 @@ function writeSavedThread(path: string, id: string | null) {
   }
 }
 
-function applyThreadPrefs(row: { harness?: string | null; model?: string | null; effort?: string | null }) {
-  const harness: HarnessId = row.harness && isHarnessId(row.harness) ? row.harness : DEFAULT_HARNESS;
+function applyThreadPrefs(row: {
+  harness?: string | null;
+  model?: string | null;
+  effort?: string | null;
+}) {
+  const harness: HarnessId =
+    row.harness && isHarnessId(row.harness) ? row.harness : DEFAULT_HARNESS;
   const model =
-    typeof row.model === "string" && row.model.trim() ? row.model.trim() : DEFAULT_HARNESS_MODEL[harness];
-  const effort: ChatEffort = row.effort && isChatEffort(row.effort) ? row.effort : DEFAULT_CHAT_EFFORT;
+    typeof row.model === "string" && row.model.trim()
+      ? row.model.trim()
+      : DEFAULT_HARNESS_MODEL[harness];
+  const effort: ChatEffort =
+    row.effort && isChatEffort(row.effort) ? row.effort : DEFAULT_CHAT_EFFORT;
   store.getState().setChatSelection(harness, model);
   store.getState().setChatEffort(effort);
 }
@@ -91,14 +107,19 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
   const projectPath = useProjectSession().project.path;
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
-  const [initialMessages, setInitialMessages] = useState<GalleryChatMessage[]>([]);
+  const [initialMessages, setInitialMessages] = useState<GalleryChatMessage[]>(
+    []
+  );
   const [tabStreaming, setTabStreaming] = useState(false);
   const stopTabTurnRef = useRef<(() => void) | null>(null);
 
-  const registerTabTurn = useCallback((streaming: boolean, stop: (() => void) | null) => {
-    setTabStreaming(streaming);
-    stopTabTurnRef.current = stop;
-  }, []);
+  const registerTabTurn = useCallback(
+    (streaming: boolean, stop: (() => void) | null) => {
+      setTabStreaming(streaming);
+      stopTabTurnRef.current = stop;
+    },
+    []
+  );
 
   const stopTabTurn = useCallback(() => {
     stopTabTurnRef.current?.();
@@ -126,7 +147,10 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
           showNetworkErrorToast({ title: "Couldn't open that chat" });
           return;
         }
-        const body = (await res.json()) as { thread?: ThreadRow; messages?: GalleryChatMessage[] };
+        const body = (await res.json()) as {
+          thread?: ThreadRow;
+          messages?: GalleryChatMessage[];
+        };
         setThreadId(id);
         setInitialMessages(body.messages ?? []);
         if (body.thread) applyThreadPrefs(body.thread);
@@ -136,7 +160,7 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
         showNetworkErrorToast({ title: "Couldn't open that chat" });
       }
     },
-    [projectPath, refreshThreads],
+    [projectPath, refreshThreads]
   );
 
   const newThread = useCallback(async () => {
@@ -228,10 +252,14 @@ export function ViewerChatProvider({ children }: { children: ReactNode }) {
       tabStreaming,
       stopTabTurn,
       registerTabTurn,
-    ],
+    ]
   );
 
-  return <ViewerChatContext.Provider value={value}>{children}</ViewerChatContext.Provider>;
+  return (
+    <ViewerChatContext.Provider value={value}>
+      {children}
+    </ViewerChatContext.Provider>
+  );
 }
 
 export function useViewerChat() {
@@ -240,7 +268,10 @@ export function useViewerChat() {
   return ctx;
 }
 
-export function persistThread(threadId: string, messages: GalleryChatMessage[]) {
+export function persistThread(
+  threadId: string,
+  messages: GalleryChatMessage[]
+) {
   if (!shouldPersistMessages(messages)) return Promise.resolve();
   return jsonApi.threads[":id"].$put({
     param: { id: threadId },
@@ -249,7 +280,9 @@ export function persistThread(threadId: string, messages: GalleryChatMessage[]) 
 }
 
 /** GET messages without opening the thread. `null` if the fetch failed. */
-export async function peekThreadMessages(id: string): Promise<GalleryChatMessage[] | null> {
+export async function peekThreadMessages(
+  id: string
+): Promise<GalleryChatMessage[] | null> {
   try {
     const res = await jsonApi.threads[":id"].$get({ param: { id } });
     if (!res.ok) return null;
@@ -263,7 +296,9 @@ export async function peekThreadMessages(id: string): Promise<GalleryChatMessage
 export function messagePlainText(message: GalleryChatMessage) {
   return stripViewerStamp(
     (message.parts ?? [])
-      .flatMap((part) => (part.type === "text" && "text" in part ? [part.text] : []))
-      .join("\n"),
+      .flatMap((part) =>
+        part.type === "text" && "text" in part ? [part.text] : []
+      )
+      .join("\n")
   );
 }

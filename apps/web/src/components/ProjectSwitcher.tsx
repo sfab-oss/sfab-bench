@@ -2,16 +2,21 @@ import { Check, ChevronDown, Folder, FolderOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { StartTruncatedPath } from "@/components/StartTruncatedPath";
-import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { requestCloseFolder } from "@/lib/motion";
 import {
   fetchProject,
   folderName,
   openTabProject,
-  registerAndOpenTab,
-  shortPath,
   type ProjectInfo,
   type ProjectRow,
+  registerAndOpenTab,
+  shortPath,
 } from "@/lib/project";
 import { redact } from "@/lib/redact";
 import { cn } from "@/lib/utils";
@@ -37,7 +42,9 @@ export function ProjectSwitcher({
         setError(null);
       })
       .catch((err: unknown) => {
-        setError(redact(err instanceof Error ? err.message : "Could not load folders"));
+        setError(
+          redact(err instanceof Error ? err.message : "Could not load folders")
+        );
       });
   };
 
@@ -53,7 +60,11 @@ export function ProjectSwitcher({
       else openTabProject(nextPath);
       setOpen(false);
     } catch (err) {
-      setError(redact(err instanceof Error ? err.message : "Could not open that folder"));
+      setError(
+        redact(
+          err instanceof Error ? err.message : "Could not open that folder"
+        )
+      );
     } finally {
       setBusy(false);
     }
@@ -78,7 +89,9 @@ export function ProjectSwitcher({
         title={path}
       >
         <Folder className="size-4 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{folderName(path)}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+          {folderName(path)}
+        </span>
         <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
       </PopoverTrigger>
       <PopoverContent align="start" side="bottom" className="w-80 p-1">
@@ -86,7 +99,9 @@ export function ProjectSwitcher({
           Recent folders
         </div>
         {recents.length === 0 ? (
-          <p className="px-2 py-1.5 text-[13px] text-muted-foreground">No other folders yet.</p>
+          <p className="px-2 py-1.5 text-[13px] text-muted-foreground">
+            No other folders yet.
+          </p>
         ) : (
           <ul className="max-h-48 overflow-y-auto">
             {recents.map((row) => {
@@ -98,7 +113,7 @@ export function ProjectSwitcher({
                     disabled={busy}
                     className={cn(
                       "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent",
-                      active && "bg-accent/70",
+                      active && "bg-accent/70"
                     )}
                     onClick={() => void switchTo(row.path)}
                   >
@@ -108,7 +123,9 @@ export function ProjectSwitcher({
                       <Folder className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
                     )}
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm text-foreground">{row.name}</span>
+                      <span className="block truncate text-sm text-foreground">
+                        {row.name}
+                      </span>
                       <StartTruncatedPath
                         path={shortPath(row.path)}
                         title={row.path}

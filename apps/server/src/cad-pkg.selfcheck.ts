@@ -1,4 +1,11 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -57,8 +64,12 @@ try {
   ];
   for (const [input, expected] of allowed) {
     const got = resolveArtifact(input, root);
-    if ("error" in got) note(`${JSON.stringify(input)} was refused: ${got.error}`);
-    else if (got.rel !== expected) note(`${JSON.stringify(input)} resolved to ${got.rel}, expected ${expected}`);
+    if ("error" in got)
+      note(`${JSON.stringify(input)} was refused: ${got.error}`);
+    else if (got.rel !== expected)
+      note(
+        `${JSON.stringify(input)} resolved to ${got.rel}, expected ${expected}`
+      );
   }
 
   /** Values that must not resolve, whatever else happens. */
@@ -78,7 +89,10 @@ try {
   ];
   for (const input of refused) {
     const got = resolveArtifact(input, root);
-    if (!("error" in got)) note(`${JSON.stringify(input)} resolved to ${got.rel} — it should not have`);
+    if (!("error" in got))
+      note(
+        `${JSON.stringify(input)} resolved to ${got.rel} — it should not have`
+      );
   }
 
   /**
@@ -93,7 +107,9 @@ try {
     const url = shownUrl(opened);
     const back = resolveArtifact(url, root);
     if ("error" in back) {
-      note(`the path handed to the viewer (${url}) is refused when it comes back: ${back.error}`);
+      note(
+        `the path handed to the viewer (${url}) is refused when it comes back: ${back.error}`
+      );
     } else if (back.rel !== opened.rel) {
       note(`re-opening ${url} gave ${back.rel}, not ${opened.rel}`);
     }
@@ -102,9 +118,11 @@ try {
   const otherRoot = mkdtempSync(join(tmpdir(), "sfab-project-b-"));
   writeFileSync(join(otherRoot, "other.step"), "x");
   const fromOther = resolveArtifact("other.step", root);
-  if (!("error" in fromOther)) note("other.step resolved inside the first root — it should not have");
+  if (!("error" in fromOther))
+    note("other.step resolved inside the first root — it should not have");
   const inOther = resolveArtifact("other.step", otherRoot);
-  if ("error" in inOther) note(`other.step refused in its own root: ${inOther.error}`);
+  if ("error" in inOther)
+    note(`other.step refused in its own root: ${inOther.error}`);
   rmSync(otherRoot, { recursive: true, force: true });
 } finally {
   rmSync(root, { recursive: true, force: true });

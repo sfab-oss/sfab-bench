@@ -6,6 +6,7 @@ import type { Object3D } from "three";
 import * as THREE from "three";
 
 import {
+  formatMm,
   MEASURE_DESKTOP_SPHERE_PX,
   MEASURE_DESKTOP_TEXT_PX,
   MEASURE_LABEL_FONT_SIZE,
@@ -13,7 +14,6 @@ import {
   MEASURE_LABEL_PAD_Y,
   MEASURE_LABEL_PIXEL_SIZE,
   MEASURE_SPHERE_RADIUS,
-  formatMm,
   measureDelta,
   measureDesktopLabelOffsetY,
   measureNativeTextHeight,
@@ -33,7 +33,13 @@ export function pinWorldSize(obj: Object3D, extraScale = 1) {
   obj.scale.setScalar(extraScale / s);
 }
 
-function desktopExtra(obj: Object3D, camera: THREE.Camera, nativeWorld: number, targetPx: number, canvasHeight: number) {
+function desktopExtra(
+  obj: Object3D,
+  camera: THREE.Camera,
+  nativeWorld: number,
+  targetPx: number,
+  canvasHeight: number
+) {
   const parent = obj.parent;
   if (!parent) return 1;
   parent.updateWorldMatrix(true, false);
@@ -41,7 +47,14 @@ function desktopExtra(obj: Object3D, camera: THREE.Camera, nativeWorld: number, 
   const dist = camera.position.distanceTo(worldPos);
   const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 50;
   const zoom = camera instanceof THREE.PerspectiveCamera ? camera.zoom : 1;
-  return measureScreenScale(nativeWorld, targetPx, dist, fov, canvasHeight, zoom);
+  return measureScreenScale(
+    nativeWorld,
+    targetPx,
+    dist,
+    fov,
+    canvasHeight,
+    zoom
+  );
 }
 
 export function MeasureGizmo() {
@@ -59,15 +72,26 @@ export function MeasureGizmo() {
   useFrame((state) => {
     const inXr = state.gl.xr.isPresenting;
     const canvasH = state.size.height;
-    const pin = (obj: Object3D | null, nativeWorld: number, targetPx: number) => {
+    const pin = (
+      obj: Object3D | null,
+      nativeWorld: number,
+      targetPx: number
+    ) => {
       if (!obj) return;
-      pinWorldSize(obj, inXr ? 1 : desktopExtra(obj, state.camera, nativeWorld, targetPx, canvasH));
+      pinWorldSize(
+        obj,
+        inXr
+          ? 1
+          : desktopExtra(obj, state.camera, nativeWorld, targetPx, canvasH)
+      );
     };
     pin(aRef.current, MEASURE_SPHERE_RADIUS * 2, MEASURE_DESKTOP_SPHERE_PX);
     pin(bRef.current, MEASURE_SPHERE_RADIUS * 2, MEASURE_DESKTOP_SPHERE_PX);
     pin(labelRef.current, measureNativeTextHeight(), MEASURE_DESKTOP_TEXT_PX);
     if (labelOffsetRef.current) {
-      labelOffsetRef.current.position.y = inXr ? MEASURE_LABEL_OFFSET_Y : measureDesktopLabelOffsetY();
+      labelOffsetRef.current.position.y = inXr
+        ? MEASURE_LABEL_OFFSET_Y
+        : measureDesktopLabelOffsetY();
     }
   });
   return (
@@ -75,13 +99,21 @@ export function MeasureGizmo() {
       {a ? (
         <mesh ref={aRef} position={a} renderOrder={20} raycast={() => {}}>
           <sphereGeometry args={[MEASURE_SPHERE_RADIUS, 12, 8]} />
-          <meshBasicMaterial color="#2563eb" depthTest={false} depthWrite={false} />
+          <meshBasicMaterial
+            color="#2563eb"
+            depthTest={false}
+            depthWrite={false}
+          />
         </mesh>
       ) : null}
       {b ? (
         <mesh ref={bRef} position={b} renderOrder={20} raycast={() => {}}>
           <sphereGeometry args={[MEASURE_SPHERE_RADIUS, 12, 8]} />
-          <meshBasicMaterial color="#dc2626" depthTest={false} depthWrite={false} />
+          <meshBasicMaterial
+            color="#dc2626"
+            depthTest={false}
+            depthWrite={false}
+          />
         </mesh>
       ) : null}
       {a && b ? (
@@ -92,7 +124,11 @@ export function MeasureGizmo() {
         // Offset lives under the pin so it stays clear of the line at any zoom.
         <group ref={labelRef} position={mid}>
           <Billboard>
-            <group ref={labelOffsetRef} position={[0, MEASURE_LABEL_OFFSET_Y, 0]} renderOrder={21}>
+            <group
+              ref={labelOffsetRef}
+              position={[0, MEASURE_LABEL_OFFSET_Y, 0]}
+              renderOrder={21}
+            >
               <Container
                 pixelSize={MEASURE_LABEL_PIXEL_SIZE}
                 paddingX={10}

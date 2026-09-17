@@ -14,7 +14,13 @@ const ANGULAR_DEFLECTION = 0.35; // radians
  * normals averaged inside a face keep curved surfaces smooth.
  */
 export function tessellate(oc: OpenCascade, shape: Shape): ComponentMesh {
-  new oc.BRepMesh_IncrementalMesh_2(shape, LINEAR_DEFLECTION, true, ANGULAR_DEFLECTION, false);
+  new oc.BRepMesh_IncrementalMesh_2(
+    shape,
+    LINEAR_DEFLECTION,
+    true,
+    ANGULAR_DEFLECTION,
+    false
+  );
 
   const positions: number[] = [];
   const normals: number[] = [];
@@ -28,7 +34,7 @@ export function tessellate(oc: OpenCascade, shape: Shape): ComponentMesh {
   const explorer = new oc.TopExp_Explorer_2(
     shape,
     oc.TopAbs_ShapeEnum.TopAbs_FACE,
-    oc.TopAbs_ShapeEnum.TopAbs_SHAPE,
+    oc.TopAbs_ShapeEnum.TopAbs_SHAPE
   );
   for (; explorer.More(); explorer.Next()) {
     const face = oc.TopoDS.Face_1(explorer.Current());
@@ -68,7 +74,8 @@ export function tessellate(oc: OpenCascade, shape: Shape): ComponentMesh {
     }
 
     const reversed =
-      face.Orientation_1().value === oc.TopAbs_Orientation.TopAbs_REVERSED.value;
+      face.Orientation_1().value ===
+      oc.TopAbs_Orientation.TopAbs_REVERSED.value;
     const indexStart = indices.length;
     const accumulated = new Float64Array(nodeCount * 3);
     // Every triangle of this face, summed once, as a fallback for vertices whose
@@ -138,7 +145,11 @@ export function tessellate(oc: OpenCascade, shape: Shape): ComponentMesh {
       normals.push(nx / length, ny / length, nz / length);
     }
 
-    faceRanges.push({ ord, indexStart, indexCount: indices.length - indexStart });
+    faceRanges.push({
+      ord,
+      indexStart,
+      indexCount: indices.length - indexStart,
+    });
     location.delete();
   }
 

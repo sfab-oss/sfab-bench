@@ -10,11 +10,11 @@ import * as THREE from "three";
 import { store } from "@/state/store";
 import { wristObject } from "@/xr/hands/HandRig";
 import {
+  type CardReg,
   cardContains,
   hitChrome,
-  nearestCard,
   NEAR_LEAVE,
-  type CardReg,
+  nearestCard,
 } from "@/xr/ui/chrome";
 
 // Ready = both angles below. Grab starts on a close while orange.
@@ -75,7 +75,7 @@ function jointPose(
   frame: XRFrame,
   refSpace: XRSpace,
   hand: XRHand,
-  name: XRHandJoint,
+  name: XRHandJoint
 ): XRPose | null {
   const joint = hand.get(name);
   if (!joint) return null;
@@ -88,7 +88,7 @@ function jointDist(
   refSpace: XRSpace,
   hand: XRHand,
   name: XRHandJoint,
-  origin: XRPose,
+  origin: XRPose
 ): number | null {
   const pose = jointPose(frame, refSpace, hand, name);
   if (!pose) return null;
@@ -100,7 +100,8 @@ function jointDist(
 export function XRGrab() {
   // Actions are stable; the grabbed group is read per call so the frame loop
   // never subscribes to the store.
-  const { setHandGrab, setHandHold, setWorldGrabbing, setModelScale } = store.getState();
+  const { setHandGrab, setHandHold, setWorldGrabbing, setModelScale } =
+    store.getState();
   const left = useXRInputSourceState("controller", "left");
   const right = useXRInputSourceState("controller", "right");
   const leftHand = useXRInputSourceState("hand", "left");
@@ -119,14 +120,19 @@ export function XRGrab() {
     left: null,
     right: null,
   });
-  const nearJoint = useRef<{ left: "middle" | "index" | null; right: "middle" | "index" | null }>({
+  const nearJoint = useRef<{
+    left: "middle" | "index" | null;
+    right: "middle" | "index" | null;
+  }>({
     left: null,
     right: null,
   });
   const leftGrip = useRef<THREE.Object3D>(null);
   const rightGrip = useRef<THREE.Object3D>(null);
   const squeezing = useRef(new Set<XRInputSource>());
-  const grab = useRef<{ source: XRInputSource; offset: THREE.Matrix4 } | null>(null);
+  const grab = useRef<{ source: XRInputSource; offset: THREE.Matrix4 } | null>(
+    null
+  );
   const twoHand = useRef<TwoHand | null>(null);
   const inv = useRef(new THREE.Matrix4());
   const tmp = useRef(new THREE.Matrix4());
@@ -165,11 +171,16 @@ export function XRGrab() {
     out.dist = Math.max(0.02, pairA.distanceTo(pairB));
     return out;
   };
-  const pairScratch = useRef<PairPose>({ mid: new THREE.Vector3(), yaw: 0, dist: 0 });
+  const pairScratch = useRef<PairPose>({
+    mid: new THREE.Vector3(),
+    yaw: 0,
+    dist: 0,
+  });
 
   const startHold = (source: XRInputSource) => {
     const obj = store.getState().placed;
-    if (!obj || squeezing.current.has(source) || store.getState().cardDragging) return;
+    if (!obj || squeezing.current.has(source) || store.getState().cardDragging)
+      return;
     const space = spaceFor(source);
     if (!space) return;
     squeezing.current.add(source);
@@ -194,7 +205,10 @@ export function XRGrab() {
     inv.current.copy(space.matrixWorld).invert();
     grab.current = {
       source,
-      offset: new THREE.Matrix4().multiplyMatrices(inv.current, obj.matrixWorld),
+      offset: new THREE.Matrix4().multiplyMatrices(
+        inv.current,
+        obj.matrixWorld
+      ),
     };
   };
 
@@ -213,7 +227,10 @@ export function XRGrab() {
         inv.current.copy(space.matrixWorld).invert();
         grab.current = {
           source: remaining,
-          offset: new THREE.Matrix4().multiplyMatrices(inv.current, held.matrixWorld),
+          offset: new THREE.Matrix4().multiplyMatrices(
+            inv.current,
+            held.matrixWorld
+          ),
         };
       }
     }
@@ -233,7 +250,7 @@ export function XRGrab() {
       if (event.inputSource.hand || store.getState().cardDragging) return;
       startHold(event.inputSource);
     },
-    [],
+    []
   );
 
   useXRInputSourceEvent(
@@ -243,7 +260,7 @@ export function XRGrab() {
       if (event.inputSource.hand) return;
       endHold(event.inputSource);
     },
-    [],
+    []
   );
 
   const clearSide = (side: "left" | "right") => {
@@ -274,7 +291,10 @@ export function XRGrab() {
       for (const source of [...squeezing.current]) endHold(source);
     }
     if (frame && refSpace) {
-      if (!leftHand && (ready.current.left || grabbing.current.left || nearHold.current.left)) {
+      if (
+        !leftHand &&
+        (ready.current.left || grabbing.current.left || nearHold.current.left)
+      ) {
         ready.current.left = false;
         grabbing.current.left = false;
         wasCurled.current.left = false;
@@ -282,7 +302,12 @@ export function XRGrab() {
         setHandHold("left", false);
         endHoldsFor("left");
       }
-      if (!rightHand && (ready.current.right || grabbing.current.right || nearHold.current.right)) {
+      if (
+        !rightHand &&
+        (ready.current.right ||
+          grabbing.current.right ||
+          nearHold.current.right)
+      ) {
         ready.current.right = false;
         grabbing.current.right = false;
         wasCurled.current.right = false;
@@ -305,9 +330,27 @@ export function XRGrab() {
         if (!wrist) continue;
         const origin = frame.getPose(wrist, refSpace);
         if (!origin) continue;
-        const index = jointDist(frame, refSpace, hand, "index-finger-tip", origin);
-        const middle = jointDist(frame, refSpace, hand, "middle-finger-tip", origin);
-        const ring = jointDist(frame, refSpace, hand, "ring-finger-tip", origin);
+        const index = jointDist(
+          frame,
+          refSpace,
+          hand,
+          "index-finger-tip",
+          origin
+        );
+        const middle = jointDist(
+          frame,
+          refSpace,
+          hand,
+          "middle-finger-tip",
+          origin
+        );
+        const ring = jointDist(
+          frame,
+          refSpace,
+          hand,
+          "ring-finger-tip",
+          origin
+        );
         if (index == null || middle == null || ring == null) continue;
         const holding = grabbing.current[side];
         const curled = holding
@@ -316,32 +359,51 @@ export function XRGrab() {
         const closedNow = curled && !wasCurled.current[side];
         const other = side === "left" ? "right" : "left";
         fistPts.length = 0;
-        const midKn = jointPose(frame, refSpace, hand, "middle-finger-phalanx-proximal");
+        const midKn = jointPose(
+          frame,
+          refSpace,
+          hand,
+          "middle-finger-phalanx-proximal"
+        );
         if (midKn) {
           fistB.set(
             midKn.transform.position.x,
             midKn.transform.position.y,
-            midKn.transform.position.z,
+            midKn.transform.position.z
           );
           fistPts.push(fistB);
         }
-        const idxKn = jointPose(frame, refSpace, hand, "index-finger-phalanx-proximal");
+        const idxKn = jointPose(
+          frame,
+          refSpace,
+          hand,
+          "index-finger-phalanx-proximal"
+        );
         if (idxKn) {
           fistC.set(
             idxKn.transform.position.x,
             idxKn.transform.position.y,
-            idxKn.transform.position.z,
+            idxKn.transform.position.z
           );
           fistPts.push(fistC);
         }
         const follow =
-          nearJoint.current[side] === "index" && idxKn ? fistC : midKn ? fistB : fistC;
+          nearJoint.current[side] === "index" && idxKn
+            ? fistC
+            : midKn
+              ? fistB
+              : fistC;
         const inChrome = fistPts.some((p) => hitChrome(p));
         if (inChrome) {
           ready.current[side] = false;
           setHandGrab(side, false);
         }
-        if (fistPts.length && !holding && !worldGrab && !nearHold.current[other]) {
+        if (
+          fistPts.length &&
+          !holding &&
+          !worldGrab &&
+          !nearHold.current[other]
+        ) {
           if (nearHold.current[side]) {
             ready.current[side] = false;
             setHandGrab(side, false);
@@ -376,7 +438,8 @@ export function XRGrab() {
               hit.card.begin(hit.point);
               nearHold.current[side] = true;
               nearZone.current[side] = hit.card;
-              nearJoint.current[side] = hit.point === fistC ? "index" : "middle";
+              nearJoint.current[side] =
+                hit.point === fistC ? "index" : "middle";
             }
             wasCurled.current[side] = curled;
             continue;
@@ -404,21 +467,36 @@ export function XRGrab() {
           wasCurled.current[side] = curled;
           continue;
         }
-        const midMeta = jointPose(frame, refSpace, hand, "middle-finger-metacarpal");
-        const idxMeta = jointPose(frame, refSpace, hand, "index-finger-metacarpal");
-        const pnkMeta = jointPose(frame, refSpace, hand, "pinky-finger-metacarpal");
+        const midMeta = jointPose(
+          frame,
+          refSpace,
+          hand,
+          "middle-finger-metacarpal"
+        );
+        const idxMeta = jointPose(
+          frame,
+          refSpace,
+          hand,
+          "index-finger-metacarpal"
+        );
+        const pnkMeta = jointPose(
+          frame,
+          refSpace,
+          hand,
+          "pinky-finger-metacarpal"
+        );
         let inward = false;
         if (midMeta && idxMeta && pnkMeta) {
           const w = origin.transform.position;
           vA.set(
             midMeta.transform.position.x - w.x,
             midMeta.transform.position.y - w.y,
-            midMeta.transform.position.z - w.z,
+            midMeta.transform.position.z - w.z
           );
           vB.set(
             idxMeta.transform.position.x - pnkMeta.transform.position.x,
             idxMeta.transform.position.y - pnkMeta.transform.position.y,
-            idxMeta.transform.position.z - pnkMeta.transform.position.z,
+            idxMeta.transform.position.z - pnkMeta.transform.position.z
           );
           vC.copy(vB).cross(vA).normalize();
           if (side === "left") vC.negate();
@@ -477,7 +555,11 @@ export function XRGrab() {
       pairRot.setFromAxisAngle(UP, pair.yaw - two.startYaw);
       // Where the model origin sat relative to the first midpoint, turned and
       // stretched with the hands, then re-attached to the current midpoint.
-      pairArm.copy(two.startPos).sub(two.startMid).multiplyScalar(ratio).applyQuaternion(pairRot);
+      pairArm
+        .copy(two.startPos)
+        .sub(two.startMid)
+        .multiplyScalar(ratio)
+        .applyQuaternion(pairRot);
       obj.position.copy(pair.mid).add(pairArm);
       obj.quaternion.copy(pairRot).multiply(two.startQuat);
       obj.scale.setScalar(heldScale.current);

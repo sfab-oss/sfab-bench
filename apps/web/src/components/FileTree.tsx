@@ -25,19 +25,19 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import { showToast } from "@/components/ui/toast";
-import { displayLoadError } from "@/lib/load-copy";
 import { useFileTreeExpansion } from "@/hooks/useFileTreeExpansion";
-import { catalogEmptyReason, type CatalogKindFilter } from "@/lib/files-rail";
+import { type CatalogKindFilter, catalogEmptyReason } from "@/lib/files-rail";
+import { displayLoadError } from "@/lib/load-copy";
 import { copyText } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import {
+  type CatalogEntry,
+  type CatalogNode,
   catalogDirPaths,
   catalogNodeCount,
   catalogSections,
   catalogTree,
   filterCatalogTree,
-  type CatalogEntry,
-  type CatalogNode,
 } from "@/lib/viewer-snapshot";
 
 function fileName(path: string) {
@@ -81,7 +81,9 @@ function FileRow({
   const inner = (
     <>
       <FileBox className="text-sidebar-foreground" />
-      <span className="min-w-0 flex-1 truncate text-sidebar-foreground">{name}</span>
+      <span className="min-w-0 flex-1 truncate text-sidebar-foreground">
+        {name}
+      </span>
     </>
   );
   const shared = {
@@ -136,7 +138,9 @@ function Tree({
   nested: boolean;
 }) {
   if (node.type === "file") {
-    return <FileRow node={node} current={current} onPick={onPick} nested={nested} />;
+    return (
+      <FileRow node={node} current={current} onPick={onPick} nested={nested} />
+    );
   }
 
   const open = expanded.has(node.path);
@@ -149,15 +153,15 @@ function Tree({
         open={open}
         onOpenChange={(next) => toggle(node.path, next)}
       >
-        <CollapsibleTrigger
-          className="flex h-8 w-full min-w-0 items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring [&>svg]:size-4 [&>svg]:shrink-0"
-        >
+        <CollapsibleTrigger className="flex h-8 w-full min-w-0 items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring [&>svg]:size-4 [&>svg]:shrink-0">
           <ChevronRight className="shrink-0 transition-transform" />
           <Folder className="shrink-0" />
           <span className="min-w-0 flex-1 truncate" title={node.name}>
             {node.name}
           </span>
-          <span className="ml-auto shrink-0 tabular-nums text-xs text-sidebar-foreground/70">{count}</span>
+          <span className="ml-auto shrink-0 tabular-nums text-xs text-sidebar-foreground/70">
+            {count}
+          </span>
         </CollapsibleTrigger>
         <CollapsibleContent>
           <SidebarMenuSub>
@@ -179,7 +183,13 @@ function Tree({
   );
 }
 
-function KindChips({ kind, onKind }: { kind: CatalogKindFilter; onKind: (next: CatalogKindFilter) => void }) {
+function KindChips({
+  kind,
+  onKind,
+}: {
+  kind: CatalogKindFilter;
+  onKind: (next: CatalogKindFilter) => void;
+}) {
   return (
     <div className="flex gap-1 px-2 pb-1">
       {(
@@ -196,7 +206,7 @@ function KindChips({ kind, onKind }: { kind: CatalogKindFilter; onKind: (next: C
             "rounded-md px-1.5 py-0.5 text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
             kind === id
               ? "bg-sidebar-accent text-sidebar-accent-foreground"
-              : "text-sidebar-foreground/60 hover:text-sidebar-foreground",
+              : "text-sidebar-foreground/60 hover:text-sidebar-foreground"
           )}
           onClick={() => onKind(id)}
         >
@@ -254,14 +264,23 @@ export function FileTree({
   const [kind, setKind] = useState<CatalogKindFilter>("all");
   const listed = useMemo(
     () => (kind === "all" ? files : files.filter((file) => file.kind === kind)),
-    [files, kind],
+    [files, kind]
   );
-  const tree = useMemo(() => filterCatalogTree(catalogTree(listed), filter), [listed, filter]);
+  const tree = useMemo(
+    () => filterCatalogTree(catalogTree(listed), filter),
+    [listed, filter]
+  );
   const recentRows = useMemo(
-    () => (filter.trim() || kind !== "all" ? [] : catalogSections(files, recents ?? []).recents),
-    [files, recents, filter, kind],
+    () =>
+      filter.trim() || kind !== "all"
+        ? []
+        : catalogSections(files, recents ?? []).recents,
+    [files, recents, filter, kind]
   );
-  const { expanded, toggle, collapseAll } = useFileTreeExpansion(projectPath, current);
+  const { expanded, toggle, collapseAll } = useFileTreeExpansion(
+    projectPath,
+    current
+  );
 
   const dirs = catalogDirPaths(tree);
   const empty = catalogEmptyReason({
@@ -273,14 +292,24 @@ export function FileTree({
 
   if (error) {
     return (
-      <div className="px-4 py-2 text-xs text-error">{displayLoadError(error, projectPath)}</div>
+      <div className="px-4 py-2 text-xs text-error">
+        {displayLoadError(error, projectPath)}
+      </div>
     );
   }
   if (!ready) {
-    return <div className="px-4 py-2 text-xs text-muted-foreground">Loading files…</div>;
+    return (
+      <div className="px-4 py-2 text-xs text-muted-foreground">
+        Loading files…
+      </div>
+    );
   }
   if (empty.type === "no-cad") {
-    return <div className="px-4 py-2 text-xs text-muted-foreground">No STEP or GLB in this folder.</div>;
+    return (
+      <div className="px-4 py-2 text-xs text-muted-foreground">
+        No STEP or GLB in this folder.
+      </div>
+    );
   }
 
   return (
@@ -313,14 +342,20 @@ export function FileTree({
         <SidebarGroupLabel>Files</SidebarGroupLabel>
         <KindChips kind={kind} onKind={setKind} />
         {dirs.length > 0 ? (
-          <SidebarGroupAction title="Collapse all" aria-label="Collapse all" onClick={collapseAll}>
+          <SidebarGroupAction
+            title="Collapse all"
+            aria-label="Collapse all"
+            onClick={collapseAll}
+          >
             <ChevronRight className="rotate-90" />
           </SidebarGroupAction>
         ) : null}
         <SidebarGroupContent>
           {empty.type === "kind" ? (
             <EmptyHint action="Show all" onAction={() => setKind("all")}>
-              {empty.kind === "glb" ? "No GLB in this folder." : "No STEP in this folder."}
+              {empty.kind === "glb"
+                ? "No GLB in this folder."
+                : "No STEP in this folder."}
             </EmptyHint>
           ) : null}
           {empty.type === "search" ? (

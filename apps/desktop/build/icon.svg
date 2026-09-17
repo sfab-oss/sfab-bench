@@ -1,12 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1024"
+  height="1024"
+  viewBox="0 0 1024 1024"
+>
   <title>sfab-bench</title>
-  <rect x="100" y="100" width="824" height="824" rx="185.4" ry="185.4" fill="#ffffff"/>
+  <rect
+    x="100"
+    y="100"
+    width="824"
+    height="824"
+    rx="185.4"
+    ry="185.4"
+    fill="#ffffff"
+  />
   <g transform="translate(512 512) scale(0.7843) translate(-388 -376.5)">
-    <circle cx="127.5" cy="257.5" r="74" fill="#000000"/>
-    <circle cx="380.5" cy="93.5" r="74" fill="#000000"/>
-    <circle cx="648.5" cy="455.5" r="74" fill="#000000"/>
-    <circle cx="380.5" cy="659.5" r="74" fill="#000000"/>
-    <circle cx="127.5" cy="498.5" r="74" fill="#000000"/>
-    <circle cx="380.5" cy="376.5" r="74" fill="#e4007c"/>
+    <circle cx="127.5" cy="257.5" r="74" fill="#000000" />
+    <circle cx="380.5" cy="93.5" r="74" fill="#000000" />
+    <circle cx="648.5" cy="455.5" r="74" fill="#000000" />
+    <circle cx="380.5" cy="659.5" r="74" fill="#000000" />
+    <circle cx="127.5" cy="498.5" r="74" fill="#000000" />
+    <circle cx="380.5" cy="376.5" r="74" fill="#e4007c" />
   </g>
 </svg>

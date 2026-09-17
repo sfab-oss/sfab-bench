@@ -854,4 +854,3 @@ export function ChatInputMentionButton({
     </InputGroupButton>
   );
 }
-

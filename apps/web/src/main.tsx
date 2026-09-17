@@ -10,9 +10,11 @@ import "@/index.css";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
-      <RenderErrorBoundary fallback={({ error }) => <CrashCard error={error} variant="page" />}>
+      <RenderErrorBoundary
+        fallback={({ error }) => <CrashCard error={error} variant="page" />}
+      >
         <App />
       </RenderErrorBoundary>
     </ThemeProvider>
-  </StrictMode>,
+  </StrictMode>
 );

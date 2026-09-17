@@ -54,9 +54,18 @@ export function HelpCard() {
       pixelSize={0.001}
       pointerEvents="auto"
     >
-      <ToolBtn id="help-back" label="Back" onClick={() => setPage("settings")} />
+      <ToolBtn
+        id="help-back"
+        label="Back"
+        onClick={() => setPage("settings")}
+      />
       {SECTIONS.map((section) => (
-        <Container key={section.title} flexDirection="column" gap={2} width="100%">
+        <Container
+          key={section.title}
+          flexDirection="column"
+          gap={2}
+          width="100%"
+        >
           <Text fontSize={13} color={theme.text}>
             {section.title}
           </Text>

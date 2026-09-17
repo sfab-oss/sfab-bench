@@ -5,7 +5,15 @@ import { formatVoiceTime } from "@/hooks/useVoiceInput";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
 import { useXrTheme } from "@/xr/ui/theme";
 
-function Wave({ elapsedMs, frozen, level }: { elapsedMs: number; frozen?: boolean; level: number }) {
+function Wave({
+  elapsedMs,
+  frozen,
+  level,
+}: {
+  elapsedMs: number;
+  frozen?: boolean;
+  level: number;
+}) {
   const theme = useXrTheme();
   return (
     <Container
@@ -18,7 +26,9 @@ function Wave({ elapsedMs, frozen, level }: { elapsedMs: number; frozen?: boolea
       gap={2}
     >
       {Array.from({ length: 12 }, (_, i) => {
-        const phase = Math.abs(Math.sin(i * 0.7 + (frozen ? 0 : elapsedMs / 180)));
+        const phase = Math.abs(
+          Math.sin(i * 0.7 + (frozen ? 0 : elapsedMs / 180))
+        );
         const h = frozen ? 6 : 4 + (6 + level * 18) * phase;
         return (
           <Container
@@ -54,8 +64,20 @@ export function VoiceRecordRow({
 }) {
   const theme = useXrTheme();
   return (
-    <Container flexDirection="row" flexShrink={0} alignItems="center" gap={4} width="100%">
-      <ToolBtn id="xr-chat-voice-cancel" icon={X} tip="Cancel" grow={false} onClick={onCancel} />
+    <Container
+      flexDirection="row"
+      flexShrink={0}
+      alignItems="center"
+      gap={4}
+      width="100%"
+    >
+      <ToolBtn
+        id="xr-chat-voice-cancel"
+        icon={X}
+        tip="Cancel"
+        grow={false}
+        onClick={onCancel}
+      />
       <Container
         flexGrow={1}
         minWidth={0}

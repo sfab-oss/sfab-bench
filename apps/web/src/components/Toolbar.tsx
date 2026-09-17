@@ -2,8 +2,8 @@ import { Axis3d, Focus, Home, Ruler, Scan } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
-import { useStore } from "@/state/store";
 import { cn } from "@/lib/utils";
+import { useStore } from "@/state/store";
 
 type Props = {
   onHome: () => void;
@@ -32,17 +32,33 @@ export function Toolbar({ onHome, onFit, top, left }: Props) {
       setAxesVisible: s.setAxesVisible,
       tool: s.tool,
       setTool: s.setTool,
-    })),
+    }))
   );
   return (
     <div
       className="pointer-events-auto absolute z-20 flex gap-0.5 rounded-xl border border-border bg-card/95 p-1 shadow-lg"
       style={{ top, left }}
     >
-      <Button type="button" variant="secondary" size="sm" className="h-9 w-9 p-0" title="Frame whole model" aria-label="Frame whole model" onClick={onHome}>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className="h-9 w-9 p-0"
+        title="Frame whole model"
+        aria-label="Frame whole model"
+        onClick={onHome}
+      >
         <Home />
       </Button>
-      <Button type="button" variant="secondary" size="sm" className="h-9 w-9 p-0" title="Frame selection" aria-label="Frame selection" onClick={onFit}>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className="h-9 w-9 p-0"
+        title="Frame selection"
+        aria-label="Frame selection"
+        onClick={onFit}
+      >
         <Scan />
       </Button>
       {/* Measure replaces the Selection panel, so Isolate has to stay on the toolbar. */}

@@ -24,7 +24,13 @@ export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
       <Container flexDirection="row" gap={4} width="100%" flexShrink={0}>
         <ToolBtn id="chat-history-back" label="Back" onClick={onClose} />
       </Container>
-      <Container flexGrow={1} width="100%" overflow="scroll" gap={4} flexDirection="column">
+      <Container
+        flexGrow={1}
+        width="100%"
+        overflow="scroll"
+        gap={4}
+        flexDirection="column"
+      >
         {threads.length === 0 ? (
           <Text fontSize={13} color={theme.subtle}>
             No chats yet

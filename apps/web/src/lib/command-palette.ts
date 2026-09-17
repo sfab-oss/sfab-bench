@@ -47,13 +47,20 @@ export function queryTokens(query: string): string[] {
   return query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 }
 
-export function commandMatches(command: PaletteCommand, tokens: string[]): boolean {
+export function commandMatches(
+  command: PaletteCommand,
+  tokens: string[]
+): boolean {
   if (tokens.length === 0) return true;
   const haystack = `${command.title} ${command.subtitle ?? ""}`.toLowerCase();
   return tokens.every((token) => haystack.includes(token.toLowerCase()));
 }
 
-export function wrapActiveIndex(index: number, delta: number, length: number): number {
+export function wrapActiveIndex(
+  index: number,
+  delta: number,
+  length: number
+): number {
   if (length <= 0) return 0;
   const step = delta % length;
   return (index + step + length) % length;
@@ -120,14 +127,17 @@ export function buildCommands(input: BuildCommandsInput): PaletteCommand[] {
   commands.push(
     { id: "theme:light", title: "Theme: Light", payload: "light" },
     { id: "theme:dark", title: "Theme: Dark", payload: "dark" },
-    { id: "theme:system", title: "Theme: System", payload: "system" },
+    { id: "theme:system", title: "Theme: System", payload: "system" }
   );
 
   return commands;
 }
 
 /** Case-insensitive substring; multi-word AND. Empty query returns the full list. */
-export function visiblePalette(commands: readonly PaletteCommand[], query: string): PaletteCommand[] {
+export function visiblePalette(
+  commands: readonly PaletteCommand[],
+  query: string
+): PaletteCommand[] {
   const tokens = queryTokens(query);
   if (tokens.length === 0) return [...commands];
   return commands.filter((command) => commandMatches(command, tokens));

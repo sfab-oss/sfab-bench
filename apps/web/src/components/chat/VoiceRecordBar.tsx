@@ -4,16 +4,32 @@ import { Button } from "@/components/ui/button";
 import { formatVoiceTime } from "@/hooks/useVoiceInput";
 import { cn } from "@/lib/utils";
 
-function Wave({ level, frozen, elapsedMs }: { level: number; frozen?: boolean; elapsedMs: number }) {
+function Wave({
+  level,
+  frozen,
+  elapsedMs,
+}: {
+  level: number;
+  frozen?: boolean;
+  elapsedMs: number;
+}) {
   return (
-    <div className="flex h-8 min-w-0 flex-1 items-center justify-center gap-[3px]" aria-hidden>
+    <div
+      className="flex h-8 min-w-0 flex-1 items-center justify-center gap-[3px]"
+      aria-hidden
+    >
       {Array.from({ length: 16 }, (_, i) => {
-        const phase = Math.abs(Math.sin(i * 0.7 + (frozen ? 0 : elapsedMs / 180)));
+        const phase = Math.abs(
+          Math.sin(i * 0.7 + (frozen ? 0 : elapsedMs / 180))
+        );
         const h = frozen ? 6 : 4 + (6 + level * 18) * phase;
         return (
           <span
             key={i}
-            className={cn("w-[2px] rounded-full", frozen ? "bg-muted-foreground/40" : "bg-destructive")}
+            className={cn(
+              "w-[2px] rounded-full",
+              frozen ? "bg-muted-foreground/40" : "bg-destructive"
+            )}
             style={{ height: `${h}px` }}
           />
         );
@@ -44,7 +60,11 @@ export function VoiceRecordBar({
       className="flex h-full min-h-16 w-full items-center gap-1 px-2"
       role="status"
       aria-live="polite"
-      aria-label={transcribing ? "Transcribing" : `Recording ${formatVoiceTime(elapsedMs)}`}
+      aria-label={
+        transcribing
+          ? "Transcribing"
+          : `Recording ${formatVoiceTime(elapsedMs)}`
+      }
       data-voice-recording=""
     >
       <Button

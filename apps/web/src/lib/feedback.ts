@@ -30,7 +30,7 @@ export type ConnectionNotice = "lost" | "reconnected" | null;
 
 export function reduceConnection(
   state: ConnectionState,
-  event: ConnectionEvent,
+  event: ConnectionEvent
 ): { state: ConnectionState; notice: ConnectionNotice } {
   switch (event.type) {
     case "snapshot": {
@@ -61,24 +61,32 @@ export function reduceConnection(
       };
     }
     case "grace": {
-      if (state.phase !== "down" || state.lostShown) return { state, notice: null };
+      if (state.phase !== "down" || state.lostShown)
+        return { state, notice: null };
       return { state: { ...state, lostShown: true }, notice: "lost" };
     }
     case "reload": {
-      if (state.phase !== "down" || state.offerReload) return { state, notice: null };
+      if (state.phase !== "down" || state.offerReload)
+        return { state, notice: null };
       return { state: { ...state, offerReload: true }, notice: null };
     }
   }
 }
 
-export function connectionDotLabel(phase: ConnectionPhase, offerReload: boolean): string {
+export function connectionDotLabel(
+  phase: ConnectionPhase,
+  offerReload: boolean
+): string {
   if (offerReload) return "Offline — Reload";
   if (phase === "connected") return "Connected";
   if (phase === "connecting") return "Connecting to this Mac";
   return "Lost connection to this Mac";
 }
 
-export function connectionDotVisible(phase: ConnectionPhase, lostShown: boolean): boolean {
+export function connectionDotVisible(
+  phase: ConnectionPhase,
+  lostShown: boolean
+): boolean {
   return phase === "down" && lostShown;
 }
 
@@ -89,19 +97,24 @@ export function setLiveConnectionPhase(phase: ConnectionPhase): void {
   currentConnectionPhase = phase;
 }
 
-export function suppressNetworkFailureToast(phase: ConnectionPhase = currentConnectionPhase): boolean {
+export function suppressNetworkFailureToast(
+  phase: ConnectionPhase = currentConnectionPhase
+): boolean {
   return phase === "down";
 }
 
 export type FailureStreak = { hadSuccess: boolean; failing: boolean };
 
-export const INITIAL_FAILURE_STREAK: FailureStreak = { hadSuccess: false, failing: false };
+export const INITIAL_FAILURE_STREAK: FailureStreak = {
+  hadSuccess: false,
+  failing: false,
+};
 
 /** Toast a repeating poll only after a success, and only once per failure streak. */
 export function noteFailureStreak(
   prev: FailureStreak,
   ok: boolean,
-  opts?: { suppressToast?: boolean },
+  opts?: { suppressToast?: boolean }
 ): { next: FailureStreak; toast: boolean } {
   if (ok) return { next: { hadSuccess: true, failing: false }, toast: false };
   if (!prev.hadSuccess) return { next: prev, toast: false };
@@ -110,9 +123,17 @@ export function noteFailureStreak(
   return { next: { hadSuccess: true, failing: true }, toast: true };
 }
 
-export type ChatTurnFlags = { streaming: boolean; askUser: boolean; error: boolean };
+export type ChatTurnFlags = {
+  streaming: boolean;
+  askUser: boolean;
+  error: boolean;
+};
 
-export const INITIAL_CHAT_TURN_FLAGS: ChatTurnFlags = { streaming: false, askUser: false, error: false };
+export const INITIAL_CHAT_TURN_FLAGS: ChatTurnFlags = {
+  streaming: false,
+  askUser: false,
+  error: false,
+};
 
 export type HiddenChatNoticeKind = "finished" | "ask-user" | "failed";
 
@@ -125,11 +146,12 @@ export const HIDDEN_CHAT_NOTICE: Record<HiddenChatNoticeKind, string> = {
 export function hiddenChatNotice(
   chatHidden: boolean,
   prev: ChatTurnFlags,
-  next: ChatTurnFlags,
+  next: ChatTurnFlags
 ): HiddenChatNoticeKind | null {
   if (!chatHidden) return null;
   if (next.askUser && !prev.askUser) return "ask-user";
   if (next.error && !prev.error) return "failed";
-  if (prev.streaming && !next.streaming && !next.askUser && !next.error) return "finished";
+  if (prev.streaming && !next.streaming && !next.askUser && !next.error)
+    return "finished";
   return null;
 }

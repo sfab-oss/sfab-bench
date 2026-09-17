@@ -12,7 +12,10 @@ export type ClientPrincipal =
 
 const als = new AsyncLocalStorage<ClientPrincipal>();
 
-export function runWithPrincipal<T>(principal: ClientPrincipal, fn: () => T): T {
+export function runWithPrincipal<T>(
+  principal: ClientPrincipal,
+  fn: () => T
+): T {
   return als.run(principal, fn);
 }
 
@@ -38,7 +41,9 @@ function queryToken(req: IncomingMessage): string | null {
   const q = raw.includes("?") ? raw.slice(raw.indexOf("?")) : "";
   if (!q) return null;
   try {
-    return new URL(q, "http://localhost").searchParams.get("token")?.trim() || null;
+    return (
+      new URL(q, "http://localhost").searchParams.get("token")?.trim() || null
+    );
   } catch {
     return null;
   }
@@ -57,7 +62,10 @@ function principalFromToken(token: string | null): ClientPrincipal | null {
 }
 
 /** Trust X-Forwarded-For only when the TCP peer is loopback (Vite proxy). */
-export function forwardedClientAddress(peer: string | undefined, forwardedFor: string | undefined): string | undefined {
+export function forwardedClientAddress(
+  peer: string | undefined,
+  forwardedFor: string | undefined
+): string | undefined {
   if (isLoopbackAddress(peer) && forwardedFor) {
     const first = forwardedFor.split(",")[0]?.trim();
     if (first) return first;
@@ -67,7 +75,12 @@ export function forwardedClientAddress(peer: string | undefined, forwardedFor: s
 
 export function clientAddress(req: IncomingMessage): string | undefined {
   const forwarded = req.headers["x-forwarded-for"];
-  const header = typeof forwarded === "string" ? forwarded : Array.isArray(forwarded) ? forwarded[0] : undefined;
+  const header =
+    typeof forwarded === "string"
+      ? forwarded
+      : Array.isArray(forwarded)
+        ? forwarded[0]
+        : undefined;
   return forwardedClientAddress(req.socket.remoteAddress, header);
 }
 
@@ -77,7 +90,9 @@ export function resolvePrincipal(req: IncomingMessage): ClientPrincipal | null {
 }
 
 /** WebSocket cannot set Authorization; allow ?token= on the upgrade only. */
-export function resolveUpgradePrincipal(req: IncomingMessage): ClientPrincipal | null {
+export function resolveUpgradePrincipal(
+  req: IncomingMessage
+): ClientPrincipal | null {
   if (isLoopbackAddress(clientAddress(req))) return { kind: "loopback" };
   return principalFromToken(bearerToken(req) ?? queryToken(req));
 }

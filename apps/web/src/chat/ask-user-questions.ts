@@ -1,4 +1,9 @@
-import { getToolName, isToolUIPart, type DynamicToolUIPart, type ToolUIPart } from "ai";
+import {
+  type DynamicToolUIPart,
+  getToolName,
+  isToolUIPart,
+  type ToolUIPart,
+} from "ai";
 
 export const ASK_USER_QUESTIONS_TOOL = "askUserQuestions";
 
@@ -34,9 +39,15 @@ export type AskUserQuestionsOutput =
     }
   | { action: "declined" };
 
-export function isAskUserQuestionsPart(part: { type: string; toolName?: string }): boolean {
+export function isAskUserQuestionsPart(part: {
+  type: string;
+  toolName?: string;
+}): boolean {
   if (part.type === "dynamic-tool" || isToolUIPart(part as ToolUIPart)) {
-    return getToolName(part as ToolUIPart | DynamicToolUIPart) === ASK_USER_QUESTIONS_TOOL;
+    return (
+      getToolName(part as ToolUIPart | DynamicToolUIPart) ===
+      ASK_USER_QUESTIONS_TOOL
+    );
   }
   return part.toolName === ASK_USER_QUESTIONS_TOOL;
 }
@@ -60,13 +71,20 @@ function parseAllowFreeForm(raw: unknown): boolean {
   return false;
 }
 
-function parseOption(raw: unknown, index: number): AskUserQuestionOption | null {
+function parseOption(
+  raw: unknown,
+  index: number
+): AskUserQuestionOption | null {
   const row = asRecord(raw);
   if (!row) return null;
   const label = typeof row.label === "string" ? row.label.trim() : "";
   if (!label) return null;
-  const id = typeof row.id === "string" && row.id.trim() ? row.id : `option-${index + 1}`;
-  const description = typeof row.description === "string" ? row.description : undefined;
+  const id =
+    typeof row.id === "string" && row.id.trim()
+      ? row.id
+      : `option-${index + 1}`;
+  const description =
+    typeof row.description === "string" ? row.description : undefined;
   return { id, label, description };
 }
 
@@ -77,20 +95,30 @@ function parseQuestion(raw: unknown, index: number): AskUserQuestion | null {
   if (!question) return null;
   const allowFreeForm = parseAllowFreeForm(row.allowFreeForm);
   const options = Array.isArray(row.options)
-    ? row.options.map(parseOption).filter((option): option is AskUserQuestionOption => option !== null)
+    ? row.options
+        .map(parseOption)
+        .filter((option): option is AskUserQuestionOption => option !== null)
     : [];
   if (options.length === 0 && !allowFreeForm) return null;
   return {
-    id: typeof row.id === "string" && row.id.trim() ? row.id : `question-${index + 1}`,
+    id:
+      typeof row.id === "string" && row.id.trim()
+        ? row.id
+        : `question-${index + 1}`,
     question,
-    header: typeof row.header === "string" && row.header.trim() ? row.header : undefined,
+    header:
+      typeof row.header === "string" && row.header.trim()
+        ? row.header
+        : undefined,
     options,
     allowMultiple: row.allowMultiple === true,
     allowFreeForm,
   };
 }
 
-export function parseAskUserQuestionsInput(input: unknown): AskUserQuestionsInput | null {
+export function parseAskUserQuestionsInput(
+  input: unknown
+): AskUserQuestionsInput | null {
   const raw = asRecord(input);
   if (!raw || !Array.isArray(raw.questions)) return null;
   const questions = raw.questions
@@ -104,12 +132,15 @@ export function parseAskUserQuestionsInput(input: unknown): AskUserQuestionsInpu
 }
 
 export function buildAskUserQuestionsOutput(
-  answers: Record<string, AskUserAnswer>,
+  answers: Record<string, AskUserAnswer>
 ): Extract<AskUserQuestionsOutput, { action: "answered" }> {
   return { action: "answered", answers };
 }
 
-export function formatAskUserAnswer(input: AskUserQuestionsInput, output: unknown): string {
+export function formatAskUserAnswer(
+  input: AskUserQuestionsInput,
+  output: unknown
+): string {
   const row = asRecord(output);
   if (!row) return "";
   if (row.action === "declined" || row.action === "cancelled") return "Skipped";
@@ -118,12 +149,15 @@ export function formatAskUserAnswer(input: AskUserQuestionsInput, output: unknow
   return input.questions
     .map((question) => {
       const picked = asRecord(answers[question.id]);
-      const freeform = typeof picked?.freeform === "string" ? picked.freeform.trim() : "";
+      const freeform =
+        typeof picked?.freeform === "string" ? picked.freeform.trim() : "";
       if (freeform) return freeform;
       const ids = Array.isArray(picked?.optionIds)
         ? picked.optionIds.filter((id): id is string => typeof id === "string")
         : [];
-      const labels = ids.map((id) => question.options.find((option) => option.id === id)?.label ?? id);
+      const labels = ids.map(
+        (id) => question.options.find((option) => option.id === id)?.label ?? id
+      );
       return labels.join(", ");
     })
     .filter(Boolean)
@@ -131,15 +165,22 @@ export function formatAskUserAnswer(input: AskUserQuestionsInput, output: unknow
 }
 
 export function findPendingAskUserQuestions(
-  messages: Array<{ role: string; parts?: readonly unknown[] }>,
+  messages: Array<{ role: string; parts?: readonly unknown[] }>
 ): { toolCallId: string; input: AskUserQuestionsInput } | null {
   const last = messages.at(-1);
   if (!last || last.role !== "assistant") return null;
   for (const part of last.parts ?? []) {
     if (!part || typeof part !== "object") continue;
-    const row = part as { type: string; toolName?: string; state?: string; toolCallId?: string; input?: unknown };
+    const row = part as {
+      type: string;
+      toolName?: string;
+      state?: string;
+      toolCallId?: string;
+      input?: unknown;
+    };
     if (!isAskUserQuestionsPart(row)) continue;
-    if (row.state !== "input-available" && row.state !== "input-streaming") continue;
+    if (row.state !== "input-available" && row.state !== "input-streaming")
+      continue;
     if (!row.toolCallId) continue;
     const input = parseAskUserQuestionsInput(row.input);
     if (!input) continue;
@@ -148,9 +189,12 @@ export function findPendingAskUserQuestions(
   return null;
 }
 
-export function askUserComposerPlaceholder(question: AskUserQuestion | undefined): string {
+export function askUserComposerPlaceholder(
+  question: AskUserQuestion | undefined
+): string {
   if (!question) return "Ask for a change…";
-  if (question.allowFreeForm && question.options.length > 0) return "Type an answer or pick an option…";
+  if (question.allowFreeForm && question.options.length > 0)
+    return "Type an answer or pick an option…";
   if (question.allowFreeForm) return "Type an answer…";
   return "Pick an option to continue…";
 }

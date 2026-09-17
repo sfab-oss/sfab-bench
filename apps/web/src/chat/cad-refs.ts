@@ -9,7 +9,7 @@ export const CAD_REF_TOKEN_RE = /#o\d+(?:\.\d+)*(?:\.f\d+)?/;
  */
 export const CAD_REF_RE = new RegExp(
   `(?:^|[^A-Za-z0-9_/#@+.-])(${CAD_REF_TOKEN_RE.source})`,
-  "g",
+  "g"
 );
 
 export const CAD_REF_HREF_PREFIX = "#cad-ref:";
@@ -99,7 +99,10 @@ function inRanges(index: number, ranges: CodeRange[]): boolean {
   return ranges.some((range) => index >= range.start && index < range.end);
 }
 
-function markdownInlineCodeRanges(text: string, fences: CodeRange[]): CodeRange[] {
+function markdownInlineCodeRanges(
+  text: string,
+  fences: CodeRange[]
+): CodeRange[] {
   const ranges: CodeRange[] = [];
   let i = 0;
   while (i < text.length) {
@@ -164,8 +167,13 @@ export function parseCadRefs(text: string): CadRefHit[] {
 
 /** Wrap prose refs as markdown links so one markdown render can keep lists/emphasis. */
 export function linkifyCadRefsInMarkdown(text: string): string {
-  const protectedRanges = [...markdownCodeRanges(text), ...markdownLinkRanges(text)];
-  const hits = parseCadRefs(text).filter((hit) => !overlaps(hit, protectedRanges));
+  const protectedRanges = [
+    ...markdownCodeRanges(text),
+    ...markdownLinkRanges(text),
+  ];
+  const hits = parseCadRefs(text).filter(
+    (hit) => !overlaps(hit, protectedRanges)
+  );
   let out = "";
   let cursor = 0;
   for (const hit of hits) {
@@ -180,7 +188,7 @@ export function linkifyCadRefsInMarkdown(text: string): string {
 export function resolveCadRef(
   ref: string,
   parts: readonly { name: string; cadRef?: string | null }[],
-  fileStem?: string,
+  fileStem?: string
 ): ResolvedCadRef | null {
   if (!isCadRefToken(ref)) return null;
   const partRef = partRefFromCadRef(ref);
@@ -219,7 +227,7 @@ export function filterCadMentionCatalog(
     faces?: readonly { ord: number }[];
     limit?: number;
     faceLimit?: number;
-  },
+  }
 ): { items: CadMentionItem[]; truncated: boolean } {
   const fileStem = options?.fileStem;
   const limit = options?.limit ?? CAD_MENTION_LIST_CAP;

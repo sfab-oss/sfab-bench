@@ -1,9 +1,18 @@
 import { Moon, Sun } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
-import { useTheme, type ThemePreference } from "@/components/theme/theme-provider";
+import {
+  type ThemePreference,
+  useTheme,
+} from "@/components/theme/theme-provider";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const THEMES = [
   { value: "light", label: "Light" },
@@ -11,7 +20,9 @@ const THEMES = [
   { value: "system", label: "System" },
 ] as const;
 
-function isThemePreference(value: string | null | undefined): value is ThemePreference {
+function isThemePreference(
+  value: string | null | undefined
+): value is ThemePreference {
   return value === "light" || value === "dark" || value === "system";
 }
 
@@ -20,12 +31,14 @@ function useAppearancePicker() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const dark = mounted && resolvedTheme === "dark";
-  const preference: ThemePreference = isThemePreference(theme) ? theme : "system";
+  const preference: ThemePreference = isThemePreference(theme)
+    ? theme
+    : "system";
   const pick = useCallback(
     (next: ThemePreference) => {
       setTheme(next);
     },
-    [setTheme],
+    [setTheme]
   );
   return { dark, preference: mounted ? preference : "system", pick };
 }
@@ -43,7 +56,9 @@ export function AppearancePicker({ className }: { className?: string }) {
     >
       <SelectTrigger
         aria-label="Appearance"
-        className={className ?? "h-8 w-full justify-between px-2 text-sm text-foreground"}
+        className={
+          className ?? "h-8 w-full justify-between px-2 text-sm text-foreground"
+        }
       >
         <SelectValue />
       </SelectTrigger>

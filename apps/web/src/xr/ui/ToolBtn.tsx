@@ -1,6 +1,13 @@
 import { Container, Text } from "@react-three/uikit";
 import { useXRInputSourceState } from "@react-three/xr";
-import { createContext, useContext, useMemo, useRef, useState, type ComponentType } from "react";
+import {
+  type ComponentType,
+  createContext,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { pulseClick, pulseHover } from "@/xr/haptics";
 import { useXrTheme } from "@/xr/ui/theme";
@@ -12,7 +19,10 @@ export type Feedback = {
   click: () => void;
 };
 
-export const FeedbackContext = createContext<Feedback>({ hover: () => {}, click: () => {} });
+export const FeedbackContext = createContext<Feedback>({
+  hover: () => {},
+  click: () => {},
+});
 
 /** Delay before a hovered button shows its tooltip. */
 const TIP_DELAY_MS = 450;
@@ -35,7 +45,7 @@ export function useFeedback(source: XRInputSource | undefined): Feedback {
       },
       click: () => pulseClick(ref.current),
     }),
-    [],
+    []
   );
 }
 
@@ -112,7 +122,11 @@ export function ToolBtn({
       }}
     >
       {Icon ? (
-        <Icon width={round ? 12 : 16} height={round ? 12 : 16} color={theme.text} />
+        <Icon
+          width={round ? 12 : 16}
+          height={round ? 12 : 16}
+          color={theme.text}
+        />
       ) : (
         <Text fontSize={14} color={theme.text}>
           {label}

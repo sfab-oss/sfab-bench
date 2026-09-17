@@ -1,4 +1,8 @@
 export {
+  type CatalogDir,
+  type CatalogEntry,
+  type CatalogFile,
+  type CatalogNode,
   catalogAncestors,
   catalogDirPaths,
   catalogFolder,
@@ -10,10 +14,6 @@ export {
   emptySnapshot,
   filterCatalogTree,
   flattenCatalog,
-  type CatalogDir,
-  type CatalogEntry,
-  type CatalogFile,
-  type CatalogNode,
   type ViewerSnapshot,
   type ViewerTreeItem,
 } from "@sfab-bench/contract";

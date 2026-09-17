@@ -20,7 +20,14 @@
  * output is committed, so nobody has to run this to build the app.
  */
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,9 +51,15 @@ const circles = [...source.matchAll(/<circle\b([^>]*)\/>/g)].map((m) => {
     if (!found) throw new Error(`mark.svg: a circle has no ${name}`);
     return found[1];
   };
-  return { cx: Number(attr("cx")), cy: Number(attr("cy")), r: Number(attr("r")), fill: attr("fill") };
+  return {
+    cx: Number(attr("cx")),
+    cy: Number(attr("cy")),
+    r: Number(attr("r")),
+    fill: attr("fill"),
+  };
 });
-if (!circles.length) throw new Error("mark.svg: no circles — has the mark changed shape?");
+if (!circles.length)
+  throw new Error("mark.svg: no circles — has the mark changed shape?");
 
 const bounds = circles.reduce(
   (box, c) => ({
@@ -55,10 +68,15 @@ const bounds = circles.reduce(
     maxX: Math.max(box.maxX, c.cx + c.r),
     maxY: Math.max(box.maxY, c.cy + c.r),
   }),
-  { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
+  { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
 );
-const scale = (BODY - INSET * 2) / Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
-const centre = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
+const scale =
+  (BODY - INSET * 2) /
+  Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+const centre = {
+  x: (bounds.minX + bounds.maxX) / 2,
+  y: (bounds.minY + bounds.maxY) / 2,
+};
 
 const round = (n) => Number(n.toFixed(4));
 const icon = `<svg xmlns="http://www.w3.org/2000/svg" width="${CANVAS}" height="${CANVAS}" viewBox="0 0 ${CANVAS} ${CANVAS}">
@@ -97,14 +115,23 @@ function maskRounded(file, size) {
     const length = png.readUInt32BE(pos);
     const type = png.toString("latin1", pos + 4, pos + 8);
     const body = png.subarray(pos + 8, pos + 8 + length);
-    if (type === "IHDR") header = { width: body.readUInt32BE(0), height: body.readUInt32BE(4), depth: body[8], colour: body[9] };
+    if (type === "IHDR")
+      header = {
+        width: body.readUInt32BE(0),
+        height: body.readUInt32BE(4),
+        depth: body[8],
+        colour: body[9],
+      };
     if (type === "IDAT") compressed = Buffer.concat([compressed, body]);
     else chunks.push({ type, body });
     pos += 12 + length;
   }
   if (!header) throw new Error(`${file}: no IHDR`);
   const { width, height, depth, colour } = header;
-  if (depth !== 8 || colour !== 6) throw new Error(`${file}: expected 8-bit RGBA, got depth ${depth} colour type ${colour}`);
+  if (depth !== 8 || colour !== 6)
+    throw new Error(
+      `${file}: expected 8-bit RGBA, got depth ${depth} colour type ${colour}`
+    );
 
   const bpp = 4;
   const stride = width * bpp;
@@ -132,7 +159,8 @@ function maskRounded(file, size) {
         const pb = Math.abs(p - b);
         const pc = Math.abs(p - c);
         value += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
-      } else if (filter !== 0) throw new Error(`${file}: unknown row filter ${filter}`);
+      } else if (filter !== 0)
+        throw new Error(`${file}: unknown row filter ${filter}`);
       pixels[at + x] = value & 0xff;
     }
   }
@@ -147,7 +175,17 @@ function maskRounded(file, size) {
       let hits = 0;
       for (let sy = 0; sy < SAMPLES; sy += 1) {
         for (let sx = 0; sx < SAMPLES; sx += 1) {
-          if (inside(x + (sx + 0.5) * step, y + (sy + 0.5) * step, x0, x0, side, r)) hits += 1;
+          if (
+            inside(
+              x + (sx + 0.5) * step,
+              y + (sy + 0.5) * step,
+              x0,
+              x0,
+              side,
+              r
+            )
+          )
+            hits += 1;
         }
       }
       const alpha = Math.round((hits / (SAMPLES * SAMPLES)) * 255);
@@ -161,7 +199,9 @@ function maskRounded(file, size) {
     filtered[y * (stride + 1)] = 0;
     pixels.copy(filtered, y * (stride + 1) + 1, y * stride, (y + 1) * stride);
   }
-  const rebuilt = chunks.map((chunk) => (chunk.type === "IEND" ? null : chunk)).filter(Boolean);
+  const rebuilt = chunks
+    .map((chunk) => (chunk.type === "IEND" ? null : chunk))
+    .filter(Boolean);
   rebuilt.push({ type: "IDAT", body: deflateSync(filtered, { level: 9 }) });
   rebuilt.push({ type: "IEND", body: Buffer.alloc(0) });
 
@@ -171,7 +211,10 @@ function maskRounded(file, size) {
     head.writeUInt32BE(chunk.body.length, 0);
     head.write(chunk.type, 4, "latin1");
     const tail = Buffer.alloc(4);
-    tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), chunk.body])) >>> 0, 0);
+    tail.writeUInt32BE(
+      crc32(Buffer.concat([head.subarray(4), chunk.body])) >>> 0,
+      0
+    );
     out.push(head, chunk.body, tail);
   }
   writeFileSync(file, Buffer.concat(out));
@@ -189,10 +232,14 @@ writeFileSync(svg, icon);
 function render(size) {
   const out = join(work, `at-${size}`);
   mkdirSync(out);
-  execFileSync("qlmanage", ["-t", "-s", String(size), "-o", out, svg], { stdio: "ignore" });
+  execFileSync("qlmanage", ["-t", "-s", String(size), "-o", out, svg], {
+    stdio: "ignore",
+  });
   const png = join(out, "icon.svg.png");
   // Thumbnails come back close to the asked-for size, not always equal to it.
-  execFileSync("sips", ["-z", String(size), String(size), png], { stdio: "ignore" });
+  execFileSync("sips", ["-z", String(size), String(size), png], {
+    stdio: "ignore",
+  });
   maskRounded(png, size);
   return png;
 }
@@ -202,10 +249,17 @@ const rendered = new Map(sizes.map((size) => [size, render(size)]));
 
 for (const point of [16, 32, 128, 256, 512]) {
   cpSync(rendered.get(point), join(iconset, `icon_${point}x${point}.png`));
-  cpSync(rendered.get(point * 2), join(iconset, `icon_${point}x${point}@2x.png`));
+  cpSync(
+    rendered.get(point * 2),
+    join(iconset, `icon_${point}x${point}@2x.png`)
+  );
 }
 
-execFileSync("iconutil", ["-c", "icns", iconset, "-o", join(buildDir, "icon.icns")], { stdio: "inherit" });
+execFileSync(
+  "iconutil",
+  ["-c", "icns", iconset, "-o", join(buildDir, "icon.icns")],
+  { stdio: "inherit" }
+);
 cpSync(rendered.get(1024), join(buildDir, "icon.png"));
 writeFileSync(join(buildDir, "icon.svg"), icon);
 rmSync(work, { recursive: true, force: true });

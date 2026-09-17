@@ -22,11 +22,24 @@ function loadModule(): Promise<OpenCascade> {
   const dist = distDir();
   const src = readFileSync(join(dist, "opencascade.wasm.js"), "utf8").replace(
     /export default opencascade;\s*$/,
-    "module.exports = opencascade;",
+    "module.exports = opencascade;"
   );
   const holder: { exports: unknown } = { exports: {} };
-  const factory = new Function("module", "exports", "require", "__dirname", "__filename", src);
-  factory(holder, holder.exports, require, dist, join(dist, "opencascade.wasm.js"));
+  const factory = new Function(
+    "module",
+    "exports",
+    "require",
+    "__dirname",
+    "__filename",
+    src
+  );
+  factory(
+    holder,
+    holder.exports,
+    require,
+    dist,
+    join(dist, "opencascade.wasm.js")
+  );
   const init = holder.exports as (opts: {
     wasmBinary: Buffer;
     print: (line: string) => void;
@@ -79,7 +92,8 @@ export function briefError(err: unknown): string {
     }
     return clamp(err.message);
   }
-  if (typeof err === "number") return `the kernel threw at ${err} without a message`;
+  if (typeof err === "number")
+    return `the kernel threw at ${err} without a message`;
   if (typeof err === "string" && err) return clamp(err);
   return clamp(String((err as { message?: unknown } | null)?.message ?? err));
 }
@@ -94,15 +108,21 @@ export function briefError(err: unknown): string {
  * next file builds correctly — so there is nothing to recover, only something to
  * say that is not `wasmTable.get(...) is not a function`.
  */
-const UNCATCHABLE = /wasmTable|_{2,3}cxa_(can_catch|is_pointer_type|find_matching_catch)/;
+const UNCATCHABLE =
+  /wasmTable|_{2,3}cxa_(can_catch|is_pointer_type|find_matching_catch)/;
 
 /** True when OCCT refused the file outright, rather than producing something wrong. */
 export function refusedByKernel(err: unknown): boolean {
   if (typeof err === "number") return true;
   const message = err instanceof Error ? err.message : String(err);
-  return UNCATCHABLE.test(message) || /without a message|could not say why/.test(message);
+  return (
+    UNCATCHABLE.test(message) ||
+    /without a message|could not say why/.test(message)
+  );
 }
 
 const LIMIT = 300;
 const clamp = (text: string) =>
-  text.length > LIMIT ? `${text.slice(0, LIMIT)}… (${text.length} characters, truncated)` : text;
+  text.length > LIMIT
+    ? `${text.slice(0, LIMIT)}… (${text.length} characters, truncated)`
+    : text;

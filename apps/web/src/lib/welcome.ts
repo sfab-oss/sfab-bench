@@ -27,16 +27,25 @@ export type EmptySceneInput = {
 
 /** What the canvas should show when no model is up. */
 export function emptySceneKind(input: EmptySceneInput): EmptySceneKind {
-  if (input.hasReview || input.progress !== null || input.loadError || input.sceneCrash) {
+  if (
+    input.hasReview ||
+    input.progress !== null ||
+    input.loadError ||
+    input.sceneCrash
+  ) {
     return "none";
   }
-  if (!input.projectPath) return input.treeOpen ? "welcome-hint" : "welcome-card";
+  if (!input.projectPath)
+    return input.treeOpen ? "welcome-hint" : "welcome-card";
   if (input.folderGone) return "folder-gone";
   if (input.catalogReady && !input.hasCad) return "no-cad";
   return input.treeOpen ? "pick-file" : "show-files";
 }
 
-export function documentTitle(input: { folderName?: string | null; fileName?: string | null }): string {
+export function documentTitle(input: {
+  folderName?: string | null;
+  fileName?: string | null;
+}): string {
   const folder = input.folderName?.trim() ?? "";
   const file = input.fileName?.trim() ?? "";
   if (file && folder) return `${file} — ${folder} — ${PRODUCT_TITLE}`;
@@ -55,10 +64,14 @@ export function normalizeDirPath(path: string): string {
 export type PathEnterAction = "idle" | "open" | "list-then-open";
 
 /** Enter in the browse path field: open when already listed, otherwise list then open. */
-export function pathFieldEnterAction(typed: string, listedPath: string | null): PathEnterAction {
+export function pathFieldEnterAction(
+  typed: string,
+  listedPath: string | null
+): PathEnterAction {
   const value = typed.trim();
   if (!value) return "idle";
-  if (listedPath && normalizeDirPath(value) === normalizeDirPath(listedPath)) return "open";
+  if (listedPath && normalizeDirPath(value) === normalizeDirPath(listedPath))
+    return "open";
   return "list-then-open";
 }
 
@@ -69,12 +82,16 @@ export function browseListingApply(input: {
   fieldEdited: boolean;
   seed: boolean;
 }): { apply: boolean; writePath: boolean } {
-  if (input.requestId !== input.latestId) return { apply: false, writePath: false };
+  if (input.requestId !== input.latestId)
+    return { apply: false, writePath: false };
   if (input.seed) return { apply: true, writePath: !input.fieldEdited };
   return { apply: true, writePath: true };
 }
 
-export function fileRecentLines(path: string): { name: string; extra: string | null } {
+export function fileRecentLines(path: string): {
+  name: string;
+  extra: string | null;
+} {
   const name = path.split("/").filter(Boolean).pop() ?? path;
   return { name, extra: path === name ? null : path };
 }
@@ -90,5 +107,7 @@ export function openFolderButtonTitle(mac: boolean): string {
 export const FOLDER_ERROR_EVENT = "sfab-folder-error";
 
 export function emitFolderError(message: string | null) {
-  window.dispatchEvent(new CustomEvent(FOLDER_ERROR_EVENT, { detail: message }));
+  window.dispatchEvent(
+    new CustomEvent(FOLDER_ERROR_EVENT, { detail: message })
+  );
 }

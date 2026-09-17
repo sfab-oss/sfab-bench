@@ -18,7 +18,7 @@ export function TreeRow({ obj, depth = 0 }: { obj: Object3D; depth?: number }) {
       select: s.select,
       setVisible: s.setVisible,
       hiddenIds: s.hiddenIds,
-    })),
+    }))
   );
   const feedback = useContext(FeedbackContext);
   const theme = useXrTheme();
@@ -63,7 +63,9 @@ export function TreeRow({ obj, depth = 0 }: { obj: Object3D; depth?: number }) {
               feedback.click();
               setOpen((v) => !v);
             }}
-            onHoverChange={(hovered) => feedback.hover(`toggle-${part.id}`, hovered)}
+            onHoverChange={(hovered) =>
+              feedback.hover(`toggle-${part.id}`, hovered)
+            }
           >
             <ChevronDown
               width={12}
@@ -82,13 +84,19 @@ export function TreeRow({ obj, depth = 0 }: { obj: Object3D; depth?: number }) {
           justifyContent="center"
           borderRadius={4}
           backgroundColor={selected ? theme.selected : theme.muted}
-          hover={{ backgroundColor: selected ? theme.selectedHover : theme.active }}
-          active={{ backgroundColor: selected ? theme.selectedActive : theme.pressed }}
+          hover={{
+            backgroundColor: selected ? theme.selectedHover : theme.active,
+          }}
+          active={{
+            backgroundColor: selected ? theme.selectedActive : theme.pressed,
+          }}
           onClick={() => {
             feedback.click();
             select(part.id);
           }}
-          onHoverChange={(hovered) => feedback.hover(`select-${part.id}`, hovered)}
+          onHoverChange={(hovered) =>
+            feedback.hover(`select-${part.id}`, hovered)
+          }
         >
           <Text fontSize={13} color={theme.text}>
             {part.name.length > 18 ? `${part.name.slice(0, 17)}...` : part.name}

@@ -7,9 +7,9 @@ import { formatVoiceTime } from "@/hooks/useVoiceInput";
 import { bandWidth, NEAR_PAD } from "@/xr/ui/chrome";
 import { ORB_RADIUS } from "@/xr/ui/SpeakingOrb";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
+import { useXrTheme } from "@/xr/ui/theme";
 import { asciiSafe } from "@/xr/ui/UikitMarkdown";
 import { useXrChatRuntime } from "@/xr/ui/XrChatRuntime";
-import { useXrTheme } from "@/xr/ui/theme";
 
 const CLEAR = ORB_RADIUS + bandWidth(NEAR_PAD) + 0.008;
 const TEXT_W = 240;
@@ -27,7 +27,11 @@ function closedTextRows(messages: GalleryChatMessage[]) {
     const message = messages[i];
     const text = messagePlainText(message);
     if (!text) continue;
-    rows.push({ id: message.id, mine: message.role === "user", text: clip(text) });
+    rows.push({
+      id: message.id,
+      mine: message.role === "user",
+      text: clip(text),
+    });
   }
   return rows.reverse();
 }
@@ -57,7 +61,13 @@ export function ChatOrbHud() {
         >
           {recording ? (
             <>
-              <ToolBtn id="xr-orb-voice-cancel" icon={X} tip="Cancel" grow={false} onClick={voice.cancel} />
+              <ToolBtn
+                id="xr-orb-voice-cancel"
+                icon={X}
+                tip="Cancel"
+                grow={false}
+                onClick={voice.cancel}
+              />
               <Container width={40} alignItems="center" justifyContent="center">
                 <Text fontSize={12} color={theme.subtle}>
                   {voice.busy ? "..." : formatVoiceTime(voice.elapsedMs)}
@@ -74,7 +84,13 @@ export function ChatOrbHud() {
               />
             </>
           ) : busy ? (
-            <ToolBtn id="xr-orb-stop" icon={Square} tip="Stop" grow={false} onClick={() => stop()} />
+            <ToolBtn
+              id="xr-orb-stop"
+              icon={Square}
+              tip="Stop"
+              grow={false}
+              onClick={() => stop()}
+            />
           ) : (
             <ToolBtn
               id="xr-orb-mic"
@@ -99,7 +115,12 @@ export function ChatOrbHud() {
         >
           {rows.map((row) =>
             row.mine ? (
-              <Container key={row.id} width="100%" flexDirection="row" justifyContent="flex-end">
+              <Container
+                key={row.id}
+                width="100%"
+                flexDirection="row"
+                justifyContent="flex-end"
+              >
                 <Container
                   maxWidth="80%"
                   padding={8}
@@ -118,7 +139,7 @@ export function ChatOrbHud() {
                   {asciiSafe(row.text)}
                 </Text>
               </Container>
-            ),
+            )
           )}
           {error ? (
             <Text fontSize={11} color={theme.danger} wordBreak="break-word">

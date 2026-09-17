@@ -1,6 +1,5 @@
-import type { UIMessage } from "ai";
-
 import type { SessionThreadPrefs } from "@sfab-bench/contract";
+import type { UIMessage } from "ai";
 import { db } from "./db";
 import {
   applyThreadSessionsSchema,
@@ -40,7 +39,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS messages_thread ON messages(thread_id, created_at);
 `);
 
-const threadCols = db.prepare("PRAGMA table_info(threads)").all() as { name: string }[];
+const threadCols = db.prepare("PRAGMA table_info(threads)").all() as {
+  name: string;
+}[];
 if (!threadCols.some((col) => col.name === "owner")) {
   db.exec("ALTER TABLE threads ADD COLUMN owner TEXT");
 }
@@ -71,8 +72,15 @@ export function getThread(id: string, workspace: string) {
     .get(id, workspace) as ThreadRow | undefined;
   if (!thread) return null;
   const rows = db
-    .prepare("SELECT id, role, parts, created_at FROM messages WHERE thread_id = ? ORDER BY created_at ASC")
-    .all(id) as { id: string; role: string; parts: string; created_at: number }[];
+    .prepare(
+      "SELECT id, role, parts, created_at FROM messages WHERE thread_id = ? ORDER BY created_at ASC"
+    )
+    .all(id) as {
+    id: string;
+    role: string;
+    parts: string;
+    created_at: number;
+  }[];
   const messages: UIMessage[] = rows.map((row) => ({
     id: row.id,
     role: row.role as UIMessage["role"],
@@ -81,7 +89,10 @@ export function getThread(id: string, workspace: string) {
   return { thread, messages };
 }
 
-export function createThread(workspace: string, prefs?: SessionThreadPrefs): ThreadRow {
+export function createThread(
+  workspace: string,
+  prefs?: SessionThreadPrefs
+): ThreadRow {
   const now = Date.now();
   const row: ThreadRow = {
     id: crypto.randomUUID(),
@@ -95,21 +106,39 @@ export function createThread(workspace: string, prefs?: SessionThreadPrefs): Thr
     effort: prefs?.effort ?? null,
   };
   db.prepare(
-    "INSERT INTO threads (id, workspace, title, created_at, updated_at, owner, harness, model, effort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-  ).run(row.id, row.workspace, row.title, row.created_at, row.updated_at, row.owner, row.harness, row.model, row.effort);
+    "INSERT INTO threads (id, workspace, title, created_at, updated_at, owner, harness, model, effort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(
+    row.id,
+    row.workspace,
+    row.title,
+    row.created_at,
+    row.updated_at,
+    row.owner,
+    row.harness,
+    row.model,
+    row.effort
+  );
   return row;
 }
 
-export function saveThreadPrefs(id: string, workspace: string, prefs: SessionThreadPrefs) {
+export function saveThreadPrefs(
+  id: string,
+  workspace: string,
+  prefs: SessionThreadPrefs
+) {
   const result = db
-    .prepare("UPDATE threads SET harness = ?, model = ?, effort = ?, updated_at = ? WHERE id = ? AND workspace = ?")
+    .prepare(
+      "UPDATE threads SET harness = ?, model = ?, effort = ?, updated_at = ? WHERE id = ? AND workspace = ?"
+    )
     .run(prefs.harness, prefs.model, prefs.effort, Date.now(), id, workspace);
   return result.changes > 0;
 }
 
 function titleFrom(messages: UIMessage[]) {
   const firstUser = messages.find((m) => m.role === "user");
-  const titleFrom = firstUser?.parts?.find((p) => p.type === "text" && "text" in p);
+  const titleFrom = firstUser?.parts?.find(
+    (p) => p.type === "text" && "text" in p
+  );
   if (!titleFrom || !("text" in titleFrom)) return "New chat";
   const text = String(titleFrom.text)
     .split("\n")
@@ -121,8 +150,14 @@ function titleFrom(messages: UIMessage[]) {
   return text || "New chat";
 }
 
-export function saveMessages(id: string, workspace: string, messages: UIMessage[]) {
-  const existing = db.prepare("SELECT id FROM threads WHERE id = ? AND workspace = ?").get(id, workspace);
+export function saveMessages(
+  id: string,
+  workspace: string,
+  messages: UIMessage[]
+) {
+  const existing = db
+    .prepare("SELECT id FROM threads WHERE id = ? AND workspace = ?")
+    .get(id, workspace);
   if (!existing) return false;
   const now = Date.now();
   const title = titleFrom(messages);
@@ -130,12 +165,22 @@ export function saveMessages(id: string, workspace: string, messages: UIMessage[
   try {
     db.prepare("DELETE FROM messages WHERE thread_id = ?").run(id);
     const insert = db.prepare(
-      "INSERT INTO messages (id, thread_id, role, parts, created_at) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO messages (id, thread_id, role, parts, created_at) VALUES (?, ?, ?, ?, ?)"
     );
     for (const [i, msg] of messages.entries()) {
-      insert.run(msg.id, id, msg.role, JSON.stringify(msg.parts ?? []), now + i);
+      insert.run(
+        msg.id,
+        id,
+        msg.role,
+        JSON.stringify(msg.parts ?? []),
+        now + i
+      );
     }
-    db.prepare("UPDATE threads SET title = ?, updated_at = ? WHERE id = ?").run(title, now, id);
+    db.prepare("UPDATE threads SET title = ?, updated_at = ? WHERE id = ?").run(
+      title,
+      now,
+      id
+    );
     db.exec("COMMIT");
   } catch (err) {
     db.exec("ROLLBACK");
@@ -149,9 +194,15 @@ export function saveThreadSession(
   workspace: string,
   harness: string,
   state: unknown,
-  nativeId: string | null,
+  nativeId: string | null
 ) {
-  return saveThreadSessionIn(db, { threadId, workspace, harness, state, nativeId });
+  return saveThreadSessionIn(db, {
+    threadId,
+    workspace,
+    harness,
+    state,
+    nativeId,
+  });
 }
 
 export function loadThreadSession(threadId: string, harness: string) {

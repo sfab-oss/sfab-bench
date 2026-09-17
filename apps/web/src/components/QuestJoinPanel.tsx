@@ -3,15 +3,27 @@ import { useEffect, useRef, useState } from "react";
 
 import { QrCode } from "@/components/QrCode";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { desktopBridge } from "@/lib/desktop";
-import { fetchPairingInfo, rotatePairingInfo, type PairingInfo } from "@/lib/pairing";
+import {
+  fetchPairingInfo,
+  type PairingInfo,
+  rotatePairingInfo,
+} from "@/lib/pairing";
 import { copyText } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 function formatCode(code: string) {
   const compact = code.replace(/\s/g, "");
-  return compact.length === 6 ? `${compact.slice(0, 3)} ${compact.slice(3)}` : compact;
+  return compact.length === 6
+    ? `${compact.slice(0, 3)} ${compact.slice(3)}`
+    : compact;
 }
 
 function remainingLabel(expiresAt: number, now: number) {
@@ -67,7 +79,10 @@ export function QuestJoinPanel({
         }
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Could not load pairing");
+        if (!cancelled)
+          setError(
+            err instanceof Error ? err.message : "Could not load pairing"
+          );
       });
     return () => {
       cancelled = true;
@@ -114,59 +129,106 @@ export function QuestJoinPanel({
     return () => window.clearTimeout(id);
   }, [urlRow, urlBtn, codeBtn, qrBtn]);
 
-  const hostLine = desktopBridge() ? "Keep this window on localhost" : "Keep this Mac tab on localhost";
+  const hostLine = desktopBridge()
+    ? "Keep this window on localhost"
+    : "Keep this Mac tab on localhost";
 
   return (
-    <div className={cn(showTrigger ? "pointer-events-auto relative" : "contents", className)}>
+    <div
+      className={cn(
+        showTrigger ? "pointer-events-auto relative" : "contents",
+        className
+      )}
+    >
       <Dialog open={open} onOpenChange={setOpen}>
         {showTrigger ? (
           <DialogTrigger
             render={
-              <Button type="button" size="sm" variant={open ? "secondary" : "default"} className="shadow-lg" />
+              <Button
+                type="button"
+                size="sm"
+                variant={open ? "secondary" : "default"}
+                className="shadow-lg"
+              />
             }
           >
             <Headset />
             Enter Quest
           </DialogTrigger>
         ) : null}
-        <DialogContent className="max-h-[min(32rem,calc(100dvh-2rem))] max-w-sm overflow-y-auto sm:max-w-sm" initialFocus={copyUrlRef}>
+        <DialogContent
+          className="max-h-[min(32rem,calc(100dvh-2rem))] max-w-sm overflow-y-auto sm:max-w-sm"
+          initialFocus={copyUrlRef}
+        >
           <div className="pr-6">
             <DialogTitle className="pr-0">Enter Quest</DialogTitle>
-            <p className="mt-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{hostLine}</p>
+            <p className="mt-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+              {hostLine}
+            </p>
           </div>
           {error ? <p className="mt-3 text-sm text-error">{error}</p> : null}
-          {!error && !info ? <p className="mt-3 text-sm text-muted-foreground">Loading…</p> : null}
+          {!error && !info ? (
+            <p className="mt-3 text-sm text-muted-foreground">Loading…</p>
+          ) : null}
           {info ? (
             <>
-              <p className="mt-3 text-xs text-muted-foreground">On Quest Browser open</p>
+              <p className="mt-3 text-xs text-muted-foreground">
+                On Quest Browser open
+              </p>
               <button
                 type="button"
                 className="mt-1 w-full rounded-lg bg-muted px-3 py-2 text-left font-mono text-sm leading-snug break-all text-foreground hover:bg-accent"
                 onClick={() => {
-                  if (info.pairUrl) void copyText(info.pairUrl).then((ok) => setUrlRow(ok ? "copied" : "failed"));
+                  if (info.pairUrl)
+                    void copyText(info.pairUrl).then((ok) =>
+                      setUrlRow(ok ? "copied" : "failed")
+                    );
                 }}
               >
-                <span className="block">{info.pairUrl ?? "No LAN address. Connect this Mac to Wi-Fi."}</span>
-                {urlRow ? <span className="mt-1 block text-xs font-sans tracking-normal">{copyLabel(urlRow, "")}</span> : null}
+                <span className="block">
+                  {info.pairUrl ?? "No LAN address. Connect this Mac to Wi-Fi."}
+                </span>
+                {urlRow ? (
+                  <span className="mt-1 block text-xs font-sans tracking-normal">
+                    {copyLabel(urlRow, "")}
+                  </span>
+                ) : null}
               </button>
-              <p className="mt-3 text-xs text-muted-foreground">then type this code</p>
+              <p className="mt-3 text-xs text-muted-foreground">
+                then type this code
+              </p>
               <div className="mt-1 flex items-center justify-between gap-2">
-                <div aria-live="polite" className="font-mono text-3xl tracking-[0.2em] text-foreground">
+                <div
+                  aria-live="polite"
+                  className="font-mono text-3xl tracking-[0.2em] text-foreground"
+                >
                   {formatCode(info.code)}
                 </div>
-                <span className="text-xs text-muted-foreground">{remainingLabel(info.expiresAt, now)}</span>
+                <span className="text-xs text-muted-foreground">
+                  {remainingLabel(info.expiresAt, now)}
+                </span>
               </div>
               {info.fragmentUrl ? (
                 <div className="mt-4 flex items-start gap-3">
-                  <QrCode value={info.fragmentUrl} className="h-28 w-28 shrink-0 border border-border" />
+                  <QrCode
+                    value={info.fragmentUrl}
+                    className="h-28 w-28 shrink-0 border border-border"
+                  />
                   <div className="min-w-0 text-xs text-muted-foreground">
-                    <p>Phone: scan the QR. The token stays in the URL fragment so it is less likely to hit logs.</p>
+                    <p>
+                      Phone: scan the QR. The token stays in the URL fragment so
+                      it is less likely to hit logs.
+                    </p>
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
                       className="mt-2 h-7 px-2"
-                      onClick={() => void copyText(info.fragmentUrl!).then((ok) => setQrBtn(ok ? "copied" : "failed"))}
+                      onClick={() =>
+                        void copyText(info.fragmentUrl!).then((ok) =>
+                          setQrBtn(ok ? "copied" : "failed")
+                        )
+                      }
                     >
                       {copyLabel(qrBtn, "Copy phone link")}
                     </Button>
@@ -174,7 +236,9 @@ export function QuestJoinPanel({
                 </div>
               ) : null}
               {info.lanUrls.length > 1 ? (
-                <p className="mt-3 text-[11px] text-muted-foreground">Other LAN addresses: {info.lanUrls.slice(1).join(", ")}</p>
+                <p className="mt-3 text-[11px] text-muted-foreground">
+                  Other LAN addresses: {info.lanUrls.slice(1).join(", ")}
+                </p>
               ) : null}
             </>
           ) : null}
@@ -186,7 +250,10 @@ export function QuestJoinPanel({
               variant="secondary"
               disabled={!info?.pairUrl}
               onClick={() => {
-                if (info?.pairUrl) void copyText(info.pairUrl).then((ok) => setUrlBtn(ok ? "copied" : "failed"));
+                if (info?.pairUrl)
+                  void copyText(info.pairUrl).then((ok) =>
+                    setUrlBtn(ok ? "copied" : "failed")
+                  );
               }}
             >
               {copyLabel(urlBtn, "Copy URL")}
@@ -197,7 +264,11 @@ export function QuestJoinPanel({
                   type="button"
                   size="sm"
                   variant="secondary"
-                  onClick={() => void copyText(info.code).then((ok) => setCodeBtn(ok ? "copied" : "failed"))}
+                  onClick={() =>
+                    void copyText(info.code).then((ok) =>
+                      setCodeBtn(ok ? "copied" : "failed")
+                    )
+                  }
                 >
                   {copyLabel(codeBtn, "Copy code")}
                 </Button>
@@ -208,14 +279,24 @@ export function QuestJoinPanel({
                   onClick={() => {
                     void rotatePairingInfo()
                       .then(setInfo)
-                      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Could not rotate"));
+                      .catch((err: unknown) =>
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : "Could not rotate"
+                        )
+                      );
                   }}
                 >
                   New code
                 </Button>
               </>
             ) : null}
-            <DialogClose render={<Button type="button" size="sm" variant="ghost" />}>Done</DialogClose>
+            <DialogClose
+              render={<Button type="button" size="sm" variant="ghost" />}
+            >
+              Done
+            </DialogClose>
           </div>
         </DialogContent>
       </Dialog>

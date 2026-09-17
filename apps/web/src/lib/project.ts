@@ -63,7 +63,8 @@ export function folderName(path: string) {
 /** `/Users/you/src/foo` → `~/src/foo` — the usual Mac recents line. */
 export function shortPath(path: string) {
   const home = path.match(/^\/Users\/[^/]+/);
-  if (home && path.length > home[0].length) return `~${path.slice(home[0].length)}`;
+  if (home && path.length > home[0].length)
+    return `~${path.slice(home[0].length)}`;
   return path;
 }
 

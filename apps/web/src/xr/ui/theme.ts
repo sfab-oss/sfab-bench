@@ -1,5 +1,5 @@
-import { useStore } from "@/state/store";
 import type { Appearance } from "@/lib/appearance";
+import { useStore } from "@/state/store";
 
 export type XrPalette = {
   card: string;

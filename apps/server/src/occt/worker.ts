@@ -22,7 +22,11 @@ if (port) {
     void buildPackageHere(job.stepAbs, job.dest)
       .then(async () => {
         const oc = await openCascade();
-        port.postMessage({ id: job.id, ok: true, heapBytes: oc.HEAPU8.length } satisfies Done);
+        port.postMessage({
+          id: job.id,
+          ok: true,
+          heapBytes: oc.HEAPU8.length,
+        } satisfies Done);
       })
       .catch((err: unknown) => {
         port.postMessage({
