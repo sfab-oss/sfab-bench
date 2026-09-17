@@ -9,7 +9,7 @@ description: >
 
 # sfab-bench
 
-This is the app in this repo.
+This is the app in this repo. Product home: https://bench.sfab.ai.
 Living plan: `docs/product.md`. Human runbook: `docs/user/`.
 
 ## Start

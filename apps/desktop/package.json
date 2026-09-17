@@ -5,7 +5,7 @@
   "private": true,
   "description": "Electron shell around the server and the same page, plus a native folder chooser.",
   "author": "SFab",
-  "homepage": "https://github.com/sfab-oss/sfab-bench",
+  "homepage": "https://bench.sfab.ai",
   "type": "module",
   "main": "dist/main.cjs",
   "scripts": {
