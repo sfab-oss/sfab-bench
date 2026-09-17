@@ -44,8 +44,8 @@ export function Hero() {
         Open a folder. Open a STEP. Talk.
       </Display>
       <p className="mt-5 max-w-xl text-lg text-muted-foreground leading-relaxed">
-        A CAD workbench on your Mac. Agents you already have. Quest Browser on
-        the same Wi-Fi.
+        A CAD workbench on your Mac. No extra AI to buy: use the ones already
+        logged in. Quest Browser on the same Wi-Fi.
       </p>
       <div className="mt-7 flex flex-wrap gap-3">
         <Button asChild>
@@ -96,12 +96,12 @@ export function Providers() {
   return (
     <section className="mx-auto w-full max-w-5xl px-6 py-16" id="providers">
       <Display className="max-w-3xl text-3xl sm:text-4xl">
-        Already on your Mac.
+        No extra AI to buy.
       </Display>
       <p className="mt-4 max-w-2xl text-muted-foreground leading-relaxed">
-        No keys in this app. Claude Code, Codex, Grok, or OpenCode with the
-        logins you already have. Cursor is in the picker; a Mac login is not
-        visible to this app yet.
+        Claude Code, Codex, Grok, or OpenCode: the logins already on your Mac.
+        This app does not sell a model and does not take API keys. Cursor is in
+        the picker; a Mac login is not visible here yet.
       </p>
       <ul className="mt-8 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
         {PROVIDERS.map((row) => (
