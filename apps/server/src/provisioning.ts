@@ -31,6 +31,33 @@ export function installFailureDetail(id: HarnessId, err: unknown): string {
 /** Only in-flight installs. "Installed" lives on disk, as the vendor's marker. */
 const inflight = new Map<string, Promise<string | null>>();
 
+/** First install is ~12s. Wide enough for a slow registry; not until restart. */
+export const INSTALL_TIMEOUT_MS = 120_000;
+
+class InstallTimeout extends Error {
+  constructor() {
+    super("install timed out");
+    this.name = "InstallTimeout";
+  }
+}
+
+function withTimeout(p: Promise<unknown>, ms: number): Promise<unknown> {
+  if (!Number.isFinite(ms) || ms <= 0) return p;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new InstallTimeout()), ms);
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      }
+    );
+  });
+}
+
 /** The result is discarded — only whether it settled matters. */
 type Prepare = (root: string, id: HarnessId) => Promise<unknown>;
 
@@ -51,7 +78,8 @@ export function ensureProvisioned(
   id: HarnessId,
   // The install itself, injectable so the self-check can drive the joining and
   // the forgetting without a twelve-second pnpm run.
-  prepare: Prepare = defaultPrepare
+  prepare: Prepare = defaultPrepare,
+  timeoutMs = INSTALL_TIMEOUT_MS
 ): Promise<string | null> {
   // Keyed by harness alone: the bridge is installed once for the machine, so
   // two folders sending at the same time must join one install, not race it.
@@ -59,10 +87,13 @@ export function ensureProvisioned(
   const running = inflight.get(key);
   if (running) return running;
 
-  const run = prepare(root, id)
+  const run = withTimeout(prepare(root, id), timeoutMs)
     .then<string | null>(() => null)
     .catch<string | null>((err) => {
       console.error(`[provisioning] ${id} install failed`, err);
+      if (err instanceof InstallTimeout) {
+        return `Could not install ${HARNESS_LABEL[id]} — the install took too long.`;
+      }
       return installFailureDetail(id, err);
     })
     .then((reason) => {

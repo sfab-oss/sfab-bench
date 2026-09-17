@@ -104,6 +104,23 @@ const main = async () => {
   grok.settle();
   open.settle();
 
+  // A hang never settles, so without a timeout the map stays occupied and
+  // every folder's next send joins the dead promise until the process dies.
+  const hung = fakeInstall();
+  const timed = ensureProvisioned("/tmp/one", "codex", hung.prepare, 20);
+  expect(
+    (await timed) === "Could not install Codex — the install took too long.",
+    "a hung install times out as copy"
+  );
+  hung.settle();
+  const afterHang = fakeInstall();
+  void ensureProvisioned("/tmp/one", "codex", afterHang.prepare, 20);
+  expect(
+    afterHang.calls() === 1,
+    "a timed-out install is retried by the next send"
+  );
+  afterHang.settle();
+
   console.log("provisioning.selfcheck ok");
 };
 
