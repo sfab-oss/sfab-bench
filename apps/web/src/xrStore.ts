@@ -97,10 +97,14 @@ function applyVRInput() {
   xrStore.setHand(hands, "right");
 }
 
+let previewCanvas: { style: { width: string; height: string } } | null = null;
+
 function unsquashEmulatorPreview() {
   const apply = () => {
     const canvas = xrStore.getState().emulator?.appCanvas;
     if (!canvas || !("style" in canvas)) return false;
+    if (canvas.width < 1 || canvas.height < 1) return false;
+    previewCanvas = canvas;
     matchCanvasCssToBuffer(canvas);
     return true;
   };
@@ -113,6 +117,17 @@ function unsquashEmulatorPreview() {
     });
   });
 }
+
+function restorePreviewCss() {
+  if (!previewCanvas) return;
+  previewCanvas.style.width = "";
+  previewCanvas.style.height = "";
+  previewCanvas = null;
+}
+
+xrStore.subscribe((state, prev) => {
+  if (prev.session && !state.session) restorePreviewCss();
+});
 
 async function swapSession(next: "immersive-ar" | "immersive-vr") {
   const { session, mode } = xrStore.getState();
