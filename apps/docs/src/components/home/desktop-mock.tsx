@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 
 /**
  * Desktop: same-origin iframe of `/preview/workbench` (orbit, click the hole,
- * canned chat). Mobile: a still. The preview is not `apps/web`: no XR, no
- * folder picker, no CAD server.
+ * canned chat). Mobile: a still that follows light/dark. The preview is not
+ * `apps/web`: no XR, no folder picker, no CAD server.
  */
 export function DesktopMock() {
   const [iframe, setIframe] = useState(false);
@@ -27,13 +27,22 @@ export function DesktopMock() {
           title="SFab Bench workbench preview"
         />
       ) : (
-        <img
-          alt="SFab Bench: files, a STEP on the canvas, and Codex chat"
-          className="block h-auto w-full"
-          height={640}
-          src="/brand/preview-workbench.png"
-          width={1280}
-        />
+        <>
+          <img
+            alt="SFab Bench: files, a STEP on the canvas, and Codex chat"
+            className="block h-auto w-full dark:hidden"
+            height={900}
+            src="/brand/preview-workbench-light.png"
+            width={1440}
+          />
+          <img
+            alt=""
+            className="hidden h-auto w-full dark:block"
+            height={900}
+            src="/brand/preview-workbench.png"
+            width={1440}
+          />
+        </>
       )}
     </div>
   );
