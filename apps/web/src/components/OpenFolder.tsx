@@ -1,33 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Folder } from "lucide-react";
-
+import { useCallback, useEffect, useRef, useState } from "react";
+import { StartTruncatedPath } from "@/components/StartTruncatedPath";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { StartTruncatedPath } from "@/components/StartTruncatedPath";
 import { useXrSession } from "@/hooks/useXrSession";
 import { desktopBridge } from "@/lib/desktop";
-import { isMacPlatform, matchesShortcut } from "@/lib/shortcuts";
 import {
+  type BrowseInfo,
   browsePath,
   fetchProject,
   openTabProject,
+  type ProjectRow,
   registerAndOpenTab,
   shortPath,
-  type BrowseInfo,
-  type ProjectRow,
 } from "@/lib/project";
 import { redact } from "@/lib/redact";
+import { isMacPlatform, matchesShortcut } from "@/lib/shortcuts";
 import {
-  FOLDER_ERROR_EVENT,
   browseListingApply,
   emitFolderError,
+  FOLDER_ERROR_EVENT,
   fileRecentLines,
   openFolderButtonTitle,
   pathFieldEnterAction,
 } from "@/lib/welcome";
 
-function openErrorMessage(err: unknown, fallback = "Could not open that folder") {
+function openErrorMessage(
+  err: unknown,
+  fallback = "Could not open that folder"
+) {
   return redact(err instanceof Error ? err.message : fallback);
 }
 
@@ -64,11 +66,19 @@ export function RecentFolders({
   );
 }
 
-export function RecentFiles({ recents, onPick }: { recents: string[]; onPick: (path: string) => void }) {
+export function RecentFiles({
+  recents,
+  onPick,
+}: {
+  recents: string[];
+  onPick: (path: string) => void;
+}) {
   if (recents.length === 0) return null;
   return (
     <div className="w-full">
-      <p className="px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Recent</p>
+      <p className="px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        Recent
+      </p>
       <ul className="max-h-48 w-full overflow-y-auto text-left">
         {recents.map((path) => {
           const { name, extra } = fileRecentLines(path);
@@ -140,7 +150,7 @@ export function useOpenFolder(canRegister: boolean) {
         openTabProject(path);
       }
     },
-    [canRegister],
+    [canRegister]
   );
 
   const requestOpen = useCallback(async () => {
@@ -170,7 +180,13 @@ export function useOpenFolder(canRegister: boolean) {
     if (!canRegister || desktopBridge() || xrSession) return;
     const mac = isMacPlatform(navigator.platform, navigator.userAgent);
     const onKey = (event: KeyboardEvent) => {
-      if (!matchesShortcut(event, "open-folder", { mac, activeElement: document.activeElement })) return;
+      if (
+        !matchesShortcut(event, "open-folder", {
+          mac,
+          activeElement: document.activeElement,
+        })
+      )
+        return;
       event.preventDefault();
       void requestOpen();
     };
@@ -178,7 +194,15 @@ export function useOpenFolder(canRegister: boolean) {
     return () => window.removeEventListener("keydown", onKey);
   }, [canRegister, requestOpen, xrSession]);
 
-  return { canRegister, recents, error, dialogOpen, setDialogOpen, requestOpen, pickRecent };
+  return {
+    canRegister,
+    recents,
+    error,
+    dialogOpen,
+    setDialogOpen,
+    requestOpen,
+    pickRecent,
+  };
 }
 
 export type OpenFolderApi = ReturnType<typeof useOpenFolder>;
@@ -353,13 +377,18 @@ export function BrowseFolderDialog({
               >
                 Up
               </Button>
-              <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground" title={browse.path}>
+              <span
+                className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground"
+                title={browse.path}
+              >
                 {shortPath(browse.path)}
               </span>
             </div>
             <ul className="mt-2 max-h-56 overflow-auto rounded-md border border-border">
               {browse.dirs.length === 0 ? (
-                <li className="px-2 py-2 text-[13px] text-muted-foreground">No folders here.</li>
+                <li className="px-2 py-2 text-[13px] text-muted-foreground">
+                  No folders here.
+                </li>
               ) : (
                 browse.dirs.map((dir) => (
                   <li key={dir.path}>
@@ -379,10 +408,23 @@ export function BrowseFolderDialog({
         ) : null}
         {error ? <p className="mt-2 text-xs text-error">{error}</p> : null}
         <div className="mt-3 flex justify-end gap-2">
-          <Button type="button" size="sm" variant="secondary" className="h-8" disabled={busy} onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-8"
+            disabled={busy}
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
-          <Button type="button" size="sm" className="h-8" disabled={busy || !(path.trim() || browse?.path)} onClick={() => void openHere()}>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8"
+            disabled={busy || !(path.trim() || browse?.path)}
+            onClick={() => void openHere()}
+          >
             Open
           </Button>
         </div>
@@ -402,14 +444,20 @@ export function WelcomeFolders({ folder }: { folder: OpenFolderApi }) {
       {folder.canRegister ? <OpenFolderButton folder={folder} /> : null}
       {folder.recents.length > 0 ? (
         <div className="w-full">
-          <p className="px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Recent</p>
+          <p className="px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+            Recent
+          </p>
           <RecentFolders recents={folder.recents} onPick={folder.pickRecent} />
         </div>
       ) : null}
       {!folder.canRegister && folder.recents.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">Open a folder on the Mac first, then it shows up here.</p>
+        <p className="text-[13px] text-muted-foreground">
+          Open a folder on the Mac first, then it shows up here.
+        </p>
       ) : null}
-      {folder.error ? <p className="text-xs text-error">{folder.error}</p> : null}
+      {folder.error ? (
+        <p className="text-xs text-error">{folder.error}</p>
+      ) : null}
     </div>
   );
 }
@@ -418,14 +466,22 @@ export function EmptyFolderRail({ folder }: { folder: OpenFolderApi }) {
   return (
     <div className="flex flex-col gap-3 p-3">
       <p className="text-[13px] text-muted-foreground">
-        {folder.canRegister ? "Open a folder to see its files." : "Pick a folder the Mac has opened."}
+        {folder.canRegister
+          ? "Open a folder to see its files."
+          : "Pick a folder the Mac has opened."}
       </p>
-      {folder.canRegister ? <OpenFolderButton folder={folder} className="h-8" /> : null}
+      {folder.canRegister ? (
+        <OpenFolderButton folder={folder} className="h-8" />
+      ) : null}
       <RecentFolders recents={folder.recents} onPick={folder.pickRecent} />
       {!folder.canRegister && folder.recents.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">Open a folder on the Mac first, then it shows up here.</p>
+        <p className="text-[13px] text-muted-foreground">
+          Open a folder on the Mac first, then it shows up here.
+        </p>
       ) : null}
-      {folder.error ? <p className="text-xs text-error">{folder.error}</p> : null}
+      {folder.error ? (
+        <p className="text-xs text-error">{folder.error}</p>
+      ) : null}
     </div>
   );
 }

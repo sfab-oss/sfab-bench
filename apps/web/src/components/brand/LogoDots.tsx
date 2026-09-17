@@ -18,10 +18,22 @@ export function LogoDots({
   ...props
 }: SVGProps<SVGSVGElement> & { accent?: string }) {
   return (
-    <svg fill="none" role="img" viewBox="0 0 771 771" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <svg
+      fill="none"
+      role="img"
+      viewBox="0 0 771 771"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
       <title>SFab</title>
       {OUTER.map((node) => (
-        <circle cx={node.cx} cy={node.cy} fill="currentColor" key={`${node.cx}-${node.cy}`} r={74} />
+        <circle
+          cx={node.cx}
+          cy={node.cy}
+          fill="currentColor"
+          key={`${node.cx}-${node.cy}`}
+          r={74}
+        />
       ))}
       <circle cx={380.5} cy={376.5} fill={accent} r={74} />
     </svg>

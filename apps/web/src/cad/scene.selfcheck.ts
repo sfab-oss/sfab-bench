@@ -1,18 +1,15 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-
-import * as THREE from "three";
-
 import type { StepAssemblyNode, StepPackage } from "@sfab-bench/contract";
 import { buildStepPackage } from "@sfab-bench/server/occt";
+import * as THREE from "three";
 
-import { decodeTess, type ComponentMesh } from "@/cad/decodeTess";
+import { type ComponentMesh, decodeTess } from "@/cad/decodeTess";
 import { pickAlongRay } from "@/cad/highlights";
 import { buildScene } from "@/cad/loadStepPackage";
 import type { CadReview } from "@/cad/review";
-import { treeTops } from "@/cad/tree";
 import { viewerSnapshot } from "@/cad/viewer-snapshot";
 import { store } from "@/state/store";
 
@@ -29,13 +26,16 @@ import { store } from "@/state/store";
  * never asserts against a golden that could rot into agreement with a bug.
  */
 
-const fixtures = fileURLToPath(new URL("../../../server/fixtures/", import.meta.url));
+const fixtures = fileURLToPath(
+  new URL("../../../server/fixtures/", import.meta.url)
+);
 const failures: string[] = [];
 const note = (why: string) => {
   failures.push(why);
   console.error(`  ✗ ${why}`);
 };
-const near = (got: number, want: number, eps: number) => Math.abs(got - want) <= eps;
+const near = (got: number, want: number, eps: number) =>
+  Math.abs(got - want) <= eps;
 
 type Loaded = {
   review: CadReview;
@@ -49,9 +49,13 @@ async function load(name: string): Promise<Loaded> {
   const dest = mkdtempSync(join(tmpdir(), "sfab-scene-"));
   try {
     await buildStepPackage(join(fixtures, `${name}.step`), dest);
-    const assembly = JSON.parse(readFileSync(join(dest, "assembly.json"), "utf8")) as StepPackage;
+    const assembly = JSON.parse(
+      readFileSync(join(dest, "assembly.json"), "utf8")
+    ) as StepPackage;
     const meshes = new Map<string, ComponentMesh>();
-    for (const cid of new Set(assembly.occurrences.map((occ) => occ.component))) {
+    for (const cid of new Set(
+      assembly.occurrences.map((occ) => occ.component)
+    )) {
       const bytes = readFileSync(join(dest, "components", `${cid}.tess`));
       meshes.set(cid, decodeTess(new Uint8Array(bytes)));
     }
@@ -85,7 +89,9 @@ function targets(review: CadReview): { ref: string; at: THREE.Vector3 }[] {
       if (child instanceof THREE.Mesh) meshy = true;
     });
     if (!meshy) continue;
-    const at = new THREE.Box3().setFromObject(part.object).getCenter(new THREE.Vector3());
+    const at = new THREE.Box3()
+      .setFromObject(part.object)
+      .getCenter(new THREE.Vector3());
     out.push({ ref: part.cadRef ?? part.name, at });
   }
   return out;
@@ -121,7 +127,9 @@ const AXES: [string, THREE.Vector3][] = [
   ];
   for (const [label, got, expected] of want) {
     if (!near(got, expected, 1e-5)) {
-      note(`inch_block: world size ${label} is ${got.toFixed(5)}m, expected ${expected}m`);
+      note(
+        `inch_block: world size ${label} is ${got.toFixed(5)}m, expected ${expected}m`
+      );
     }
   }
 }
@@ -151,10 +159,14 @@ for (const [name, { review, assembly, world }] of scenes) {
   }
   // A model already clear of the floor is left where the CAD put it.
   if (review.bounds.min.y < 0 && !near(box.min.y, 0, 1e-6)) {
-    note(`${name}: floor offset left it ${(box.min.y * 1000).toFixed(2)}mm off the ground`);
+    note(
+      `${name}: floor offset left it ${(box.min.y * 1000).toFixed(2)}mm off the ground`
+    );
   }
   if (review.bounds.min.y >= 0 && review.sitHeight !== 0) {
-    note(`${name}: raised by ${review.sitHeight}m though it was already above the floor`);
+    note(
+      `${name}: raised by ${review.sitHeight}m though it was already above the floor`
+    );
   }
 
   /**
@@ -175,7 +187,8 @@ for (const [name, { review, assembly, world }] of scenes) {
       note(`${name}: part "${part.name}" has no cadRef`);
       continue;
     }
-    if (seen.has(part.cadRef)) note(`${name}: ${part.cadRef} names more than one part`);
+    if (seen.has(part.cadRef))
+      note(`${name}: ${part.cadRef} names more than one part`);
     seen.add(part.cadRef);
     if (!known.has(part.cadRef.slice(1))) {
       note(`${name}: ${part.cadRef} is not in the package`);
@@ -199,19 +212,27 @@ for (const [name, { review, assembly, world }] of scenes) {
       if (!pick) continue;
       hits += 1;
       const ref = pick.cadRef.replace(/\.f\d+$/, "");
-      if (!known.has(ref.slice(1))) note(`${name}: pick from ${label} returned ${pick.cadRef}, not in the package`);
+      if (!known.has(ref.slice(1)))
+        note(
+          `${name}: pick from ${label} returned ${pick.cadRef}, not in the package`
+        );
       // Strictly positive, not comfortably so: a ray down a cone's axis lands on
       // its flank, where the outward normal is nearly side-on. Reversed is the bug.
       if (pick.normal.dot(dir) <= 0.01) {
         note(
           `${name}: the face picked from ${label} points away from the ray ` +
-            `(${pick.normal.toArray().map((n) => n.toFixed(2)).join(",")})`,
+            `(${pick.normal
+              .toArray()
+              .map((n) => n.toFixed(2))
+              .join(",")})`
         );
       }
-      if (!box.containsPoint(pick.point)) note(`${name}: pick from ${label} landed outside the model's own box`);
+      if (!box.containsPoint(pick.point))
+        note(`${name}: pick from ${label} landed outside the model's own box`);
     }
     // A torus loses the two rays down its hole; nothing loses all six.
-    if (!hits) note(`${name}: ${target.ref} was not picked from any of the six axes`);
+    if (!hits)
+      note(`${name}: ${target.ref} was not picked from any of the six axes`);
   }
 }
 
@@ -237,17 +258,22 @@ for (const [name, { review, assembly, world }] of scenes) {
     const pick = pickAlongRay(review, rayFrom(centre, dir));
     const ord = Number(/\.f(\d+)$/.exec(pick?.cadRef ?? "")?.[1]);
     if (!pick || !Number.isFinite(ord)) {
-      note(`inch_block: the face from ${label} came back as ${pick?.cadRef ?? "nothing"}, with no ordinal`);
+      note(
+        `inch_block: the face from ${label} came back as ${pick?.cadRef ?? "nothing"}, with no ordinal`
+      );
       continue;
     }
     ords.set(label, ord);
   }
   const distinct = new Set(ords.values());
   if (distinct.size !== 6) {
-    note(`inch_block: six faces picked, ${distinct.size} distinct ordinals — ${[...ords].map(([k, v]) => `${k}=f${v}`).join(" ")}`);
+    note(
+      `inch_block: six faces picked, ${distinct.size} distinct ordinals — ${[...ords].map(([k, v]) => `${k}=f${v}`).join(" ")}`
+    );
   }
   for (const ord of distinct) {
-    if (ord < 1 || ord > 6) note(`inch_block: face ordinal f${ord} is outside the 1..6 a box has`);
+    if (ord < 1 || ord > 6)
+      note(`inch_block: face ordinal f${ord} is outside the 1..6 a box has`);
   }
 
   /**
@@ -268,13 +294,15 @@ for (const [name, { review, assembly, world }] of scenes) {
     const at = new THREE.Vector3(
       THREE.MathUtils.lerp(box.min.x, box.max.x, u),
       top,
-      THREE.MathUtils.lerp(box.min.z, box.max.z, v),
+      THREE.MathUtils.lerp(box.min.z, box.max.z, v)
     );
     const pick = pickAlongRay(review, rayFrom(at, new THREE.Vector3(0, 1, 0)));
     onTop.add(pick?.cadRef ?? "nothing");
   }
   if (onTop.size !== 1) {
-    note(`inch_block: four points on the top face gave ${onTop.size} different refs — ${[...onTop].join(", ")}`);
+    note(
+      `inch_block: four points on the top face gave ${onTop.size} different refs — ${[...onTop].join(", ")}`
+    );
   }
 }
 
@@ -307,7 +335,9 @@ for (const [name, { review, assembly }] of scenes) {
       note(`${name}: occurrence ${occ.id} has no part in the scene`);
       continue;
     }
-    const mesh = part.object.children.find((child): child is THREE.Mesh => child instanceof THREE.Mesh);
+    const mesh = part.object.children.find(
+      (child): child is THREE.Mesh => child instanceof THREE.Mesh
+    );
     if (!mesh) {
       note(`${name}: ${occ.id} has no mesh under it`);
       continue;
@@ -315,25 +345,35 @@ for (const [name, { review, assembly }] of scenes) {
     const material = mesh.material as THREE.MeshStandardMaterial;
     // The loader's own fallback, for a solid the STEP never painted.
     const want = occ.color ?? [0.61, 0.64, 0.69, 1];
-    for (const [channel, index] of [["r", 0], ["g", 1], ["b", 2]] as const) {
+    for (const [channel, index] of [
+      ["r", 0],
+      ["g", 1],
+      ["b", 2],
+    ] as const) {
       if (!near(material.color[channel], want[index]!, 1e-4)) {
         note(
           `${name}: ${occ.id} is ${channel}=${material.color[channel].toFixed(4)} ` +
-            `but the package says ${want[index]}`,
+            `but the package says ${want[index]}`
         );
       }
     }
     if (!near(material.opacity, want[3]!, 1e-4)) {
-      note(`${name}: ${occ.id} has opacity ${material.opacity}, the package says ${want[3]}`);
+      note(
+        `${name}: ${occ.id} has opacity ${material.opacity}, the package says ${want[3]}`
+      );
     }
     // Opaque parts must not be drawn on the transparent pass: it disables depth
     // writes and the model starts sorting wrong against itself.
     if (material.transparent !== want[3]! < 0.999) {
-      note(`${name}: ${occ.id} is ${material.transparent ? "" : "not "}transparent at opacity ${want[3]}`);
+      note(
+        `${name}: ${occ.id} is ${material.transparent ? "" : "not "}transparent at opacity ${want[3]}`
+      );
     }
     const expectedName = nodeNames.get(occ.id) ?? (occ.name || occ.id);
     if (part.name !== expectedName) {
-      note(`${name}: ${occ.id} is called "${part.name}" in the scene and "${expectedName}" in the package`);
+      note(
+        `${name}: ${occ.id} is called "${part.name}" in the scene and "${expectedName}" in the package`
+      );
     }
   }
 }
@@ -354,7 +394,9 @@ for (const [name, { review, assembly }] of scenes) {
   });
   const components = Object.keys(assembly.components).length;
   if (geometries.size !== components) {
-    note(`${name}: ${geometries.size} geometries in the scene for ${components} component(s)`);
+    note(
+      `${name}: ${geometries.size} geometries in the scene for ${components} component(s)`
+    );
   }
 }
 
@@ -370,26 +412,40 @@ for (const [name, { review, assembly }] of scenes) {
  * discussing a part that is not in the file.
  */
 for (const [name, { review, assembly }] of scenes) {
-  store.setState({ url: `/api/pkg/${name}/`, review, selectedId: null, pickedRef: null });
+  store.setState({
+    url: `/api/pkg/${name}/`,
+    review,
+    selectedId: null,
+    pickedRef: null,
+  });
   const snapshot = viewerSnapshot();
 
   if (snapshot.empty) note(`${name}: the snapshot says the viewer is empty`);
   if (snapshot.partCount !== review.parts.length) {
-    note(`${name}: the snapshot counts ${snapshot.partCount} parts, the scene has ${review.parts.length}`);
+    note(
+      `${name}: the snapshot counts ${snapshot.partCount} parts, the scene has ${review.parts.length}`
+    );
   }
 
   // The tops are the assembly root's own children, or the part itself when the
   // document is a single part with nothing under it.
   const root = assembly.assembly?.root;
   const expected = root
-    ? (root.children.length ? root.children.map((child) => `#${child.id}`) : [`#${root.id}`])
+    ? root.children.length
+      ? root.children.map((child) => `#${child.id}`)
+      : [`#${root.id}`]
     : assembly.occurrences.map((occ) => `#${occ.id}`);
   const got = snapshot.tree.map((item) => item.ref ?? "(no ref)");
   if (got.join(",") !== expected.join(",")) {
-    note(`${name}: the tree reads ${got.join(",")} but the package's top level is ${expected.join(",")}`);
+    note(
+      `${name}: the tree reads ${got.join(",")} but the package's top level is ${expected.join(",")}`
+    );
   }
   for (const item of snapshot.tree) {
-    if (!item.ref) note(`${name}: tree row "${item.name}" has no ref, so nothing can be said about it`);
+    if (!item.ref)
+      note(
+        `${name}: tree row "${item.name}" has no ref, so nothing can be said about it`
+      );
     if (!item.name) note(`${name}: tree row ${item.ref} has no name`);
   }
 
@@ -398,10 +454,14 @@ for (const [name, { review, assembly }] of scenes) {
   store.setState({ selectedId: part.id, pickedRef: part.cadRef ?? null });
   const selected = viewerSnapshot();
   if (selected.selected !== part.cadRef) {
-    note(`${name}: selected ${part.cadRef} but the snapshot reports ${selected.selected}`);
+    note(
+      `${name}: selected ${part.cadRef} but the snapshot reports ${selected.selected}`
+    );
   }
   if (selected.selectedName !== part.name) {
-    note(`${name}: selected "${part.name}" but the snapshot reports "${selected.selectedName}"`);
+    note(
+      `${name}: selected "${part.name}" but the snapshot reports "${selected.selectedName}"`
+    );
   }
 }
 
@@ -425,22 +485,34 @@ for (const [name, { review, world }] of scenes) {
       const pick = pickAlongRay(review, rayFrom(target.at, dir));
       if (!pick) continue;
 
-      store.setState({ review, url: `/api/pkg/${name}/`, selectedId: null, pickedRef: null });
+      store.setState({
+        review,
+        url: `/api/pkg/${name}/`,
+        selectedId: null,
+        pickedRef: null,
+      });
       store.getState().selectByRef(pick.cadRef);
       const after = store.getState();
 
       if (after.selectedId === null) {
-        note(`${name}: ${pick.cadRef} came off a ray from ${label} and selects nothing`);
-      } else if (review.parts[after.selectedId]?.cadRef !== pick.cadRef.replace(/\.f\d+$/, "")) {
+        note(
+          `${name}: ${pick.cadRef} came off a ray from ${label} and selects nothing`
+        );
+      } else if (
+        review.parts[after.selectedId]?.cadRef !==
+        pick.cadRef.replace(/\.f\d+$/, "")
+      ) {
         note(
           `${name}: ${pick.cadRef} selected ${review.parts[after.selectedId]?.cadRef}, ` +
-            `not ${pick.cadRef.replace(/\.f\d+$/, "")}`,
+            `not ${pick.cadRef.replace(/\.f\d+$/, "")}`
         );
       }
       // The full ref is what the panel shows and what goes back out again, so the
       // face must survive the trip even though selection is per part.
       if (after.pickedRef !== pick.cadRef) {
-        note(`${name}: selecting ${pick.cadRef} left pickedRef as ${after.pickedRef}`);
+        note(
+          `${name}: selecting ${pick.cadRef} left pickedRef as ${after.pickedRef}`
+        );
       }
       break; // one ray per part is enough; this is about the ref, not the geometry
     }
@@ -451,13 +523,23 @@ for (const [name, { review, world }] of scenes) {
 /** A ref for something that is not in this model must select nothing, quietly. */
 {
   const { review } = scenes.get("bracket_assembly")!;
-  store.setState({ review, url: "/api/pkg/x/", selectedId: 0, pickedRef: "#o1.1" });
+  store.setState({
+    review,
+    url: "/api/pkg/x/",
+    selectedId: 0,
+    pickedRef: "#o1.1",
+  });
   store.getState().selectByRef("#o9.9.f1");
   if (store.getState().selectedId !== null) {
-    note(`a ref for a part that does not exist selected part ${store.getState().selectedId}`);
+    note(
+      `a ref for a part that does not exist selected part ${store.getState().selectedId}`
+    );
   }
   store.getState().selectByRef(null);
-  if (store.getState().selectedId !== null || store.getState().pickedRef !== null) {
+  if (
+    store.getState().selectedId !== null ||
+    store.getState().pickedRef !== null
+  ) {
     note("selectByRef(null) did not clear the selection");
   }
 }
@@ -478,11 +560,19 @@ for (const name of ["inch_block", "bracket_assembly", "cut_solid"]) {
   const box = new THREE.Box3().setFromObject(first.world);
   const centre = box.getCenter(new THREE.Vector3());
   for (const [label, dir] of AXES) {
-    const a = pickAlongRay(first.review, rayFrom(centre, dir))?.cadRef ?? "nothing";
-    const b = pickAlongRay(again.review, rayFrom(centre, dir))?.cadRef ?? "nothing";
-    if (a !== b) note(`${name}: rebuilding moved the ref from ${label} — ${a} became ${b}`);
+    const a =
+      pickAlongRay(first.review, rayFrom(centre, dir))?.cadRef ?? "nothing";
+    const b =
+      pickAlongRay(again.review, rayFrom(centre, dir))?.cadRef ?? "nothing";
+    if (a !== b)
+      note(
+        `${name}: rebuilding moved the ref from ${label} — ${a} became ${b}`
+      );
   }
 }
 
-if (failures.length) throw new Error(`${failures.length} scene failure(s) across ${names.length} fixtures`);
+if (failures.length)
+  throw new Error(
+    `${failures.length} scene failure(s) across ${names.length} fixtures`
+  );
 console.log(`scene.selfcheck ok (${names.length} fixtures)`);

@@ -17,7 +17,10 @@ interface RenderErrorBoundaryState {
   readonly resetKeys?: ReadonlyArray<unknown> | undefined;
 }
 
-export class RenderErrorBoundary extends Component<RenderErrorBoundaryProps, RenderErrorBoundaryState> {
+export class RenderErrorBoundary extends Component<
+  RenderErrorBoundaryProps,
+  RenderErrorBoundaryState
+> {
   override state: RenderErrorBoundaryState = {
     failed: false,
     error: null,
@@ -27,7 +30,7 @@ export class RenderErrorBoundary extends Component<RenderErrorBoundaryProps, Ren
   // Retry changed inputs without remounting healthy children or their controls.
   static getDerivedStateFromProps(
     { resetKeys }: RenderErrorBoundaryProps,
-    state: RenderErrorBoundaryState,
+    state: RenderErrorBoundaryState
   ) {
     if (
       resetKeys?.length !== state.resetKeys?.length ||

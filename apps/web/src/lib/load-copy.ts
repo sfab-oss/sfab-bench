@@ -6,7 +6,8 @@ export function messageFromHttpBody(text: string, fallback = ""): string {
   if (!raw) return fallback;
   try {
     const body = JSON.parse(raw) as { error?: unknown };
-    if (typeof body.error === "string" && body.error.trim()) return body.error.trim();
+    if (typeof body.error === "string" && body.error.trim())
+      return body.error.trim();
   } catch {
     /* not JSON */
   }
@@ -24,7 +25,9 @@ function unwrap(raw: string): string {
 export function isUnavailableFolder(raw: string | null | undefined): boolean {
   if (!raw) return false;
   const text = unwrap(raw);
-  return /^not a directory:/i.test(text) || text === "the project folder is gone";
+  return (
+    /^not a directory:/i.test(text) || text === "the project folder is gone"
+  );
 }
 
 /**
@@ -58,14 +61,20 @@ export type LoadCardCopy = {
   percent: number | null;
 };
 
-export function loadCardCopy(input: { title: string; url: string; progress: number }): LoadCardCopy {
+export function loadCardCopy(input: {
+  title: string;
+  url: string;
+  progress: number;
+}): LoadCardCopy {
   const title = input.title.trim() || "model";
   if (input.progress <= 0) {
     const path = input.url.split("?")[0] ?? "";
     const step = /\.(step|stp)$/i.test(path);
     return {
       title,
-      detail: step ? "Meshing on this Mac — large files can take a minute" : `Preparing ${title}…`,
+      detail: step
+        ? "Meshing on this Mac — large files can take a minute"
+        : `Preparing ${title}…`,
       percent: null,
     };
   }

@@ -53,8 +53,16 @@ export function PairPage({ onPaired }: { onPaired?: () => void }) {
             <LiveDot />
             This device is paired
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">You can open the viewer.</p>
-          <Button className="mt-5 w-full" onClick={() => { goHome(); onPaired?.(); }}>
+          <p className="mt-2 text-sm text-muted-foreground">
+            You can open the viewer.
+          </p>
+          <Button
+            className="mt-5 w-full"
+            onClick={() => {
+              goHome();
+              onPaired?.();
+            }}
+          >
             Open viewer
           </Button>
         </div>
@@ -75,8 +83,13 @@ export function PairPage({ onPaired }: { onPaired?: () => void }) {
         }}
       >
         <Lockup className="mb-5" />
-        <h1 className="text-lg font-semibold text-foreground">Enter pairing code</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Type the 6-character code shown on the Mac. On the Mac, keep sfab-bench at https://127.0.0.1:7322 and click Enter Quest.</p>
+        <h1 className="text-lg font-semibold text-foreground">
+          Enter pairing code
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Type the 6-character code shown on the Mac. On the Mac, keep
+          sfab-bench at https://127.0.0.1:7322 and click Enter Quest.
+        </p>
         <Input
           autoFocus
           autoCapitalize="characters"
@@ -95,7 +108,11 @@ export function PairPage({ onPaired }: { onPaired?: () => void }) {
           className="mt-5 h-14 text-center font-mono text-2xl tracking-[0.35em]"
         />
         {error ? <p className="mt-3 text-sm text-error">{error}</p> : null}
-        <Button type="submit" className="mt-5 w-full" disabled={busy || code.replace(/\s/g, "").length < 6}>
+        <Button
+          type="submit"
+          className="mt-5 w-full"
+          disabled={busy || code.replace(/\s/g, "").length < 6}
+        >
           {busy ? (
             <span className="inline-flex items-center gap-2">
               <LiveDot />

@@ -35,13 +35,46 @@ export type Shortcut = {
 };
 
 export const SHORTCUTS: readonly Shortcut[] = [
-  { id: "command-palette", keys: ["Mod", "K"], label: "Command palette", scope: "global" },
-  { id: "toggle-files", keys: ["Mod", "B"], label: "Toggle files", scope: "global", ignoreEditable: true },
-  { id: "open-folder", keys: ["Mod", "O"], label: "Open folder", scope: "global", ignoreEditable: true },
+  {
+    id: "command-palette",
+    keys: ["Mod", "K"],
+    label: "Command palette",
+    scope: "global",
+  },
+  {
+    id: "toggle-files",
+    keys: ["Mod", "B"],
+    label: "Toggle files",
+    scope: "global",
+    ignoreEditable: true,
+  },
+  {
+    id: "open-folder",
+    keys: ["Mod", "O"],
+    label: "Open folder",
+    scope: "global",
+    ignoreEditable: true,
+  },
   { id: "composer-send", keys: ["Enter"], label: "Send", scope: "composer" },
-  { id: "composer-newline", keys: ["Shift", "Enter"], label: "New line", scope: "composer" },
-  { id: "composer-mention", keys: ["#"], label: "Mention a part", scope: "composer" },
-  { id: "ask-user-choose", keys: ["1–9"], label: "Choose an answer", scope: "ask-user", ignoreEditable: true },
+  {
+    id: "composer-newline",
+    keys: ["Shift", "Enter"],
+    label: "New line",
+    scope: "composer",
+  },
+  {
+    id: "composer-mention",
+    keys: ["#"],
+    label: "Mention a part",
+    scope: "composer",
+  },
+  {
+    id: "ask-user-choose",
+    keys: ["1–9"],
+    label: "Choose an answer",
+    scope: "ask-user",
+    ignoreEditable: true,
+  },
   {
     id: "escape",
     keys: ["Esc"],
@@ -50,10 +83,9 @@ export const SHORTCUTS: readonly Shortcut[] = [
   },
 ];
 
-const SHORTCUT_BY_ID = Object.fromEntries(SHORTCUTS.map((row) => [row.id, row])) as Record<
-  ShortcutId,
-  Shortcut
->;
+const SHORTCUT_BY_ID = Object.fromEntries(
+  SHORTCUTS.map((row) => [row.id, row])
+) as Record<ShortcutId, Shortcut>;
 
 /** Settings list shape — same rows as `SHORTCUTS`, no second table. */
 export type ShortcutSpec = {
@@ -61,10 +93,12 @@ export type ShortcutSpec = {
   keys: readonly string[];
 };
 
-export const SETTINGS_SHORTCUTS: readonly ShortcutSpec[] = SHORTCUTS.map((row) => ({
-  action: row.label,
-  keys: row.keys,
-}));
+export const SETTINGS_SHORTCUTS: readonly ShortcutSpec[] = SHORTCUTS.map(
+  (row) => ({
+    action: row.label,
+    keys: row.keys,
+  })
+);
 
 export function shortcut(id: ShortcutId): Shortcut {
   return SHORTCUT_BY_ID[id];
@@ -82,8 +116,13 @@ type EditableProbe = {
 };
 
 /** True when ⌘B / Ctrl+B should stay with the field (Bold in TipTap, etc.). */
-export function isEditableTarget(target: unknown, activeElement: unknown = null): boolean {
-  return probeIsEditable(toProbe(target)) || probeIsEditable(toProbe(activeElement));
+export function isEditableTarget(
+  target: unknown,
+  activeElement: unknown = null
+): boolean {
+  return (
+    probeIsEditable(toProbe(target)) || probeIsEditable(toProbe(activeElement))
+  );
 }
 
 function toProbe(value: unknown): EditableProbe | null {
@@ -97,7 +136,11 @@ function probeIsEditable(probe: EditableProbe | null): boolean {
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
   if (probe.isContentEditable) return true;
   if (typeof probe.closest === "function") {
-    if (probe.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) {
+    if (
+      probe.closest(
+        "input, textarea, select, [contenteditable]:not([contenteditable='false'])"
+      )
+    ) {
       return true;
     }
   }
@@ -110,11 +153,17 @@ export function formatShortcutToken(token: string, mac: boolean): string {
   return token;
 }
 
-export function formatShortcutChips(keys: readonly string[], mac: boolean): string[] {
+export function formatShortcutChips(
+  keys: readonly string[],
+  mac: boolean
+): string[] {
   return keys.map((token) => formatShortcutToken(token, mac));
 }
 
-export function formatShortcutKeys(keys: readonly string[], mac: boolean): string {
+export function formatShortcutKeys(
+  keys: readonly string[],
+  mac: boolean
+): string {
   const chips = formatShortcutChips(keys, mac);
   if (mac && keys[0] === "Mod") return chips.join("");
   return chips.join("+");
@@ -124,7 +173,11 @@ export function formatShortcut(id: ShortcutId, mac: boolean): string {
   return formatShortcutKeys(shortcut(id).keys, mac);
 }
 
-export function shortcutTooltip(label: string, id: ShortcutId, mac: boolean): string {
+export function shortcutTooltip(
+  label: string,
+  id: ShortcutId,
+  mac: boolean
+): string {
   return `${label} (${formatShortcut(id, mac)})`;
 }
 
@@ -140,11 +193,15 @@ export type KeyEventLike = {
 export function matchesShortcut(
   event: KeyEventLike,
   id: ShortcutId,
-  options: { mac: boolean; activeElement?: unknown },
+  options: { mac: boolean; activeElement?: unknown }
 ): boolean {
   const spec = SHORTCUT_BY_ID[id];
   if (!spec) return false;
-  if (spec.ignoreEditable && isEditableTarget(event.target, options.activeElement)) return false;
+  if (
+    spec.ignoreEditable &&
+    isEditableTarget(event.target, options.activeElement)
+  )
+    return false;
   return keysMatchEvent(event, spec.keys, options.mac);
 }
 
@@ -157,7 +214,11 @@ const EVENT_KEY_ALIASES: Record<string, readonly string[]> = {
   "#": ["#"],
 };
 
-function keysMatchEvent(event: KeyEventLike, keys: readonly string[], mac: boolean): boolean {
+function keysMatchEvent(
+  event: KeyEventLike,
+  keys: readonly string[],
+  mac: boolean
+): boolean {
   const meta = Boolean(event.metaKey);
   const ctrl = Boolean(event.ctrlKey);
   const alt = Boolean(event.altKey);
@@ -165,7 +226,13 @@ function keysMatchEvent(event: KeyEventLike, keys: readonly string[], mac: boole
   const wantsMod = keys.includes("Mod");
   const wantsShift = keys.includes("Shift");
   const wantsAlt = keys.includes("Alt");
-  const keyTokens = keys.filter((token) => token !== "Mod" && token !== "Shift" && token !== "Ctrl" && token !== "Alt");
+  const keyTokens = keys.filter(
+    (token) =>
+      token !== "Mod" &&
+      token !== "Shift" &&
+      token !== "Ctrl" &&
+      token !== "Alt"
+  );
   const keyToken = keyTokens[0] ?? "";
 
   if (alt !== wantsAlt) return false;
@@ -184,10 +251,19 @@ function keysMatchEvent(event: KeyEventLike, keys: readonly string[], mac: boole
 
   if (keyToken === "1–9") return /^[1-9]$/.test(event.key);
   const aliases = EVENT_KEY_ALIASES[keyToken] ?? [keyToken];
-  return aliases.some((alias) => alias === event.key || alias.toLowerCase() === event.key.toLowerCase());
+  return aliases.some(
+    (alias) =>
+      alias === event.key || alias.toLowerCase() === event.key.toLowerCase()
+  );
 }
 
-export const ESC_ORDER = ["mention", "popover-select", "dialog", "voice", "compact-chat"] as const;
+export const ESC_ORDER = [
+  "mention",
+  "popover-select",
+  "dialog",
+  "voice",
+  "compact-chat",
+] as const;
 export type EscLayer = (typeof ESC_ORDER)[number];
 
 export type EscLayersOpen = {
@@ -208,12 +284,24 @@ export type EscProbe = {
 };
 
 export function probeEscLayers(root: QueryRoot | null): EscProbe {
-  if (!root) return { mention: false, popoverOrSelect: false, dialog: false, voice: false };
+  if (!root)
+    return {
+      mention: false,
+      popoverOrSelect: false,
+      dialog: false,
+      voice: false,
+    };
   return {
     mention: Boolean(root.querySelector("[data-mention-list]")),
-    popoverOrSelect: Boolean(root.querySelector("[data-slot='popover-content'], [data-slot='select-content']")),
+    popoverOrSelect: Boolean(
+      root.querySelector(
+        "[data-slot='popover-content'], [data-slot='select-content']"
+      )
+    ),
     dialog: Boolean(
-      root.querySelector("[data-slot='dialog-content'], [data-slot='alert-dialog-content']"),
+      root.querySelector(
+        "[data-slot='dialog-content'], [data-slot='alert-dialog-content']"
+      )
     ),
     voice: Boolean(root.querySelector("[data-voice-recording]")),
   };

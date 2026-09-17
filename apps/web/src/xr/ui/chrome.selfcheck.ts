@@ -1,4 +1,11 @@
-import { classify, handleCenterY, HIT_PAD, PX, type ChromeOpts, type Region } from "./chrome";
+import {
+  type ChromeOpts,
+  classify,
+  HIT_PAD,
+  handleCenterY,
+  PX,
+  type Region,
+} from "./chrome";
 
 const W = 204;
 const H = 340;
@@ -7,10 +14,18 @@ const hh = (H * PX) / 2;
 const band = 0.009 + 0.003 / 2 + HIT_PAD;
 const opts: ChromeOpts = { handle: true };
 
-function expect(x: number, y: number, want: Region, label: string, o: ChromeOpts = {}) {
+function expect(
+  x: number,
+  y: number,
+  want: Region,
+  label: string,
+  o: ChromeOpts = {}
+) {
   const got = classify(x, y, W, H, HIT_PAD, o);
   if (got !== want) {
-    throw new Error(`${label}: expected ${want}, got ${got} at (${x.toFixed(4)}, ${y.toFixed(4)})`);
+    throw new Error(
+      `${label}: expected ${want}, got ${got} at (${x.toFixed(4)}, ${y.toFixed(4)})`
+    );
   }
 }
 

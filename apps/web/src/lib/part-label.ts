@@ -21,7 +21,10 @@ export function fileStemFromLabel(fileLabel: string): string {
 }
 
 /** Stem is only for a lone listed solid — not siblings or a nested assembly. */
-export function partLabelFileStem(partCount: number, fileLabel: string): string | undefined {
+export function partLabelFileStem(
+  partCount: number,
+  fileLabel: string
+): string | undefined {
   if (partCount !== 1) return undefined;
   return fileStemFromLabel(fileLabel) || undefined;
 }
@@ -36,13 +39,15 @@ export function occurrencePath(ref?: string | null): string | null {
 export function isRawPartName(name: string): boolean {
   const text = name.trim();
   if (!text) return true;
-  return OCCT_DUMP.test(text) || TAG_PATH.test(text) || OCCURRENCE_ID.test(text);
+  return (
+    OCCT_DUMP.test(text) || TAG_PATH.test(text) || OCCURRENCE_ID.test(text)
+  );
 }
 
 export function partDisplayName(
   part: { name: string; cadRef?: string | null },
   ref?: string | null,
-  fileStem?: string,
+  fileStem?: string
 ): string {
   const raw = part.name;
   if (!isRawPartName(raw)) return raw;
@@ -54,7 +59,7 @@ export function partDisplayName(
 
 /** Suffix colliding sibling labels with the occurrence path (or a counter). */
 export function disambiguateSiblingNames(
-  items: readonly { key: string; display: string; ref?: string | null }[],
+  items: readonly { key: string; display: string; ref?: string | null }[]
 ): Map<string, string> {
   const counts = new Map<string, number>();
   for (const item of items) {

@@ -1,5 +1,11 @@
-import type { ProjectSession, SessionClient, SessionEvent, SessionSnapshot, SessionStatus } from "@sfab-bench/contract";
-import { getPrincipal, type ClientPrincipal } from "./principal";
+import type {
+  ProjectSession,
+  SessionClient,
+  SessionEvent,
+  SessionSnapshot,
+  SessionStatus,
+} from "@sfab-bench/contract";
+import { type ClientPrincipal, getPrincipal } from "./principal";
 import {
   catalogRevision,
   currentProject,
@@ -26,7 +32,8 @@ const runs = new Map<string, WorkspaceRun>();
 
 export function clientOf(principal: ClientPrincipal): SessionClient {
   if (principal.kind === "loopback") return { id: "loopback", label: "Mac" };
-  if (principal.kind === "paired") return { id: principal.deviceId, label: principal.label || "Quest" };
+  if (principal.kind === "paired")
+    return { id: principal.deviceId, label: principal.label || "Quest" };
   return { id: principal.deviceId, label: "Account" };
 }
 
@@ -42,7 +49,9 @@ function emit(event: SessionEvent, except?: SessionSocket) {
   }
 }
 
-function libraryEvent(root: string): Extract<SessionEvent, { type: "library" }> {
+function libraryEvent(
+  root: string
+): Extract<SessionEvent, { type: "library" }> {
   return {
     type: "library",
     project: { path: root },
@@ -73,8 +82,16 @@ export function snapshotFor(principal?: ClientPrincipal): SessionSnapshot {
   return { ...state, you: who ? clientOf(who) : undefined };
 }
 
-export function sendSnapshot(socket: SessionSocket, principal: ClientPrincipal) {
-  socket.send(JSON.stringify({ type: "snapshot", session: snapshotFor(principal) } satisfies SessionEvent));
+export function sendSnapshot(
+  socket: SessionSocket,
+  principal: ClientPrincipal
+) {
+  socket.send(
+    JSON.stringify({
+      type: "snapshot",
+      session: snapshotFor(principal),
+    } satisfies SessionEvent)
+  );
 }
 
 function readLibrary() {

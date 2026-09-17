@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 
-import { MOTION_READY_ATTR, MOTION_READY_VALUE, REDUCED_MOTION_QUERY } from "@/lib/motion";
+import {
+  MOTION_READY_ATTR,
+  MOTION_READY_VALUE,
+  REDUCED_MOTION_QUERY,
+} from "@/lib/motion";
 
 function readReducedMotion(): boolean {
   if (typeof window === "undefined") return false;

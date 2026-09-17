@@ -10,8 +10,13 @@ export type CatalogEmptyReason =
   | { type: "kind"; kind: "step" | "glb" }
   | { type: "search" };
 
-export function filesRailToggleTitle(mac: boolean, action: "toggle" | "show" = "toggle"): string {
-  return action === "show" ? shortcutTooltip("Show files", "toggle-files", mac) : shortcutTooltip("Toggle files", "toggle-files", mac);
+export function filesRailToggleTitle(
+  mac: boolean,
+  action: "toggle" | "show" = "toggle"
+): string {
+  return action === "show"
+    ? shortcutTooltip("Show files", "toggle-files", mac)
+    : shortcutTooltip("Toggle files", "toggle-files", mac);
 }
 
 export function catalogEmptyReason(input: {
@@ -21,18 +26,25 @@ export function catalogEmptyReason(input: {
   kind: CatalogKindFilter;
 }): CatalogEmptyReason {
   if (input.fileCount === 0) return { type: "no-cad" };
-  if (input.listedCount === 0 && input.kind !== "all") return { type: "kind", kind: input.kind };
+  if (input.listedCount === 0 && input.kind !== "all")
+    return { type: "kind", kind: input.kind };
   if (input.treeCount === 0) return { type: "search" };
   return { type: "ready" };
 }
 
 /** Re-clicking the open file is a no-op unless that load already failed. */
-export function shouldReloadOpenFile(path: string, current: string, hasError: boolean): boolean {
+export function shouldReloadOpenFile(
+  path: string,
+  current: string,
+  hasError: boolean
+): boolean {
   if (path !== current) return true;
   return hasError;
 }
 
-export function readFileTreeExpansion(raw: string | null): Record<string, string[]> {
+export function readFileTreeExpansion(
+  raw: string | null
+): Record<string, string[]> {
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -45,14 +57,20 @@ export function readFileTreeExpansion(raw: string | null): Record<string, string
         const item = row as Record<string, unknown>;
         if (typeof item.path !== "string" || item.path.length === 0) continue;
         if (!Array.isArray(item.expanded)) continue;
-        out[item.path] = unique(item.expanded.filter((path): path is string => typeof path === "string"));
+        out[item.path] = unique(
+          item.expanded.filter(
+            (path): path is string => typeof path === "string"
+          )
+        );
       }
       return out;
     }
     const out: Record<string, string[]> = {};
     for (const [path, expanded] of Object.entries(rec)) {
       if (!Array.isArray(expanded)) continue;
-      out[path] = unique(expanded.filter((item): item is string => typeof item === "string"));
+      out[path] = unique(
+        expanded.filter((item): item is string => typeof item === "string")
+      );
     }
     return out;
   } catch {
@@ -60,7 +78,9 @@ export function readFileTreeExpansion(raw: string | null): Record<string, string
   }
 }
 
-export function serializeFileTreeExpansion(projects: Record<string, string[]>): string {
+export function serializeFileTreeExpansion(
+  projects: Record<string, string[]>
+): string {
   return JSON.stringify(projects);
 }
 
@@ -73,10 +93,15 @@ export function loadFileTreeExpansion(): Record<string, string[]> {
   }
 }
 
-export function saveFileTreeExpansion(projects: Record<string, string[]>): void {
+export function saveFileTreeExpansion(
+  projects: Record<string, string[]>
+): void {
   if (typeof localStorage === "undefined") return;
   try {
-    localStorage.setItem(FILE_TREE_EXPANSION_KEY, serializeFileTreeExpansion(projects));
+    localStorage.setItem(
+      FILE_TREE_EXPANSION_KEY,
+      serializeFileTreeExpansion(projects)
+    );
   } catch {
     /* quota / private mode */
   }
@@ -85,10 +110,13 @@ export function saveFileTreeExpansion(projects: Record<string, string[]>): void 
 /** `null` means this project has never been stored; `[]` is collapse-all. */
 export function loadExpandedDirs(projectPath: string): string[] | null {
   const all = loadFileTreeExpansion();
-  return Object.prototype.hasOwnProperty.call(all, projectPath) ? all[projectPath]! : null;
+  return Object.hasOwn(all, projectPath) ? all[projectPath]! : null;
 }
 
-export function saveExpandedDirs(projectPath: string, expanded: string[]): void {
+export function saveExpandedDirs(
+  projectPath: string,
+  expanded: string[]
+): void {
   const all = loadFileTreeExpansion();
   all[projectPath] = unique(expanded);
   saveFileTreeExpansion(all);

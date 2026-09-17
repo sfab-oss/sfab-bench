@@ -23,7 +23,10 @@ export function loginPathExtras(home = homedir()): string[] {
  * pnpm, and `opencode` live elsewhere. Prepend those dirs when they exist so
  * Codex bootstrap and the OpenCode picker still work from the `.app`.
  */
-export function loginLikePath(current = process.env.PATH ?? "", home = homedir()): string {
+export function loginLikePath(
+  current = process.env.PATH ?? "",
+  home = homedir()
+): string {
   const extras = loginPathExtras(home).filter((dir) => existsSync(dir));
   const seen = new Set<string>();
   const parts: string[] = [];

@@ -2,12 +2,12 @@
 // biome-ignore-all lint/a11y/useKeyWithClickEvents: shadcn registry stock
 // biome-ignore-all lint/a11y/useSemanticElements: shadcn registry stock
 
+import { cva, type VariantProps } from "class-variance-authority";
+import type * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { cva, type VariantProps } from "class-variance-authority";
-import type * as React from "react";
 
 function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -59,7 +59,9 @@ function InputGroupAddon({
           return;
         }
         const root = e.currentTarget.parentElement;
-        const control = root?.querySelector<HTMLElement>("[data-slot=input-group-control]");
+        const control = root?.querySelector<HTMLElement>(
+          "[data-slot=input-group-control]"
+        );
         control?.focus();
       }}
       role="group"

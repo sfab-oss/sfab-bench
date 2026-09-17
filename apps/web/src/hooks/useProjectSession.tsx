@@ -1,25 +1,38 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { modelUrl } from "@/cad/loadCadReview";
 import { closeToast, showToast } from "@/components/ui/toast";
-import { jsonApi, getDeviceToken } from "@/lib/api";
+import { getDeviceToken, jsonApi } from "@/lib/api";
 import {
   CONNECTION_GRACE_MS,
   CONNECTION_RELOAD_AFTER_MS,
   CONNECTION_RETRY_MS,
-  INITIAL_CONNECTION_STATE,
-  reduceConnection,
-  setLiveConnectionPhase,
   type ConnectionEvent,
   type ConnectionPhase,
   type ConnectionState,
+  INITIAL_CONNECTION_STATE,
+  reduceConnection,
+  setLiveConnectionPhase,
 } from "@/lib/feedback";
 import { shouldReloadOpenFile } from "@/lib/files-rail";
 import { registerAndOpenTab } from "@/lib/project";
 import { projectUrl } from "@/lib/project-query";
 import { redact } from "@/lib/redact";
-import type { ProjectSession, SessionClient, SessionEvent, SessionSnapshot } from "@/lib/session";
+import type {
+  ProjectSession,
+  SessionClient,
+  SessionEvent,
+  SessionSnapshot,
+} from "@/lib/session";
 import { emitFolderError } from "@/lib/welcome";
-import { modelUrl } from "@/cad/loadCadReview";
 import { store } from "@/state/store";
 
 type SessionValue = {
@@ -51,9 +64,13 @@ export function ProjectSessionProvider({
 }) {
   const [ready, setReady] = useState(false);
   const [you, setYou] = useState(youProp);
-  const [project, setProject] = useState<ProjectSession["project"]>(() => ({ path: projectUrl() }));
+  const [project, setProject] = useState<ProjectSession["project"]>(() => ({
+    path: projectUrl(),
+  }));
   const [fileRecents, setFileRecents] = useState<string[]>([]);
-  const [connection, setConnection] = useState<ConnectionState>(INITIAL_CONNECTION_STATE);
+  const [connection, setConnection] = useState<ConnectionState>(
+    INITIAL_CONNECTION_STATE
+  );
   const appliedDeepLink = useRef(false);
   const lastPath = useRef(projectUrl());
 
@@ -76,7 +93,11 @@ export function ProjectSessionProvider({
     (path: string, recents: string[]) => {
       applyLibrary(path, recents);
       if (!path) {
-        if (modelUrl() || store.getState().url || store.getState().progress !== null) {
+        if (
+          modelUrl() ||
+          store.getState().url ||
+          store.getState().progress !== null
+        ) {
           void store.getState().loadModel("");
         }
         return;
@@ -87,28 +108,31 @@ export function ProjectSessionProvider({
         if (deep) void store.getState().loadModel(deep);
       }
     },
-    [applyLibrary],
+    [applyLibrary]
   );
 
-  const loadTabLibrary = useCallback((path: string) => {
-    if (!path) {
-      adoptTab("", []);
-      return;
-    }
-    void jsonApi.project
-      .$get()
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Could not load project");
-        return res.json() as Promise<{ fileRecents?: string[] }>;
-      })
-      .then((body) => {
-        if (projectUrl() !== path) return;
-        adoptTab(path, body.fileRecents ?? []);
-      })
-      .catch(() => {
-        if (projectUrl() === path) adoptTab(path, []);
-      });
-  }, [adoptTab]);
+  const loadTabLibrary = useCallback(
+    (path: string) => {
+      if (!path) {
+        adoptTab("", []);
+        return;
+      }
+      void jsonApi.project
+        .$get()
+        .then(async (res) => {
+          if (!res.ok) throw new Error("Could not load project");
+          return res.json() as Promise<{ fileRecents?: string[] }>;
+        })
+        .then((body) => {
+          if (projectUrl() !== path) return;
+          adoptTab(path, body.fileRecents ?? []);
+        })
+        .catch(() => {
+          if (projectUrl() === path) adoptTab(path, []);
+        });
+    },
+    [adoptTab]
+  );
 
   const applySnapshot = useCallback(
     (snap: SessionSnapshot) => {
@@ -124,7 +148,7 @@ export function ProjectSessionProvider({
       }
       loadTabLibrary(tab);
     },
-    [adoptTab, loadTabLibrary],
+    [adoptTab, loadTabLibrary]
   );
 
   useEffect(() => {
@@ -150,7 +174,11 @@ export function ProjectSessionProvider({
           emitFolderError(null);
         })
         .catch((err: unknown) => {
-          emitFolderError(redact(err instanceof Error ? err.message : "Could not open that folder"));
+          emitFolderError(
+            redact(
+              err instanceof Error ? err.message : "Could not open that folder"
+            )
+          );
         });
     };
     window.addEventListener("sfab-open-folder", onOpen);
@@ -181,8 +209,14 @@ export function ProjectSessionProvider({
       setLiveConnectionPhase(state.phase);
       setConnection(state);
       if (prev.phase !== "down" && state.phase === "down") {
-        graceTimer = setTimeout(() => applyConnection({ type: "grace" }), CONNECTION_GRACE_MS);
-        reloadTimer = setTimeout(() => applyConnection({ type: "reload" }), CONNECTION_RELOAD_AFTER_MS);
+        graceTimer = setTimeout(
+          () => applyConnection({ type: "grace" }),
+          CONNECTION_GRACE_MS
+        );
+        reloadTimer = setTimeout(
+          () => applyConnection({ type: "reload" }),
+          CONNECTION_RELOAD_AFTER_MS
+        );
       }
       if (state.phase !== "down") clearDownTimers();
       if (notice === "lost") {
@@ -196,7 +230,11 @@ export function ProjectSessionProvider({
       } else if (notice === "reconnected") {
         closeToast("connection-lost");
         closeToast("connection-offline");
-        showToast({ id: "connection-reconnected", type: "success", title: "Reconnected" });
+        showToast({
+          id: "connection-reconnected",
+          type: "success",
+          title: "Reconnected",
+        });
       }
     };
 
@@ -242,7 +280,8 @@ export function ProjectSessionProvider({
   const setDoc = useCallback(async (file: string | null, reload = false) => {
     const { url, error, loadModel } = store.getState();
     const next = file ?? "";
-    if (!reload && next && !shouldReloadOpenFile(next, url, Boolean(error))) return;
+    if (!reload && next && !shouldReloadOpenFile(next, url, Boolean(error)))
+      return;
     await loadModel(next);
     if (file) {
       void jsonApi.recents.$post({ json: { path: file } });
@@ -260,14 +299,26 @@ export function ProjectSessionProvider({
       connectionOfferReload: connection.offerReload,
       setDoc,
     }),
-    [ready, you, project, fileRecents, connection.phase, connection.lostShown, connection.offerReload, setDoc],
+    [
+      ready,
+      you,
+      project,
+      fileRecents,
+      connection.phase,
+      connection.lostShown,
+      connection.offerReload,
+      setDoc,
+    ]
   );
 
-  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+  return (
+    <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
+  );
 }
 
 export function useProjectSession() {
   const ctx = useContext(SessionContext);
-  if (!ctx) throw new Error("useProjectSession requires ProjectSessionProvider");
+  if (!ctx)
+    throw new Error("useProjectSession requires ProjectSessionProvider");
   return ctx;
 }

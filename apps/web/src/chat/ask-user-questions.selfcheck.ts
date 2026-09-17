@@ -28,18 +28,24 @@ const parsed = parseAskUserQuestionsInput({
 expect(parsed !== null, "parses OpenCode question payload");
 expect(parsed?.questions[0]?.header === "Viewer check", "keeps header");
 expect(parsed?.questions[0]?.options.length === 3, "keeps three options");
-expect(parsed?.questions[0]?.allowFreeForm === false, "options-only is not freeform");
 expect(
-  askUserComposerPlaceholder(parsed?.questions[0]) === "Pick an option to continue…",
-  "options-only placeholder",
+  parsed?.questions[0]?.allowFreeForm === false,
+  "options-only is not freeform"
+);
+expect(
+  askUserComposerPlaceholder(parsed?.questions[0]) ===
+    "Pick an option to continue…",
+  "options-only placeholder"
 );
 
-const output = buildAskUserQuestionsOutput({ "question-1": { optionIds: ["option-1"] } });
+const output = buildAskUserQuestionsOutput({
+  "question-1": { optionIds: ["option-1"] },
+});
 expect(output.action === "answered", "answered action");
 expect(output.answers["question-1"]?.optionIds[0] === "option-1", "option id");
 expect(
   formatAskUserAnswer(parsed!, output) === "Yes, nut is visible",
-  `summary, got ${formatAskUserAnswer(parsed!, output)}`,
+  `summary, got ${formatAskUserAnswer(parsed!, output)}`
 );
 
 const both = parseAskUserQuestionsInput({
@@ -54,24 +60,33 @@ const both = parseAskUserQuestionsInput({
 });
 expect(both?.questions[0]?.allowFreeForm === true, "parses allowFreeForm");
 expect(
-  askUserComposerPlaceholder(both?.questions[0]) === "Type an answer or pick an option…",
-  "both placeholder",
+  askUserComposerPlaceholder(both?.questions[0]) ===
+    "Type an answer or pick an option…",
+  "both placeholder"
 );
 
 const typed = parseAskUserQuestionsInput({
   questions: [{ id: "q1", question: "Anything else?", allowFreeForm: true }],
 });
-expect(typed?.questions[0]?.options.length === 0, "freeform-only has no options");
+expect(
+  typed?.questions[0]?.options.length === 0,
+  "freeform-only has no options"
+);
 expect(typed?.questions[0]?.allowFreeForm === true, "freeform-only");
 expect(
   formatAskUserAnswer(typed!, {
     action: "answered",
     answers: { q1: { optionIds: [], freeform: "Use 316 stainless" } },
   }) === "Use 316 stainless",
-  "formats freeform",
+  "formats freeform"
 );
 
-expect(parseAskUserQuestionsInput({ questions: [{ question: "No way to answer" }] }) === null, "rejects empty options without freeform");
+expect(
+  parseAskUserQuestionsInput({
+    questions: [{ question: "No way to answer" }],
+  }) === null,
+  "rejects empty options without freeform"
+);
 
 const pending = findPendingAskUserQuestions([
   {

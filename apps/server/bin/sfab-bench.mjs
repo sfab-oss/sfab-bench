@@ -5,8 +5,8 @@
  * desktop window) is ship-02.
  */
 import { spawn } from "node:child_process";
-import { dirname, join } from "node:path";
 import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -16,7 +16,9 @@ let tsx;
 try {
   tsx = join(dirname(require.resolve("tsx/package.json")), "dist", "cli.mjs");
 } catch {
-  console.error("sfab-bench: tsx is missing. From the clone, run pnpm install.");
+  console.error(
+    "sfab-bench: tsx is missing. From the clone, run pnpm install."
+  );
   process.exit(1);
 }
 

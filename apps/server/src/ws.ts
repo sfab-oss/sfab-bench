@@ -1,9 +1,14 @@
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
-import { WebSocketServer, type WebSocket } from "ws";
+import { type WebSocket, WebSocketServer } from "ws";
 
-import { hasScope, resolveUpgradePrincipal, runWithPrincipal, type ClientPrincipal } from "./principal";
-import { sendSnapshot, subscribeSession, type SessionSocket } from "./session";
+import {
+  type ClientPrincipal,
+  hasScope,
+  resolveUpgradePrincipal,
+  runWithPrincipal,
+} from "./principal";
+import { type SessionSocket, sendSnapshot, subscribeSession } from "./session";
 
 const wss = new WebSocketServer({ noServer: true });
 
@@ -19,18 +24,21 @@ function wrap(ws: WebSocket): SessionSocket {
   };
 }
 
-wss.on("connection", (ws: WebSocket, _req: IncomingMessage, principal: ClientPrincipal) => {
-  const socket = wrap(ws);
-  const unsub = subscribeSession(socket);
-  sendSnapshot(socket, principal);
-  ws.on("close", () => unsub());
-  ws.on("error", () => unsub());
-});
+wss.on(
+  "connection",
+  (ws: WebSocket, _req: IncomingMessage, principal: ClientPrincipal) => {
+    const socket = wrap(ws);
+    const unsub = subscribeSession(socket);
+    sendSnapshot(socket, principal);
+    ws.on("close", () => unsub());
+    ws.on("error", () => unsub());
+  }
+);
 
 export function tryUpgradeSession(
   req: IncomingMessage,
   socket: Duplex,
-  head: Buffer,
+  head: Buffer
 ): boolean {
   const path = pathOf(req);
   if (path !== "/api/session/live") return false;

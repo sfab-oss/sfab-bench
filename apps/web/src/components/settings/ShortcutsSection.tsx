@@ -1,11 +1,10 @@
 import { Kbd } from "@/components/ui/kbd";
-import { isMacPlatform } from "@/lib/shortcuts";
-import { SHORTCUTS, formatShortcutChips } from "@/lib/shortcuts";
+import { formatShortcutChips, isMacPlatform, SHORTCUTS } from "@/lib/shortcuts";
 
 export function ShortcutsSection() {
   const mac = isMacPlatform(
     typeof navigator === "undefined" ? "" : navigator.platform,
-    typeof navigator === "undefined" ? "" : navigator.userAgent,
+    typeof navigator === "undefined" ? "" : navigator.userAgent
   );
   return (
     <ul className="space-y-2">

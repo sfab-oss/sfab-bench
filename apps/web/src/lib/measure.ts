@@ -20,14 +20,22 @@ export function measureNativeTextHeight(): number {
 }
 
 export function measureNativeLabelHeight(): number {
-  return (MEASURE_LABEL_FONT_SIZE + MEASURE_LABEL_PAD_Y * 2) * MEASURE_LABEL_PIXEL_SIZE;
+  return (
+    (MEASURE_LABEL_FONT_SIZE + MEASURE_LABEL_PAD_Y * 2) *
+    MEASURE_LABEL_PIXEL_SIZE
+  );
 }
 
 /** Native local Y of the desktop chip origin (half line-box + clearance). XR keeps 0.014. */
 export function measureDesktopLabelOffsetY(): number {
   const half =
-    ((MEASURE_LABEL_FONT_SIZE * MEASURE_LABEL_LINE_HEIGHT + MEASURE_LABEL_PAD_Y * 2) * MEASURE_LABEL_PIXEL_SIZE) / 2;
-  const clear = (measureNativeTextHeight() * MEASURE_DESKTOP_CLEAR_PX) / MEASURE_DESKTOP_TEXT_PX;
+    ((MEASURE_LABEL_FONT_SIZE * MEASURE_LABEL_LINE_HEIGHT +
+      MEASURE_LABEL_PAD_Y * 2) *
+      MEASURE_LABEL_PIXEL_SIZE) /
+    2;
+  const clear =
+    (measureNativeTextHeight() * MEASURE_DESKTOP_CLEAR_PX) /
+    MEASURE_DESKTOP_TEXT_PX;
   return half + clear;
 }
 
@@ -36,7 +44,7 @@ export function perspectiveWorldPerCssPx(
   distance: number,
   fovDeg: number,
   canvasHeight: number,
-  zoom = 1,
+  zoom = 1
 ): number {
   const height = Math.max(canvasHeight, 1);
   const z = Math.max(zoom, 1e-6);
@@ -54,7 +62,7 @@ export function measureScreenScale(
   distance: number,
   fovDeg: number,
   canvasHeight: number,
-  zoom = 1,
+  zoom = 1
 ): number {
   const perPx = perspectiveWorldPerCssPx(distance, fovDeg, canvasHeight, zoom);
   return (targetCssPx * perPx) / Math.max(nativeWorldSize, 1e-9);
@@ -67,7 +75,7 @@ export function formatMm(n: number) {
 
 export function measureDelta(
   a: MeasurePointLike | null,
-  b: MeasurePointLike | null,
+  b: MeasurePointLike | null
 ): { dx: number; dy: number; dz: number; dist: number } | null {
   if (!a || !b) return null;
   const dx = b.point[0] - a.point[0];

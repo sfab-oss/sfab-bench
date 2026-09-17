@@ -1,9 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-
+import type { ViewerSnapshot } from "@sfab-bench/contract";
 import { tool } from "ai";
 import { z } from "zod";
-
-import type { ViewerSnapshot } from "@sfab-bench/contract";
 import { resolveArtifact, shownUrl } from "./cad-pkg";
 
 type ViewerStore = {
@@ -36,7 +34,8 @@ export const viewerTools = {
     inputSchema: z.object({}),
   }),
   show_artifact: tool({
-    description: "Show a CAD artifact in the visualizer. Pass a STEP or GLB path relative to the open project folder.",
+    description:
+      "Show a CAD artifact in the visualizer. Pass a STEP or GLB path relative to the open project folder.",
     inputSchema: z.object({ path: z.string() }),
     execute: async ({ path }) => {
       const resolved = viewerFileUrl(path);

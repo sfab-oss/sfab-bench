@@ -54,7 +54,7 @@ export function clampSize(
   minW: number,
   minH: number,
   maxW: number,
-  maxH: number,
+  maxH: number
 ): CardSize {
   return {
     w: Math.round(Math.max(minW, Math.min(maxW, w))),
@@ -66,7 +66,13 @@ export function bandWidth(pad: number) {
   return GAP + STROKE / 2 + pad;
 }
 
-function insideRounded(x: number, y: number, hw: number, hh: number, r: number): boolean {
+function insideRounded(
+  x: number,
+  y: number,
+  hw: number,
+  hh: number,
+  r: number
+): boolean {
   const ax = Math.abs(x);
   const ay = Math.abs(y);
   if (ax > hw || ay > hh) return false;
@@ -83,7 +89,7 @@ export function classify(
   wPx: number,
   hPx: number,
   pad: number,
-  opts: ChromeOpts = {},
+  opts: ChromeOpts = {}
 ): Region {
   const outer = bandWidth(pad);
   if (opts.shape === "orb") {
@@ -188,7 +194,12 @@ export function stadiumGeometry(length: number, radius: number) {
   return new THREE.ShapeGeometry(s, 8);
 }
 
-export function roundedRectGeometry(hw: number, hh: number, r: number, extraBottom = 0) {
+export function roundedRectGeometry(
+  hw: number,
+  hh: number,
+  r: number,
+  extraBottom = 0
+) {
   const top = hh;
   const bot = hh + extraBottom;
   const rr = Math.min(r, hw, top, bot);
@@ -210,7 +221,10 @@ const _hit = new THREE.Vector3();
 const _n = new THREE.Vector3();
 const _o = new THREE.Vector3();
 
-export function rayOnCard(parent: THREE.Object3D, ray: THREE.Ray): THREE.Vector3 | null {
+export function rayOnCard(
+  parent: THREE.Object3D,
+  ray: THREE.Ray
+): THREE.Vector3 | null {
   parent.updateWorldMatrix(true, false);
   _n.set(0, 0, 1).transformDirection(parent.matrixWorld);
   parent.getWorldPosition(_o);
@@ -262,7 +276,7 @@ function regionAt(entry: CardReg, world: THREE.Vector3, pad: number): Region {
 export function visibleRaycast(
   this: THREE.Mesh,
   raycaster: THREE.Raycaster,
-  intersects: THREE.Intersection[],
+  intersects: THREE.Intersection[]
 ) {
   if (!visibleInTree(this)) return;
   THREE.Mesh.prototype.raycast.call(this, raycaster, intersects);
@@ -277,13 +291,17 @@ export function hitChrome(world: THREE.Vector3, pad = NEAR_PAD): Region | null {
   return null;
 }
 
-export function cardContains(entry: CardReg, world: THREE.Vector3, padScale = 1): boolean {
+export function cardContains(
+  entry: CardReg,
+  world: THREE.Vector3,
+  padScale = 1
+): boolean {
   return regionAt(entry, world, NEAR_PAD * padScale) !== "none";
 }
 
 export function nearestCard(
   points: THREE.Vector3[],
-  padScale = 1,
+  padScale = 1
 ): { card: CardReg; point: THREE.Vector3 } | null {
   let best: CardReg | null = null;
   let bestPoint: THREE.Vector3 | null = null;

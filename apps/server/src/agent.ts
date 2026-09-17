@@ -3,19 +3,19 @@ import { createCodex } from "@ai-sdk/harness-codex";
 import { createCursor } from "@ai-sdk/harness-cursor";
 import { createGrokBuild } from "@ai-sdk/harness-grok-build";
 import { createOpenCode } from "@ai-sdk/harness-opencode";
-import { z } from "zod";
-
 import {
-  DEFAULT_HARNESS_MODEL,
   type ChatEffort,
+  DEFAULT_HARNESS_MODEL,
   type HarnessId,
 } from "@sfab-bench/contract";
+import { z } from "zod";
 import { createLocalSandbox } from "./local-sandbox";
 import { viewerTools } from "./viewer-context";
 
 const callOptions = z.object({ model: z.string().min(1) });
 
-const identity = "You are an agent running inside this CAD workbench. The open folder is your cwd. Visualization is a STEP or GLB in that folder.";
+const identity =
+  "You are an agent running inside this CAD workbench. The open folder is your cwd. Visualization is a STEP or GLB in that folder.";
 
 type ReasoningLevel = Exclude<ChatEffort, "default">;
 

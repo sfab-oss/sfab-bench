@@ -2,31 +2,47 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
-import { formatMm, measureDelta } from "@/lib/measure";
-import { disambiguateSiblingNames, partDisplayName, partLabelFileStem } from "@/lib/part-label";
-import { siblingRows } from "@/lib/part-tree";
 import { overlayMaxHeight } from "@/lib/layout";
+import { formatMm, measureDelta } from "@/lib/measure";
+import {
+  disambiguateSiblingNames,
+  partDisplayName,
+  partLabelFileStem,
+} from "@/lib/part-label";
+import { siblingRows } from "@/lib/part-tree";
 import { useStore } from "@/state/store";
 
 function SelectionBody() {
-  const { review, title, selectedId, pickedRef, select, isolate, fit, setVisible, showAll, hiddenIds } =
-    useStore(
-      useShallow((s) => ({
-        review: s.review,
-        title: s.title,
-        selectedId: s.selectedId,
-        pickedRef: s.pickedRef,
-        select: s.select,
-        isolate: s.isolate,
-        fit: s.fit,
-        setVisible: s.setVisible,
-        showAll: s.showAll,
-        hiddenIds: s.hiddenIds,
-      })),
-    );
+  const {
+    review,
+    title,
+    selectedId,
+    pickedRef,
+    select,
+    isolate,
+    fit,
+    setVisible,
+    showAll,
+    hiddenIds,
+  } = useStore(
+    useShallow((s) => ({
+      review: s.review,
+      title: s.title,
+      selectedId: s.selectedId,
+      pickedRef: s.pickedRef,
+      select: s.select,
+      isolate: s.isolate,
+      fit: s.fit,
+      setVisible: s.setVisible,
+      showAll: s.showAll,
+      hiddenIds: s.hiddenIds,
+    }))
+  );
   const part = selectedId !== null ? review?.parts[selectedId] : undefined;
   const ref = pickedRef ?? part?.cadRef ?? null;
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
+    "idle"
+  );
   const copyTimer = useRef(0);
 
   useEffect(() => {
@@ -74,7 +90,7 @@ function SelectionBody() {
         setCopyState("error");
         if (copyTimer.current) window.clearTimeout(copyTimer.current);
         copyTimer.current = window.setTimeout(() => setCopyState("idle"), 1500);
-      },
+      }
     );
   };
 
@@ -82,7 +98,13 @@ function SelectionBody() {
     <>
       <header className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[13px] font-medium">Selection</span>
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => select(null)}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs text-muted-foreground"
+          onClick={() => select(null)}
+        >
           Clear
         </Button>
       </header>
@@ -99,11 +121,24 @@ function SelectionBody() {
       ) : null}
       {ref ? (
         <div className="mb-3 flex min-w-0 items-center gap-2">
-          <code className="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1 text-[12px]" title={ref}>
+          <code
+            className="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1 text-[12px]"
+            title={ref}
+          >
             {ref}
           </code>
-          <Button type="button" size="sm" variant="secondary" className="shrink-0" onClick={copyRef}>
-            {copyState === "copied" ? "Copied" : copyState === "error" ? "Couldn't copy" : "Copy"}
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="shrink-0"
+            onClick={copyRef}
+          >
+            {copyState === "copied"
+              ? "Copied"
+              : copyState === "error"
+                ? "Couldn't copy"
+                : "Copy"}
           </Button>
         </div>
       ) : null}
@@ -128,7 +163,12 @@ function SelectionBody() {
           >
             Isolate
           </Button>
-          <Button type="button" size="sm" variant="secondary" onClick={() => showAll()}>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => showAll()}
+          >
             Show all
           </Button>
         </div>
@@ -139,7 +179,11 @@ function SelectionBody() {
 
 function MeasureBody() {
   const { measure, clearMeasure, setTool } = useStore(
-    useShallow((s) => ({ measure: s.measure, clearMeasure: s.clearMeasure, setTool: s.setTool })),
+    useShallow((s) => ({
+      measure: s.measure,
+      clearMeasure: s.clearMeasure,
+      setTool: s.setTool,
+    }))
   );
   const a = measure.a;
   const b = measure.b;
@@ -149,11 +193,19 @@ function MeasureBody() {
     <>
       <header className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[13px] font-medium">Measure</span>
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setTool("select")}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs text-muted-foreground"
+          onClick={() => setTool("select")}
+        >
           Done
         </Button>
       </header>
-      <p className="mb-2 text-[12px] text-muted-foreground">Click two places on the model.</p>
+      <p className="mb-2 text-[12px] text-muted-foreground">
+        Click two places on the model.
+      </p>
       <div className="mb-1 truncate font-mono text-[12px]" title={a?.cadRef}>
         1 {a?.cadRef ?? "—"}
       </div>
@@ -172,7 +224,12 @@ function MeasureBody() {
           </div>
         </div>
       ) : null}
-      <Button type="button" size="sm" variant="secondary" onClick={() => clearMeasure()}>
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        onClick={() => clearMeasure()}
+      >
         Clear
       </Button>
     </>
@@ -196,7 +253,7 @@ export function DetailPanel({
       selectedId: s.selectedId,
       pickedRef: s.pickedRef,
       tool: s.tool,
-    })),
+    }))
   );
   const part = selectedId !== null ? review?.parts[selectedId] : undefined;
   if (!review) return null;

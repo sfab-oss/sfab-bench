@@ -24,14 +24,21 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
-const dist = join(dirname(require.resolve("opencascade.js/package.json")), "dist");
+const dist = join(
+  dirname(require.resolve("opencascade.js/package.json")),
+  "dist"
+);
 const src = readFileSync(join(dist, "opencascade.wasm.js"), "utf8").replace(
   /export default opencascade;\s*$/,
-  "module.exports = opencascade;",
+  "module.exports = opencascade;"
 );
 const holder = { exports: {} };
 new Function("module", "exports", "require", "__dirname", "__filename", src)(
-  holder, holder.exports, require, dist, join(dist, "opencascade.wasm.js"),
+  holder,
+  holder.exports,
+  require,
+  dist,
+  join(dist, "opencascade.wasm.js")
 );
 const oc = await holder.exports({
   wasmBinary: readFileSync(join(dist, "opencascade.wasm.wasm")),
@@ -43,22 +50,37 @@ const outDir = fileURLToPath(new URL("../fixtures/", import.meta.url));
 
 /** A fresh XCAF document plus the helpers for filling one in. */
 function doc() {
-  const document = new oc.TDocStd_Document(new oc.TCollection_ExtendedString_1());
+  const document = new oc.TDocStd_Document(
+    new oc.TCollection_ExtendedString_1()
+  );
   const handle = new oc.Handle_TDocStd_Document_2(document);
   const shapeTool = oc.XCAFDoc_DocumentTool.ShapeTool(document.Main()).get();
   const colorTool = oc.XCAFDoc_DocumentTool.ColorTool(document.Main()).get();
 
   const name = (label, text) =>
-    oc.TDataStd_Name.Set_1(label, new oc.TCollection_ExtendedString_2(text, true));
+    oc.TDataStd_Name.Set_1(
+      label,
+      new oc.TCollection_ExtendedString_2(text, true)
+    );
 
   const color = (label, r, g, b) => {
-    const value = new oc.Quantity_Color_3(r, g, b, oc.Quantity_TypeOfColor.Quantity_TOC_RGB);
+    const value = new oc.Quantity_Color_3(
+      r,
+      g,
+      b,
+      oc.Quantity_TypeOfColor.Quantity_TOC_RGB
+    );
     // Which SetColor overload takes a raw colour varies by build.
     for (let n = 1; n <= 6; n += 1) {
       const set = colorTool[`SetColor_${n}`];
       if (!set) continue;
       try {
-        set.call(colorTool, label, value, oc.XCAFDoc_ColorType.XCAFDoc_ColorSurf);
+        set.call(
+          colorTool,
+          label,
+          value,
+          oc.XCAFDoc_ColorType.XCAFDoc_ColorSurf
+        );
         return;
       } catch {
         /* next overload */
@@ -79,8 +101,15 @@ function doc() {
     if (spin) {
       const turn = new oc.gp_Trsf_1();
       const dir =
-        axis === "x" ? new oc.gp_Dir_4(1, 0, 0) : axis === "y" ? new oc.gp_Dir_4(0, 1, 0) : new oc.gp_Dir_4(0, 0, 1);
-      turn.SetRotation_1(new oc.gp_Ax1_2(new oc.gp_Pnt_3(0, 0, 0), dir), (spin * Math.PI) / 180);
+        axis === "x"
+          ? new oc.gp_Dir_4(1, 0, 0)
+          : axis === "y"
+            ? new oc.gp_Dir_4(0, 1, 0)
+            : new oc.gp_Dir_4(0, 0, 1);
+      turn.SetRotation_1(
+        new oc.gp_Ax1_2(new oc.gp_Pnt_3(0, 0, 0), dir),
+        (spin * Math.PI) / 180
+      );
       trsf.Multiply(turn);
     }
     return new oc.TopLoc_Location_2(trsf);
@@ -103,7 +132,9 @@ function doc() {
     const writer = new oc.STEPCAFControl_Writer_1();
     // Perform() writes one file. Transfer()+Write() takes a "multi" string here that
     // cannot be null, and a non-null one splits the assembly into a file per component.
-    if (!writer.Perform_1(handle, new oc.TCollection_AsciiString_2("out.step"))) {
+    if (
+      !writer.Perform_1(handle, new oc.TCollection_AsciiString_2("out.step"))
+    ) {
       throw new Error(`STEP write failed for ${file}`);
     }
     const bytes = Buffer.from(oc.FS.readFile("out.step"));
@@ -119,7 +150,10 @@ function doc() {
 // one of those instances painted over its product's own colour.
 {
   const d = doc();
-  const plate = d.add(new oc.BRepPrimAPI_MakeBox_1(60, 40, 6).Shape(), "base_plate");
+  const plate = d.add(
+    new oc.BRepPrimAPI_MakeBox_1(60, 40, 6).Shape(),
+    "base_plate"
+  );
   d.color(plate, 0.31, 0.51, 0.71);
   const post = d.add(new oc.BRepPrimAPI_MakeCylinder_1(4, 18).Shape(), "post");
   d.color(post, 0.85, 0.42, 0.2);
@@ -154,7 +188,10 @@ function doc() {
   ];
   for (const [label, shape, [x, y, z]] of parts) {
     const added = d.add(shape, label);
-    d.name(d.shapeTool.AddComponent_1(root, added, d.at(x, y, z)), `${label}_1`);
+    d.name(
+      d.shapeTool.AddComponent_1(root, added, d.at(x, y, z)),
+      `${label}_1`
+    );
   }
   d.write("curved_solids.step");
 }
@@ -166,7 +203,10 @@ function doc() {
   const d = doc();
   const cube = d.add(new oc.BRepPrimAPI_MakeBox_1(4, 4, 4).Shape(), "cube");
   let inner = d.assembly("level_5");
-  d.name(d.shapeTool.AddComponent_1(inner, cube, d.at(1, 0, 0, 30, "x")), "cube_1");
+  d.name(
+    d.shapeTool.AddComponent_1(inner, cube, d.at(1, 0, 0, 30, "x")),
+    "cube_1"
+  );
   // Two of the five turn as well as move. Without them every placement is a
   // translation, they all commute, and composing the tree in the wrong order
   // produces exactly the same answer as composing it in the right one.
@@ -178,7 +218,10 @@ function doc() {
   ];
   steps.forEach((offset, i) => {
     const outer = d.assembly(`level_${4 - i}`);
-    d.name(d.shapeTool.AddComponent_1(outer, inner, d.at(...offset)), `level_${5 - i}_1`);
+    d.name(
+      d.shapeTool.AddComponent_1(outer, inner, d.at(...offset)),
+      `level_${5 - i}_1`
+    );
     inner = outer;
   });
   d.write("deep_nest.step");
@@ -208,9 +251,13 @@ function doc() {
 function reunitAsInches(file) {
   const path = join(outDir, file);
   const text = readFileSync(path, "utf8");
-  const top = Math.max(...[...text.matchAll(/^#(\d+) ?=/gm)].map((m) => Number(m[1])));
-  const millimetres = "#346 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );";
-  if (!text.includes(millimetres)) throw new Error(`${file}: no millimetre unit to replace`);
+  const top = Math.max(
+    ...[...text.matchAll(/^#(\d+) ?=/gm)].map((m) => Number(m[1]))
+  );
+  const millimetres =
+    "#346 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );";
+  if (!text.includes(millimetres))
+    throw new Error(`${file}: no millimetre unit to replace`);
   const inches = [
     `#${top + 1} = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.) );`,
     `#${top + 2} = DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);`,
@@ -226,7 +273,10 @@ function reunitAsInches(file) {
 // the viewer scales by a hardcoded 0.001 and would otherwise draw it 25.4x small.
 {
   const d = doc();
-  const block = d.add(new oc.BRepPrimAPI_MakeBox_1(2, 1, 0.5).Shape(), "inch_block");
+  const block = d.add(
+    new oc.BRepPrimAPI_MakeBox_1(2, 1, 0.5).Shape(),
+    "inch_block"
+  );
   d.color(block, 0.7, 0.55, 0.3);
   d.write("inch_block.step");
   reunitAsInches("inch_block.step");
@@ -243,7 +293,9 @@ function reunitAsInches(file) {
   const trsf = new oc.gp_Trsf_1();
   trsf.SetTranslation_1(new oc.gp_Vec_4(15, 15, -2));
   const drill = new oc.BRepBuilderAPI_Transform_2(
-    new oc.BRepPrimAPI_MakeCylinder_1(6, 20).Shape(), trsf, true,
+    new oc.BRepPrimAPI_MakeCylinder_1(6, 20).Shape(),
+    trsf,
+    true
   ).Shape();
   const op = new oc.BRepAlgoAPI_Cut_3(plate, drill);
   op.Build();
@@ -251,7 +303,10 @@ function reunitAsInches(file) {
   const root = d.assembly("cut_solid");
   const bored = d.add(op.Shape(), "bored_plate");
   d.color(bored, 0.45, 0.47, 0.5);
-  d.name(d.shapeTool.AddComponent_1(root, bored, d.at(0, 0, 0)), "bored_plate_1");
+  d.name(
+    d.shapeTool.AddComponent_1(root, bored, d.at(0, 0, 0)),
+    "bored_plate_1"
+  );
   d.write("cut_solid.step");
 }
 
@@ -265,11 +320,13 @@ function reunitAsInches(file) {
   for (let i = 0; i < 120; i += 1) {
     const col = i % 12;
     const row = (i - col) / 12;
-    d.name(d.shapeTool.AddComponent_1(root, stud, d.at(col * 8, row * 8, 0)), `stud_${i + 1}`);
+    d.name(
+      d.shapeTool.AddComponent_1(root, stud, d.at(col * 8, row * 8, 0)),
+      `stud_${i + 1}`
+    );
   }
   d.write("many_instances.step");
 }
-
 
 // Appended last on purpose. The OCCT STEP translator keeps a counter across
 // documents in one process, so inserting a fixture anywhere but the end renames
@@ -290,27 +347,49 @@ function reunitAsInches(file) {
   const d = doc();
   const root = d.assembly("annotated_bracket");
   const line = (length) =>
-    new oc.BRepBuilderAPI_MakeEdge_3(new oc.gp_Pnt_3(0, 0, 0), new oc.gp_Pnt_3(length, 0, 0)).Shape();
+    new oc.BRepBuilderAPI_MakeEdge_3(
+      new oc.gp_Pnt_3(0, 0, 0),
+      new oc.gp_Pnt_3(length, 0, 0)
+    ).Shape();
 
   const body = d.add(new oc.BRepPrimAPI_MakeBox_1(20, 10, 5).Shape(), "body");
   d.name(d.shapeTool.AddComponent_1(root, body, d.at(0, 0, 0)), "body_1");
 
   // A leaf with no faces, sitting beside real geometry.
   const datum = d.add(line(30), "datum_axis");
-  d.name(d.shapeTool.AddComponent_1(root, datum, d.at(0, 0, 20)), "datum_axis_1");
+  d.name(
+    d.shapeTool.AddComponent_1(root, datum, d.at(0, 0, 20)),
+    "datum_axis_1"
+  );
 
   // A whole branch of nothing, which has to go with it.
   const notes = d.assembly("notes");
-  d.name(d.shapeTool.AddComponent_1(notes, d.add(line(12), "note_a"), d.at(0, 0, 0)), "note_a_1");
-  d.name(d.shapeTool.AddComponent_1(notes, d.add(line(8), "note_b"), d.at(0, 4, 0)), "note_b_1");
+  d.name(
+    d.shapeTool.AddComponent_1(notes, d.add(line(12), "note_a"), d.at(0, 0, 0)),
+    "note_a_1"
+  );
+  d.name(
+    d.shapeTool.AddComponent_1(notes, d.add(line(8), "note_b"), d.at(0, 4, 0)),
+    "note_b_1"
+  );
   d.name(d.shapeTool.AddComponent_1(root, notes, d.at(40, 0, 0)), "notes_1");
 
   // And a branch that mixes them: the pad stays, the centreline does not.
   const mixed = d.assembly("pad_and_centreline");
   const pad = d.add(new oc.BRepPrimAPI_MakeBox_1(6, 6, 2).Shape(), "pad");
   d.name(d.shapeTool.AddComponent_1(mixed, pad, d.at(0, 0, 0)), "pad_1");
-  d.name(d.shapeTool.AddComponent_1(mixed, d.add(line(6), "centreline"), d.at(0, 3, 1)), "centreline_1");
-  d.name(d.shapeTool.AddComponent_1(root, mixed, d.at(0, 20, 0)), "pad_and_centreline_1");
+  d.name(
+    d.shapeTool.AddComponent_1(
+      mixed,
+      d.add(line(6), "centreline"),
+      d.at(0, 3, 1)
+    ),
+    "centreline_1"
+  );
+  d.name(
+    d.shapeTool.AddComponent_1(root, mixed, d.at(0, 20, 0)),
+    "pad_and_centreline_1"
+  );
 
   d.write("annotation_only.step");
 }

@@ -7,12 +7,19 @@ import { ChatModelCard } from "@/xr/ui/ChatModelCard";
 
 type Overlay = "none" | "history" | "models";
 
-export function ChatPanels({ width = 340, height = 520 }: { width?: number; height?: number }) {
+export function ChatPanels({
+  width = 340,
+  height = 520,
+}: {
+  width?: number;
+  height?: number;
+}) {
   const [overlay, setOverlay] = useState<Overlay>("none");
   useEffect(() => {
     void loadHarnesses();
   }, []);
-  const toggle = (next: Overlay) => setOverlay((cur) => (cur === next ? "none" : next));
+  const toggle = (next: Overlay) =>
+    setOverlay((cur) => (cur === next ? "none" : next));
   return (
     <>
       <ChatCard

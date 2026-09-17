@@ -35,33 +35,63 @@ writeFileSync(join(root, "cad", "src", "box.py"), "print(1)\n");
 writeFileSync(join(root, "part.glb"), "glTF");
 
 const files = listProjectFiles(root);
-expect(files.some((f) => f.path === "cad/STEP/envelopes/box.step"), "project STEP is listed");
-expect(files.some((f) => f.path === "part.glb" && f.kind === "glb"), "project GLB is listed");
-expect(!files.some((f) => f.path.includes("node_modules")), "node_modules STEP is ignored");
-expect(!files.some((f) => f.path.endsWith(".py")), "python scripts are not documents");
+expect(
+  files.some((f) => f.path === "cad/STEP/envelopes/box.step"),
+  "project STEP is listed"
+);
+expect(
+  files.some((f) => f.path === "part.glb" && f.kind === "glb"),
+  "project GLB is listed"
+);
+expect(
+  !files.some((f) => f.path.includes("node_modules")),
+  "node_modules STEP is ignored"
+);
+expect(
+  !files.some((f) => f.path.endsWith(".py")),
+  "python scripts are not documents"
+);
 
 const tree = catalogTree(files);
 const cad = tree.find((n) => n.type === "dir" && n.name === "cad");
 expect(cad?.type === "dir", "catalog keeps cad as a folder");
-const stepDir = cad?.type === "dir" ? cad.children.find((n) => n.type === "dir" && n.name === "STEP") : undefined;
+const stepDir =
+  cad?.type === "dir"
+    ? cad.children.find((n) => n.type === "dir" && n.name === "STEP")
+    : undefined;
 expect(stepDir?.type === "dir", "STEP stays nested under cad");
-expect(filterCatalogTree(tree, "envelopes").length > 0, "filter matches folder path");
+expect(
+  filterCatalogTree(tree, "envelopes").length > 0,
+  "filter matches folder path"
+);
 
 const step = resolveArtifact("cad/STEP/envelopes/box.step", root);
-expect(!("error" in step) && step.kind === "step", "resolve STEP inside project");
+expect(
+  !("error" in step) && step.kind === "step",
+  "resolve STEP inside project"
+);
 const py = resolveArtifact("cad/src/box.py", root);
 expect("error" in py, "scripts are not artifacts");
-const escape = resolveArtifact("../outside.step", root);
-expect("error" in escape, "parent paths are rejected");
+const escaped = resolveArtifact("../outside.step", root);
+expect("error" in escaped, "parent paths are rejected");
 const missing = resolveArtifact("cad/STEP/nope.step", root);
 expect("error" in missing, "missing STEP is rejected");
 
 const other = mkdtempSync(join(tmpdir(), "xr-project-b-"));
 writeFileSync(join(other, "other.step"), "ISO-10303");
-expect("error" in resolveArtifact("other.step", root), "artifact from another root is refused");
+expect(
+  "error" in resolveArtifact("other.step", root),
+  "artifact from another root is refused"
+);
 const otherStep = resolveArtifact("other.step", other);
-expect(!("error" in otherStep) && otherStep.kind === "step", "same name resolves inside its own root");
-expect("error" in resolveArtifact("cad/STEP/envelopes/box.step", other), "first root's path is not in the second");
+expect(
+  !("error" in otherStep) && otherStep.kind === "step",
+  "same name resolves inside its own root"
+);
+expect(
+  "error" in resolveArtifact("cad/STEP/envelopes/box.step", other),
+  "first root's path is not in the second"
+);
 
 const a = mkdtempSync(join(tmpdir(), "xr-fallback-a-"));
 const b = mkdtempSync(join(tmpdir(), "xr-named-b-"));
@@ -74,14 +104,23 @@ try {
   registeredPath = registered.path;
   expect(fallbackRoot() === before, "register does not set fallback");
   const again = registerProject(b);
-  expect(again.openedAt === registered.openedAt, "repeat register does not bump opened_at");
+  expect(
+    again.openedAt === registered.openedAt,
+    "repeat register does not bump opened_at"
+  );
   const opened = openProject(a);
   openedPath = opened.path;
   expect(fallbackRoot() === opened.path, "open sets fallback");
   const named = resolveRequestRoot(b, "loopback");
   expect(named === registered.path, "loopback ?project= is the named folder");
-  expect(fallbackRoot() === opened.path, "named request does not steal fallback");
-  expect(resolveRequestRoot(undefined, "loopback") === opened.path, "param-less is fallback");
+  expect(
+    fallbackRoot() === opened.path,
+    "named request does not steal fallback"
+  );
+  expect(
+    resolveRequestRoot(undefined, "loopback") === opened.path,
+    "param-less is fallback"
+  );
   let pairedStatus = 0;
   try {
     resolveRequestRoot(stray, "paired");

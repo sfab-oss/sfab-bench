@@ -1,5 +1,9 @@
 import * as THREE from "three";
-import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from "three-mesh-bvh";
+import {
+  acceleratedRaycast,
+  computeBoundsTree,
+  disposeBoundsTree,
+} from "three-mesh-bvh";
 
 // Patch three once so every Mesh raycast (ours and R3F's pointer raycaster)
 // uses the BVH when the geometry has one.

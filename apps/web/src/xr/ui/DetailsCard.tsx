@@ -20,19 +20,19 @@ export function DetailsCard() {
     undoMeasure,
     clearMeasure,
   } = useStore(
-      useShallow((s) => ({
-        review: s.review,
-        selectedId: s.selectedId,
-        pickedRef: s.pickedRef,
-        isolate: s.isolate,
-        setVisible: s.setVisible,
-        hiddenIds: s.hiddenIds,
-        tool: s.tool,
-        measure: s.measure,
-        undoMeasure: s.undoMeasure,
-        clearMeasure: s.clearMeasure,
-      })),
-    );
+    useShallow((s) => ({
+      review: s.review,
+      selectedId: s.selectedId,
+      pickedRef: s.pickedRef,
+      isolate: s.isolate,
+      setVisible: s.setVisible,
+      hiddenIds: s.hiddenIds,
+      tool: s.tool,
+      measure: s.measure,
+      undoMeasure: s.undoMeasure,
+      clearMeasure: s.clearMeasure,
+    }))
+  );
   const part = selectedId !== null ? review?.parts[selectedId] : undefined;
   const theme = useXrTheme();
 
@@ -77,7 +77,12 @@ export function DetailsCard() {
           </Text>
         )}
         <Container flexDirection="row" gap={4} width="100%">
-          <ToolBtn id="m-undo" icon={Undo2} grow={false} onClick={() => undoMeasure()} />
+          <ToolBtn
+            id="m-undo"
+            icon={Undo2}
+            grow={false}
+            onClick={() => undoMeasure()}
+          />
           <ToolBtn id="m-clear" label="Clear" onClick={() => clearMeasure()} />
         </Container>
       </Container>

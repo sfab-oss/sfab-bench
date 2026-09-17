@@ -1,6 +1,10 @@
-import { connectionDotLabel, connectionDotVisible, type ConnectionPhase } from "@/lib/feedback";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  type ConnectionPhase,
+  connectionDotLabel,
+  connectionDotVisible,
+} from "@/lib/feedback";
+import { cn } from "@/lib/utils";
 
 export function ConnectionStatusDot({
   phase,
@@ -22,7 +26,7 @@ export function ConnectionStatusDot({
         role="status"
         className={cn(
           "relative flex size-4 items-center justify-center",
-          !visible && "opacity-40",
+          !visible && "opacity-40"
         )}
       >
         {ping ? (
@@ -31,7 +35,11 @@ export function ConnectionStatusDot({
         <span
           className={cn(
             "relative inline-flex size-2 rounded-full",
-            offerReload ? "bg-destructive" : visible ? "bg-muted-foreground" : "bg-muted-foreground/50",
+            offerReload
+              ? "bg-destructive"
+              : visible
+                ? "bg-muted-foreground"
+                : "bg-muted-foreground/50"
           )}
         />
       </span>

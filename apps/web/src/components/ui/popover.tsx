@@ -22,7 +22,10 @@ function PopoverContent({
   sideOffset = 4,
   ...props
 }: PopoverPrimitive.Popup.Props &
-  Pick<PopoverPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset">) {
+  Pick<
+    PopoverPrimitive.Positioner.Props,
+    "align" | "alignOffset" | "side" | "sideOffset"
+  >) {
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner
@@ -40,7 +43,7 @@ function PopoverContent({
             "transition-[opacity,transform] duration-150",
             "data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
             "data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
-            className,
+            className
           )}
           {...props}
         />
@@ -51,7 +54,11 @@ function PopoverContent({
 
 function PopoverHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div data-slot="popover-header" className={cn("flex flex-col gap-1 text-sm", className)} {...props} />
+    <div
+      data-slot="popover-header"
+      className={cn("flex flex-col gap-1 text-sm", className)}
+      {...props}
+    />
   );
 }
 
@@ -65,7 +72,10 @@ function PopoverTitle({ className, ...props }: PopoverPrimitive.Title.Props) {
   );
 }
 
-function PopoverDescription({ className, ...props }: PopoverPrimitive.Description.Props) {
+function PopoverDescription({
+  className,
+  ...props
+}: PopoverPrimitive.Description.Props) {
   return (
     <PopoverPrimitive.Description
       data-slot="popover-description"

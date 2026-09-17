@@ -20,11 +20,16 @@ const VERSION = 3;
 export function decodeTess(bytes: Uint8Array): ComponentMesh {
   if (bytes.length < 12) throw new Error("tess file too small");
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (view.getUint32(0, true) !== MAGIC || view.getUint32(4, true) !== VERSION) {
+  if (
+    view.getUint32(0, true) !== MAGIC ||
+    view.getUint32(4, true) !== VERSION
+  ) {
     throw new Error("not a TESS v3 file");
   }
   const jsonLen = view.getUint32(8, true);
-  const header = JSON.parse(new TextDecoder().decode(bytes.subarray(12, 12 + jsonLen))) as {
+  const header = JSON.parse(
+    new TextDecoder().decode(bytes.subarray(12, 12 + jsonLen))
+  ) as {
     positionCount: number;
     normalCount: number;
     faceOrdCount: number;

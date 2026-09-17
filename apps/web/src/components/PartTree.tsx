@@ -1,4 +1,9 @@
-import { ChevronDown, ChevronRight, ListTree, PanelLeftClose } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  ListTree,
+  PanelLeftClose,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Object3D } from "three";
 import { useShallow } from "zustand/react/shallow";
@@ -8,11 +13,19 @@ import { CrashCard } from "@/components/CrashCard";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { disambiguateSiblingNames, partDisplayName, partLabelFileStem } from "@/lib/part-label";
-import { filterPartTree, siblingRows, type PartTreeItem } from "@/lib/part-tree";
 import { overlayMaxHeight } from "@/lib/layout";
-import { useStore } from "@/state/store";
+import {
+  disambiguateSiblingNames,
+  partDisplayName,
+  partLabelFileStem,
+} from "@/lib/part-label";
+import {
+  filterPartTree,
+  type PartTreeItem,
+  siblingRows,
+} from "@/lib/part-tree";
 import { cn } from "@/lib/utils";
+import { useStore } from "@/state/store";
 
 type TreeRow = PartTreeItem & { obj: Object3D; part: CadPart };
 
@@ -23,7 +36,7 @@ function partKey(part: CadPart): string {
 function rowsFromObjs(
   parent: Object3D | null,
   review: CadReview,
-  fileStem: string | undefined,
+  fileStem: string | undefined
 ): TreeRow[] {
   const mapped: TreeRow[] = [];
   for (const obj of siblingRows(review, parent)) {
@@ -39,9 +52,16 @@ function rowsFromObjs(
     });
   }
   const labels = disambiguateSiblingNames(
-    mapped.map((row) => ({ key: row.key, display: row.displayName, ref: row.part.cadRef })),
+    mapped.map((row) => ({
+      key: row.key,
+      display: row.displayName,
+      ref: row.part.cadRef,
+    }))
   );
-  return mapped.map((row) => ({ ...row, displayName: labels.get(row.key) ?? row.displayName }));
+  return mapped.map((row) => ({
+    ...row,
+    displayName: labels.get(row.key) ?? row.displayName,
+  }));
 }
 
 function Node({
@@ -61,7 +81,7 @@ function Node({
       fit: s.fit,
       setVisible: s.setVisible,
       hiddenIds: s.hiddenIds,
-    })),
+    }))
   );
   const kids = row.children as TreeRow[];
   const part = row.part;
@@ -72,7 +92,9 @@ function Node({
       <div
         className={cn(
           "flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[13px]",
-          selected ? "bg-accent font-medium text-accent-foreground" : "text-foreground hover:bg-accent/60",
+          selected
+            ? "bg-accent font-medium text-accent-foreground"
+            : "text-foreground hover:bg-accent/60"
         )}
         onClick={() => select(part.id)}
         onDoubleClick={() => {
@@ -84,14 +106,20 @@ function Node({
           <button
             type="button"
             className="grid h-5 w-5 shrink-0 place-items-center text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            aria-label={open ? `Collapse ${row.displayName}` : `Expand ${row.displayName}`}
+            aria-label={
+              open ? `Collapse ${row.displayName}` : `Expand ${row.displayName}`
+            }
             aria-expanded={open}
             onClick={(ev) => {
               ev.stopPropagation();
               onToggle(row.key);
             }}
           >
-            {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+            {open ? (
+              <ChevronDown className="size-3.5" />
+            ) : (
+              <ChevronRight className="size-3.5" />
+            )}
           </button>
         ) : (
           <span className="inline-block h-5 w-5 shrink-0" aria-hidden />
@@ -100,11 +128,18 @@ function Node({
           type="checkbox"
           className="size-3.5 accent-foreground"
           checked={!hiddenIds.has(part.id)}
-          aria-label={hiddenIds.has(part.id) ? `Show ${row.displayName}` : `Hide ${row.displayName}`}
+          aria-label={
+            hiddenIds.has(part.id)
+              ? `Show ${row.displayName}`
+              : `Hide ${row.displayName}`
+          }
           onClick={(ev) => ev.stopPropagation()}
           onChange={(ev) => setVisible(part.id, ev.target.checked)}
         />
-        <span className="size-2.5 shrink-0 rounded-[2px] border border-border" style={{ background: part.color }} />
+        <span
+          className="size-2.5 shrink-0 rounded-[2px] border border-border"
+          style={{ background: part.color }}
+        />
         <span className="min-w-0 flex-1 truncate" title={part.name}>
           {row.displayName}
         </span>
@@ -112,7 +147,12 @@ function Node({
       {open && kids.length > 0 && (
         <div className="ml-3 border-l border-border pl-1">
           {kids.map((child) => (
-            <Node key={child.key} row={child} openKeys={openKeys} onToggle={onToggle} />
+            <Node
+              key={child.key}
+              row={child}
+              openKeys={openKeys}
+              onToggle={onToggle}
+            />
           ))}
         </div>
       )}
@@ -126,7 +166,7 @@ function ModelTreeBody() {
       review: s.review,
       title: s.title,
       selectedId: s.selectedId,
-    })),
+    }))
   );
   const [filter, setFilter] = useState("");
   const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set());
@@ -136,12 +176,12 @@ function ModelTreeBody() {
 
   const fileStem = useMemo(
     () => partLabelFileStem(review?.parts.length ?? 0, title),
-    [review, title],
+    [review, title]
   );
 
   const forest = useMemo(
     () => (review ? rowsFromObjs(null, review, fileStem) : []),
-    [review, fileStem],
+    [review, fileStem]
   );
   const q = filter.trim();
   const filtered = useMemo(() => filterPartTree(forest, q), [forest, q]);
@@ -150,7 +190,8 @@ function ModelTreeBody() {
 
   useEffect(() => {
     if (q) {
-      if (savedOpenKeys.current === null) savedOpenKeys.current = new Set(openKeysRef.current);
+      if (savedOpenKeys.current === null)
+        savedOpenKeys.current = new Set(openKeysRef.current);
       setOpenKeys((prev) => {
         const next = new Set(prev);
         for (const key of expandKey ? expandKey.split("\0") : []) next.add(key);
@@ -232,7 +273,12 @@ function ModelTreeBody() {
           </p>
         ) : (
           (shown as TreeRow[]).map((row) => (
-            <Node key={row.key} row={row} openKeys={openKeys} onToggle={toggle} />
+            <Node
+              key={row.key}
+              row={row}
+              openKeys={openKeys}
+              onToggle={toggle}
+            />
           ))
         )}
       </div>
@@ -258,7 +304,10 @@ export function PartTree({
     <RenderErrorBoundary
       resetKeys={[url]}
       fallback={({ error, reset }) => (
-        <div ref={cardRef} className="pointer-events-auto absolute top-16 left-3 z-10">
+        <div
+          ref={cardRef}
+          className="pointer-events-auto absolute top-16 left-3 z-10"
+        >
           <CrashCard error={error} onRetry={reset} />
         </div>
       )}
@@ -292,7 +341,7 @@ function PartTreeBody({
       review: s.review,
       title: s.title,
       url: s.url,
-    })),
+    }))
   );
   if (!review) return null;
   if (!expanded) {
@@ -322,7 +371,9 @@ function PartTreeBody({
         <ListTree className="size-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-medium text-foreground">Model</div>
-          <div className="truncate text-[11px] text-muted-foreground">{title}</div>
+          <div className="truncate text-[11px] text-muted-foreground">
+            {title}
+          </div>
         </div>
         <Button
           type="button"

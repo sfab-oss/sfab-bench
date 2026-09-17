@@ -203,4 +203,3 @@ export function WorkedContent({ className, ...props }: WorkedContentProps) {
     />
   );
 }
-

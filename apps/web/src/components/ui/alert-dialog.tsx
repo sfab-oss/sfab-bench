@@ -7,7 +7,9 @@ function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
 }
 
 function AlertDialogClose({ ...props }: AlertDialogPrimitive.Close.Props) {
-  return <AlertDialogPrimitive.Close data-slot="alert-dialog-close" {...props} />;
+  return (
+    <AlertDialogPrimitive.Close data-slot="alert-dialog-close" {...props} />
+  );
 }
 
 function AlertDialogContent({
@@ -30,7 +32,7 @@ function AlertDialogContent({
             "transition-[opacity,transform] duration-150",
             "data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
             "data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
-            className,
+            className
           )}
           {...props}
         >
@@ -41,7 +43,10 @@ function AlertDialogContent({
   );
 }
 
-function AlertDialogTitle({ className, ...props }: AlertDialogPrimitive.Title.Props) {
+function AlertDialogTitle({
+  className,
+  ...props
+}: AlertDialogPrimitive.Title.Props) {
   return (
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
@@ -51,7 +56,10 @@ function AlertDialogTitle({ className, ...props }: AlertDialogPrimitive.Title.Pr
   );
 }
 
-function AlertDialogDescription({ className, ...props }: AlertDialogPrimitive.Description.Props) {
+function AlertDialogDescription({
+  className,
+  ...props
+}: AlertDialogPrimitive.Description.Props) {
   return (
     <AlertDialogPrimitive.Description
       data-slot="alert-dialog-description"

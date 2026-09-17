@@ -6,14 +6,21 @@ import {
   type UITools,
 } from "ai";
 import { CheckIcon, ChevronDownIcon, CircleIcon, CopyIcon } from "lucide-react";
-import { useEffect, useRef, useState, type ComponentProps } from "react";
+import { type ComponentProps, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import {
   isAskUserQuestionsPart,
   parseAskUserQuestionsInput,
 } from "@/chat/ask-user-questions";
-import { resolveCadRef, cadRefFromHref, linkifyCadRefsInMarkdown } from "@/chat/cad-refs";
-import { isWorkspaceBusyError, mapChatErrorMessage } from "@/chat/composer-recovery";
+import {
+  cadRefFromHref,
+  linkifyCadRefsInMarkdown,
+  resolveCadRef,
+} from "@/chat/cad-refs";
+import {
+  isWorkspaceBusyError,
+  mapChatErrorMessage,
+} from "@/chat/composer-recovery";
 import { isTurnErrorPart, turnErrorText } from "@/chat/persist-thread";
 import { LiveDot } from "@/components/brand/LiveDot";
 import { AskUserAnsweredCard } from "@/components/chat/AskUserQuestionsPanel";
@@ -45,8 +52,8 @@ import {
   WorkedTrigger,
   workedLabel,
 } from "@/components/ui/worked";
-import { copyText } from "@/lib/settings";
 import { partLabelFileStem } from "@/lib/part-label";
+import { copyText } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/state/store";
 import type { AIDataPart } from "./ai-types";
@@ -56,7 +63,10 @@ import { messagePlainText } from "./useViewerChat";
 function CadRefChip({ token }: { token: string }) {
   const label = useStore((s) => {
     const parts = s.review?.parts ?? [];
-    return resolveCadRef(token, parts, partLabelFileStem(parts.length, s.title))?.label ?? null;
+    return (
+      resolveCadRef(token, parts, partLabelFileStem(parts.length, s.title))
+        ?.label ?? null
+    );
   });
   const selectByRef = useStore((s) => s.selectByRef);
 
@@ -101,7 +111,10 @@ function StreamdownMarkdownA({
   return (
     <a
       {...props}
-      className={cn("wrap-anywhere font-medium text-primary underline", className)}
+      className={cn(
+        "wrap-anywhere font-medium text-primary underline",
+        className
+      )}
       data-streamdown="link"
       href={href}
       rel="noreferrer"
@@ -140,7 +153,7 @@ function MarkdownBody({
         "[&_ol]:my-2 [&_ol]:list-outside [&_ol]:list-decimal [&_ol]:pl-5",
         "[&_li]:my-0.5 [&_ul_ul]:list-[circle] [&_ol_ul]:list-[circle]",
         "[&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:break-words",
-        className,
+        className
       )}
       components={hasCadRefs ? CAD_REF_COMPONENTS : undefined}
       data-slot="chat-markdown"
@@ -171,10 +184,7 @@ function PlanPart({
       {entries.map((entry, index) => {
         const done = entry.status === "completed";
         return (
-          <Marker
-            // biome-ignore lint/suspicious/noArrayIndexKey: plan entries have no stable id
-            key={`${messageId}-plan-${partIndex}-${index}`}
-          >
+          <Marker key={`${messageId}-plan-${partIndex}-${index}`}>
             <MarkerIcon>{done ? <CheckIcon /> : <CircleIcon />}</MarkerIcon>
             <MarkerContent className={cn(done && "line-through")}>
               {entry.content}
@@ -225,7 +235,8 @@ function AskUserQuestionsPart({
   if (!input) {
     return <DefaultToolPart messageId="" part={part} partIndex={0} />;
   }
-  const pending = part.state === "input-available" || part.state === "input-streaming";
+  const pending =
+    part.state === "input-available" || part.state === "input-streaming";
   if (pending) return null;
   return <AskUserAnsweredCard input={input} output={part.output} />;
 }
@@ -275,13 +286,27 @@ function GalleryMessagePart({
     const busy = isWorkspaceBusyError(errorText);
     return (
       <div className="my-2 flex items-start gap-2">
-        <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-error">{mapped}</p>
+        <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-error">
+          {mapped}
+        </p>
         {busy && onStop ? (
-          <Button type="button" size="sm" variant="ghost" className="h-6 shrink-0 px-2" onClick={onStop}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-6 shrink-0 px-2"
+            onClick={onStop}
+          >
             Stop
           </Button>
         ) : onRetry ? (
-          <Button type="button" size="sm" variant="ghost" className="h-6 shrink-0 px-2" onClick={onRetry}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-6 shrink-0 px-2"
+            onClick={onRetry}
+          >
             Retry
           </Button>
         ) : null}
@@ -344,10 +369,15 @@ function CopyMessageButton({ text }: { text: string }) {
     () => () => {
       if (timer.current != null) window.clearTimeout(timer.current);
     },
-    [],
+    []
   );
 
-  const label = state === "copied" ? "Copied" : state === "error" ? "Couldn't copy" : "Copy";
+  const label =
+    state === "copied"
+      ? "Copied"
+      : state === "error"
+        ? "Couldn't copy"
+        : "Copy";
 
   return (
     <Button
@@ -365,8 +395,16 @@ function CopyMessageButton({ text }: { text: string }) {
       type="button"
       variant="ghost"
     >
-      {state === "copied" ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
-      {state === "copied" ? "Copied" : state === "error" ? "Couldn't copy" : null}
+      {state === "copied" ? (
+        <CheckIcon className="size-3.5" />
+      ) : (
+        <CopyIcon className="size-3.5" />
+      )}
+      {state === "copied"
+        ? "Copied"
+        : state === "error"
+          ? "Couldn't copy"
+          : null}
     </Button>
   );
 }
@@ -375,8 +413,14 @@ function isStructuralChatPart(part: { type: string }): boolean {
   return part.type === "step-start" || part.type === "step-finish";
 }
 
-function isAskUserWorkedPart(part: { type: string; toolName?: string }): boolean {
-  return part.type === "tool-askUserQuestions" || part.toolName === "askUserQuestions";
+function isAskUserWorkedPart(part: {
+  type: string;
+  toolName?: string;
+}): boolean {
+  return (
+    part.type === "tool-askUserQuestions" ||
+    part.toolName === "askUserQuestions"
+  );
 }
 
 function splitChatType(part: { type: string; toolName?: string }): string {
@@ -385,9 +429,9 @@ function splitChatType(part: { type: string; toolName?: string }): string {
 }
 
 /** Filter step markers and keep ask-user / turn-error rows out of the Worked fold. */
-export function splitChatWorkedParts<T extends { type: string; toolName?: string }>(
-  parts: readonly T[],
-) {
+export function splitChatWorkedParts<
+  T extends { type: string; toolName?: string },
+>(parts: readonly T[]) {
   const view = parts
     .map((part, index) => ({ type: splitChatType(part), part, index }))
     .filter((row) => !isStructuralChatPart(row.part));
@@ -395,7 +439,10 @@ export function splitChatWorkedParts<T extends { type: string; toolName?: string
     if (segment.kind === "worked") {
       return {
         kind: "worked" as const,
-        items: segment.items.map((item) => ({ part: item.part.part, index: item.part.index })),
+        items: segment.items.map((item) => ({
+          part: item.part.part,
+          index: item.part.index,
+        })),
       };
     }
     return {
@@ -422,7 +469,7 @@ function ChatWorkedTrigger({
       <ChevronDownIcon
         className={cn(
           "size-3.5 shrink-0 transition-transform",
-          isOpen ? "rotate-0" : "-rotate-90",
+          isOpen ? "rotate-0" : "-rotate-90"
         )}
       />
     </WorkedTrigger>
@@ -485,7 +532,10 @@ export function ChatMessageRow({
                     isStreaming={isStreaming}
                     key={`${message.id}-worked-${start}`}
                   >
-                    <ChatWorkedTrigger duration={duration} isStreaming={isStreaming} />
+                    <ChatWorkedTrigger
+                      duration={duration}
+                      isStreaming={isStreaming}
+                    />
                     <WorkedContent>
                       {segment.items.map((item) =>
                         partRow(item.part, item.index)

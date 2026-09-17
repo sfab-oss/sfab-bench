@@ -46,7 +46,12 @@ const fade =
 const rightRay = {
   minDistance: 0.02,
   rayModel: { opacity: fade(0.55), color: "#e4e4e7" },
-  cursorModel: { opacity: fade(0.9), size: 0.006, color: "#2563eb", cursorOffset: CURSOR_OFFSET },
+  cursorModel: {
+    opacity: fade(0.9),
+    size: 0.006,
+    color: "#2563eb",
+    cursorOffset: CURSOR_OFFSET,
+  },
 };
 
 const hands = {
@@ -56,20 +61,37 @@ const hands = {
   rayPointer: {
     minDistance: 0.02,
     rayModel: { opacity: fade(0.4), color: "#e4e4e7", maxLength: 1.2 },
-    cursorModel: { opacity: fade(0.85), size: 0.005, color: "#2563eb", cursorOffset: CURSOR_OFFSET },
+    cursorModel: {
+      opacity: fade(0.85),
+      size: 0.005,
+      color: "#2563eb",
+      cursorOffset: CURSOR_OFFSET,
+    },
   },
 } as const;
 
 function applyARInput() {
-  xrStore.setController({ model: false, rayPointer: false, grabPointer: false }, "left");
-  xrStore.setController({ model: false, rayPointer: rightRay, grabPointer: false }, "right");
+  xrStore.setController(
+    { model: false, rayPointer: false, grabPointer: false },
+    "left"
+  );
+  xrStore.setController(
+    { model: false, rayPointer: rightRay, grabPointer: false },
+    "right"
+  );
   xrStore.setHand(hands, "left");
   xrStore.setHand(hands, "right");
 }
 
 function applyVRInput() {
-  xrStore.setController({ model: true, rayPointer: false, grabPointer: false }, "left");
-  xrStore.setController({ model: true, rayPointer: rightRay, grabPointer: false }, "right");
+  xrStore.setController(
+    { model: true, rayPointer: false, grabPointer: false },
+    "left"
+  );
+  xrStore.setController(
+    { model: true, rayPointer: rightRay, grabPointer: false },
+    "right"
+  );
   xrStore.setHand(hands, "left");
   xrStore.setHand(hands, "right");
 }
@@ -81,7 +103,9 @@ async function swapSession(next: "immersive-ar" | "immersive-vr") {
     store.getState().setXrSwitch(next === "immersive-ar" ? "ar" : "vr");
     try {
       await session.end();
-      return await (next === "immersive-ar" ? xrStore.enterAR() : xrStore.enterVR());
+      return await (next === "immersive-ar"
+        ? xrStore.enterAR()
+        : xrStore.enterVR());
     } finally {
       store.getState().setXrSwitch(null);
     }

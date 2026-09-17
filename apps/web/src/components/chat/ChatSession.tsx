@@ -1,22 +1,41 @@
 import { useChat } from "@ai-sdk/react";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
-import { Check, Copy, EllipsisVertical, MessageCircleDashedIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-
-import { ChatMessageRow } from "@/components/chat/chat-message-parts";
-import { GalleryChatInput, type GalleryChatHandle, type GalleryPromptMessage } from "@/components/chat/chat-input";
-import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
-import { persistThread } from "@/components/chat/useViewerChat";
-import { lastUserPromptText, mapChatErrorMessage, isWorkspaceBusyError } from "@/chat/composer-recovery";
+import {
+  Check,
+  Copy,
+  EllipsisVertical,
+  MessageCircleDashedIcon,
+} from "lucide-react";
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  type AskUserQuestionsOutput,
+  findPendingAskUserQuestions,
+} from "@/chat/ask-user-questions";
+import {
+  isWorkspaceBusyError,
+  lastUserPromptText,
+  mapChatErrorMessage,
+} from "@/chat/composer-recovery";
+import { findPendingGetViewer } from "@/chat/get-viewer";
 import { firstUserLine } from "@/chat/history";
 import { finishPersistMessages, isTurnErrorPart } from "@/chat/persist-thread";
-import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
-import { findPendingAskUserQuestions, type AskUserQuestionsOutput } from "@/chat/ask-user-questions";
-import { findPendingGetViewer } from "@/chat/get-viewer";
 import { useLiveViewerTools } from "@/chat/useLiveViewerTools";
+import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
+import {
+  type GalleryChatHandle,
+  GalleryChatInput,
+  type GalleryPromptMessage,
+} from "@/components/chat/chat-input";
+import { ChatMessageRow } from "@/components/chat/chat-message-parts";
+import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
+import { persistThread } from "@/components/chat/useViewerChat";
 import { Button } from "@/components/ui/button";
-import { showNetworkErrorToast } from "@/components/ui/toast";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Empty,
   EmptyDescription,
@@ -32,6 +51,12 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { showNetworkErrorToast } from "@/components/ui/toast";
 import { jsonApi } from "@/lib/api";
 import { copyText } from "@/lib/settings";
 import { useStore } from "@/state/store";
@@ -44,7 +69,11 @@ export async function copyConversationJson(conversation: {
   return copyText(JSON.stringify(conversation, null, 2));
 }
 
-export function ChatExportMenu({ onCopyJson }: { onCopyJson: () => Promise<boolean> }) {
+export function ChatExportMenu({
+  onCopyJson,
+}: {
+  onCopyJson: () => Promise<boolean>;
+}) {
   const [copied, setCopied] = useState<"idle" | "copied" | "error">("idle");
 
   return (
@@ -55,7 +84,14 @@ export function ChatExportMenu({ onCopyJson }: { onCopyJson: () => Promise<boole
     >
       <PopoverTrigger
         render={
-          <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" title="Export" aria-label="Export" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Export"
+            aria-label="Export"
+          />
         }
       >
         <EllipsisVertical />
@@ -70,8 +106,16 @@ export function ChatExportMenu({ onCopyJson }: { onCopyJson: () => Promise<boole
             });
           }}
         >
-          {copied === "copied" ? <Check className="size-4 shrink-0" /> : <Copy className="size-4 shrink-0" />}
-          {copied === "copied" ? "Copied" : copied === "error" ? "Couldn't copy" : "Copy conversation as JSON"}
+          {copied === "copied" ? (
+            <Check className="size-4 shrink-0" />
+          ) : (
+            <Copy className="size-4 shrink-0" />
+          )}
+          {copied === "copied"
+            ? "Copied"
+            : copied === "error"
+              ? "Couldn't copy"
+              : "Copy conversation as JSON"}
         </button>
       </PopoverContent>
     </Popover>
@@ -96,7 +140,12 @@ export function ChatSession({
   messagesRef: RefObject<GalleryChatMessage[]>;
   messagesThreadIdRef: RefObject<string | null>;
   onLive: (live: boolean) => void;
-  onMeta: (meta: { preview: string | null; streaming: boolean; askUser: boolean; error: boolean }) => void;
+  onMeta: (meta: {
+    preview: string | null;
+    streaming: boolean;
+    askUser: boolean;
+    error: boolean;
+  }) => void;
   onPersist: () => void;
   registerTabTurn: (streaming: boolean, stop: (() => void) | null) => void;
   stopTurnRef: RefObject<(() => void) | null>;
@@ -106,7 +155,16 @@ export function ChatSession({
   const turnErrorRef = useRef<string | null>(null);
   const progress = useStore((s) => s.progress);
   const url = useStore((s) => s.url);
-  const { messages, sendMessage, status, error, stop, regenerate, addToolOutput, setMessages } = useChat({
+  const {
+    messages,
+    sendMessage,
+    status,
+    error,
+    stop,
+    regenerate,
+    addToolOutput,
+    setMessages,
+  } = useChat({
     id: threadId,
     throttle: 50,
     messages: initialMessages,
@@ -118,7 +176,11 @@ export function ChatSession({
     onFinish: ({ messages: next, isError }) => {
       const text = turnErrorRef.current;
       turnErrorRef.current = null;
-      const toSave = finishPersistMessages(next as GalleryChatMessage[], isError, text);
+      const toSave = finishPersistMessages(
+        next as GalleryChatMessage[],
+        isError,
+        text
+      );
       if (!toSave) return;
       // Persist already stamps data-error; live state must use it or the turn
       // collapses to a Worked chip until reload.
@@ -133,7 +195,7 @@ export function ChatSession({
         },
         () => {
           showNetworkErrorToast({ title: "Couldn't save this chat" });
-        },
+        }
       );
     },
   });
@@ -146,11 +208,12 @@ export function ChatSession({
     stop();
     void jsonApi["chat"].stop.$post().then(
       (res) => {
-        if (!res.ok) showNetworkErrorToast({ title: "Couldn't stop the reply" });
+        if (!res.ok)
+          showNetworkErrorToast({ title: "Couldn't stop the reply" });
       },
       () => {
         showNetworkErrorToast({ title: "Couldn't stop the reply" });
-      },
+      }
     );
   }, [stop]);
   useEffect(() => {
@@ -180,7 +243,10 @@ export function ChatSession({
   useLiveViewerTools(messages as GalleryChatMessage[], addToolOutput, busy);
   messagesRef.current = messages as GalleryChatMessage[];
   messagesThreadIdRef.current = threadId;
-  const streamingMessageId = busy && messages.at(-1)?.role === "assistant" ? (messages.at(-1)?.id ?? null) : null;
+  const streamingMessageId =
+    busy && messages.at(-1)?.role === "assistant"
+      ? (messages.at(-1)?.id ?? null)
+      : null;
   const lastPrompt = lastUserPromptText(messages);
 
   const onSubmit = (payload: GalleryPromptMessage) => {
@@ -201,7 +267,7 @@ export function ChatSession({
         output,
       });
     },
-    [addToolOutput],
+    [addToolOutput]
   );
 
   const errorText = mapChatErrorMessage(error);
@@ -230,11 +296,23 @@ export function ChatSession({
         <div className="flex items-center gap-2 px-3 py-1 text-xs text-error">
           <span className="min-w-0 flex-1">{errorText}</span>
           {errorIsBusy ? (
-            <Button type="button" size="sm" variant="ghost" className="h-6 px-2" onClick={abortWorkspaceTurn}>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2"
+              onClick={abortWorkspaceTurn}
+            >
               Stop
             </Button>
           ) : (
-            <Button type="button" size="sm" variant="ghost" className="h-6 px-2" onClick={retryFailedTurn}>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2"
+              onClick={retryFailedTurn}
+            >
               Retry
             </Button>
           )}
@@ -252,7 +330,8 @@ export function ChatSession({
                     </EmptyMedia>
                     <EmptyTitle>How can I help?</EmptyTitle>
                     <EmptyDescription>
-                      Ask for a CAD change. Try “What am I looking at?” then a size change.
+                      Ask for a CAD change. Try “What am I looking at?” then a
+                      size change.
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -262,7 +341,9 @@ export function ChatSession({
                     <ChatMessageRow
                       isStreaming={streamingMessageId === message.id}
                       message={message as GalleryChatMessage}
-                      onRetry={tailErrorId === message.id ? retryFailedTurn : undefined}
+                      onRetry={
+                        tailErrorId === message.id ? retryFailedTurn : undefined
+                      }
                     />
                   </MessageScrollerItem>
                 ))

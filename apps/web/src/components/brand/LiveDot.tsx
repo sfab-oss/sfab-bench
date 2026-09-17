@@ -7,7 +7,10 @@ export function LiveDot({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
       aria-hidden
-      className={cn("inline-block size-1.5 shrink-0 rounded-full bg-brand", className)}
+      className={cn(
+        "inline-block size-1.5 shrink-0 rounded-full bg-brand",
+        className
+      )}
       data-slot="live-dot"
       {...props}
     />

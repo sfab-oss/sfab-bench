@@ -1,5 +1,7 @@
 /** Abort often finishes with an assistant `parts: []`. Skip that PUT so we don't wipe a real turn. */
-export function shouldPersistMessages(messages: { role?: string; parts?: unknown[] }[]) {
+export function shouldPersistMessages(
+  messages: { role?: string; parts?: unknown[] }[]
+) {
   const last = messages.at(-1);
   return !(last?.role === "assistant" && (last.parts?.length ?? 0) === 0);
 }
@@ -12,8 +14,16 @@ export function isTurnErrorPart(part: { type?: string }): boolean {
   return part.type === "data-error";
 }
 
-export function turnErrorText(part: { type?: string; data?: unknown }): string | null {
-  if (part.type !== "data-error" || !part.data || typeof part.data !== "object" || !("message" in part.data)) {
+export function turnErrorText(part: {
+  type?: string;
+  data?: unknown;
+}): string | null {
+  if (
+    part.type !== "data-error" ||
+    !part.data ||
+    typeof part.data !== "object" ||
+    !("message" in part.data)
+  ) {
     return null;
   }
   const message = part.data.message;
@@ -21,10 +31,9 @@ export function turnErrorText(part: { type?: string; data?: unknown }): string |
 }
 
 /** Stream errors finish with a user-only or empty assistant. Keep the error in the thread. */
-export function messagesWithTurnError<T extends { id?: string; role?: string; parts?: unknown[] }>(
-  messages: T[],
-  errorText: string,
-): T[] {
+export function messagesWithTurnError<
+  T extends { id?: string; role?: string; parts?: unknown[] },
+>(messages: T[], errorText: string): T[] {
   const last = messages.at(-1);
   const part = errorPart(errorText);
   if (last?.role === "assistant") {
@@ -39,15 +48,17 @@ export function messagesWithTurnError<T extends { id?: string; role?: string; pa
 }
 
 /** On error, do not PUT a user-only history — that wipes a server-persisted failure. */
-export function finishPersistMessages<T extends { role?: string; parts?: unknown[] }>(
-  messages: T[],
-  isError: boolean,
-  errorText: string | null,
-): T[] | null {
-  const next = isError && errorText ? messagesWithTurnError(messages, errorText) : messages;
+export function finishPersistMessages<
+  T extends { role?: string; parts?: unknown[] },
+>(messages: T[], isError: boolean, errorText: string | null): T[] | null {
+  const next =
+    isError && errorText
+      ? messagesWithTurnError(messages, errorText)
+      : messages;
   if (isError && !errorText) {
     const last = next.at(-1);
-    if (last?.role !== "assistant" || (last.parts?.length ?? 0) === 0) return null;
+    if (last?.role !== "assistant" || (last.parts?.length ?? 0) === 0)
+      return null;
   }
   if (!shouldPersistMessages(next)) return null;
   return next;

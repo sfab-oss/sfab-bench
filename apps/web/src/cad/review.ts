@@ -28,15 +28,20 @@ export function homeFitDirection(): THREE.Vector3 {
 }
 
 /** Home/load pass a direction; "zoom to" selection keeps the current view. */
-export function fitDirectionFor(scope: "model" | "selection"): THREE.Vector3 | undefined {
+export function fitDirectionFor(
+  scope: "model" | "selection"
+): THREE.Vector3 | undefined {
   return scope === "model" ? homeFitDirection() : undefined;
 }
 
 /** Object the camera should frame — whole model, or the selected part when there is one. */
 export function frameFitObject<T>(
-  review: { root: T; parts: Array<{ object: T } | undefined> } | null | undefined,
+  review:
+    | { root: T; parts: Array<{ object: T } | undefined> }
+    | null
+    | undefined,
   selectedId: number | null,
-  scope: "model" | "selection",
+  scope: "model" | "selection"
 ): T | null {
   if (!review) return null;
   if (scope === "selection" && selectedId !== null) {
@@ -55,7 +60,10 @@ function setPickable(obj: THREE.Object3D, visible: boolean) {
 }
 
 /** True when `maybeAncestor` is a strict ancestor of `node`. */
-export function isAncestor(maybeAncestor: THREE.Object3D, node: THREE.Object3D) {
+export function isAncestor(
+  maybeAncestor: THREE.Object3D,
+  node: THREE.Object3D
+) {
   let p: THREE.Object3D | null = node.parent;
   while (p) {
     if (p === maybeAncestor) return true;
@@ -93,7 +101,10 @@ export function makeReview({
     if (!sel) return;
     for (const part of parts) {
       const obj = part.object;
-      setPickable(obj, obj === sel || isAncestor(obj, sel) || isAncestor(sel, obj));
+      setPickable(
+        obj,
+        obj === sel || isAncestor(obj, sel) || isAncestor(sel, obj)
+      );
     }
   };
 

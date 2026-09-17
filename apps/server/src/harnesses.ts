@@ -6,9 +6,9 @@ import {
   DEFAULT_HARNESS_MODEL,
   HARNESS_IDS,
   HARNESS_LABEL,
-  STATIC_HARNESS_MODELS,
   type HarnessId,
   type HarnessStatus,
+  STATIC_HARNESS_MODELS,
 } from "@sfab-bench/contract";
 import { listOpenCodeModels } from "./models";
 
@@ -56,7 +56,11 @@ function grokLoggedIn() {
   if (!auth || typeof auth !== "object") return false;
   return Object.values(auth as Record<string, unknown>).some((entry) => {
     if (!entry || typeof entry !== "object") return false;
-    const rec = entry as { key?: unknown; refresh_token?: unknown; auth_mode?: unknown };
+    const rec = entry as {
+      key?: unknown;
+      refresh_token?: unknown;
+      auth_mode?: unknown;
+    };
     return Boolean(rec.key || rec.refresh_token || rec.auth_mode);
   });
 }
@@ -68,7 +72,12 @@ function staticModels(id: Exclude<HarnessId, "opencode">): HarnessModel[] {
 async function probeOpenCode(root?: string | null): Promise<HarnessInfo> {
   const catalog = await listOpenCodeModels(root);
   const models: HarnessModel[] = catalog.providers.flatMap((p) =>
-    p.models.map((m) => ({ id: m.slug, name: m.name, slug: m.slug, group: p.name })),
+    p.models.map((m) => ({
+      id: m.slug,
+      name: m.name,
+      slug: m.slug,
+      group: p.name,
+    }))
   );
   if (!catalog.connected) {
     return {
@@ -98,7 +107,9 @@ function probeCodex(): HarnessInfo {
     id: "codex",
     label: HARNESS_LABEL.codex,
     status: authed ? "ready" : "needs-auth",
-    detail: authed ? undefined : "Run `codex login` on the Mac, or set OPENAI_API_KEY.",
+    detail: authed
+      ? undefined
+      : "Run `codex login` on the Mac, or set OPENAI_API_KEY.",
     defaultModel: DEFAULT_HARNESS_MODEL.codex,
     models: staticModels("codex"),
   };
@@ -110,7 +121,9 @@ function probeCursor(): HarnessInfo {
     id: "cursor",
     label: HARNESS_LABEL.cursor,
     status: authed ? "ready" : "needs-auth",
-    detail: authed ? undefined : "A Mac Cursor login is not visible to this app.",
+    detail: authed
+      ? undefined
+      : "A Mac Cursor login is not visible to this app.",
     defaultModel: DEFAULT_HARNESS_MODEL.cursor,
     models: staticModels("cursor"),
   };
@@ -122,13 +135,17 @@ function probeGrok(): HarnessInfo {
     id: "grok-build",
     label: HARNESS_LABEL["grok-build"],
     status: authed ? "ready" : "needs-auth",
-    detail: authed ? undefined : "Run `grok login` on the Mac, or set XAI_API_KEY.",
+    detail: authed
+      ? undefined
+      : "Run `grok login` on the Mac, or set XAI_API_KEY.",
     defaultModel: DEFAULT_HARNESS_MODEL["grok-build"],
     models: staticModels("grok-build"),
   };
 }
 
-export async function listHarnesses(root?: string | null): Promise<{ harnesses: HarnessInfo[] }> {
+export async function listHarnesses(
+  root?: string | null
+): Promise<{ harnesses: HarnessInfo[] }> {
   const opencode = await probeOpenCode(root);
   return {
     harnesses: HARNESS_IDS.map((id) => {

@@ -6,18 +6,28 @@ import {
   formatRelativeTime,
   isEmptyHistoryTitle,
   partitionHistoryRows,
-  threadRowPip,
   type ThreadPip,
+  threadRowPip,
 } from "@/chat/history";
 import { LiveDot } from "@/components/brand/LiveDot";
 import { CadRefTitle } from "@/components/chat/CadRefTitle";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 function StatusPip({ pip }: { pip: ThreadPip }) {
   if (!pip) return null;
-  const label = pip === "streaming" ? "Replying" : pip === "ask-user" ? "Waiting on you" : "Error";
+  const label =
+    pip === "streaming"
+      ? "Replying"
+      : pip === "ask-user"
+        ? "Waiting on you"
+        : "Error";
   if (pip === "streaming") {
     return <LiveDot className="animate-pulse" title={label} />;
   }
@@ -26,7 +36,7 @@ function StatusPip({ pip }: { pip: ThreadPip }) {
       aria-label={label}
       className={cn(
         "inline-block size-1.5 shrink-0 rounded-full",
-        pip === "ask-user" ? "bg-amber-500" : "bg-destructive",
+        pip === "ask-user" ? "bg-amber-500" : "bg-destructive"
       )}
       title={label}
     />
@@ -65,7 +75,11 @@ export function HistoryPopover({
     void refresh();
   }, [open, refresh]);
 
-  const { visible, emptyHidden } = partitionHistoryRows(threads, threadId, currentEmpty);
+  const { visible, emptyHidden } = partitionHistoryRows(
+    threads,
+    threadId,
+    currentEmpty
+  );
   const rows = showEmpty ? [...visible, ...emptyHidden] : visible;
 
   return (
@@ -96,13 +110,18 @@ export function HistoryPopover({
           </div>
         ) : null}
         {threads.length === 0 ? (
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">No chats yet</div>
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+            No chats yet
+          </div>
         ) : (
           <ul className="max-h-80 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
             {rows.map((t) => {
               const current = t.id === threadId;
-              const empty = current ? currentEmpty : isEmptyHistoryTitle(t.title);
-              const preview = current && isEmptyHistoryTitle(t.title) ? currentPreview : null;
+              const empty = current
+                ? currentEmpty
+                : isEmptyHistoryTitle(t.title);
+              const preview =
+                current && isEmptyHistoryTitle(t.title) ? currentPreview : null;
               const pip = threadRowPip({
                 rowId: t.id,
                 currentId: threadId,
@@ -115,8 +134,10 @@ export function HistoryPopover({
                   <PopoverClose
                     className={cn(
                       "flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                      current ? "bg-accent font-medium text-accent-foreground" : "hover:bg-accent",
-                      empty && !current && "text-muted-foreground",
+                      current
+                        ? "bg-accent font-medium text-accent-foreground"
+                        : "hover:bg-accent",
+                      empty && !current && "text-muted-foreground"
                     )}
                     onClick={() => onOpenThread(t.id)}
                   >

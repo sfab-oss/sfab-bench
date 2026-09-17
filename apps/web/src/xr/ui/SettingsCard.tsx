@@ -10,15 +10,16 @@ import { useXrTheme } from "@/xr/ui/theme";
 import { enterAR, enterVR } from "@/xrStore";
 
 export function SettingsCard() {
-  const { axesVisible, setAxesVisible, setPage, appearance, setAppearance } = useStore(
-    useShallow((s) => ({
-      axesVisible: s.axesVisible,
-      setAxesVisible: s.setAxesVisible,
-      setPage: s.setPage,
-      appearance: s.appearance,
-      setAppearance: s.setAppearance,
-    })),
-  );
+  const { axesVisible, setAxesVisible, setPage, appearance, setAppearance } =
+    useStore(
+      useShallow((s) => ({
+        axesVisible: s.axesVisible,
+        setAxesVisible: s.setAxesVisible,
+        setPage: s.setPage,
+        appearance: s.appearance,
+        setAppearance: s.setAppearance,
+      }))
+    );
   const theme = useXrTheme();
   const session = useXR((s) => s.session);
   const mode = useXR((s) => s.mode);
@@ -65,8 +66,18 @@ export function SettingsCard() {
         />
       </Container>
       <Container flexDirection="row" gap={2} width="100%" flexShrink={0}>
-        <ToolBtn id="light" label="Light" active={appearance === "light"} onClick={() => pickAppearance("light")} />
-        <ToolBtn id="dark" label="Dark" active={appearance === "dark"} onClick={() => pickAppearance("dark")} />
+        <ToolBtn
+          id="light"
+          label="Light"
+          active={appearance === "light"}
+          onClick={() => pickAppearance("light")}
+        />
+        <ToolBtn
+          id="dark"
+          label="Dark"
+          active={appearance === "dark"}
+          onClick={() => pickAppearance("dark")}
+        />
       </Container>
       <ToolBtn
         id="axes"

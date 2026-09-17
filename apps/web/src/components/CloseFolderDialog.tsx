@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 
 import { useViewerChat } from "@/components/chat/useViewerChat";
-import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -9,6 +8,7 @@ import {
   AlertDialogDescription,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import {
   CLOSE_FOLDER_BODY,
@@ -28,7 +28,12 @@ export function CloseFolderDialog() {
   useEffect(() => {
     const onClose = () => {
       if (!path) return;
-      if (closeFolderNeedsConfirm({ hasModel: Boolean(url), replyInProgress: tabStreaming })) {
+      if (
+        closeFolderNeedsConfirm({
+          hasModel: Boolean(url),
+          replyInProgress: tabStreaming,
+        })
+      ) {
         setOpen(true);
         return;
       }
@@ -46,10 +51,14 @@ export function CloseFolderDialog() {
   return (
     <AlertDialog open={open} onOpenChange={(next) => setOpen(next)}>
       <AlertDialogContent className="max-w-sm gap-3">
-        <AlertDialogTitle>{closeFolderTitle(folderName(path))}</AlertDialogTitle>
+        <AlertDialogTitle>
+          {closeFolderTitle(folderName(path))}
+        </AlertDialogTitle>
         <AlertDialogDescription>{CLOSE_FOLDER_BODY}</AlertDialogDescription>
         <div className="flex justify-end gap-2">
-          <AlertDialogClose render={<Button type="button" size="sm" variant="outline" />}>
+          <AlertDialogClose
+            render={<Button type="button" size="sm" variant="outline" />}
+          >
             Cancel
           </AlertDialogClose>
           <Button type="button" size="sm" onClick={confirm}>

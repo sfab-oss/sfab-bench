@@ -1,8 +1,8 @@
 import { Container } from "@react-three/uikit";
 import { MousePointer2 } from "@react-three/uikit-lucide";
 import { useXRInputSourceState } from "@react-three/xr";
-import { useShallow } from "zustand/react/shallow";
 import type { ReactNode } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import { useStore } from "@/state/store";
 import { PalmDownGate } from "@/xr/PalmDownGate";
@@ -21,7 +21,11 @@ function RightWristFace({ children }: { children: ReactNode }) {
 
 function ToolWatch() {
   const { tool, toolsOpen, setToolsOpen } = useStore(
-    useShallow((s) => ({ tool: s.tool, toolsOpen: s.toolsOpen, setToolsOpen: s.setToolsOpen })),
+    useShallow((s) => ({
+      tool: s.tool,
+      toolsOpen: s.toolsOpen,
+      setToolsOpen: s.setToolsOpen,
+    }))
   );
   const Icon = TOOLS.find((t) => t.id === tool)?.Icon ?? MousePointer2;
   const theme = useXrTheme();
@@ -47,7 +51,11 @@ function ToolWatch() {
 
 function HandToolRig({ hidden }: { hidden: boolean }) {
   const { tool, setTool, setToolsOpen } = useStore(
-    useShallow((s) => ({ tool: s.tool, setTool: s.setTool, setToolsOpen: s.setToolsOpen })),
+    useShallow((s) => ({
+      tool: s.tool,
+      setTool: s.setTool,
+      setToolsOpen: s.setToolsOpen,
+    }))
   );
   // The left hand points at this strip. Hands have no actuator, so this is
   // a no-op today and starts working if a controller ever drives it.
@@ -56,7 +64,12 @@ function HandToolRig({ hidden }: { hidden: boolean }) {
   const theme = useXrTheme();
   return (
     <FeedbackContext.Provider value={feedback}>
-      <PalmDownGate hand="right" position={[0, 0.08, 0]} rotation={[0, 0, 0]} hidden={hidden}>
+      <PalmDownGate
+        hand="right"
+        position={[0, 0.08, 0]}
+        rotation={[0, 0, 0]}
+        hidden={hidden}
+      >
         <Container
           flexDirection="row"
           gap={8}

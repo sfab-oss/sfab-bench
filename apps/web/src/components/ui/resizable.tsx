@@ -1,7 +1,7 @@
 // biome-ignore-all lint/performance/noNamespaceImport: shadcn registry stock
 
-import { cn } from "@/lib/utils";
 import * as ResizablePrimitive from "react-resizable-panels";
+import { cn } from "@/lib/utils";
 
 function ResizablePanelGroup({
   className,

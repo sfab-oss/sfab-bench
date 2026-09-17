@@ -1,14 +1,19 @@
 import {
   createContext,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
-  type ReactNode,
 } from "react";
 
-import { TEXT_SIZE_STORAGE_KEY, applyTextSize, parseTextSize, type TextSize } from "@/lib/settings";
+import {
+  applyTextSize,
+  parseTextSize,
+  TEXT_SIZE_STORAGE_KEY,
+  type TextSize,
+} from "@/lib/settings";
 
 type AppearancePrefs = {
   textSize: TextSize;
@@ -36,13 +41,16 @@ function writeStorage(key: string, value: string) {
 
 export function useAppearancePrefs(): AppearancePrefs {
   const ctx = useContext(AppearancePrefsContext);
-  if (!ctx) throw new Error("useAppearancePrefs must be used within AppearancePrefsProvider");
+  if (!ctx)
+    throw new Error(
+      "useAppearancePrefs must be used within AppearancePrefsProvider"
+    );
   return ctx;
 }
 
 export function AppearancePrefsProvider({ children }: { children: ReactNode }) {
   const [textSize, setTextSizeState] = useState<TextSize>(() =>
-    typeof window === "undefined" ? "default" : readStoredTextSize(),
+    typeof window === "undefined" ? "default" : readStoredTextSize()
   );
 
   const setTextSize = useCallback((next: TextSize) => {
@@ -51,7 +59,10 @@ export function AppearancePrefsProvider({ children }: { children: ReactNode }) {
     setTextSizeState(value);
   }, []);
 
-  const resetTextSize = useCallback(() => setTextSize("default"), [setTextSize]);
+  const resetTextSize = useCallback(
+    () => setTextSize("default"),
+    [setTextSize]
+  );
 
   useEffect(() => {
     applyTextSize(document.documentElement, textSize);
@@ -59,7 +70,8 @@ export function AppearancePrefsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
-      if (event.key === TEXT_SIZE_STORAGE_KEY) setTextSizeState(parseTextSize(event.newValue));
+      if (event.key === TEXT_SIZE_STORAGE_KEY)
+        setTextSizeState(parseTextSize(event.newValue));
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -67,8 +79,12 @@ export function AppearancePrefsProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AppearancePrefs>(
     () => ({ textSize, setTextSize, resetTextSize }),
-    [resetTextSize, setTextSize, textSize],
+    [resetTextSize, setTextSize, textSize]
   );
 
-  return <AppearancePrefsContext.Provider value={value}>{children}</AppearancePrefsContext.Provider>;
+  return (
+    <AppearancePrefsContext.Provider value={value}>
+      {children}
+    </AppearancePrefsContext.Provider>
+  );
 }

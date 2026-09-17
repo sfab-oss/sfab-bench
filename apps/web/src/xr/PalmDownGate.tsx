@@ -1,5 +1,5 @@
 import { useFrame } from "@react-three/fiber";
-import { useRef, useState, type ReactNode } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import type { Object3D } from "three";
 
 import { wristObject } from "@/xr/hands/HandRig";
@@ -33,7 +33,12 @@ export function PalmDownGate({
     setShow(next);
   });
   return (
-    <group ref={root} position={position} rotation={rotation} visible={show && !hidden}>
+    <group
+      ref={root}
+      position={position}
+      rotation={rotation}
+      visible={show && !hidden}
+    >
       {children}
     </group>
   );

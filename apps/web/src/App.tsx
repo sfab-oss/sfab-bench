@@ -1,36 +1,50 @@
 import { Box, PanelRight, Scan } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import {
+  type CSSProperties,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
-
+import { fileLabel } from "@/cad/loadCadReview";
+import { fitDirectionFor, frameFitObject } from "@/cad/review";
 import { LiveDot } from "@/components/brand/LiveDot";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CloseFolderDialog } from "@/components/CloseFolderDialog";
 import { CommandPalette } from "@/components/CommandPalette";
-import { ViewerChatProvider, useViewerChat } from "@/components/chat/useViewerChat";
 import { CrashCard } from "@/components/CrashCard";
-import { BrowseFolderDialog, useOpenFolder } from "@/components/OpenFolder";
+import {
+  useViewerChat,
+  ViewerChatProvider,
+} from "@/components/chat/useViewerChat";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
-import { EmptyScene } from "@/components/EmptyScene";
 import { DetailPanel } from "@/components/DetailPanel";
+import { EmptyScene } from "@/components/EmptyScene";
+import { BrowseFolderDialog, useOpenFolder } from "@/components/OpenFolder";
 import { PairPage } from "@/components/PairPage";
 import { PartTree } from "@/components/PartTree";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { Toolbar } from "@/components/Toolbar";
 import { Button } from "@/components/ui/button";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { ToastProvider, Toasts } from "@/components/ui/toast";
 import { useCanvasFit } from "@/hooks/useCanvasFit";
-import { useCatalog, type CatalogState } from "@/hooks/useCatalog";
+import { type CatalogState, useCatalog } from "@/hooks/useCatalog";
 import { useMotionReady } from "@/hooks/useMotionReady";
+import {
+  ProjectSessionProvider,
+  useProjectSession,
+} from "@/hooks/useProjectSession";
 import { useXrSession } from "@/hooks/useXrSession";
 import { useXrSupport } from "@/hooks/useXrSupport";
-import { ProjectSessionProvider, useProjectSession } from "@/hooks/useProjectSession";
-import { fileLabel } from "@/cad/loadCadReview";
-import { fitDirectionFor, frameFitObject } from "@/cad/review";
 import { fetchMe, jsonApi, type MePrincipal } from "@/lib/api";
 import { filesRailToggleTitle } from "@/lib/files-rail";
-import { isMacPlatform } from "@/lib/shortcuts";
 import {
   chatLayoutWidth,
   detailPanelWidth,
@@ -39,10 +53,15 @@ import {
   toolbarLayout,
   toolbarRightReserve,
 } from "@/lib/layout";
-import { displayLoadError, isUnavailableFolder, loadCardCopy } from "@/lib/load-copy";
+import {
+  displayLoadError,
+  isUnavailableFolder,
+  loadCardCopy,
+} from "@/lib/load-copy";
 import { redeemFragmentToken } from "@/lib/pairing";
 import { folderName } from "@/lib/project";
-import { PRODUCT_TITLE, documentTitle, emptySceneKind } from "@/lib/welcome";
+import { isMacPlatform } from "@/lib/shortcuts";
+import { documentTitle, emptySceneKind, PRODUCT_TITLE } from "@/lib/welcome";
 import { ViewerCanvas } from "@/scene/ViewerCanvas";
 import { useStore } from "@/state/store";
 import { enterAR, enterVR } from "@/xrStore";
@@ -50,7 +69,9 @@ import { enterAR, enterVR } from "@/xrStore";
 const BOOT_ME_TIMEOUT_MS = 4_000;
 
 function useWindowWidth() {
-  const [width, setWidth] = useState(() => (typeof window === "undefined" ? 1280 : window.innerWidth));
+  const [width, setWidth] = useState(() =>
+    typeof window === "undefined" ? 1280 : window.innerWidth
+  );
   useEffect(() => {
     const onResize = () => setWidth(window.innerWidth);
     window.addEventListener("resize", onResize);
@@ -133,7 +154,13 @@ function EnterXr() {
   const studio = vr;
   return (
     <div className="pointer-events-auto rounded-xl border border-border bg-card/95 p-1 shadow-lg">
-      <Button type="button" variant="ghost" size="sm" className="h-9" onClick={() => void (studio ? enterVR() : enterAR())}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-9"
+        onClick={() => void (studio ? enterVR() : enterAR())}
+      >
         {studio ? <Box /> : <Scan />}
         {studio ? "Enter Studio" : "Enter AR"}
       </Button>
@@ -156,7 +183,17 @@ function Overlay({
   compactChat: boolean;
   chatToggleRef: RefObject<HTMLButtonElement | null>;
 }) {
-  const { review, progress, error, selectedId, fit, url, title, loadModel, sceneCrash } = useStore(
+  const {
+    review,
+    progress,
+    error,
+    selectedId,
+    fit,
+    url,
+    title,
+    loadModel,
+    sceneCrash,
+  } = useStore(
     useShallow((s) => ({
       review: s.review,
       progress: s.progress,
@@ -167,7 +204,7 @@ function Overlay({
       title: s.title,
       loadModel: s.loadModel,
       sceneCrash: s.sceneCrash,
-    })),
+    }))
   );
   const session = useXrSession();
   const { project } = useProjectSession();
@@ -181,7 +218,8 @@ function Overlay({
   const pickedRef = useStore((s) => s.pickedRef);
   const switching = useStore((s) => s.switching);
   const folderGone = isUnavailableFolder(catalogError);
-  const load = progress !== null ? loadCardCopy({ title, url, progress }) : null;
+  const load =
+    progress !== null ? loadCardCopy({ title, url, progress }) : null;
   const scene = emptySceneKind({
     hasReview: Boolean(review),
     progress,
@@ -199,19 +237,29 @@ function Overlay({
   useEffect(() => {
     if (!overlays.autoCollapseParts) setPartsForceExpand(false);
   }, [overlays.autoCollapseParts]);
-  const partsExpanded = Boolean(review) && partsOpen && (!overlays.autoCollapseParts || partsForceExpand);
+  const partsExpanded =
+    Boolean(review) &&
+    partsOpen &&
+    (!overlays.autoCollapseParts || partsForceExpand);
   const partsChip = Boolean(review) && !partsExpanded;
   const part = selectedId !== null ? review?.parts[selectedId] : undefined;
-  const detailVisible = Boolean(review) && (tool === "measure" || Boolean(part) || Boolean(pickedRef));
+  const detailVisible =
+    Boolean(review) &&
+    (tool === "measure" || Boolean(part) || Boolean(pickedRef));
   const detailWidth = detailVisible
     ? detailPanelWidth(canvasWidth, overlays.detailCompact, partsChip)
     : 0;
-  const showChatToggle = Boolean(project.path) && (compactChat ? !compactChatOpen : !chatOpen);
+  const showChatToggle =
+    Boolean(project.path) && (compactChat ? !compactChatOpen : !chatOpen);
   const { tabStreaming } = useViewerChat();
   const { ar, vr, ready: xrReady } = useXrSupport();
   const enterXr = xrReady && (ar || vr);
   const leftReserve = treeOpen ? 12 : 52;
-  const rightReserve = toolbarRightReserve(showChatToggle, Boolean(enterXr), showChatToggle && tabStreaming);
+  const rightReserve = toolbarRightReserve(
+    showChatToggle,
+    Boolean(enterXr),
+    showChatToggle && tabStreaming
+  );
   const toolbar = toolbarLayout({ canvasWidth, leftReserve, rightReserve });
   const cameraMoved = useStore((s) => s.cameraMoved);
   const { setPartsCard, setDetailCard } = useCanvasFit({
@@ -233,9 +281,13 @@ function Overlay({
       <div className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-background text-foreground">
         <div className="text-center">
           <div className="text-base font-medium">
-            {switching === "ar" ? "Switching to passthrough…" : "Switching to Studio…"}
+            {switching === "ar"
+              ? "Switching to passthrough…"
+              : "Switching to Studio…"}
           </div>
-          <div className="mt-1 text-sm text-muted-foreground">Stay in this tab</div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            Stay in this tab
+          </div>
         </div>
       </div>
     );
@@ -249,7 +301,10 @@ function Overlay({
               <div className="rounded-xl border border-border bg-card/95 shadow-lg">
                 <SidebarTrigger
                   className="h-9 w-9"
-                  title={filesRailToggleTitle(isMacPlatform(navigator.platform, navigator.userAgent), "show")}
+                  title={filesRailToggleTitle(
+                    isMacPlatform(navigator.platform, navigator.userAgent),
+                    "show"
+                  )}
                 />
               </div>
               {folder.error && scene === "none" ? (
@@ -296,28 +351,41 @@ function Overlay({
             <EnterXr />
             {project.path ? (
               <div
-                className={showChatToggle ? undefined : "pointer-events-none sr-only"}
+                className={
+                  showChatToggle ? undefined : "pointer-events-none sr-only"
+                }
                 aria-hidden={showChatToggle ? undefined : true}
               >
-                <ChatToggle buttonRef={chatToggleRef} compact={compactChat} hidden={!showChatToggle} />
+                <ChatToggle
+                  buttonRef={chatToggleRef}
+                  compact={compactChat}
+                  hidden={!showChatToggle}
+                />
               </div>
             ) : null}
           </div>
         </>
       )}
-      {!session && scene !== "none" ? <EmptyScene folder={folder} scene={scene} /> : null}
+      {!session && scene !== "none" ? (
+        <EmptyScene folder={folder} scene={scene} />
+      ) : null}
       {progress !== null && load && !sceneCrash && (
         <div className="pointer-events-none absolute inset-x-4 top-1/2 z-20 mx-auto w-full max-w-72 -translate-y-1/2 rounded-xl border border-border bg-card/95 p-4 text-center shadow-lg">
           <strong className="inline-flex items-center gap-2 text-sm">
             <LiveDot />
             {load.title}
           </strong>
-          <div className="mt-1 text-xs text-muted-foreground">{load.detail}</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {load.detail}
+          </div>
           {load.percent === null ? (
             <Spinner className="mx-auto mt-3" />
           ) : (
             <div className="mt-2 h-1 overflow-hidden rounded bg-muted">
-              <div className="h-full bg-brand" style={{ width: `${load.percent}%` }} />
+              <div
+                className="h-full bg-brand"
+                style={{ width: `${load.percent}%` }}
+              />
             </div>
           )}
         </div>
@@ -325,12 +393,19 @@ function Overlay({
       {error && !sceneCrash && (
         <div className="pointer-events-auto absolute inset-x-4 top-1/2 z-20 mx-auto w-full max-w-80 -translate-y-1/2 rounded-xl border border-destructive bg-card p-4 text-sm shadow-lg">
           <strong>Couldn&apos;t open {title}</strong>
-          <div className="mt-1 text-error">{displayLoadError(error, project.path)}</div>
+          <div className="mt-1 text-error">
+            {displayLoadError(error, project.path)}
+          </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => void loadModel(url)}>
               Retry
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => void loadModel("")}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void loadModel("")}
+            >
               Close
             </Button>
           </div>
@@ -400,9 +475,14 @@ function ViewerShell({ host }: { host: boolean }) {
       onOpenChange={setTreeOpen}
       style={{ "--sidebar-width": "19rem" } as CSSProperties}
     >
-      {!session ? <DesktopSidebar catalog={catalog} host={host} folder={folder} /> : null}
+      {!session ? (
+        <DesktopSidebar catalog={catalog} host={host} folder={folder} />
+      ) : null}
       <SidebarInset className="min-h-0 overflow-hidden">
-        <div ref={canvasRef} className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div
+          ref={canvasRef}
+          className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+        >
           <RenderErrorBoundary
             resetKeys={[url]}
             fallback={({ error, reset }) => (
@@ -440,15 +520,24 @@ function ViewerShell({ host }: { host: boolean }) {
             open={compactChat ? compactChatOpen : chatOpen}
             toggleRef={chatToggleRef}
             width={layoutWidth}
-            onClose={() => (compactChat ? setCompactChatOpen(false) : setChatOpen(false))}
+            onClose={() =>
+              compactChat ? setCompactChatOpen(false) : setChatOpen(false)
+            }
           />
         </RenderErrorBoundary>
       ) : null}
       {!session ? (
         <>
-          <BrowseFolderDialog open={folder.dialogOpen} onOpenChange={folder.setDialogOpen} />
+          <BrowseFolderDialog
+            open={folder.dialogOpen}
+            onOpenChange={folder.setDialogOpen}
+          />
           <CloseFolderDialog />
-          <CommandPalette catalogFiles={catalog.files} compactChat={compactChat} folder={folder} />
+          <CommandPalette
+            catalogFiles={catalog.files}
+            compactChat={compactChat}
+            folder={folder}
+          />
           <Toasts />
         </>
       ) : null}
@@ -456,7 +545,13 @@ function ViewerShell({ host }: { host: boolean }) {
   );
 }
 
-function ViewerApp({ host, you }: { host: boolean; you: { id: string; label: string } }) {
+function ViewerApp({
+  host,
+  you,
+}: {
+  host: boolean;
+  you: { id: string; label: string };
+}) {
   useEffect(() => {
     const onSelect = (ev: Event) => ev.preventDefault();
     document.addEventListener("beforexrselect", onSelect);
@@ -473,7 +568,9 @@ function ViewerApp({ host, you }: { host: boolean; you: { id: string; label: str
   );
 }
 
-async function probeMe(): Promise<{ me: MePrincipal } | { reason: "unauth" | "down" }> {
+async function probeMe(): Promise<
+  { me: MePrincipal } | { reason: "unauth" | "down" }
+> {
   try {
     const res = await jsonApi.me.$get();
     if (!res.ok) return { reason: "unauth" };
@@ -490,7 +587,10 @@ export function App() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [host, setHost] = useState(false);
-  const [you, setYou] = useState<{ id: string; label: string }>({ id: "loopback", label: "Mac" });
+  const [you, setYou] = useState<{ id: string; label: string }>({
+    id: "loopback",
+    label: "Mac",
+  });
   const [bootStuck, setBootStuck] = useState(false);
   useMotionReady(!ready ? "boot" : authed ? "workbench" : "pair");
 
@@ -520,7 +620,11 @@ export function App() {
         setReady(true);
         const path = window.location.pathname;
         if (path !== "/pair" && path !== "/pair/") {
-          window.history.replaceState(null, "", "/pair" + window.location.search);
+          window.history.replaceState(
+            null,
+            "",
+            "/pair" + window.location.search
+          );
         }
         return;
       }
@@ -537,9 +641,18 @@ export function App() {
       <div className="grid h-dvh place-items-center bg-studio px-4 text-sm text-muted-foreground">
         {bootStuck ? (
           <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-            <p className="text-base font-medium text-foreground">Couldn&apos;t reach this Mac</p>
-            <p>This page didn&apos;t get a response from the workbench process.</p>
-            <Button type="button" size="sm" variant="outline" onClick={() => window.location.reload()}>
+            <p className="text-base font-medium text-foreground">
+              Couldn&apos;t reach this Mac
+            </p>
+            <p>
+              This page didn&apos;t get a response from the workbench process.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => window.location.reload()}
+            >
               Reload
             </Button>
           </div>
@@ -552,13 +665,18 @@ export function App() {
       </div>
     );
   }
-  if (!authed) return <PairPage onPaired={() => {
-    void fetchMe().then((me) => {
-      setAuthed(me != null);
-      setHost(me?.kind === "loopback");
-      setYou(youFromMe(me));
-    });
-  }} />;
+  if (!authed)
+    return (
+      <PairPage
+        onPaired={() => {
+          void fetchMe().then((me) => {
+            setAuthed(me != null);
+            setHost(me?.kind === "loopback");
+            setYou(youFromMe(me));
+          });
+        }}
+      />
+    );
   return <ViewerApp host={host} you={you} />;
 }
 

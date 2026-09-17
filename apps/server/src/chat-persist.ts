@@ -13,15 +13,24 @@ export function failedAssistant(errorText: string): UIMessage {
 }
 
 /** Attach a visible turn error so an empty or partial assistant is still persisted. */
-export function withTurnError(assistant: UIMessage | undefined, errorText: string): UIMessage {
+export function withTurnError(
+  assistant: UIMessage | undefined,
+  errorText: string
+): UIMessage {
   if (!assistant) return failedAssistant(errorText);
   const parts = assistant.parts ?? [];
   if (parts.some((part) => part.type === "data-error")) return assistant;
-  return { ...assistant, parts: [...parts, errorPart(errorText)] as UIMessage["parts"] };
+  return {
+    ...assistant,
+    parts: [...parts, errorPart(errorText)] as UIMessage["parts"],
+  };
 }
 
 /** Abort and stream errors often yield an assistant with `parts: []`. Do not persist that placeholder. */
-export function messagesToPersist(live: UIMessage[], assistant: UIMessage | undefined): UIMessage[] {
+export function messagesToPersist(
+  live: UIMessage[],
+  assistant: UIMessage | undefined
+): UIMessage[] {
   if (!assistant || (assistant.parts ?? []).length === 0) return live;
   return [...live, assistant];
 }

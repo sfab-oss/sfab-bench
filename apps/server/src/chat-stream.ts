@@ -1,13 +1,17 @@
 /** Terminal model step — not a tool pause and not a failed step. */
 export function isCompletedTurnFinish(reason: unknown): boolean {
-  if (reason === "stop" || reason === "length" || reason === "content-filter") return true;
+  if (reason === "stop" || reason === "length" || reason === "content-filter")
+    return true;
   if (reason && typeof reason === "object" && "unified" in reason) {
     return isCompletedTurnFinish((reason as { unified: unknown }).unified);
   }
   return false;
 }
 
-function finishReasonOf(part: { type: string; finishReason?: unknown }): unknown {
+function finishReasonOf(part: {
+  type: string;
+  finishReason?: unknown;
+}): unknown {
   return "finishReason" in part ? part.finishReason : undefined;
 }
 
@@ -32,8 +36,10 @@ function nestedErrorMessage(err: unknown): string | null {
   }
   if (err && typeof err === "object") {
     const rec = err as { message?: unknown; data?: { message?: unknown } };
-    if (typeof rec.data?.message === "string" && rec.data.message.trim()) return rec.data.message;
-    if (typeof rec.message === "string" && rec.message.trim()) return nestedErrorMessage(rec.message) ?? rec.message;
+    if (typeof rec.data?.message === "string" && rec.data.message.trim())
+      return rec.data.message;
+    if (typeof rec.message === "string" && rec.message.trim())
+      return nestedErrorMessage(rec.message) ?? rec.message;
   }
   return null;
 }
@@ -44,14 +50,17 @@ function nestedErrorMessage(err: unknown): string | null {
  * fatal stream error; the assistant text is already complete. Drop it.
  * Mid-turn errors (before a stop step) still flow through.
  */
-export function dropTrailingHarnessErrors<T extends { type: string; finishReason?: unknown }>(
-  stream: ReadableStream<T>,
-): ReadableStream<T> {
+export function dropTrailingHarnessErrors<
+  T extends { type: string; finishReason?: unknown },
+>(stream: ReadableStream<T>): ReadableStream<T> {
   let turnStopped = false;
   return stream.pipeThrough(
     new TransformStream<T, T>({
       transform(part, controller) {
-        if (part.type === "finish-step" && isCompletedTurnFinish(finishReasonOf(part))) {
+        if (
+          part.type === "finish-step" &&
+          isCompletedTurnFinish(finishReasonOf(part))
+        ) {
           turnStopped = true;
         }
         if (part.type === "error" && turnStopped) {
@@ -60,13 +69,15 @@ export function dropTrailingHarnessErrors<T extends { type: string; finishReason
         }
         controller.enqueue(part);
       },
-    }),
+    })
   );
 }
 
 /** A `{type:"error"}` chunk never becomes a message part. Turn it into one. */
-export function harnessErrorsAsTurnParts<T extends { type: string; errorText?: string }>(
-  stream: ReadableStream<T>,
+export function harnessErrorsAsTurnParts<
+  T extends { type: string; errorText?: string },
+>(
+  stream: ReadableStream<T>
 ): ReadableStream<T | { type: "data-error"; data: { message: string } }> {
   return stream.pipeThrough(
     new TransformStream({
@@ -81,7 +92,6 @@ export function harnessErrorsAsTurnParts<T extends { type: string; errorText?: s
         }
         controller.enqueue(part);
       },
-    }),
+    })
   );
 }
-

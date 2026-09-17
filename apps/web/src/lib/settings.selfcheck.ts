@@ -1,4 +1,10 @@
-import { applyTextSize, formatDebugReport, harnessStatusLabel, parseTextSize, textSizeScale } from "./settings";
+import {
+  applyTextSize,
+  formatDebugReport,
+  harnessStatusLabel,
+  parseTextSize,
+  textSizeScale,
+} from "./settings";
 
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
@@ -23,9 +29,15 @@ const root = {
   },
 };
 applyTextSize(root, "large");
-expect(calls.some((c) => c[0] === "--ui-text-scale" && c[1] === "1.125"), "large writes chrome scale");
+expect(
+  calls.some((c) => c[0] === "--ui-text-scale" && c[1] === "1.125"),
+  "large writes chrome scale"
+);
 applyTextSize(root, "default");
-expect(calls.some((c) => c[0] === "remove" && c[1] === "--ui-text-scale"), "default clears chrome scale");
+expect(
+  calls.some((c) => c[0] === "remove" && c[1] === "--ui-text-scale"),
+  "default clears chrome scale"
+);
 
 expect(harnessStatusLabel("ready") === "Ready", "ready label");
 expect(harnessStatusLabel("needs-auth") === "Needs login", "auth label");
@@ -45,7 +57,8 @@ const report = formatDebugReport({
   ],
   theme: "system",
   textSize: "large",
-  loadError: "tessellating /Users/you/proj/cad/bracket.step took longer than 300000ms",
+  loadError:
+    "tessellating /Users/you/proj/cad/bracket.step took longer than 300000ms",
 });
 expect(report.includes("sfab-bench 0.1.1"), "app + version");
 expect(report.includes("Principal: loopback"), "kind only");

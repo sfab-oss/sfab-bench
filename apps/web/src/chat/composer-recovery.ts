@@ -1,7 +1,8 @@
 import { providerLoginSendReason } from "@/chat/model-picker";
 
 /** Workspace mutex (ADR 0003). Server body is "a reply is already in progress". */
-export const WORKSPACE_BUSY_MESSAGE = "a reply is already in progress in this folder";
+export const WORKSPACE_BUSY_MESSAGE =
+  "a reply is already in progress in this folder";
 
 export const LOADING_MODEL_PLACEHOLDER = "Loading the model into this tab…";
 export const EMPTY_PROMPT_REASON = "Enter a message to send";
@@ -38,11 +39,13 @@ export function userPromptText(message: ChatTextMessage): string {
         const text = textPartText(part);
         return text == null ? [] : [text];
       })
-      .join("\n"),
+      .join("\n")
   );
 }
 
-export function lastUserPromptText(messages: readonly ChatTextMessage[]): string | null {
+export function lastUserPromptText(
+  messages: readonly ChatTextMessage[]
+): string | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i];
     if (message?.role !== "user") continue;
@@ -65,21 +68,30 @@ export function setSessionDraft(threadId: string, text: string): void {
 }
 
 /** Save while the editor is still mounted. No-op when text could not be read. */
-export function captureSessionDraft(threadId: string, text: string | null): void {
+export function captureSessionDraft(
+  threadId: string,
+  text: string | null
+): void {
   if (text == null) return;
   setSessionDraft(threadId, text);
 }
 
-function errorMessage(error: { message?: string } | string | null | undefined): string {
+function errorMessage(
+  error: { message?: string } | string | null | undefined
+): string {
   if (error == null) return "";
   return typeof error === "string" ? error : (error.message ?? "");
 }
 
-export function isWorkspaceBusyError(error: { message?: string } | string | null | undefined): boolean {
+export function isWorkspaceBusyError(
+  error: { message?: string } | string | null | undefined
+): boolean {
   return /a reply is already in progress/i.test(errorMessage(error));
 }
 
-export function mapChatErrorMessage(error: { message?: string } | string | null | undefined): string | null {
+export function mapChatErrorMessage(
+  error: { message?: string } | string | null | undefined
+): string | null {
   if (error == null) return null;
   if (isWorkspaceBusyError(error)) return WORKSPACE_BUSY_MESSAGE;
   return errorMessage(error) || null;
@@ -92,7 +104,11 @@ export function providerSendBlockReason(input: {
   detail?: string;
 }): string | null {
   if (!input.ready || !input.status || input.status === "ready") return null;
-  return providerLoginSendReason({ label: input.label, status: input.status, detail: input.detail });
+  return providerLoginSendReason({
+    label: input.label,
+    status: input.status,
+    detail: input.detail,
+  });
 }
 
 export function sendDisabledReason(input: {
@@ -103,7 +119,8 @@ export function sendDisabledReason(input: {
   emptyPrompt?: boolean;
 }): string | null {
   if (input.loadingModel) return LOADING_MODEL_PLACEHOLDER;
-  if (input.lockSend) return input.askPlaceholder || "Pick an option to continue…";
+  if (input.lockSend)
+    return input.askPlaceholder || "Pick an option to continue…";
   if (input.providerReason) return input.providerReason;
   if (input.emptyPrompt) return EMPTY_PROMPT_REASON;
   return null;

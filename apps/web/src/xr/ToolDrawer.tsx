@@ -53,7 +53,7 @@ export function ToolDrawer() {
   const session = useXR((s) => s.session);
   const camera = useThree((s) => s.camera);
   const { tool, setTool } = useStore(
-    useShallow((s) => ({ tool: s.tool, setTool: s.setTool })),
+    useShallow((s) => ({ tool: s.tool, setTool: s.setTool }))
   );
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -67,7 +67,10 @@ export function ToolDrawer() {
   useXRControllerButtonEvent(right, "b-button", (state) => {
     if (!right) return;
     if (state === "pressed") {
-      const i = Math.max(0, TOOLS.findIndex((t) => t.id === tool));
+      const i = Math.max(
+        0,
+        TOOLS.findIndex((t) => t.id === tool)
+      );
       startIndex.current = i;
       highlightRef.current = i;
       setHighlight(i);
@@ -96,7 +99,7 @@ export function ToolDrawer() {
     const dx = scratch.sub(origin.current).dot(rightDir.current);
     const next = Math.min(
       TOOLS.length - 1,
-      Math.max(0, startIndex.current + Math.round(dx / SLOT)),
+      Math.max(0, startIndex.current + Math.round(dx / SLOT))
     );
     if (next !== highlightRef.current) {
       highlightRef.current = next;

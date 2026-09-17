@@ -19,31 +19,46 @@ const assistant = (parts: UIMessage["parts"]): UIMessage => ({
 });
 
 expect(
-  !lastIsToolContinuation({ id: "u", role: "user", parts: [{ type: "text", text: "hi" }] }),
-  "a user message is not a continuation",
+  !lastIsToolContinuation({
+    id: "u",
+    role: "user",
+    parts: [{ type: "text", text: "hi" }],
+  }),
+  "a user message is not a continuation"
 );
 
 expect(
   !lastIsToolContinuation(assistant([{ type: "text", text: "done" }])),
-  "an assistant message with no tools is not a continuation",
+  "an assistant message with no tools is not a continuation"
 );
 
 expect(
   lastIsToolContinuation(
     assistant([
-      { type: "tool-getViewer", toolCallId: "a", state: "output-available", input: {}, output: {} },
-    ] as UIMessage["parts"]),
+      {
+        type: "tool-getViewer",
+        toolCallId: "a",
+        state: "output-available",
+        input: {},
+        output: {},
+      },
+    ] as UIMessage["parts"])
   ),
-  "a finished host tool is a continuation",
+  "a finished host tool is a continuation"
 );
 
 expect(
   !lastIsToolContinuation(
     assistant([
-      { type: "tool-getViewer", toolCallId: "a", state: "input-available", input: {} },
-    ] as UIMessage["parts"]),
+      {
+        type: "tool-getViewer",
+        toolCallId: "a",
+        state: "input-available",
+        input: {},
+      },
+    ] as UIMessage["parts"])
   ),
-  "an unfinished host tool is not a continuation",
+  "an unfinished host tool is not a continuation"
 );
 
 // The harness runs provider-executed tools itself and never reports a result,
@@ -52,26 +67,53 @@ expect(
 expect(
   lastIsToolContinuation(
     assistant([
-      { type: "tool-bash", toolCallId: "b", state: "input-available", input: {}, providerExecuted: true },
-      { type: "tool-getViewer", toolCallId: "a", state: "output-available", input: {}, output: {} },
-    ] as UIMessage["parts"]),
+      {
+        type: "tool-bash",
+        toolCallId: "b",
+        state: "input-available",
+        input: {},
+        providerExecuted: true,
+      },
+      {
+        type: "tool-getViewer",
+        toolCallId: "a",
+        state: "output-available",
+        input: {},
+        output: {},
+      },
+    ] as UIMessage["parts"])
   ),
-  "a provider-executed tool is ignored, so the turn still continues",
+  "a provider-executed tool is ignored, so the turn still continues"
 );
 
 // Only the last step counts. An earlier step's tools are already answered.
 expect(
   lastIsToolContinuation(
     assistant([
-      { type: "tool-getViewer", toolCallId: "old", state: "input-available", input: {} },
+      {
+        type: "tool-getViewer",
+        toolCallId: "old",
+        state: "input-available",
+        input: {},
+      },
       { type: "step-start" },
-      { type: "tool-getViewer", toolCallId: "new", state: "output-available", input: {}, output: {} },
-    ] as UIMessage["parts"]),
+      {
+        type: "tool-getViewer",
+        toolCallId: "new",
+        state: "output-available",
+        input: {},
+        output: {},
+      },
+    ] as UIMessage["parts"])
   ),
-  "a stale tool before the last step-start does not block the turn",
+  "a stale tool before the last step-start does not block the turn"
 );
 
-const stamped: UIMessage = { id: "u", role: "user", parts: [{ type: "text", text: "now" }] };
+const stamped: UIMessage = {
+  id: "u",
+  role: "user",
+  parts: [{ type: "text", text: "now" }],
+};
 const history: UIMessage[] = [
   { id: "h", role: "user", parts: [{ type: "text", text: "earlier" }] },
   stamped,
@@ -79,6 +121,9 @@ const history: UIMessage[] = [
 const continued = priorMessages(true, history, stamped);
 expect(continued === history, "continueTurn returns body.messages");
 const fresh = priorMessages(false, history, stamped);
-expect(fresh.length === 1 && fresh[0] === stamped, "a normal user turn does not replay history");
+expect(
+  fresh.length === 1 && fresh[0] === stamped,
+  "a normal user turn does not replay history"
+);
 
 console.log("chat-continuation.selfcheck ok");

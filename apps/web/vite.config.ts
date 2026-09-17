@@ -1,11 +1,15 @@
-import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react";
-import basicSsl from "@vitejs/plugin-basic-ssl";
-import { fileURLToPath } from "node:url";
 import type { IncomingMessage } from "node:http";
+import { fileURLToPath } from "node:url";
+import {
+  apiPort,
+  certDir,
+  DEV_API_HOST,
+  publicPort,
+} from "@sfab-bench/server/config";
+import tailwindcss from "@tailwindcss/vite";
+import basicSsl from "@vitejs/plugin-basic-ssl";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-
-import { apiPort, certDir, DEV_API_HOST, publicPort } from "@sfab-bench/server/config";
 
 const srcDir = fileURLToPath(new URL("./src", import.meta.url));
 const apiTarget = `http://${DEV_API_HOST}:${apiPort()}`;
@@ -23,10 +27,16 @@ function apiProxy() {
       configure(proxy: {
         on: (
           event: "proxyReq" | "proxyReqWs",
-          fn: (proxyReq: { setHeader: (name: string, value: string) => void }, req: IncomingMessage) => void,
+          fn: (
+            proxyReq: { setHeader: (name: string, value: string) => void },
+            req: IncomingMessage
+          ) => void
         ) => void;
       }) {
-        const setXff = (proxyReq: { setHeader: (name: string, value: string) => void }, req: IncomingMessage) => {
+        const setXff = (
+          proxyReq: { setHeader: (name: string, value: string) => void },
+          req: IncomingMessage
+        ) => {
           const addr = req.socket.remoteAddress;
           if (addr) proxyReq.setHeader("x-forwarded-for", addr);
         };

@@ -1,20 +1,24 @@
 import { Container, Input, Text } from "@react-three/uikit";
 import { useContext, useEffect, useMemo, useState } from "react";
 
-import { type HarnessModel, harnessModelName, useHarnesses } from "@/hooks/useHarnesses";
 import {
-  CHAT_EFFORTS,
+  type HarnessModel,
+  harnessModelName,
+  useHarnesses,
+} from "@/hooks/useHarnesses";
+import {
   CHAT_EFFORT_LABEL,
-  HARNESS_IDS,
-  harnessSupportsEffort,
+  CHAT_EFFORTS,
   type ChatEffort,
+  HARNESS_IDS,
   type HarnessId,
+  harnessSupportsEffort,
 } from "@/lib/harness";
 import { useStore } from "@/state/store";
-import { asciiSafe } from "@/xr/ui/UikitMarkdown";
 import { FeedbackContext, ToolBtn } from "@/xr/ui/ToolBtn";
-import { XrProviderMark } from "@/xr/ui/XrProviderMark";
 import { useXrTheme } from "@/xr/ui/theme";
+import { asciiSafe } from "@/xr/ui/UikitMarkdown";
+import { XrProviderMark } from "@/xr/ui/XrProviderMark";
 
 export function ChatModelCard({ onClose }: { onClose: () => void }) {
   const chatHarness = useStore((s) => s.chatHarness);
@@ -90,7 +94,9 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
               hover={{ backgroundColor: selected ? theme.active : theme.hover }}
               active={{ backgroundColor: theme.pressed }}
               opacity={dim ? 0.45 : 1}
-              onHoverChange={(hovered: boolean) => feedback.hover(`model-rail-${id}`, hovered)}
+              onHoverChange={(hovered: boolean) =>
+                feedback.hover(`model-rail-${id}`, hovered)
+              }
               onClick={() => {
                 feedback.click();
                 setRail(id);
@@ -115,9 +121,13 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
                 justifyContent="center"
                 borderRadius={8}
                 backgroundColor={selected ? theme.active : theme.muted}
-                hover={{ backgroundColor: selected ? theme.active : theme.hover }}
+                hover={{
+                  backgroundColor: selected ? theme.active : theme.hover,
+                }}
                 active={{ backgroundColor: theme.pressed }}
-                onHoverChange={(hovered: boolean) => feedback.hover(`effort-${value}`, hovered)}
+                onHoverChange={(hovered: boolean) =>
+                  feedback.hover(`effort-${value}`, hovered)
+                }
                 onClick={() => {
                   feedback.click();
                   setChatEffort(value as ChatEffort);
@@ -131,7 +141,14 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
           })}
         </Container>
       ) : null}
-      <Container width="100%" height={32} flexShrink={0} borderRadius={8} backgroundColor={theme.muted} paddingX={8}>
+      <Container
+        width="100%"
+        height={32}
+        flexShrink={0}
+        borderRadius={8}
+        backgroundColor={theme.muted}
+        paddingX={8}
+      >
         <Input
           value={query}
           onValueChange={(value: string) => setQuery(value)}
@@ -142,11 +159,25 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
           color={theme.text}
         />
       </Container>
-      <Container flexGrow={1} minHeight={0} width="100%" overflow="scroll" gap={2} flexDirection="column">
+      <Container
+        flexGrow={1}
+        minHeight={0}
+        width="100%"
+        overflow="scroll"
+        gap={2}
+        flexDirection="column"
+      >
         {!ready ? (
           <>
             {Array.from({ length: 6 }, (_, i) => (
-              <Container key={i} width="100%" height={24} flexShrink={0} borderRadius={6} backgroundColor={theme.hover} />
+              <Container
+                key={i}
+                width="100%"
+                height={24}
+                flexShrink={0}
+                borderRadius={6}
+                backgroundColor={theme.hover}
+              />
             ))}
           </>
         ) : error ? (
@@ -163,7 +194,13 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
           </Text>
         ) : (
           groups.map(([group, models]) => (
-            <Container key={group} width="100%" flexShrink={0} flexDirection="column" gap={2}>
+            <Container
+              key={group}
+              width="100%"
+              flexShrink={0}
+              flexDirection="column"
+              gap={2}
+            >
               {group ? (
                 <Text fontSize={11} color={theme.subtle}>
                   {asciiSafe(group)}
@@ -179,9 +216,13 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
                     padding={6}
                     borderRadius={8}
                     backgroundColor={selected ? theme.active : theme.muted}
-                    hover={{ backgroundColor: selected ? theme.active : theme.hover }}
+                    hover={{
+                      backgroundColor: selected ? theme.active : theme.hover,
+                    }}
                     active={{ backgroundColor: theme.pressed }}
-                    onHoverChange={(hovered: boolean) => feedback.hover(`model-${m.slug}`, hovered)}
+                    onHoverChange={(hovered: boolean) =>
+                      feedback.hover(`model-${m.slug}`, hovered)
+                    }
                     onClick={() => {
                       feedback.click();
                       setChatSelection(rail, m.slug);
@@ -227,7 +268,9 @@ export function ChatModelChip({
       backgroundColor={active ? theme.active : theme.muted}
       hover={{ backgroundColor: active ? theme.active : theme.hover }}
       active={{ backgroundColor: theme.pressed }}
-      onHoverChange={(hovered: boolean) => feedback.hover("xr-chat-model", hovered)}
+      onHoverChange={(hovered: boolean) =>
+        feedback.hover("xr-chat-model", hovered)
+      }
       onClick={() => {
         feedback.click();
         onClick();

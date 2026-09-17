@@ -53,14 +53,20 @@ function workerEntry(): string {
     const candidate = fileURLToPath(new URL(rel, import.meta.url));
     if (existsSync(candidate)) return candidate;
   }
-  throw new Error("the tessellation worker is missing beside the server bundle");
+  throw new Error(
+    "the tessellation worker is missing beside the server bundle"
+  );
 }
 
 function spawn(): Worker {
   const started = new Worker(workerEntry());
   started.on("message", (done: Done) => inFlight?.settle(done));
   started.on("error", (err) =>
-    inFlight?.settle({ id: inFlight.id, ok: false, error: `tessellation thread failed: ${err.message}` }),
+    inFlight?.settle({
+      id: inFlight.id,
+      ok: false,
+      error: `tessellation thread failed: ${err.message}`,
+    })
   );
   started.on("exit", (code) => {
     if (worker === started) worker = null;
@@ -101,7 +107,11 @@ async function run(stepAbs: string, dest: string): Promise<void> {
     inFlight = { id, settle };
     timer = setTimeout(() => {
       void retire();
-      settle({ id, ok: false, error: `tessellating ${stepAbs} took longer than ${JOB_TIMEOUT_MS}ms` });
+      settle({
+        id,
+        ok: false,
+        error: `tessellating ${stepAbs} took longer than ${JOB_TIMEOUT_MS}ms`,
+      });
     }, JOB_TIMEOUT_MS);
     active.ref();
     active.postMessage({ id, stepAbs, dest } satisfies Job);
@@ -113,7 +123,9 @@ async function run(stepAbs: string, dest: string): Promise<void> {
     throw new Error(done.error);
   }
   if (done.heapBytes >= RETIRE_ABOVE_BYTES) {
-    console.log(`[occt] worker heap reached ${Math.round(done.heapBytes / 1048576)}MB; retiring it`);
+    console.log(
+      `[occt] worker heap reached ${Math.round(done.heapBytes / 1048576)}MB; retiring it`
+    );
     await retire();
   }
 }

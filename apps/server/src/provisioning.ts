@@ -19,7 +19,10 @@ export function installFailureDetail(id: HarnessId, err: unknown): string {
   // Only the resolver/socket codes. A bare "network" substring matched things
   // that had nothing to do with reachability, so the line claimed the registry
   // was unreachable when it wasn't.
-  const offline = /\b(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENETUNREACH)\b/.test(message);
+  const offline =
+    /\b(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENETUNREACH)\b/.test(
+      message
+    );
   return offline
     ? `Could not install ${label} — no connection to the registry.`
     : `Could not install ${label}.`;
@@ -48,7 +51,7 @@ export function ensureProvisioned(
   id: HarnessId,
   // The install itself, injectable so the self-check can drive the joining and
   // the forgetting without a twelve-second pnpm run.
-  prepare: Prepare = defaultPrepare,
+  prepare: Prepare = defaultPrepare
 ): Promise<string | null> {
   // Keyed by harness alone: the bridge is installed once for the machine, so
   // two folders sending at the same time must join one install, not race it.

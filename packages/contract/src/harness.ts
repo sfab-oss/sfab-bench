@@ -1,4 +1,9 @@
-export const HARNESS_IDS = ["opencode", "codex", "cursor", "grok-build"] as const;
+export const HARNESS_IDS = [
+  "opencode",
+  "codex",
+  "cursor",
+  "grok-build",
+] as const;
 
 export type HarnessId = (typeof HARNESS_IDS)[number];
 
@@ -7,7 +12,12 @@ export function isHarnessId(value: string): value is HarnessId {
 }
 
 /** What a probe can say about a harness. Server and web read the same list. */
-export const HARNESS_STATUSES = ["ready", "missing-cli", "needs-auth", "error"] as const;
+export const HARNESS_STATUSES = [
+  "ready",
+  "missing-cli",
+  "needs-auth",
+  "error",
+] as const;
 
 export type HarnessStatus = (typeof HARNESS_STATUSES)[number];
 
@@ -48,7 +58,10 @@ export const DEFAULT_HARNESS_MODEL: Record<HarnessId, string> = {
   "grok-build": "grok-4.6",
 };
 
-export const STATIC_HARNESS_MODELS: Record<Exclude<HarnessId, "opencode">, { id: string; name: string }[]> = {
+export const STATIC_HARNESS_MODELS: Record<
+  Exclude<HarnessId, "opencode">,
+  { id: string; name: string }[]
+> = {
   codex: [
     { id: "gpt-5.5", name: "GPT-5.5" },
     { id: "gpt-5.4", name: "GPT-5.4" },

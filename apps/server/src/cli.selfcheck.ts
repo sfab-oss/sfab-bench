@@ -13,15 +13,24 @@ expect(parseCli(["dev"]).kind === "dev", "dev");
 expect(parseCli(["help"]).kind === "help", "help");
 
 const opened = parseCli(["open", "/tmp/cad"]);
-expect(opened.kind === "serve" && opened.project === resolve("/tmp/cad"), "open sets project then serve");
+expect(
+  opened.kind === "serve" && opened.project === resolve("/tmp/cad"),
+  "open sets project then serve"
+);
 
 const openedDev = parseCli(["open", "/tmp/cad", "--dev"]);
-expect(openedDev.kind === "dev" && openedDev.project === resolve("/tmp/cad"), "open --dev");
+expect(
+  openedDev.kind === "dev" && openedDev.project === resolve("/tmp/cad"),
+  "open --dev"
+);
 
 const missing = parseCli(["open"]);
 expect(missing.kind === "help", "open without dir is help");
 
-const bin = readFileSync(new URL("../bin/sfab-bench.mjs", import.meta.url), "utf8");
+const bin = readFileSync(
+  new URL("../bin/sfab-bench.mjs", import.meta.url),
+  "utf8"
+);
 expect(bin.startsWith("#!/usr/bin/env node\n"), "bin shebang");
 
 console.log("cli.selfcheck ok");

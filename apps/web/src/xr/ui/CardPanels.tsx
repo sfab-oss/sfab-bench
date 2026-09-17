@@ -7,7 +7,13 @@ import { FilesCard } from "@/xr/ui/FilesCard";
 import { HelpCard } from "@/xr/ui/HelpCard";
 import { SettingsCard } from "@/xr/ui/SettingsCard";
 
-export function CardPanels({ width = 204, height = 340 }: { width?: number; height?: number }) {
+export function CardPanels({
+  width = 204,
+  height = 340,
+}: {
+  width?: number;
+  height?: number;
+}) {
   const page = useStore((s) => s.page);
   const setPage = useStore((s) => s.setPage);
   const [filesOpen, setFilesOpen] = useState(false);

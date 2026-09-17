@@ -1,9 +1,9 @@
 import { Container, Text } from "@react-three/uikit";
+import type { PhrasingContent, RootContent } from "mdast";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown } from "mdast-util-gfm";
-import type { PhrasingContent, RootContent } from "mdast";
 import { gfm } from "micromark-extension-gfm";
-import { useMemo, type ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
 
 import { useXrTheme, type XrPalette } from "@/xr/ui/theme";
 
@@ -39,7 +39,7 @@ function phrasing(
   nodes: PhrasingContent[],
   keyPrefix: string,
   p: XrPalette,
-  base: { color?: string; weight?: Weight; size?: number } = {},
+  base: { color?: string; weight?: Weight; size?: number } = {}
 ): ReactNode[] {
   const color = base.color ?? p.text;
   const weight = base.weight ?? "medium";
@@ -51,40 +51,52 @@ function phrasing(
       out.push(
         <Text key={k} fontSize={size} fontWeight={weight} color={color}>
           {asciiSafe(node.value)}
-        </Text>,
+        </Text>
       );
       return;
     }
     if (node.type === "break") {
-      out.push(
-        <Container key={k} width="100%" height={4} />
-      );
+      out.push(<Container key={k} width="100%" height={4} />);
       return;
     }
     if (node.type === "strong") {
-      out.push(...phrasing(node.children, k, p, { color, weight: "semi-bold", size }));
+      out.push(
+        ...phrasing(node.children, k, p, { color, weight: "semi-bold", size })
+      );
       return;
     }
     if (node.type === "emphasis") {
-      out.push(...phrasing(node.children, k, p, { color: p.subtle, weight, size }));
+      out.push(
+        ...phrasing(node.children, k, p, { color: p.subtle, weight, size })
+      );
       return;
     }
     if (node.type === "inlineCode") {
       out.push(
-        <Container key={k} backgroundColor={p.code} borderRadius={4} paddingX={3} paddingY={1}>
+        <Container
+          key={k}
+          backgroundColor={p.code}
+          borderRadius={4}
+          paddingX={3}
+          paddingY={1}
+        >
           <Text fontSize={size - 1} fontWeight="medium" color={p.text}>
             {asciiSafe(node.value)}
           </Text>
-        </Container>,
+        </Container>
       );
       return;
     }
     if (node.type === "link") {
-      out.push(...phrasing(node.children, k, p, { color: p.link, weight, size }));
+      out.push(
+        ...phrasing(node.children, k, p, { color: p.link, weight, size })
+      );
       return;
     }
     if (node.type === "delete") {
-      out.push(...phrasing(node.children, k, p, { color: p.subtle, weight, size }));
+      out.push(
+        ...phrasing(node.children, k, p, { color: p.subtle, weight, size })
+      );
       return;
     }
     const leftover = asciiSafe(plainNode(node));
@@ -92,7 +104,7 @@ function phrasing(
       out.push(
         <Text key={k} fontSize={size} fontWeight={weight} color={color}>
           {leftover}
-        </Text>,
+        </Text>
       );
     }
   });
@@ -110,7 +122,13 @@ function Inline({
 }) {
   const p = useXrTheme();
   return (
-    <Container flexDirection="row" flexWrap="wrap" alignItems="center" width="100%" gap={0}>
+    <Container
+      flexDirection="row"
+      flexWrap="wrap"
+      alignItems="center"
+      width="100%"
+      gap={0}
+    >
       {phrasing(nodes, "p", p, { size, weight })}
     </Container>
   );
@@ -129,10 +147,21 @@ function Block({ node, index }: { node: RootContent; index: number }) {
     return (
       <Container width="100%" flexShrink={0} flexDirection="column" gap={0}>
         {node.children.map((row, ri) => (
-          <Container key={ri} width="100%" flexShrink={0} flexDirection="column">
+          <Container
+            key={ri}
+            width="100%"
+            flexShrink={0}
+            flexDirection="column"
+          >
             <Container width="100%" flexDirection="row" gap={6} paddingY={4}>
               {row.children.map((cell, ci) => (
-                <Container key={ci} flexGrow={1} flexBasis={0} minWidth={0} flexShrink={0}>
+                <Container
+                  key={ci}
+                  flexGrow={1}
+                  flexBasis={0}
+                  minWidth={0}
+                  flexShrink={0}
+                >
                   <Inline
                     nodes={cell.children}
                     size={12}
@@ -141,7 +170,9 @@ function Block({ node, index }: { node: RootContent; index: number }) {
                 </Container>
               ))}
             </Container>
-            {ri === 0 ? <Container width="100%" height={1} backgroundColor={p.border} /> : null}
+            {ri === 0 ? (
+              <Container width="100%" height={1} backgroundColor={p.border} />
+            ) : null}
           </Container>
         ))}
       </Container>
@@ -150,7 +181,14 @@ function Block({ node, index }: { node: RootContent; index: number }) {
   if (node.type === "code") {
     const lines = node.value.split("\n");
     return (
-      <Container width="100%" backgroundColor={p.code} borderRadius={8} padding={8} flexDirection="column" gap={2}>
+      <Container
+        width="100%"
+        backgroundColor={p.code}
+        borderRadius={8}
+        padding={8}
+        flexDirection="column"
+        gap={2}
+      >
         {lines.map((line, i) => (
           <Text key={i} fontSize={12} color={p.text} fontWeight="medium">
             {line.length === 0 ? " " : asciiSafe(line)}
@@ -163,9 +201,21 @@ function Block({ node, index }: { node: RootContent; index: number }) {
     return (
       <Container width="100%" flexDirection="column" gap={4} paddingLeft={4}>
         {node.children.map((item, i) => (
-          <Container key={i} flexDirection="row" gap={6} width="100%" flexShrink={0}>
+          <Container
+            key={i}
+            flexDirection="row"
+            gap={6}
+            width="100%"
+            flexShrink={0}
+          >
             <Text fontSize={13} color={p.text} fontWeight="medium">
-              {item.checked === true ? "[x]" : item.checked === false ? "[ ]" : node.ordered ? `${(node.start ?? 1) + i}.` : "-"}
+              {item.checked === true
+                ? "[x]"
+                : item.checked === false
+                  ? "[ ]"
+                  : node.ordered
+                    ? `${(node.start ?? 1) + i}.`
+                    : "-"}
             </Text>
             <Container flexGrow={1} minWidth={0} flexDirection="column" gap={4}>
               {item.children.map((child, j) => (
@@ -213,7 +263,9 @@ function Block({ node, index }: { node: RootContent; index: number }) {
 function plainNode(node: RootContent | PhrasingContent): string {
   if ("value" in node && typeof node.value === "string") return node.value;
   if ("children" in node && Array.isArray(node.children)) {
-    return node.children.map((child) => plainNode(child as PhrasingContent)).join("");
+    return node.children
+      .map((child) => plainNode(child as PhrasingContent))
+      .join("");
   }
   if ("alt" in node && typeof node.alt === "string") return node.alt;
   if ("url" in node && typeof node.url === "string") return node.url;

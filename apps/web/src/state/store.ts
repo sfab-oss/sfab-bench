@@ -1,24 +1,28 @@
 import type { Group, Object3D, Vector3 } from "three";
 import { useStore as useZustandStore } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
-
-import { type Appearance, readDomAppearance } from "@/lib/appearance";
 import { applyHighlights, clearHighlights } from "@/cad/highlights";
-import { fileLabel, loadCadReview, modelUrl, syncFileQuery } from "@/cad/loadCadReview";
-import { isAncestor, type CadReview } from "@/cad/review";
-import { CHAT_DEFAULT_WIDTH, clampStoredChatWidth } from "@/lib/layout";
-import { projectUrl } from "@/lib/project-query";
-import { invalidateSceneNow } from "@/scene/invalidate";
 import {
+  fileLabel,
+  loadCadReview,
+  modelUrl,
+  syncFileQuery,
+} from "@/cad/loadCadReview";
+import { type CadReview, isAncestor } from "@/cad/review";
+import { type Appearance, readDomAppearance } from "@/lib/appearance";
+import {
+  type ChatEffort,
   DEFAULT_CHAT_EFFORT,
   DEFAULT_HARNESS,
   DEFAULT_HARNESS_MODEL,
+  type HarnessId,
   isChatEffort,
   isHarnessId,
-  type ChatEffort,
-  type HarnessId,
 } from "@/lib/harness";
+import { CHAT_DEFAULT_WIDTH, clampStoredChatWidth } from "@/lib/layout";
+import { projectUrl } from "@/lib/project-query";
+import { invalidateSceneNow } from "@/scene/invalidate";
 
 export {
   CHAT_DEFAULT_WIDTH,
@@ -205,287 +209,352 @@ const url = projectUrl() ? modelUrl() : "";
 export const store = createStore<State>()(
   persist(
     (set, get) => ({
-  url,
-  title: fileLabel(url),
-  review: null,
-  progress: url ? 0 : null,
-  error: null,
-  selectedId: null,
-  pickedRef: null,
-  treeOpen: prefs.treeOpen ?? true,
-  partsOpen: prefs.partsOpen ?? true,
-  chatOpen: prefs.chatOpen ?? true,
-  compactChatOpen: false,
-  cameraMoved: false,
-  chatWidth: prefs.chatWidth != null ? clampChatWidth(prefs.chatWidth) : CHAT_DEFAULT_WIDTH,
-  chatHarness: isHarnessId(prefs.chatHarness ?? "") ? prefs.chatHarness! : DEFAULT_HARNESS,
-  chatModel:
-    typeof prefs.chatModel === "string" && prefs.chatModel.trim()
-      ? prefs.chatModel.trim()
-      : DEFAULT_HARNESS_MODEL[isHarnessId(prefs.chatHarness ?? "") ? prefs.chatHarness! : DEFAULT_HARNESS],
-  chatEffort: isChatEffort(prefs.chatEffort ?? "") ? prefs.chatEffort! : DEFAULT_CHAT_EFFORT,
-  recentFiles: Array.isArray(prefs.recentFiles)
-    ? prefs.recentFiles.filter((p): p is string => typeof p === "string" && p.length > 0).slice(0, MAX_RECENTS)
-    : [],
-  axesVisible: prefs.axesVisible ?? true,
-  hiddenIds: new Set<number>(),
-  tool: "select",
-  measure: { a: null, b: null },
-
-  loadModel: async (next) => {
-    const token = ++loadToken;
-    clearHighlights();
-    syncFileQuery(next);
-    if (!next) {
-      set({
-        url: "",
-        title: fileLabel(""),
-        progress: null,
-        error: null,
-        review: null,
-        selectedId: null,
-        pickedRef: null,
-        hiddenIds: new Set(),
-        tool: "select",
-        measure: { a: null, b: null },
-        cameraMoved: false,
-      });
-      return;
-    }
-    set({
-      url: next,
-      title: fileLabel(next),
-      progress: 0,
-      error: null,
+      url,
+      title: fileLabel(url),
       review: null,
+      progress: url ? 0 : null,
+      error: null,
       selectedId: null,
       pickedRef: null,
-      hiddenIds: new Set(),
+      treeOpen: prefs.treeOpen ?? true,
+      partsOpen: prefs.partsOpen ?? true,
+      chatOpen: prefs.chatOpen ?? true,
+      compactChatOpen: false,
+      cameraMoved: false,
+      chatWidth:
+        prefs.chatWidth != null
+          ? clampChatWidth(prefs.chatWidth)
+          : CHAT_DEFAULT_WIDTH,
+      chatHarness: isHarnessId(prefs.chatHarness ?? "")
+        ? prefs.chatHarness!
+        : DEFAULT_HARNESS,
+      chatModel:
+        typeof prefs.chatModel === "string" && prefs.chatModel.trim()
+          ? prefs.chatModel.trim()
+          : DEFAULT_HARNESS_MODEL[
+              isHarnessId(prefs.chatHarness ?? "")
+                ? prefs.chatHarness!
+                : DEFAULT_HARNESS
+            ],
+      chatEffort: isChatEffort(prefs.chatEffort ?? "")
+        ? prefs.chatEffort!
+        : DEFAULT_CHAT_EFFORT,
+      recentFiles: Array.isArray(prefs.recentFiles)
+        ? prefs.recentFiles
+            .filter((p): p is string => typeof p === "string" && p.length > 0)
+            .slice(0, MAX_RECENTS)
+        : [],
+      axesVisible: prefs.axesVisible ?? true,
+      hiddenIds: new Set<number>(),
       tool: "select",
       measure: { a: null, b: null },
-      cameraMoved: false,
-    });
-    try {
-      const review = await loadCadReview(next, (loaded, total) => {
-        if (token === loadToken && total) {
-          set({ progress: Math.min(100, Math.round((loaded / total) * 100)) });
+
+      loadModel: async (next) => {
+        const token = ++loadToken;
+        clearHighlights();
+        syncFileQuery(next);
+        if (!next) {
+          set({
+            url: "",
+            title: fileLabel(""),
+            progress: null,
+            error: null,
+            review: null,
+            selectedId: null,
+            pickedRef: null,
+            hiddenIds: new Set(),
+            tool: "select",
+            measure: { a: null, b: null },
+            cameraMoved: false,
+          });
+          return;
         }
-      });
-      if (token !== loadToken) return;
-      const recents = [next, ...get().recentFiles.filter((p) => p !== next)].slice(0, MAX_RECENTS);
-      set({ review, progress: null, hiddenIds: new Set<number>(), recentFiles: recents });
-      apply(get());
-    } catch (err: unknown) {
-      if (token !== loadToken) return;
-      set({ error: err instanceof Error ? err.message : String(err), progress: null });
-    }
-  },
-  setRecentFiles: (paths) => {
-    const recentFiles = paths.filter((p): p is string => typeof p === "string" && p.length > 0).slice(0, MAX_RECENTS);
-    const cur = get().recentFiles;
-    if (cur.length === recentFiles.length && cur.every((p, i) => p === recentFiles[i])) return;
-    set({ recentFiles });
-  },
-  setTreeOpen: (open) => set((s) => ({ treeOpen: resolve(s.treeOpen, open) })),
-  setPartsOpen: (open) => set((s) => ({ partsOpen: resolve(s.partsOpen, open) })),
-  setChatOpen: (open) => set((s) => ({ chatOpen: resolve(s.chatOpen, open) })),
-  setCompactChatOpen: (open) => set((s) => ({ compactChatOpen: resolve(s.compactChatOpen, open) })),
-  setCameraMoved: (moved) => {
-    if (get().cameraMoved !== moved) set({ cameraMoved: moved });
-  },
-  setChatWidth: (width) => {
-    const chatWidth = clampChatWidth(width);
-    if (get().chatWidth !== chatWidth) set({ chatWidth });
-  },
-  setChatHarness: (harness) => {
-    if (get().chatHarness === harness) return;
-    set({ chatHarness: harness, chatModel: DEFAULT_HARNESS_MODEL[harness] });
-  },
-  setChatModel: (model) => {
-    const chatModel = model.trim();
-    if (chatModel && get().chatModel !== chatModel) set({ chatModel });
-  },
-  setChatSelection: (harness, model) => {
-    const chatModel = model.trim() || DEFAULT_HARNESS_MODEL[harness];
-    const cur = get();
-    if (cur.chatHarness === harness && cur.chatModel === chatModel) return;
-    set({ chatHarness: harness, chatModel });
-  },
-  setChatEffort: (effort) => {
-    if (get().chatEffort !== effort) set({ chatEffort: effort });
-  },
-  setAxesVisible: (open) => set((s) => ({ axesVisible: resolve(s.axesVisible, open) })),
-  select: (id, cadRef) => {
-    const { review } = get();
-    if (id === null) {
-      set({ selectedId: null, pickedRef: null });
-    } else {
-      set({
-        selectedId: id,
-        pickedRef: cadRef ?? review?.parts[id]?.cadRef ?? review?.parts[id]?.name ?? null,
-      });
-    }
-    apply(get());
-  },
-  selectByRef: (ref) => {
-    if (!ref) {
-      get().select(null);
-      return;
-    }
-    const { review } = get();
-    /**
-     * Refs come back in the form they went out in, and what goes out is a *face*
-     * ref: picking yields `#o1.1.f6`, and `viewerSnapshot` reports that rather than
-     * the part. Parts answer to `#o1.1`, so matching the whole string found nothing
-     * for every ref the viewer has ever produced — the panel showed the ref while
-     * the model highlighted nothing.
-     *
-     * Selection is per part; the face is kept as the ref, because that is what the
-     * detail panel shows and what goes back out to the assistant next time.
-     */
-    const partRef = ref.replace(/\.f\d+$/, "");
-    const part = review?.parts.find((p) => p.cadRef === partRef);
-    if (part) get().select(part.id, ref);
-    else set({ selectedId: null, pickedRef: ref });
-  },
-  selectFromModel: (leafId, cadRef) => {
-    const { review, selectedId, select } = get();
-    const leaf = review?.parts[leafId]?.object;
-    const sel = selectedId !== null ? review?.parts[selectedId]?.object : undefined;
-    if (!review || !leaf || !sel || (sel !== leaf && !isAncestor(sel, leaf))) {
-      select(leafId, cadRef);
-      return;
-    }
-    let p = sel.parent;
-    while (p && p !== review.root) {
-      const part = review.partByObject.get(p);
-      if (part) {
-        select(part.id);
-        return;
-      }
-      p = p.parent;
-    }
-    select(leafId, cadRef);
-  },
-  hover: (id) => {
-    if (hoveredId === id) return;
-    hoveredId = id;
-    apply(get());
-    invalidateSceneNow();
-  },
-  setVisible: (id, visible) => {
-    const { review, hiddenIds } = get();
-    review?.setPartVisible(id, visible);
-    const next = new Set(hiddenIds);
-    if (visible) next.delete(id);
-    else next.add(id);
-    set({ hiddenIds: next });
-  },
-  isolate: (id) => {
-    const { review } = get();
-    if (!review) return;
-    review.isolate(id);
-    set({
-      selectedId: id,
-      pickedRef: review.parts[id]?.cadRef ?? review.parts[id]?.name ?? null,
-      hiddenIds: new Set(
-        review.parts.filter((part) => !part.object.visible).map((part) => part.id),
-      ),
-    });
-    apply(get());
-  },
-  showAll: () => {
-    const { review } = get();
-    if (!review) return;
-    review.showAll();
-    set({ hiddenIds: new Set<number>() });
-  },
-  setTool: (tool) =>
-    set((s) => ({ tool, measure: tool === "measure" ? s.measure : { a: null, b: null } })),
-  measureClick: (point) =>
-    set((s) => ({
-      measure: !s.measure.a || s.measure.b ? { a: point, b: null } : { a: s.measure.a, b: point },
-    })),
-  undoMeasure: () =>
-    set((s) => ({ measure: s.measure.b ? { a: s.measure.a, b: null } : { a: null, b: null } })),
-  clearMeasure: () => set({ measure: { a: null, b: null } }),
+        set({
+          url: next,
+          title: fileLabel(next),
+          progress: 0,
+          error: null,
+          review: null,
+          selectedId: null,
+          pickedRef: null,
+          hiddenIds: new Set(),
+          tool: "select",
+          measure: { a: null, b: null },
+          cameraMoved: false,
+        });
+        try {
+          const review = await loadCadReview(next, (loaded, total) => {
+            if (token === loadToken && total) {
+              set({
+                progress: Math.min(100, Math.round((loaded / total) * 100)),
+              });
+            }
+          });
+          if (token !== loadToken) return;
+          const recents = [
+            next,
+            ...get().recentFiles.filter((p) => p !== next),
+          ].slice(0, MAX_RECENTS);
+          set({
+            review,
+            progress: null,
+            hiddenIds: new Set<number>(),
+            recentFiles: recents,
+          });
+          apply(get());
+        } catch (err: unknown) {
+          if (token !== loadToken) return;
+          set({
+            error: err instanceof Error ? err.message : String(err),
+            progress: null,
+          });
+        }
+      },
+      setRecentFiles: (paths) => {
+        const recentFiles = paths
+          .filter((p): p is string => typeof p === "string" && p.length > 0)
+          .slice(0, MAX_RECENTS);
+        const cur = get().recentFiles;
+        if (
+          cur.length === recentFiles.length &&
+          cur.every((p, i) => p === recentFiles[i])
+        )
+          return;
+        set({ recentFiles });
+      },
+      setTreeOpen: (open) =>
+        set((s) => ({ treeOpen: resolve(s.treeOpen, open) })),
+      setPartsOpen: (open) =>
+        set((s) => ({ partsOpen: resolve(s.partsOpen, open) })),
+      setChatOpen: (open) =>
+        set((s) => ({ chatOpen: resolve(s.chatOpen, open) })),
+      setCompactChatOpen: (open) =>
+        set((s) => ({ compactChatOpen: resolve(s.compactChatOpen, open) })),
+      setCameraMoved: (moved) => {
+        if (get().cameraMoved !== moved) set({ cameraMoved: moved });
+      },
+      setChatWidth: (width) => {
+        const chatWidth = clampChatWidth(width);
+        if (get().chatWidth !== chatWidth) set({ chatWidth });
+      },
+      setChatHarness: (harness) => {
+        if (get().chatHarness === harness) return;
+        set({
+          chatHarness: harness,
+          chatModel: DEFAULT_HARNESS_MODEL[harness],
+        });
+      },
+      setChatModel: (model) => {
+        const chatModel = model.trim();
+        if (chatModel && get().chatModel !== chatModel) set({ chatModel });
+      },
+      setChatSelection: (harness, model) => {
+        const chatModel = model.trim() || DEFAULT_HARNESS_MODEL[harness];
+        const cur = get();
+        if (cur.chatHarness === harness && cur.chatModel === chatModel) return;
+        set({ chatHarness: harness, chatModel });
+      },
+      setChatEffort: (effort) => {
+        if (get().chatEffort !== effort) set({ chatEffort: effort });
+      },
+      setAxesVisible: (open) =>
+        set((s) => ({ axesVisible: resolve(s.axesVisible, open) })),
+      select: (id, cadRef) => {
+        const { review } = get();
+        if (id === null) {
+          set({ selectedId: null, pickedRef: null });
+        } else {
+          set({
+            selectedId: id,
+            pickedRef:
+              cadRef ??
+              review?.parts[id]?.cadRef ??
+              review?.parts[id]?.name ??
+              null,
+          });
+        }
+        apply(get());
+      },
+      selectByRef: (ref) => {
+        if (!ref) {
+          get().select(null);
+          return;
+        }
+        const { review } = get();
+        /**
+         * Refs come back in the form they went out in, and what goes out is a *face*
+         * ref: picking yields `#o1.1.f6`, and `viewerSnapshot` reports that rather than
+         * the part. Parts answer to `#o1.1`, so matching the whole string found nothing
+         * for every ref the viewer has ever produced — the panel showed the ref while
+         * the model highlighted nothing.
+         *
+         * Selection is per part; the face is kept as the ref, because that is what the
+         * detail panel shows and what goes back out to the assistant next time.
+         */
+        const partRef = ref.replace(/\.f\d+$/, "");
+        const part = review?.parts.find((p) => p.cadRef === partRef);
+        if (part) get().select(part.id, ref);
+        else set({ selectedId: null, pickedRef: ref });
+      },
+      selectFromModel: (leafId, cadRef) => {
+        const { review, selectedId, select } = get();
+        const leaf = review?.parts[leafId]?.object;
+        const sel =
+          selectedId !== null ? review?.parts[selectedId]?.object : undefined;
+        if (
+          !review ||
+          !leaf ||
+          !sel ||
+          (sel !== leaf && !isAncestor(sel, leaf))
+        ) {
+          select(leafId, cadRef);
+          return;
+        }
+        let p = sel.parent;
+        while (p && p !== review.root) {
+          const part = review.partByObject.get(p);
+          if (part) {
+            select(part.id);
+            return;
+          }
+          p = p.parent;
+        }
+        select(leafId, cadRef);
+      },
+      hover: (id) => {
+        if (hoveredId === id) return;
+        hoveredId = id;
+        apply(get());
+        invalidateSceneNow();
+      },
+      setVisible: (id, visible) => {
+        const { review, hiddenIds } = get();
+        review?.setPartVisible(id, visible);
+        const next = new Set(hiddenIds);
+        if (visible) next.delete(id);
+        else next.add(id);
+        set({ hiddenIds: next });
+      },
+      isolate: (id) => {
+        const { review } = get();
+        if (!review) return;
+        review.isolate(id);
+        set({
+          selectedId: id,
+          pickedRef: review.parts[id]?.cadRef ?? review.parts[id]?.name ?? null,
+          hiddenIds: new Set(
+            review.parts
+              .filter((part) => !part.object.visible)
+              .map((part) => part.id)
+          ),
+        });
+        apply(get());
+      },
+      showAll: () => {
+        const { review } = get();
+        if (!review) return;
+        review.showAll();
+        set({ hiddenIds: new Set<number>() });
+      },
+      setTool: (tool) =>
+        set((s) => ({
+          tool,
+          measure: tool === "measure" ? s.measure : { a: null, b: null },
+        })),
+      measureClick: (point) =>
+        set((s) => ({
+          measure:
+            !s.measure.a || s.measure.b
+              ? { a: point, b: null }
+              : { a: s.measure.a, b: point },
+        })),
+      undoMeasure: () =>
+        set((s) => ({
+          measure: s.measure.b
+            ? { a: s.measure.a, b: null }
+            : { a: null, b: null },
+        })),
+      clearMeasure: () => set({ measure: { a: null, b: null } }),
 
-  page: "tree",
-  cardOpen: true,
-  cardMode: "world",
-  xrChatOpen: false,
-  xrChatPhase: "idle",
-  xrChatChars: 0,
-  toolsOpen: false,
-  appearance: readDomAppearance(),
-  setPage: (page) => set({ page }),
-  setCardOpen: (open) => set((s) => ({ cardOpen: resolve(s.cardOpen, open) })),
-  setCardMode: (cardMode) => set({ cardMode }),
-  setXrChatOpen: (open) => set((s) => ({ xrChatOpen: resolve(s.xrChatOpen, open) })),
-  setXrChatPhase: (phase) => {
-    if (get().xrChatPhase !== phase) set({ xrChatPhase: phase });
-  },
-  setXrChatChars: (n) => {
-    if (get().xrChatChars !== n) set({ xrChatChars: n });
-  },
-  bringCard: null,
-  setBringCard: (bringCard) => set({ bringCard }),
-  bringChat: null,
-  setBringChat: (bringChat) => set({ bringChat }),
-  cardDragging: false,
-  setCardDragging: (on) => {
-    if (get().cardDragging !== on) set({ cardDragging: on });
-  },
-  setToolsOpen: (open) => set((s) => ({ toolsOpen: resolve(s.toolsOpen, open) })),
-  setAppearance: (appearance) => {
-    if (get().appearance !== appearance) set({ appearance });
-  },
+      page: "tree",
+      cardOpen: true,
+      cardMode: "world",
+      xrChatOpen: false,
+      xrChatPhase: "idle",
+      xrChatChars: 0,
+      toolsOpen: false,
+      appearance: readDomAppearance(),
+      setPage: (page) => set({ page }),
+      setCardOpen: (open) =>
+        set((s) => ({ cardOpen: resolve(s.cardOpen, open) })),
+      setCardMode: (cardMode) => set({ cardMode }),
+      setXrChatOpen: (open) =>
+        set((s) => ({ xrChatOpen: resolve(s.xrChatOpen, open) })),
+      setXrChatPhase: (phase) => {
+        if (get().xrChatPhase !== phase) set({ xrChatPhase: phase });
+      },
+      setXrChatChars: (n) => {
+        if (get().xrChatChars !== n) set({ xrChatChars: n });
+      },
+      bringCard: null,
+      setBringCard: (bringCard) => set({ bringCard }),
+      bringChat: null,
+      setBringChat: (bringChat) => set({ bringChat }),
+      cardDragging: false,
+      setCardDragging: (on) => {
+        if (get().cardDragging !== on) set({ cardDragging: on });
+      },
+      setToolsOpen: (open) =>
+        set((s) => ({ toolsOpen: resolve(s.toolsOpen, open) })),
+      setAppearance: (appearance) => {
+        if (get().appearance !== appearance) set({ appearance });
+      },
 
-  left: false,
-  right: false,
-  leftHold: false,
-  rightHold: false,
-  worldGrabbing: false,
-  // XRGrab calls these every frame; skip unchanged values so listeners stay quiet.
-  setHandGrab: (side, on) => {
-    const key = side === "left" ? "left" : "right";
-    if (get()[key] !== on) set({ [key]: on });
-  },
-  setHandHold: (side, on) => {
-    const key = side === "left" ? "leftHold" : "rightHold";
-    if (get()[key] !== on) set({ [key]: on });
-  },
-  setWorldGrabbing: (on) => {
-    if (get().worldGrabbing !== on) set({ worldGrabbing: on });
-  },
+      left: false,
+      right: false,
+      leftHold: false,
+      rightHold: false,
+      worldGrabbing: false,
+      // XRGrab calls these every frame; skip unchanged values so listeners stay quiet.
+      setHandGrab: (side, on) => {
+        const key = side === "left" ? "left" : "right";
+        if (get()[key] !== on) set({ [key]: on });
+      },
+      setHandHold: (side, on) => {
+        const key = side === "left" ? "leftHold" : "rightHold";
+        if (get()[key] !== on) set({ [key]: on });
+      },
+      setWorldGrabbing: (on) => {
+        if (get().worldGrabbing !== on) set({ worldGrabbing: on });
+      },
 
-  switching: null,
-  setXrSwitch: (switching) => set({ switching }),
+      switching: null,
+      setXrSwitch: (switching) => set({ switching }),
 
-  sceneCrash: null,
-  setSceneCrash: (sceneCrash) => set({ sceneCrash }),
+      sceneCrash: null,
+      setSceneCrash: (sceneCrash) => set({ sceneCrash }),
 
-  placed: null,
-  fit: null,
-  setPlaced: (placed) => set({ placed }),
-  setFit: (fit) => set({ fit }),
-  bumpScale: (factor) => {
-    const g = get().placed;
-    if (!g) return;
-    const next = Math.max(0.15, Math.min(8, g.scale.x * factor));
-    g.scale.setScalar(next);
-    set({ modelScale: next });
-  },
-  resetScale: () => {
-    get().placed?.scale.setScalar(1);
-    set({ modelScale: 1 });
-  },
-  modelScale: 1,
-  setModelScale: (scale) => {
-    if (get().modelScale !== scale) set({ modelScale: scale });
-  },
-  recenter: null,
-  setRecenter: (recenter) => set({ recenter }),
+      placed: null,
+      fit: null,
+      setPlaced: (placed) => set({ placed }),
+      setFit: (fit) => set({ fit }),
+      bumpScale: (factor) => {
+        const g = get().placed;
+        if (!g) return;
+        const next = Math.max(0.15, Math.min(8, g.scale.x * factor));
+        g.scale.setScalar(next);
+        set({ modelScale: next });
+      },
+      resetScale: () => {
+        get().placed?.scale.setScalar(1);
+        set({ modelScale: 1 });
+      },
+      modelScale: 1,
+      setModelScale: (scale) => {
+        if (get().modelScale !== scale) set({ modelScale: scale });
+      },
+      recenter: null,
+      setRecenter: (recenter) => set({ recenter }),
     }),
     {
       name: DESKTOP_PREFS_KEY,
@@ -501,8 +570,8 @@ export const store = createStore<State>()(
         chatEffort: s.chatEffort,
         recentFiles: s.recentFiles,
       }),
-    },
-  ),
+    }
+  )
 );
 
 /** Always call with a selector: the whole state changes on every hand frame. */

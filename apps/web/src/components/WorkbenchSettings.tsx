@@ -1,19 +1,32 @@
 import { Headset, Settings } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
-
+import { type ReactNode, useEffect, useState } from "react";
+import { QuestJoinPanel } from "@/components/QuestJoinPanel";
 import { AboutSection } from "@/components/settings/AboutSection";
 import { AppearanceSection } from "@/components/settings/AppearanceSection";
 import { ProvidersSection } from "@/components/settings/ProvidersSection";
 import { ShortcutsSection } from "@/components/settings/ShortcutsSection";
 import { VoiceSection } from "@/components/settings/VoiceSection";
-import { QuestJoinPanel } from "@/components/QuestJoinPanel";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 import { OPEN_SETTINGS_EVENT } from "@/lib/command-palette";
 import { cn } from "@/lib/utils";
 
-type SettingsSectionId = "appearance" | "voice" | "providers" | "shortcuts" | "about";
+type SettingsSectionId =
+  | "appearance"
+  | "voice"
+  | "providers"
+  | "shortcuts"
+  | "about";
 
 function SectionHeading({ children }: { children: ReactNode }) {
   return <h2 className="mb-2 text-sm font-medium sm:sr-only">{children}</h2>;
@@ -40,7 +53,11 @@ export function WorkbenchSettings({ host }: { host: boolean }) {
     return () => window.removeEventListener(OPEN_SETTINGS_EVENT, onSettings);
   }, []);
 
-  const sections: { id: SettingsSectionId; label: string; hostOnly?: boolean }[] = [
+  const sections: {
+    id: SettingsSectionId;
+    label: string;
+    hostOnly?: boolean;
+  }[] = [
     { id: "appearance", label: "Appearance" },
     { id: "voice", label: "Voice", hostOnly: true },
     { id: "providers", label: "Providers" },
@@ -85,7 +102,9 @@ export function WorkbenchSettings({ host }: { host: boolean }) {
                       aria-current={section === row.id ? "page" : undefined}
                       className={cn(
                         "rounded-md px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                        section === row.id ? "bg-accent text-accent-foreground" : "hover:bg-accent/70",
+                        section === row.id
+                          ? "bg-accent text-accent-foreground"
+                          : "hover:bg-accent/70"
                       )}
                       onClick={() => setSection(row.id)}
                     >
@@ -139,7 +158,13 @@ export function WorkbenchSettings({ host }: { host: boolean }) {
           </Dialog>
         </SidebarMenuItem>
       </SidebarMenu>
-      {host ? <QuestJoinPanel open={questOpen} onOpenChange={setQuestOpen} showTrigger={false} /> : null}
+      {host ? (
+        <QuestJoinPanel
+          open={questOpen}
+          onOpenChange={setQuestOpen}
+          showTrigger={false}
+        />
+      ) : null}
     </>
   );
 }

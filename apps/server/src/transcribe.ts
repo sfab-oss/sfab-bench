@@ -10,8 +10,11 @@ export async function handleTranscribe(req: Request): Promise<Response> {
   const resolved = sttApiKey();
   if (!resolved.key) {
     return Response.json(
-      { error: "Set a voice key in Settings, or STT_AI_GATEWAY_API_KEY on the Mac" },
-      { status: 503 },
+      {
+        error:
+          "Set a voice key in Settings, or STT_AI_GATEWAY_API_KEY on the Mac",
+      },
+      { status: 503 }
     );
   }
 

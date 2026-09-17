@@ -1,16 +1,27 @@
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
-import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import {
+  type Ref,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 
 import {
-  buildAskUserQuestionsOutput,
-  formatAskUserAnswer,
   type AskUserAnswer,
   type AskUserQuestion,
   type AskUserQuestionsInput,
   type AskUserQuestionsOutput,
+  buildAskUserQuestionsOutput,
+  formatAskUserAnswer,
 } from "@/chat/ask-user-questions";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { matchesShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +51,8 @@ export function AskUserQuestionsPanel({
   const onAnswerRef = useRef(onAnswer);
   onAnswerRef.current = onAnswer;
 
-  const question = input.questions[Math.min(index, input.questions.length - 1)] ?? null;
+  const question =
+    input.questions[Math.min(index, input.questions.length - 1)] ?? null;
   const selected = question ? (picked[question.id]?.optionIds ?? []) : [];
   const highlighted = optimistic ?? selected[0];
 
@@ -50,7 +62,8 @@ export function AskUserQuestionsPanel({
 
   useEffect(() => {
     return () => {
-      if (advanceTimer.current !== null) window.clearTimeout(advanceTimer.current);
+      if (advanceTimer.current !== null)
+        window.clearTimeout(advanceTimer.current);
     };
   }, []);
 
@@ -68,7 +81,7 @@ export function AskUserQuestionsPanel({
       setOpen(true);
       setIndex((cur) => cur + 1);
     },
-    [finish, index, input.questions.length],
+    [finish, index, input.questions.length]
   );
 
   const selectOption = useCallback(
@@ -87,13 +100,14 @@ export function AskUserQuestionsPanel({
       const next = { ...picked, [question.id]: { optionIds: [optionId] } };
       setAnswers(next);
       setOptimistic(optionId);
-      if (advanceTimer.current !== null) window.clearTimeout(advanceTimer.current);
+      if (advanceTimer.current !== null)
+        window.clearTimeout(advanceTimer.current);
       advanceTimer.current = window.setTimeout(() => {
         advanceTimer.current = null;
         advanceOrFinish(next);
       }, 180);
     },
-    [advanceOrFinish, disabled, picked, question],
+    [advanceOrFinish, disabled, picked, question]
   );
 
   useImperativeHandle(
@@ -104,17 +118,32 @@ export function AskUserQuestionsPanel({
         if (!question || disabled || !question.allowFreeForm) return false;
         const trimmed = text.trim();
         if (!trimmed) return false;
-        advanceOrFinish({ ...picked, [question.id]: { optionIds: [], freeform: trimmed } });
+        advanceOrFinish({
+          ...picked,
+          [question.id]: { optionIds: [], freeform: trimmed },
+        });
         return true;
       },
     }),
-    [advanceOrFinish, disabled, picked, question],
+    [advanceOrFinish, disabled, picked, question]
   );
 
   useEffect(() => {
-    if (!question || disabled || question.allowMultiple || question.options.length === 0) return;
+    if (
+      !question ||
+      disabled ||
+      question.allowMultiple ||
+      question.options.length === 0
+    )
+      return;
     const onKey = (event: KeyboardEvent) => {
-      if (!matchesShortcut(event, "ask-user-choose", { mac: false, activeElement: document.activeElement })) return;
+      if (
+        !matchesShortcut(event, "ask-user-choose", {
+          mac: false,
+          activeElement: document.activeElement,
+        })
+      )
+        return;
       const digit = Number.parseInt(event.key, 10);
       const option = question.options[digit - 1];
       if (!option) return;
@@ -145,19 +174,28 @@ export function AskUserQuestionsPanel({
         >
           <span className="shrink-0">{question.header ?? "Question"}</span>
           {open ? null : (
-            <span className="min-w-0 flex-1 truncate font-normal">{question.question}</span>
+            <span className="min-w-0 flex-1 truncate font-normal">
+              {question.question}
+            </span>
           )}
           {input.questions.length > 1 ? (
             <span className="tabular-nums">
               {index + 1}/{input.questions.length}
             </span>
           ) : null}
-          <ChevronDownIcon className={cn("ml-auto size-3.5 shrink-0 transition-transform", open ? "rotate-0" : "-rotate-90")} />
+          <ChevronDownIcon
+            className={cn(
+              "ml-auto size-3.5 shrink-0 transition-transform",
+              open ? "rotate-0" : "-rotate-90"
+            )}
+          />
         </CollapsibleTrigger>
         <CollapsibleContent>
           <p className="mt-1 text-sm text-foreground">{question.question}</p>
           {question.allowMultiple ? (
-            <p className="mt-1 text-xs text-muted-foreground">Select one or more options.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Select one or more options.
+            </p>
           ) : null}
           {question.options.length > 0 ? (
             <div className="mt-2 flex flex-col gap-0.5 pb-2">
@@ -175,14 +213,21 @@ export function AskUserQuestionsPanel({
                     onClick={() => selectOption(optionId)}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                      isSelected ? "bg-muted text-foreground" : "text-foreground/85 hover:bg-muted/70",
-                      disabled && "cursor-not-allowed opacity-50",
+                      isSelected
+                        ? "bg-muted text-foreground"
+                        : "text-foreground/85 hover:bg-muted/70",
+                      disabled && "cursor-not-allowed opacity-50"
                     )}
                   >
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span className="text-sm font-medium">{option.label}</span>
-                      {option.description && option.description !== option.label ? (
-                        <span className="text-[11px] text-muted-foreground">{option.description}</span>
+                      <span className="text-sm font-medium">
+                        {option.label}
+                      </span>
+                      {option.description &&
+                      option.description !== option.label ? (
+                        <span className="text-[11px] text-muted-foreground">
+                          {option.description}
+                        </span>
                       ) : null}
                     </span>
                     {isSelected ? (
@@ -206,7 +251,10 @@ export function AskUserQuestionsPanel({
                 size="sm"
                 disabled={disabled || selected.length === 0}
                 onClick={() => {
-                  const next = { ...picked, [question.id]: { optionIds: selected } };
+                  const next = {
+                    ...picked,
+                    [question.id]: { optionIds: selected },
+                  };
                   advanceOrFinish(next);
                 }}
               >

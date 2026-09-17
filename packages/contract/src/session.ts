@@ -30,4 +30,9 @@ export type SessionSnapshot = ProjectSession & {
 export type SessionEvent =
   | { type: "snapshot"; session: SessionSnapshot }
   /** `revision` is the catalog revision of the project this event names. */
-  | { type: "library"; project: { path: string }; fileRecents: string[]; revision: number };
+  | {
+      type: "library";
+      project: { path: string };
+      fileRecents: string[];
+      revision: number;
+    };

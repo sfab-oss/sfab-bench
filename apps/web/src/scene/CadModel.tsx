@@ -1,6 +1,6 @@
+import type { ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import type { ThreeEvent } from "@react-three/fiber";
 import { useShallow } from "zustand/react/shallow";
 
 import { pickAlongRay, pickFromIntersections } from "@/cad/highlights";
@@ -8,16 +8,17 @@ import { MeasureGizmo } from "@/scene/MeasureGizmo";
 import { store, useStore } from "@/state/store";
 
 export function CadModel({ onFit }: { onFit: (obj: THREE.Object3D) => void }) {
-  const { review, selectFromModel, hover, setVisible, tool, measureClick } = useStore(
-    useShallow((s) => ({
-      review: s.review,
-      selectFromModel: s.selectFromModel,
-      hover: s.hover,
-      setVisible: s.setVisible,
-      tool: s.tool,
-      measureClick: s.measureClick,
-    })),
-  );
+  const { review, selectFromModel, hover, setVisible, tool, measureClick } =
+    useStore(
+      useShallow((s) => ({
+        review: s.review,
+        selectFromModel: s.selectFromModel,
+        hover: s.hover,
+        setVisible: s.setVisible,
+        tool: s.tool,
+        measureClick: s.measureClick,
+      }))
+    );
   const wrap = useRef<THREE.Group>(null);
 
   useEffect(() => {
@@ -38,7 +39,10 @@ export function CadModel({ onFit }: { onFit: (obj: THREE.Object3D) => void }) {
 
   const fromEvent = (ev: ThreeEvent<MouseEvent>) => {
     ev.stopPropagation();
-    return pickFromIntersections(review, ev.intersections) ?? pickAlongRay(review, ev.ray);
+    return (
+      pickFromIntersections(review, ev.intersections) ??
+      pickAlongRay(review, ev.ray)
+    );
   };
 
   return (
@@ -54,12 +58,16 @@ export function CadModel({ onFit }: { onFit: (obj: THREE.Object3D) => void }) {
           const hit = fromEvent(ev);
           if (!hit) return;
           // A pinch that starts or ends a grab is not a click on the model.
-          if (store.getState().worldGrabbing || store.getState().cardDragging) return;
+          if (store.getState().worldGrabbing || store.getState().cardDragging)
+            return;
           if (tool === "measure") {
             const local = wrap.current
               ? wrap.current.worldToLocal(hit.point.clone())
               : hit.point;
-            measureClick({ cadRef: hit.cadRef, point: [local.x, local.y, local.z] });
+            measureClick({
+              cadRef: hit.cadRef,
+              point: [local.x, local.y, local.z],
+            });
             return;
           }
           if (tool === "hide") {

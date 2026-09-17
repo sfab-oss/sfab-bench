@@ -1,16 +1,30 @@
 import { useChat } from "@ai-sdk/react";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-
-import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
-import { findPendingAskUserQuestions, type AskUserQuestionsOutput } from "@/chat/ask-user-questions";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  type AskUserQuestionsOutput,
+  findPendingAskUserQuestions,
+} from "@/chat/ask-user-questions";
 import { findPendingGetViewer } from "@/chat/get-viewer";
-import { useLiveViewerTools } from "@/chat/useLiveViewerTools";
-import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
-import { messagePlainText, persistThread, useViewerChat } from "@/components/chat/useViewerChat";
 import { finishPersistMessages } from "@/chat/persist-thread";
-import { jsonApi } from "@/lib/api";
+import { useLiveViewerTools } from "@/chat/useLiveViewerTools";
+import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
+import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
+import {
+  messagePlainText,
+  persistThread,
+  useViewerChat,
+} from "@/components/chat/useViewerChat";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { jsonApi } from "@/lib/api";
 import { store, useStore } from "@/state/store";
 
 type Voice = ReturnType<typeof useVoiceInput>;
@@ -58,7 +72,15 @@ function XrChatSessionRuntime({
   const sendRef = useRef<(text: string) => void>(() => {});
 
   const turnErrorRef = useRef<string | null>(null);
-  const { messages, sendMessage, status, error, stop, addToolOutput, setMessages } = useChat({
+  const {
+    messages,
+    sendMessage,
+    status,
+    error,
+    stop,
+    addToolOutput,
+    setMessages,
+  } = useChat({
     id: threadId,
     throttle: 50,
     messages: initialMessages,
@@ -70,7 +92,11 @@ function XrChatSessionRuntime({
     onFinish: ({ messages: next, isError }) => {
       const text = turnErrorRef.current;
       turnErrorRef.current = null;
-      const toSave = finishPersistMessages(next as GalleryChatMessage[], isError, text);
+      const toSave = finishPersistMessages(
+        next as GalleryChatMessage[],
+        isError,
+        text
+      );
       if (!toSave) return;
       if (isError) setMessages(toSave);
       void persistThread(threadId, toSave).then(onPersist);
@@ -135,13 +161,21 @@ function XrChatSessionRuntime({
 
   useEffect(() => {
     const waiting = busy || pendingViewer !== null;
-    const phase = waiting ? (status === "streaming" ? "streaming" : "submitted") : "idle";
+    const phase = waiting
+      ? status === "streaming"
+        ? "streaming"
+        : "submitted"
+      : "idle";
     store.getState().setXrChatPhase(phase);
     return () => store.getState().setXrChatPhase("idle");
   }, [busy, pendingViewer, status]);
   useEffect(() => {
     const last = [...messages].reverse().find((m) => m.role === "assistant");
-    store.getState().setXrChatChars(last ? messagePlainText(last as GalleryChatMessage).length : 0);
+    store
+      .getState()
+      .setXrChatChars(
+        last ? messagePlainText(last as GalleryChatMessage).length : 0
+      );
   }, [messages]);
 
   const value: XrChatRuntime = {
@@ -166,7 +200,11 @@ function XrChatSessionRuntime({
     voice,
   };
 
-  return <XrChatRuntimeContext.Provider value={value}>{children}</XrChatRuntimeContext.Provider>;
+  return (
+    <XrChatRuntimeContext.Provider value={value}>
+      {children}
+    </XrChatRuntimeContext.Provider>
+  );
 }
 
 export function XrChatRuntimeProvider({ children }: { children: ReactNode }) {

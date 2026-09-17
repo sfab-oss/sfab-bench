@@ -5,7 +5,10 @@
  * read by `apps/web/src/cad/loadStepPackage.ts`.
  */
 
-export type StepBBox = { min: [number, number, number]; max: [number, number, number] };
+export type StepBBox = {
+  min: [number, number, number];
+  max: [number, number, number];
+};
 
 export type StepAssemblyNode = {
   id: string;

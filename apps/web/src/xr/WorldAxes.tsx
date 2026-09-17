@@ -59,7 +59,12 @@ function Arrow({
         <coneGeometry args={[r * 2.4, head, 16]} />
         <meshBasicMaterial color={color} />
       </mesh>
-      <Label text={label} color={color} position={[0, length + length * 0.18, 0]} size={length * 0.24} />
+      <Label
+        text={label}
+        color={color}
+        position={[0, length + length * 0.18, 0]}
+        size={length * 0.24}
+      />
     </group>
   );
 }
@@ -72,9 +77,19 @@ export function WorldAxes({ length }: { length: number }) {
         <sphereGeometry args={[hub, 16, 12]} />
         <meshBasicMaterial color="#f4f4f5" />
       </mesh>
-      <Arrow color="#e11d48" rotation={[0, 0, -Math.PI / 2]} label="X" length={length} />
+      <Arrow
+        color="#e11d48"
+        rotation={[0, 0, -Math.PI / 2]}
+        label="X"
+        length={length}
+      />
       <Arrow color="#16a34a" rotation={[0, 0, 0]} label="Y" length={length} />
-      <Arrow color="#2563eb" rotation={[Math.PI / 2, 0, 0]} label="Z" length={length} />
+      <Arrow
+        color="#2563eb"
+        rotation={[Math.PI / 2, 0, 0]}
+        label="Z"
+        length={length}
+      />
     </group>
   );
 }

@@ -152,7 +152,7 @@ export function SpeakingOrb({
         transparent: true,
         depthWrite: false,
       }),
-    [],
+    []
   );
   useEffect(() => () => mat.dispose(), [mat]);
 
@@ -172,9 +172,17 @@ export function SpeakingOrb({
     pulse.current = Math.max(0, pulse.current - dt * 5);
     const speaking = phase === "streaming";
     const thinking = phase === "submitted";
-    const targetWarp = speaking ? 0.14 + pulse.current * 0.06 : thinking ? 0.1 : 0.06;
+    const targetWarp = speaking
+      ? 0.14 + pulse.current * 0.06
+      : thinking
+        ? 0.1
+        : 0.06;
     const targetFlow = speaking ? 1.35 : thinking ? 1.05 : 0.55;
-    const targetGlow = speaking ? 0.7 + pulse.current * 0.25 : thinking ? 0.5 : 0.32;
+    const targetGlow = speaking
+      ? 0.7 + pulse.current * 0.25
+      : thinking
+        ? 0.5
+        : 0.32;
     const ta = speaking ? SPEAK_A : thinking ? THINK_A : IDLE_A;
     const tb = speaking ? SPEAK_B : thinking ? THINK_B : IDLE_B;
     const k = 1 - Math.exp(-dt * 5);
@@ -193,7 +201,11 @@ export function SpeakingOrb({
 
   return (
     <group position={[x, y, 0.02]}>
-      <mesh renderOrder={2} material={mat} raycast={onClick ? () => {} : undefined}>
+      <mesh
+        renderOrder={2}
+        material={mat}
+        raycast={onClick ? () => {} : undefined}
+      >
         <icosahedronGeometry args={[RADIUS, 4]} />
       </mesh>
       {onClick ? (

@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { showNetworkErrorToast } from "@/components/ui/toast";
+import { useProjectSession } from "@/hooks/useProjectSession";
 import { jsonApi } from "@/lib/api";
-import { INITIAL_FAILURE_STREAK, noteFailureStreak, suppressNetworkFailureToast } from "@/lib/feedback";
+import {
+  INITIAL_FAILURE_STREAK,
+  noteFailureStreak,
+  suppressNetworkFailureToast,
+} from "@/lib/feedback";
 import { messageFromHttpBody } from "@/lib/load-copy";
 import { REFRESH_FILES_EVENT } from "@/lib/motion";
 import type { CatalogEntry } from "@/lib/viewer-snapshot";
-import { useProjectSession } from "@/hooks/useProjectSession";
 
 export type CatalogState = {
   files: CatalogEntry[];
@@ -28,51 +32,65 @@ export function useCatalog(enabled = true): CatalogState {
   useEffect(() => {
     streakRef.current = INITIAL_FAILURE_STREAK;
   }, [projectPath]);
-  const reload = useCallback((opts?: { explicit?: boolean }) => {
-    if (!enabled || !projectPath) {
-      streakRef.current = INITIAL_FAILURE_STREAK;
-      setFiles([]);
-      setRevision(0);
-      setError(null);
-      setReady(true);
-      setRefreshing(false);
-      return;
-    }
-    if (opts?.explicit) setRefreshing(true);
-    void jsonApi.catalog
-      .$get()
-      .then(async (res) => {
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(messageFromHttpBody(text, res.statusText || "Could not load files"));
-        }
-        return res.json() as Promise<{ files?: CatalogEntry[]; revision?: number }>;
-      })
-      .then((body) => {
-        streakRef.current = noteFailureStreak(streakRef.current, true).next;
-        setFiles(body.files ?? []);
-        setRevision(body.revision ?? 0);
+  const reload = useCallback(
+    (opts?: { explicit?: boolean }) => {
+      if (!enabled || !projectPath) {
+        streakRef.current = INITIAL_FAILURE_STREAK;
+        setFiles([]);
+        setRevision(0);
         setError(null);
         setReady(true);
-      })
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        const { next, toast } = noteFailureStreak(streakRef.current, false, {
-          suppressToast: suppressNetworkFailureToast(),
+        setRefreshing(false);
+        return;
+      }
+      if (opts?.explicit) setRefreshing(true);
+      void jsonApi.catalog
+        .$get()
+        .then(async (res) => {
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(
+              messageFromHttpBody(
+                text,
+                res.statusText || "Could not load files"
+              )
+            );
+          }
+          return res.json() as Promise<{
+            files?: CatalogEntry[];
+            revision?: number;
+          }>;
+        })
+        .then((body) => {
+          streakRef.current = noteFailureStreak(streakRef.current, true).next;
+          setFiles(body.files ?? []);
+          setRevision(body.revision ?? 0);
+          setError(null);
+          setReady(true);
+        })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          const { next, toast } = noteFailureStreak(streakRef.current, false, {
+            suppressToast: suppressNetworkFailureToast(),
+          });
+          streakRef.current = next;
+          if (toast) {
+            showNetworkErrorToast({
+              title: "Couldn't refresh files",
+              description: message,
+            });
+          }
+          if (!next.hadSuccess) {
+            setError(message);
+          }
+          setReady(true);
+        })
+        .finally(() => {
+          if (opts?.explicit) setRefreshing(false);
         });
-        streakRef.current = next;
-        if (toast) {
-          showNetworkErrorToast({ title: "Couldn't refresh files", description: message });
-        }
-        if (!next.hadSuccess) {
-          setError(message);
-        }
-        setReady(true);
-      })
-      .finally(() => {
-        if (opts?.explicit) setRefreshing(false);
-      });
-  }, [enabled, projectPath]);
+    },
+    [enabled, projectPath]
+  );
   useEffect(() => {
     if (enabled && projectPath) setReady(false);
   }, [enabled, projectPath]);

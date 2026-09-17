@@ -45,10 +45,12 @@ export function clearHighlights() {
 export function applyHighlights(
   review: CadReview,
   selectedId: number | null,
-  hoveredId: number | null,
+  hoveredId: number | null
 ) {
   clearHighlights();
-  const hoverMeshes = new Set(hoveredId !== null ? subtreeMeshes(review, hoveredId) : []);
+  const hoverMeshes = new Set(
+    hoveredId !== null ? subtreeMeshes(review, hoveredId) : []
+  );
   if (selectedId !== null) {
     for (const mesh of subtreeMeshes(review, selectedId)) {
       if (!hoverMeshes.has(mesh)) tintMesh(mesh, selectTint, 0.55);
@@ -58,7 +60,10 @@ export function applyHighlights(
 }
 
 /** Nearest ancestor (or self) stamped with a `partId` by the loaders. */
-function pickPartId(review: CadReview, obj: THREE.Object3D): number | undefined {
+function pickPartId(
+  review: CadReview,
+  obj: THREE.Object3D
+): number | undefined {
   let cur: THREE.Object3D | null = obj;
   while (cur) {
     const id = cur.userData.partId as number | undefined;
@@ -105,7 +110,10 @@ function faceRef(hit: THREE.Intersection, partRef: string): string {
   return partRef;
 }
 
-function pickFromHits(review: CadReview, hits: THREE.Intersection[]): CadPick | undefined {
+function pickFromHits(
+  review: CadReview,
+  hits: THREE.Intersection[]
+): CadPick | undefined {
   for (const hit of hits) {
     if (!visibleChain(hit.object)) continue;
     const id = pickPartId(review, hit.object);
@@ -113,7 +121,10 @@ function pickFromHits(review: CadReview, hits: THREE.Intersection[]): CadPick | 
     const part = review.parts[id]!;
     const partRef = part.cadRef ?? part.name;
     if (hit.face) {
-      hitNormal.copy(hit.face.normal).transformDirection(hit.object.matrixWorld).normalize();
+      hitNormal
+        .copy(hit.face.normal)
+        .transformDirection(hit.object.matrixWorld)
+        .normalize();
     } else {
       hitNormal.set(0, 1, 0);
     }
@@ -127,7 +138,10 @@ function pickFromHits(review: CadReview, hits: THREE.Intersection[]): CadPick | 
 }
 
 /** First visible named part along the ray. Transparent meshes still count; hide them to pick through. */
-export function pickAlongRay(review: CadReview, ray: THREE.Ray): CadPick | undefined {
+export function pickAlongRay(
+  review: CadReview,
+  ray: THREE.Ray
+): CadPick | undefined {
   pickRaycaster.ray.copy(ray);
   pickRaycaster.near = 0;
   pickRaycaster.far = 50;
@@ -136,7 +150,7 @@ export function pickAlongRay(review: CadReview, ray: THREE.Ray): CadPick | undef
 
 export function pickFromIntersections(
   review: CadReview,
-  hits: THREE.Intersection[],
+  hits: THREE.Intersection[]
 ): CadPick | undefined {
   return pickFromHits(review, hits);
 }

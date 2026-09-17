@@ -10,8 +10,8 @@ import {
 } from "node:fs";
 import { rm } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
+import { fileURLToPath } from "node:url";
 
 import { cacheDir } from "./config";
 import { buildStepPackage } from "./occt/build";
@@ -20,7 +20,8 @@ import { rememberOpenedFile } from "./session";
 
 const STEP_RE = /\.(step|stp)$/i;
 const GLB_RE = /\.(glb|gltf)$/i;
-const PKG_FILE = /^\/api\/cad-pkg\/(.+)\/(assembly\.json|components\/[^/]+\.tess)$/;
+const PKG_FILE =
+  /^\/api\/cad-pkg\/(.+)\/(assembly\.json|components\/[^/]+\.tess)$/;
 const PROJECT_FILE = /^\/api\/files\/(.+)$/;
 
 const inflight = new Map<string, Promise<string>>();
@@ -38,7 +39,12 @@ export type ResolvedArtifact =
   | { kind: "glb"; rel: string; abs: string }
   | { error: string };
 
-type SourceStamp = { path: string; mtimeMs: number; size: number; format: number };
+type SourceStamp = {
+  path: string;
+  mtimeMs: number;
+  size: number;
+  format: number;
+};
 
 /**
  * `abs` as the filesystem really knows it, or null if it is not a file inside
@@ -62,7 +68,8 @@ export function resolveArtifact(input: string, root: string): ResolvedArtifact {
   let raw = input.trim().replace(/\\/g, "/");
   if (!raw) return { error: "empty path" };
   if (raw.startsWith("file://")) raw = fileURLToPath(raw);
-  if (/^https?:\/\//i.test(raw)) return { error: "remote URLs are not documents" };
+  if (/^https?:\/\//i.test(raw))
+    return { error: "remote URLs are not documents" };
 
   /**
    * The project as the filesystem knows it, because `existingFile` resolves what it
@@ -88,7 +95,8 @@ export function resolveArtifact(input: string, root: string): ResolvedArtifact {
    */
   const direct = isAbsolute(qless) ? existingFile(base, qless) : null;
   let rel = direct ? posixRel(base, direct) : qless.replace(/^\/+/, "");
-  if (!rel || rel.split("/").includes("..")) return { error: "path escapes project" };
+  if (!rel || rel.split("/").includes(".."))
+    return { error: "path escapes project" };
 
   const abs = direct ?? existingFile(base, resolve(base, rel));
   if (!abs) return { error: `no file at ${rel}` };
@@ -99,7 +107,9 @@ export function resolveArtifact(input: string, root: string): ResolvedArtifact {
   return { error: `not a STEP or GLB: ${input}` };
 }
 
-export function shownUrl(resolved: Exclude<ResolvedArtifact, { error: string }>): string {
+export function shownUrl(
+  resolved: Exclude<ResolvedArtifact, { error: string }>
+): string {
   return resolved.rel;
 }
 
@@ -110,14 +120,20 @@ function packageCacheDir(abs: string) {
 
 function stampOf(rel: string, abs: string): SourceStamp {
   const st = statSync(abs);
-  return { path: rel, mtimeMs: Math.round(st.mtimeMs), size: st.size, format: PACKAGE_FORMAT };
+  return {
+    path: rel,
+    mtimeMs: Math.round(st.mtimeMs),
+    size: st.size,
+    format: PACKAGE_FORMAT,
+  };
 }
 
 function isFresh(dest: string, stamp: SourceStamp): boolean {
   const ok = join(dest, "ok");
   const src = join(dest, "source.json");
   const assembly = join(dest, "assembly.json");
-  if (!existsSync(ok) || !existsSync(src) || !existsSync(assembly)) return false;
+  if (!existsSync(ok) || !existsSync(src) || !existsSync(assembly))
+    return false;
   try {
     const prev = JSON.parse(readFileSync(src, "utf8")) as SourceStamp;
     return (
@@ -160,13 +176,19 @@ export function ensurePackage(rel: string, abs: string): Promise<string> {
 }
 
 function jsonResponse(status: number, body: unknown): Response {
-  return Response.json(body, { status, headers: { "cache-control": "no-store" } });
+  return Response.json(body, {
+    status,
+    headers: { "cache-control": "no-store" },
+  });
 }
 
 function fileResponse(file: string, type: string, head: boolean): Response {
   const headers = { "content-type": type, "cache-control": "no-store" };
   if (head) return new Response(null, { status: 200, headers });
-  return new Response(Readable.toWeb(createReadStream(file)) as ReadableStream, { status: 200, headers });
+  return new Response(
+    Readable.toWeb(createReadStream(file)) as ReadableStream,
+    { status: 200, headers }
+  );
 }
 
 function mimeFor(file: string) {
@@ -177,7 +199,10 @@ function mimeFor(file: string) {
 }
 
 /** Serve /api/cad-pkg/<project-rel-step>/{assembly.json,components/*.tess}. */
-export async function handleCadPkg(req: Request, root: string): Promise<Response> {
+export async function handleCadPkg(
+  req: Request,
+  root: string
+): Promise<Response> {
   const path = new URL(req.url).pathname;
   const m = PKG_FILE.exec(path);
   if (!m) return jsonResponse(404, { error: "cad package file not found" });
@@ -191,7 +216,8 @@ export async function handleCadPkg(req: Request, root: string): Promise<Response
   const file = m[2] ?? "";
   const resolved = resolveArtifact(rel, root);
   if ("error" in resolved) return jsonResponse(404, { error: resolved.error });
-  if (resolved.kind !== "step") return jsonResponse(400, { error: "cad-pkg only serves STEP" });
+  if (resolved.kind !== "step")
+    return jsonResponse(400, { error: "cad-pkg only serves STEP" });
 
   if (file === "assembly.json") rememberOpenedFile(resolved.rel, root);
 
@@ -206,14 +232,21 @@ export async function handleCadPkg(req: Request, root: string): Promise<Response
 
   const absFile = resolve(dest, file);
   const fromDest = relative(dest, absFile);
-  if (fromDest.startsWith("..") || isAbsolute(fromDest) || !existsSync(absFile)) {
+  if (
+    fromDest.startsWith("..") ||
+    isAbsolute(fromDest) ||
+    !existsSync(absFile)
+  ) {
     return jsonResponse(404, { error: `${file} missing from package` });
   }
   return fileResponse(absFile, mimeFor(file), req.method === "HEAD");
 }
 
 /** Serve a GLB/GLTF from the named project (paired clients cannot hit disk otherwise). */
-export async function handleProjectFile(req: Request, root: string): Promise<Response> {
+export async function handleProjectFile(
+  req: Request,
+  root: string
+): Promise<Response> {
   const path = new URL(req.url).pathname;
   const m = PROJECT_FILE.exec(path);
   if (!m) return jsonResponse(404, { error: "file not found" });
@@ -227,5 +260,9 @@ export async function handleProjectFile(req: Request, root: string): Promise<Res
   if ("error" in resolved) return jsonResponse(404, { error: resolved.error });
   if (resolved.kind !== "glb") return jsonResponse(400, { error: "not a GLB" });
   rememberOpenedFile(resolved.rel, root);
-  return fileResponse(resolved.abs, mimeFor(resolved.abs), req.method === "HEAD");
+  return fileResponse(
+    resolved.abs,
+    mimeFor(resolved.abs),
+    req.method === "HEAD"
+  );
 }

@@ -1,15 +1,26 @@
-import { Container } from "@react-three/uikit";
-import { useFrame } from "@react-three/fiber";
-import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
-import * as THREE from "three";
-
-import { ToolBtn } from "@/xr/ui/ToolBtn";
-import { useWorldCard } from "@/xr/ui/WorldCard";
+import { useFrame } from "@react-three/fiber";
+import { Container } from "@react-three/uikit";
 import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
+import * as THREE from "three";
+import {
+  bandWidth,
   CARD_R,
   CORNER_LAYOUT,
+  type CornerId,
+  cardMeters,
+  clampSize,
+  classify,
+  cornerStrokeGeometry,
   EDGE_LAYOUT,
+  type EdgeId,
   GAP,
   HANDLE_DROP,
   HANDLE_EXP_LEN,
@@ -17,25 +28,20 @@ import {
   HANDLE_LEN,
   HANDLE_R,
   HIT_PAD,
+  handleCenterY,
   NEAR_PAD,
   PX,
-  STROKE,
-  bandWidth,
-  cardMeters,
-  classify,
-  clampSize,
-  cornerStrokeGeometry,
-  handleCenterY,
+  type Region,
   rayOnCard,
   registerCard,
   roundedRectGeometry,
-  visibleRaycast,
+  STROKE,
   stadiumGeometry,
-  type CornerId,
-  type EdgeId,
-  type Region,
+  visibleRaycast,
 } from "@/xr/ui/chrome";
+import { ToolBtn } from "@/xr/ui/ToolBtn";
 import { useXrTheme } from "@/xr/ui/theme";
+import { useWorldCard } from "@/xr/ui/WorldCard";
 
 const CORNER_STROKE = cornerStrokeGeometry();
 const HANDLE_GEOM = stadiumGeometry(HANDLE_LEN, HANDLE_R);
@@ -50,7 +56,8 @@ export function HandleButton({
 }: Omit<Parameters<typeof ToolBtn>[0], "round" | "grow">) {
   const ctx = useContext(HandleContext);
   const theme = useXrTheme();
-  if (!ctx) throw new Error("HandleButton must be used within WorldCard handle");
+  if (!ctx)
+    throw new Error("HandleButton must be used within WorldCard handle");
   return (
     <ToolBtn
       {...props}
@@ -213,7 +220,7 @@ export function CardChrome({
       lim.minW,
       lim.minH,
       lim.maxW,
-      lim.maxH,
+      lim.maxH
     );
     const cur = sizeRef.current;
     if (next.w !== cur.w || next.h !== cur.h) setSizeRef.current(next);
@@ -224,7 +231,9 @@ export function CardChrome({
     if (!d) return;
     const region = d.region;
     if (d.kind === "resize") {
-      const cap = ev?.target as { releasePointerCapture?: (id: number) => void } | null;
+      const cap = ev?.target as {
+        releasePointerCapture?: (id: number) => void;
+      } | null;
       if (ev) cap?.releasePointerCapture?.(ev.pointerId);
       drag.current = null;
       setDraggingRef.current(false);
@@ -253,7 +262,14 @@ export function CardChrome({
         a.worldToLocal(localScratch.current.copy(world));
         const s = sizeRef.current;
         setHover(
-          classify(localScratch.current.x, localScratch.current.y, s.w, s.h, NEAR_PAD, optsRef.current),
+          classify(
+            localScratch.current.x,
+            localScratch.current.y,
+            s.w,
+            s.h,
+            NEAR_PAD,
+            optsRef.current
+          )
         );
       },
       begin: (world) => {
@@ -265,13 +281,21 @@ export function CardChrome({
           s.w,
           s.h,
           NEAR_PAD,
-          optsRef.current,
+          optsRef.current
         );
         if (region.startsWith("corner:")) {
-          beginResizeAt(region.slice(7) as CornerId, localScratch.current.x, localScratch.current.y);
+          beginResizeAt(
+            region.slice(7) as CornerId,
+            localScratch.current.x,
+            localScratch.current.y
+          );
           return;
         }
-        if (region.startsWith("edge:") || region === "handle" || region === "ring") {
+        if (
+          region.startsWith("edge:") ||
+          region === "handle" ||
+          region === "ring"
+        ) {
           startMoveAtRef.current(world);
           drag.current = { kind: "move", region };
           show(region, true, true);
@@ -297,19 +321,28 @@ export function CardChrome({
   }, [anchor]);
 
   const orbOuter = radius + outer;
-  const orbDisc = useMemo(() => new THREE.CircleGeometry(Math.max(orbOuter, 0.001), 48), [orbOuter]);
+  const orbDisc = useMemo(
+    () => new THREE.CircleGeometry(Math.max(orbOuter, 0.001), 48),
+    [orbOuter]
+  );
   const orbRing = useMemo(
     () =>
       new THREE.RingGeometry(
         Math.max(radius + GAP - STROKE / 2, 0.0001),
         radius + GAP + STROKE / 2,
-        48,
+        48
       ),
-    [radius],
+    [radius]
   );
   const bandGeom = useMemo(
-    () => roundedRectGeometry(hw + outer, hh + outer, CARD_R + outer, hasHandle ? HANDLE_DROP : 0),
-    [hw, hh, outer, hasHandle],
+    () =>
+      roundedRectGeometry(
+        hw + outer,
+        hh + outer,
+        CARD_R + outer,
+        hasHandle ? HANDLE_DROP : 0
+      ),
+    [hw, hh, outer, hasHandle]
   );
   const inset = CARD_R + 0.024 + 0.012;
   const hLen = Math.max(meters.w - 2 * inset, 0.01);
@@ -327,8 +360,14 @@ export function CardChrome({
     const color = pressed ? t.pressed : t.hover;
     if (region === "handle") {
       const idle = idleVis.current;
-      if (idle && "color" in idle.material && idle.material.color instanceof THREE.Color) {
-        idle.material.color.set(pressed ? t.pressed : on ? t.hover : t.handleIdle);
+      if (
+        idle &&
+        "color" in idle.material &&
+        idle.material.color instanceof THREE.Color
+      ) {
+        idle.material.color.set(
+          pressed ? t.pressed : on ? t.hover : t.handleIdle
+        );
       }
       return;
     }
@@ -370,7 +409,9 @@ export function CardChrome({
     if (!a || drag.current) return;
     const local = rayOnCard(a, ev.ray);
     if (!local) return;
-    const cap = ev.target as { setPointerCapture?: (id: number) => void } | null;
+    const cap = ev.target as {
+      setPointerCapture?: (id: number) => void;
+    } | null;
     cap?.setPointerCapture?.(ev.pointerId);
     beginResizeAt(corner, local.x, local.y);
   };
@@ -381,12 +422,23 @@ export function CardChrome({
     ev.stopPropagation();
     const local = rayOnCard(a, ev.ray);
     if (!local) return;
-    const region = classify(local.x, local.y, sizeRef.current.w, sizeRef.current.h, HIT_PAD, optsRef.current);
+    const region = classify(
+      local.x,
+      local.y,
+      sizeRef.current.w,
+      sizeRef.current.h,
+      HIT_PAD,
+      optsRef.current
+    );
     if (region.startsWith("corner:") && corners) {
       beginResize(region.slice(7) as CornerId, ev);
       return;
     }
-    if (region.startsWith("edge:") || region === "handle" || region === "ring") {
+    if (
+      region.startsWith("edge:") ||
+      region === "handle" ||
+      region === "ring"
+    ) {
       startMoveRef.current(ev);
       drag.current = { kind: "move", region };
       show(region, true, true);
@@ -416,7 +468,16 @@ export function CardChrome({
       setHover("none");
       return;
     }
-    setHover(classify(local.x, local.y, sizeRef.current.w, sizeRef.current.h, HIT_PAD, optsRef.current));
+    setHover(
+      classify(
+        local.x,
+        local.y,
+        sizeRef.current.w,
+        sizeRef.current.h,
+        HIT_PAD,
+        optsRef.current
+      )
+    );
   };
 
   const onUp = (ev: ThreeEvent<PointerEvent>) => {
@@ -435,7 +496,14 @@ export function CardChrome({
     }
     const local = rayOnCard(a, ev.ray);
     if (local) {
-      const region = classify(local.x, local.y, sizeRef.current.w, sizeRef.current.h, HIT_PAD, optsRef.current);
+      const region = classify(
+        local.x,
+        local.y,
+        sizeRef.current.w,
+        sizeRef.current.h,
+        HIT_PAD,
+        optsRef.current
+      );
       if (region === "handle" || region === hover.current) return;
       setHover(region);
       return;
@@ -448,7 +516,8 @@ export function CardChrome({
 
   useFrame((_, dt) => {
     if (!hasHandle) return;
-    const goal = handleOpen.current || drag.current?.region === "handle" ? 1 : 0;
+    const goal =
+      handleOpen.current || drag.current?.region === "handle" ? 1 : 0;
     expandT.current += (goal - expandT.current) * Math.min(1, 10 * dt);
     const t = expandT.current;
     if (idleVis.current) idleVis.current.visible = t < 0.2;
@@ -457,7 +526,7 @@ export function CardChrome({
       expVis.current.scale.set(
         THREE.MathUtils.lerp(HANDLE_LEN / HANDLE_EXP_LEN, 1, t),
         THREE.MathUtils.lerp(HANDLE_R / HANDLE_EXP_R, 1, t),
-        1,
+        1
       );
     }
     if (btnVis.current) btnVis.current.visible = t > 0.88;
@@ -476,9 +545,19 @@ export function CardChrome({
           onPointerOut={onOut}
         >
           <primitive attach="geometry" object={orbDisc} />
-          <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
+          <meshBasicMaterial
+            transparent
+            opacity={0}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
         </mesh>
-        <mesh ref={bindStroke("ring")} visible={false} position={[0, 0, 0.003]} raycast={() => {}}>
+        <mesh
+          ref={bindStroke("ring")}
+          visible={false}
+          position={[0, 0, 0.003]}
+          raycast={() => {}}
+        >
           <primitive attach="geometry" object={orbRing} />
           <meshBasicMaterial color={theme.hover} side={THREE.DoubleSide} />
         </mesh>
@@ -488,83 +567,108 @@ export function CardChrome({
 
   return (
     <HandleContext.Provider value={{ keepOpen, maybeClose }}>
-    <group name="card-chrome">
-      <mesh
-        position={[0, 0, -0.001]}
-        raycast={visibleRaycast}
-        onPointerDown={onDown}
-        onPointerMove={onMove}
-        onPointerUp={onUp}
-        onPointerCancel={onUp}
-        onPointerOut={onOut}
-      >
-        <primitive attach="geometry" object={bandGeom} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
-      {corners
-        ? CORNER_LAYOUT.map((c) => (
-            <group key={c.id} position={[c.sx * hw, c.sy * hh, 0.003]} rotation={[0, 0, c.rot]}>
-              <mesh ref={bindStroke(`corner:${c.id}`)} visible={false} raycast={() => {}}>
-                <primitive attach="geometry" object={CORNER_STROKE} />
-                <meshBasicMaterial color={theme.hover} />
-              </mesh>
-            </group>
-          ))
-        : null}
-      {EDGE_LAYOUT.filter((e) => edges.includes(e.id)).map((e) => {
-        const horiz = e.id === "t";
-        return (
-          <group key={e.id} position={[0, 0, 0.003]} rotation={[0, 0, e.rot]}>
-            <group position={[0, edgeAlong(e.id) + GAP, 0]}>
-              <mesh ref={bindStroke(`edge:${e.id}`)} visible={false} raycast={() => {}}>
-                <primitive attach="geometry" object={horiz ? hStroke : vStroke} />
-                <meshBasicMaterial color={theme.hover} />
-              </mesh>
-            </group>
-          </group>
-        );
-      })}
-      {hasHandle ? (
-        <group name="card-handle" position={[0, pillY, 0.002]}>
-          <mesh ref={idleVis} raycast={() => {}}>
-            <primitive attach="geometry" object={HANDLE_GEOM} />
-            <meshBasicMaterial color={theme.handleIdle} />
-          </mesh>
-          <group ref={expVis} visible={false}>
-            <mesh raycast={() => {}}>
-              <primitive attach="geometry" object={HANDLE_EXP_GEOM} />
-              <meshBasicMaterial color={theme.hover} />
-            </mesh>
-          </group>
-          <mesh
-            position={[0, 0, 0.003]}
-            raycast={visibleRaycast}
-            onPointerDown={onDown}
-            onPointerMove={onMove}
-            onPointerUp={onUp}
-            onPointerCancel={onUp}
-            onPointerOut={onOut}
-          >
-            <primitive attach="geometry" object={HANDLE_EXP_GEOM} />
-            <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
-          </mesh>
-          {handleKids ? (
-            <group ref={btnVis} visible={false} position={[0, 0, 0.004]}>
-              <Container
-                pixelSize={0.001}
-                width={HANDLE_EXP_LEN / PX}
-                flexDirection="row"
-                justifyContent="space-between"
-                alignItems="center"
-                pointerEvents="auto"
+      <group name="card-chrome">
+        <mesh
+          position={[0, 0, -0.001]}
+          raycast={visibleRaycast}
+          onPointerDown={onDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+          onPointerOut={onOut}
+        >
+          <primitive attach="geometry" object={bandGeom} />
+          <meshBasicMaterial
+            transparent
+            opacity={0}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        {corners
+          ? CORNER_LAYOUT.map((c) => (
+              <group
+                key={c.id}
+                position={[c.sx * hw, c.sy * hh, 0.003]}
+                rotation={[0, 0, c.rot]}
               >
-                {handleKids}
-              </Container>
+                <mesh
+                  ref={bindStroke(`corner:${c.id}`)}
+                  visible={false}
+                  raycast={() => {}}
+                >
+                  <primitive attach="geometry" object={CORNER_STROKE} />
+                  <meshBasicMaterial color={theme.hover} />
+                </mesh>
+              </group>
+            ))
+          : null}
+        {EDGE_LAYOUT.filter((e) => edges.includes(e.id)).map((e) => {
+          const horiz = e.id === "t";
+          return (
+            <group key={e.id} position={[0, 0, 0.003]} rotation={[0, 0, e.rot]}>
+              <group position={[0, edgeAlong(e.id) + GAP, 0]}>
+                <mesh
+                  ref={bindStroke(`edge:${e.id}`)}
+                  visible={false}
+                  raycast={() => {}}
+                >
+                  <primitive
+                    attach="geometry"
+                    object={horiz ? hStroke : vStroke}
+                  />
+                  <meshBasicMaterial color={theme.hover} />
+                </mesh>
+              </group>
             </group>
-          ) : null}
-        </group>
-      ) : null}
-    </group>
+          );
+        })}
+        {hasHandle ? (
+          <group name="card-handle" position={[0, pillY, 0.002]}>
+            <mesh ref={idleVis} raycast={() => {}}>
+              <primitive attach="geometry" object={HANDLE_GEOM} />
+              <meshBasicMaterial color={theme.handleIdle} />
+            </mesh>
+            <group ref={expVis} visible={false}>
+              <mesh raycast={() => {}}>
+                <primitive attach="geometry" object={HANDLE_EXP_GEOM} />
+                <meshBasicMaterial color={theme.hover} />
+              </mesh>
+            </group>
+            <mesh
+              position={[0, 0, 0.003]}
+              raycast={visibleRaycast}
+              onPointerDown={onDown}
+              onPointerMove={onMove}
+              onPointerUp={onUp}
+              onPointerCancel={onUp}
+              onPointerOut={onOut}
+            >
+              <primitive attach="geometry" object={HANDLE_EXP_GEOM} />
+              <meshBasicMaterial
+                transparent
+                opacity={0}
+                depthWrite={false}
+                side={THREE.DoubleSide}
+              />
+            </mesh>
+            {handleKids ? (
+              <group ref={btnVis} visible={false} position={[0, 0, 0.004]}>
+                <Container
+                  pixelSize={0.001}
+                  width={HANDLE_EXP_LEN / PX}
+                  flexDirection="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  pointerEvents="auto"
+                >
+                  {handleKids}
+                </Container>
+              </group>
+            ) : null}
+          </group>
+        ) : null}
+      </group>
     </HandleContext.Provider>
   );
 }

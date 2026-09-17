@@ -23,7 +23,11 @@ function pathOf(req: IncomingMessage) {
   return (req.url ?? "/").split("?")[0];
 }
 
-export function tryServeStatic(req: IncomingMessage, res: ServerResponse, root: string): boolean {
+export function tryServeStatic(
+  req: IncomingMessage,
+  res: ServerResponse,
+  root: string
+): boolean {
   const method = req.method ?? "GET";
   if (method !== "GET" && method !== "HEAD") return false;
 
@@ -40,14 +44,18 @@ export function tryServeStatic(req: IncomingMessage, res: ServerResponse, root: 
   let file = resolve(rootAbs, rel);
   if (file !== rootAbs && !file.startsWith(rootAbs + sep)) return false;
 
-  if (existsSync(file) && statSync(file).isDirectory()) file = join(file, "index.html");
+  if (existsSync(file) && statSync(file).isDirectory())
+    file = join(file, "index.html");
   if (!existsSync(file) || !statSync(file).isFile()) {
     file = join(rootAbs, "index.html");
     if (!existsSync(file) || !statSync(file).isFile()) return false;
   }
 
   res.statusCode = 200;
-  res.setHeader("content-type", MIME[extname(file).toLowerCase()] ?? "application/octet-stream");
+  res.setHeader(
+    "content-type",
+    MIME[extname(file).toLowerCase()] ?? "application/octet-stream"
+  );
   if (method === "HEAD") {
     res.end();
     return true;

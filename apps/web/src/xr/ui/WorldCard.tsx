@@ -1,12 +1,27 @@
-import { useThree, type ThreeElements, type ThreeEvent } from "@react-three/fiber";
-import { createContext, useCallback, useContext, useRef, type ReactNode, type Ref } from "react";
+import {
+  type ThreeElements,
+  type ThreeEvent,
+  useThree,
+} from "@react-three/fiber";
+import {
+  createContext,
+  type ReactNode,
+  type Ref,
+  useCallback,
+  useContext,
+  useRef,
+} from "react";
 import * as THREE from "three";
 
 import { faceToward } from "@/scene/SpawnInFront";
 import { store } from "@/state/store";
 import { CardChrome, HandleButton } from "@/xr/ui/CardChrome";
-import { cardMeters, type CardSize, type Region } from "@/xr/ui/chrome";
-import { FeedbackContext, useRightControllerFeedback, type Feedback } from "@/xr/ui/ToolBtn";
+import { type CardSize, cardMeters, type Region } from "@/xr/ui/chrome";
+import {
+  type Feedback,
+  FeedbackContext,
+  useRightControllerFeedback,
+} from "@/xr/ui/ToolBtn";
 
 const tmpV = new THREE.Vector3();
 
@@ -75,7 +90,11 @@ export function WorldCard({
   const inner = useRef<THREE.Group>(null);
   const camera = useThree((s) => s.camera);
   const feedback = useRightControllerFeedback();
-  const drag = useRef<{ kind: "ray" | "near"; dist: number; offset: THREE.Vector3 } | null>(null);
+  const drag = useRef<{
+    kind: "ray" | "near";
+    dist: number;
+    offset: THREE.Vector3;
+  } | null>(null);
   const meters = cardMeters(size);
   const onDragStartRef = useRef(onDragStart);
   onDragStartRef.current = onDragStart;
@@ -106,7 +125,7 @@ export function WorldCard({
       setDragging(true);
       feedback.click();
     },
-    [feedback, setDragging],
+    [feedback, setDragging]
   );
   const moveTo = useCallback((world: THREE.Vector3) => {
     const d = drag.current;
@@ -120,12 +139,14 @@ export function WorldCard({
       const a = inner.current;
       if (!a || drag.current) return;
       ev.stopPropagation();
-      const cap = ev.target as { setPointerCapture?: (pid: number) => void } | null;
+      const cap = ev.target as {
+        setPointerCapture?: (pid: number) => void;
+      } | null;
       cap?.setPointerCapture?.(ev.pointerId);
       const dist = ev.ray.origin.distanceTo(ev.point);
       startMoveAt(ev.point, "ray", dist);
     },
-    [startMoveAt],
+    [startMoveAt]
   );
   const dragMove = useCallback(
     (ev: ThreeEvent<PointerEvent>) => {
@@ -135,16 +156,21 @@ export function WorldCard({
       tmpV.copy(ev.ray.direction).multiplyScalar(d.dist).add(ev.ray.origin);
       moveTo(tmpV);
     },
-    [moveTo],
+    [moveTo]
   );
-  const endMove = useCallback((ev?: ThreeEvent<PointerEvent>) => {
-    if (!drag.current) return;
-    ev?.stopPropagation();
-    const cap = ev?.target as { releasePointerCapture?: (id: number) => void } | null;
-    if (ev) cap?.releasePointerCapture?.(ev.pointerId);
-    drag.current = null;
-    setDragging(false);
-  }, [setDragging]);
+  const endMove = useCallback(
+    (ev?: ThreeEvent<PointerEvent>) => {
+      if (!drag.current) return;
+      ev?.stopPropagation();
+      const cap = ev?.target as {
+        releasePointerCapture?: (id: number) => void;
+      } | null;
+      if (ev) cap?.releasePointerCapture?.(ev.pointerId);
+      drag.current = null;
+      setDragging(false);
+    },
+    [setDragging]
+  );
 
   const setSize = useCallback((next: CardSize) => {
     onSizeRef.current?.(next);
@@ -197,5 +223,5 @@ export function WorldCard({
   );
 }
 
-export { HandleButton };
 export type { CardSize, Region };
+export { HandleButton };

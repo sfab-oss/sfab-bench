@@ -23,12 +23,17 @@
     "serve": "pnpm --filter @sfab-bench/server serve",
     "cli": "pnpm --filter @sfab-bench/server exec tsx src/cli.ts",
     "sfab-bench": "node apps/server/bin/sfab-bench.mjs",
-    "build": "pnpm typecheck && pnpm test && pnpm --filter @sfab-bench/web build && pnpm --filter @sfab-bench/desktop build",
+    "build": "pnpm lint:check && pnpm typecheck && pnpm test && pnpm --filter @sfab-bench/web build && pnpm --filter @sfab-bench/desktop build",
     "typecheck": "pnpm -r typecheck",
+    "lint:check": "biome check --diagnostic-level=error .",
+    "lint:fix": "biome check --write .",
     "test": "pnpm --filter @sfab-bench/server test && pnpm --filter @sfab-bench/web test && pnpm --filter @sfab-bench/desktop test",
     "corpus:fetch": "node apps/server/scripts/fetch_external.mjs",
     "corpus:external": "pnpm --filter @sfab-bench/server exec tsx src/occt.external.selfcheck.ts",
     "desktop": "pnpm --filter @sfab-bench/web build && pnpm --filter @sfab-bench/desktop build && pnpm --filter @sfab-bench/desktop exec node run.mjs .",
     "desktop:package": "pnpm --filter @sfab-bench/web build && pnpm --filter @sfab-bench/desktop package"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.2"
   }
 }

@@ -1,18 +1,25 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useXR } from "@react-three/xr";
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as THREE from "three";
+import type * as THREE from "three";
 
 import { placeAtGaze } from "@/scene/SpawnInFront";
 import { useStore } from "@/state/store";
 import { ChatOrbHud } from "@/xr/ui/ChatOrbHud";
 import { ChatPanels } from "@/xr/ui/ChatPanels";
-import { cardMeters, type CardSize } from "@/xr/ui/chrome";
+import { type CardSize, cardMeters } from "@/xr/ui/chrome";
 import { ORB_RADIUS, SpeakingOrb } from "@/xr/ui/SpeakingOrb";
 import { WorldCard } from "@/xr/ui/WorldCard";
 import { XrChatRuntimeProvider } from "@/xr/ui/XrChatRuntime";
 
-const CHAT_CARD = { w: 340, h: 520, minW: 280, minH: 400, maxW: 800, maxH: 720 };
+const CHAT_CARD = {
+  w: 340,
+  h: 520,
+  minW: 280,
+  minH: 400,
+  maxW: 800,
+  maxH: 720,
+};
 const ORB_LIFT = 0.08;
 
 export function ChatDock() {
@@ -21,7 +28,10 @@ export function ChatDock() {
   const xrChatOpen = useStore((s) => s.xrChatOpen);
   const setXrChatOpen = useStore((s) => s.setXrChatOpen);
   const setBringChat = useStore((s) => s.setBringChat);
-  const [size, setSize] = useState<CardSize>({ w: CHAT_CARD.w, h: CHAT_CARD.h });
+  const [size, setSize] = useState<CardSize>({
+    w: CHAT_CARD.w,
+    h: CHAT_CARD.h,
+  });
   const meters = cardMeters(size);
   const orbTop = meters.h / 2 + ORB_LIFT;
   const orbLift = useRef(0);
@@ -33,7 +43,12 @@ export function ChatDock() {
   const bringHere = useCallback(() => {
     const a = anchor.current;
     if (!a) return;
-    placeAtGaze(a, camera, { distance: 0.55, drop: 0.1, side: 0.22, face: true });
+    placeAtGaze(a, camera, {
+      distance: 0.55,
+      drop: 0.1,
+      side: 0.22,
+      face: true,
+    });
     placed.current = true;
   }, [camera]);
 

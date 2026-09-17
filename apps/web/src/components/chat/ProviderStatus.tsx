@@ -1,5 +1,5 @@
 import { ProviderLoginHint } from "@/components/chat/ProviderLoginHint";
-import { useHarnesses } from "@/hooks/useHarnesses";
+import type { useHarnesses } from "@/hooks/useHarnesses";
 import { useStore } from "@/state/store";
 
 type HarnessCatalog = ReturnType<typeof useHarnesses>;

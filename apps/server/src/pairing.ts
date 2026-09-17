@@ -67,13 +67,18 @@ function parseScopes(raw: string): Scope[] {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item): item is Scope => item === "view" || item === "chat");
+    return parsed.filter(
+      (item): item is Scope => item === "view" || item === "chat"
+    );
   } catch {
     return [];
   }
 }
 
-export function mintOffer(db: DatabaseSync = defaultDb, now = Date.now()): PairingOffer {
+export function mintOffer(
+  db: DatabaseSync = defaultDb,
+  now = Date.now()
+): PairingOffer {
   ensurePairingSchema(db);
   const offer: PairingOffer = {
     code: randomCode(),
@@ -81,21 +86,28 @@ export function mintOffer(db: DatabaseSync = defaultDb, now = Date.now()): Pairi
     expiresAt: now + CODE_TTL_MS,
   };
   db.prepare(
-    "INSERT INTO pairing_offers (id, code, fragment, expires_at) VALUES (1, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET code = excluded.code, fragment = excluded.fragment, expires_at = excluded.expires_at",
+    "INSERT INTO pairing_offers (id, code, fragment, expires_at) VALUES (1, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET code = excluded.code, fragment = excluded.fragment, expires_at = excluded.expires_at"
   ).run(offer.code, offer.fragment, offer.expiresAt);
   return offer;
 }
 
 export function readOffer(db: DatabaseSync = defaultDb): PairingOffer | null {
   ensurePairingSchema(db);
-  const row = db.prepare("SELECT code, fragment, expires_at FROM pairing_offers WHERE id = 1").get() as
+  const row = db
+    .prepare(
+      "SELECT code, fragment, expires_at FROM pairing_offers WHERE id = 1"
+    )
+    .get() as
     | { code: string; fragment: string; expires_at: number }
     | undefined;
   if (!row) return null;
   return { code: row.code, fragment: row.fragment, expiresAt: row.expires_at };
 }
 
-export function ensureOffer(db: DatabaseSync = defaultDb, now = Date.now()): PairingOffer {
+export function ensureOffer(
+  db: DatabaseSync = defaultDb,
+  now = Date.now()
+): PairingOffer {
   const current = readOffer(db);
   if (current && current.expiresAt > now) return current;
   return mintOffer(db, now);
@@ -105,16 +117,16 @@ function consumeOffer(db: DatabaseSync) {
   db.prepare("DELETE FROM pairing_offers WHERE id = 1").run();
 }
 
-function issueDevice(db: DatabaseSync, label: string, now: number): IssuedDevice {
+function issueDevice(
+  db: DatabaseSync,
+  label: string,
+  now: number
+): IssuedDevice {
   const id = crypto.randomUUID();
   const token = `d.${randomBytes(32).toString("base64url")}`;
-  db.prepare("INSERT INTO devices (id, label, token_hash, scopes, created_at) VALUES (?, ?, ?, ?, ?)").run(
-    id,
-    label,
-    sha256(token),
-    JSON.stringify(PAIRED_SCOPES),
-    now,
-  );
+  db.prepare(
+    "INSERT INTO devices (id, label, token_hash, scopes, created_at) VALUES (?, ?, ?, ?, ?)"
+  ).run(id, label, sha256(token), JSON.stringify(PAIRED_SCOPES), now);
   return { token, deviceId: id, label, scopes: PAIRED_SCOPES };
 }
 
@@ -122,11 +134,12 @@ export function redeemCode(
   code: string,
   label: string,
   now = Date.now(),
-  db: DatabaseSync = defaultDb,
+  db: DatabaseSync = defaultDb
 ): IssuedDevice | "invalid" | "expired" {
   ensurePairingSchema(db);
   const offer = readOffer(db);
-  if (!offer || normalizeCode(offer.code) !== normalizeCode(code)) return "invalid";
+  if (!offer || normalizeCode(offer.code) !== normalizeCode(code))
+    return "invalid";
   if (offer.expiresAt <= now) {
     consumeOffer(db);
     return "expired";
@@ -140,7 +153,7 @@ export function redeemFragment(
   fragment: string,
   label: string,
   now = Date.now(),
-  db: DatabaseSync = defaultDb,
+  db: DatabaseSync = defaultDb
 ): IssuedDevice | "invalid" | "expired" {
   ensurePairingSchema(db);
   const offer = readOffer(db);
@@ -154,9 +167,14 @@ export function redeemFragment(
   return device;
 }
 
-export function lookupDevice(token: string, db: DatabaseSync = defaultDb): StoredDevice | null {
+export function lookupDevice(
+  token: string,
+  db: DatabaseSync = defaultDb
+): StoredDevice | null {
   ensurePairingSchema(db);
-  const row = db.prepare("SELECT id, label, scopes FROM devices WHERE token_hash = ?").get(sha256(token)) as
+  const row = db
+    .prepare("SELECT id, label, scopes FROM devices WHERE token_hash = ?")
+    .get(sha256(token)) as
     | { id: string; label: string; scopes: string }
     | undefined;
   if (!row) return null;

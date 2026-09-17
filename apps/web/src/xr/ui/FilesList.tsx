@@ -1,20 +1,20 @@
-import { ChevronDown } from "@react-three/uikit-lucide";
 import { Container, Text } from "@react-three/uikit";
+import { ChevronDown } from "@react-three/uikit-lucide";
 import { useContext, useEffect, useMemo, useState } from "react";
 
 import { useCatalog } from "@/hooks/useCatalog";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import {
+  type CatalogEntry,
+  type CatalogNode,
   catalogAncestors,
   catalogSections,
   catalogTree,
-  type CatalogEntry,
-  type CatalogNode,
 } from "@/lib/viewer-snapshot";
 import { useStore } from "@/state/store";
-import { asciiSafe } from "@/xr/ui/UikitMarkdown";
 import { FeedbackContext } from "@/xr/ui/ToolBtn";
 import { useXrTheme } from "@/xr/ui/theme";
+import { asciiSafe } from "@/xr/ui/UikitMarkdown";
 
 function FileRow({
   name,
@@ -89,13 +89,20 @@ function DirNode({
         backgroundColor={theme.muted}
         hover={{ backgroundColor: theme.hover }}
         active={{ backgroundColor: theme.pressed }}
-        onHoverChange={(hovered: boolean) => feedback.hover(`dir-${node.path}`, hovered)}
+        onHoverChange={(hovered: boolean) =>
+          feedback.hover(`dir-${node.path}`, hovered)
+        }
         onClick={() => {
           feedback.click();
           toggle(node.path);
         }}
       >
-        <ChevronDown width={12} height={12} color={theme.text} transformRotateZ={open ? 0 : 90} />
+        <ChevronDown
+          width={12}
+          height={12}
+          color={theme.text}
+          transformRotateZ={open ? 0 : 90}
+        />
         <Text fontSize={13} color={theme.text}>
           {asciiSafe(node.name)}
         </Text>
@@ -133,10 +140,25 @@ function TreeNode({
   onPick?: () => void;
 }) {
   if (node.type === "file") {
-    return <FileRow name={node.name} path={node.path} current={current} depth={depth} onPick={onPick} />;
+    return (
+      <FileRow
+        name={node.name}
+        path={node.path}
+        current={current}
+        depth={depth}
+        onPick={onPick}
+      />
+    );
   }
   return (
-    <DirNode node={node} current={current} depth={depth} expanded={expanded} toggle={toggle} onPick={onPick} />
+    <DirNode
+      node={node}
+      current={current}
+      depth={depth}
+      expanded={expanded}
+      toggle={toggle}
+      onPick={onPick}
+    />
   );
 }
 
@@ -200,7 +222,9 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
   if (files.length === 0) {
     return (
       <Text fontSize={12} color={theme.subtle}>
-        {projectPath ? "This folder has no STEP or GLB." : "Open a folder first."}
+        {projectPath
+          ? "This folder has no STEP or GLB."
+          : "Open a folder first."}
       </Text>
     );
   }

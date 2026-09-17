@@ -36,7 +36,10 @@ export function AboutSection({ host }: { host: boolean }) {
       folderName: projectPath ? folderName(projectPath) : null,
       fileBasename: title && title !== "No model" ? title : null,
       projectPath,
-      harnesses: harnesses.map((row) => ({ label: row.label, status: row.status })),
+      harnesses: harnesses.map((row) => ({
+        label: row.label,
+        status: row.status,
+      })),
       theme,
       textSize,
       loadError: error,
@@ -48,10 +51,22 @@ export function AboutSection({ host }: { host: boolean }) {
     <div className="space-y-3">
       <div>
         <div className="text-sm font-medium">{APP_DISPLAY_NAME}</div>
-        <div className="font-mono text-xs text-muted-foreground">{APP_VERSION}</div>
+        <div className="font-mono text-xs text-muted-foreground">
+          {APP_VERSION}
+        </div>
       </div>
-      <Button type="button" size="sm" variant="secondary" className="h-8" onClick={copyReport}>
-        {flash === "copied" ? "Copied" : flash === "failed" ? "Couldn't copy" : "Copy debug report"}
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        className="h-8"
+        onClick={copyReport}
+      >
+        {flash === "copied"
+          ? "Copied"
+          : flash === "failed"
+            ? "Couldn't copy"
+            : "Copy debug report"}
       </Button>
     </div>
   );

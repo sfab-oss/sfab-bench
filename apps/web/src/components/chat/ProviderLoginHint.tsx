@@ -10,12 +10,20 @@ export function ProviderLoginHint({
   info: HarnessInfo;
   onCheckAgain: () => void;
 }) {
-  const copy = loginHintCopy({ label: info.label, status: info.status, detail: info.detail });
+  const copy = loginHintCopy({
+    label: info.label,
+    status: info.status,
+    detail: info.detail,
+  });
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="text-xs text-amber-800 dark:text-amber-400">{copy.headline}</p>
+      <p className="text-xs text-amber-800 dark:text-amber-400">
+        {copy.headline}
+      </p>
       {copy.command ? <CommandBlock command={copy.command} /> : null}
-      {copy.secondary ? <p className="text-[11px] text-muted-foreground">{copy.secondary}</p> : null}
+      {copy.secondary ? (
+        <p className="text-[11px] text-muted-foreground">{copy.secondary}</p>
+      ) : null}
       <Button
         type="button"
         variant="ghost"

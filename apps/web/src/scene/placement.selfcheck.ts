@@ -19,11 +19,17 @@ const note = (why: string) => {
   console.error(`  ✗ ${why}`);
 };
 const close = (label: string, got: number, want: number, eps = 1e-6) => {
-  if (!(Math.abs(got - want) <= eps)) note(`${label}: ${got.toFixed(6)}, expected ${want}`);
+  if (!(Math.abs(got - want) <= eps))
+    note(`${label}: ${got.toFixed(6)}, expected ${want}`);
 };
 
 /** A head at standing height, yawed `yaw` and pitched `pitch`, both in radians. */
-function head(yaw: number, pitch: number, roll = 0, at = new THREE.Vector3(0, 1.6, 0)) {
+function head(
+  yaw: number,
+  pitch: number,
+  roll = 0,
+  at = new THREE.Vector3(0, 1.6, 0)
+) {
   const camera = new THREE.PerspectiveCamera();
   camera.position.copy(at);
   camera.rotation.set(pitch, yaw, roll, "YXZ");
@@ -32,7 +38,8 @@ function head(yaw: number, pitch: number, roll = 0, at = new THREE.Vector3(0, 1.
 }
 
 const obj = () => new THREE.Object3D();
-const floorGap = (a: THREE.Vector3, b: THREE.Vector3) => Math.hypot(a.x - b.x, a.z - b.z);
+const floorGap = (a: THREE.Vector3, b: THREE.Vector3) =>
+  Math.hypot(a.x - b.x, a.z - b.z);
 
 // ---------------------------------------------------------------------------
 
@@ -47,11 +54,19 @@ for (const pitch of [0, -0.4, 0.4, -1.2, 1.2]) {
     const o = obj();
     placeAtGaze(o, camera, { distance: 1.2, drop: 0.2 });
     const eye = camera.getWorldPosition(new THREE.Vector3());
-    close(`floor distance at pitch ${pitch} yaw ${yaw}`, floorGap(o.position, eye), 1.2, 1e-5);
+    close(
+      `floor distance at pitch ${pitch} yaw ${yaw}`,
+      floorGap(o.position, eye),
+      1.2,
+      1e-5
+    );
     close(`height at pitch ${pitch} yaw ${yaw}`, o.position.y, 1.6 - 0.2, 1e-6);
 
     // And it is in front, not behind: the yaw the camera is facing.
-    const wanted = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
+    const wanted = new THREE.Vector3(0, 0, -1)
+      .applyQuaternion(camera.quaternion)
+      .setY(0)
+      .normalize();
     const went = o.position.clone().sub(eye).setY(0).normalize();
     close(`bearing at pitch ${pitch} yaw ${yaw}`, went.dot(wanted), 1, 1e-5);
   }
@@ -79,11 +94,23 @@ for (const yaw of [0, 0.7, -2.1]) {
     const where = `${sign < 0 ? "down" : "up"} at yaw ${yaw}`;
 
     if (!vertical.o.position.toArray().every(Number.isFinite)) {
-      note(`looking straight ${where} placed it at ${vertical.o.position.toArray().join(", ")}`);
+      note(
+        `looking straight ${where} placed it at ${vertical.o.position.toArray().join(", ")}`
+      );
       continue;
     }
-    close(`floor distance looking straight ${where}`, floorGap(vertical.o.position, eye), 1.2, 1e-5);
-    close(`bearing is continuous looking straight ${where}`, vertical.dir.dot(almost.dir), 1, 1e-6);
+    close(
+      `floor distance looking straight ${where}`,
+      floorGap(vertical.o.position, eye),
+      1.2,
+      1e-5
+    );
+    close(
+      `bearing is continuous looking straight ${where}`,
+      vertical.dir.dot(almost.dir),
+      1,
+      1e-6
+    );
   }
 }
 
@@ -102,8 +129,16 @@ for (const yaw of [0, 0.7, -2.1]) {
     const step = o.position.clone().sub(middle.position);
     close(`side ${side} distance`, step.length(), Math.abs(side), 1e-5);
     close(`side ${side} stays level`, step.y, 0, 1e-6);
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).setY(0).normalize();
-    close(`side ${side} direction`, step.normalize().dot(right), Math.sign(side), 1e-5);
+    const right = new THREE.Vector3(1, 0, 0)
+      .applyQuaternion(camera.quaternion)
+      .setY(0)
+      .normalize();
+    close(
+      `side ${side} direction`,
+      step.normalize().dot(right),
+      Math.sign(side),
+      1e-5
+    );
     close(`side ${side} height`, o.position.y, eye.y - 0.2, 1e-6);
   }
 }
@@ -129,8 +164,16 @@ for (const yaw of [0, 0.7, -2.1]) {
     // Facing means the object's own +Z points back at the wearer.
     const eye = camera.getWorldPosition(new THREE.Vector3());
     const towardEye = eye.clone().sub(o.position).setY(0).normalize();
-    const facing = new THREE.Vector3(0, 0, 1).applyQuaternion(o.quaternion).setY(0).normalize();
-    close(`faces the wearer (${yaw},${pitch},${roll})`, facing.dot(towardEye), 1, 1e-5);
+    const facing = new THREE.Vector3(0, 0, 1)
+      .applyQuaternion(o.quaternion)
+      .setY(0)
+      .normalize();
+    close(
+      `faces the wearer (${yaw},${pitch},${roll})`,
+      facing.dot(towardEye),
+      1,
+      1e-5
+    );
   }
 }
 
@@ -139,7 +182,12 @@ for (const yaw of [0, 0.7, -2.1]) {
   const o = obj();
   o.quaternion.setFromEuler(new THREE.Euler(0.4, 0.4, 0.4));
   placeAtGaze(o, head(1.1, -0.5, 0.3));
-  close("unfaced quaternion is identity", o.quaternion.angleTo(new THREE.Quaternion()), 0, 1e-6);
+  close(
+    "unfaced quaternion is identity",
+    o.quaternion.angleTo(new THREE.Quaternion()),
+    0,
+    1e-6
+  );
 }
 
 /** Recenter is "put it back at 1:1", so the scale the wearer pinched to is dropped. */
@@ -166,9 +214,17 @@ for (const yaw of [0, 0.7, -2.1]) {
   o.position.set(-5, 0.8, -5);
   const pivot = new THREE.Vector3(0, 0, 0);
   faceToward(o, camera, pivot);
-  const facing = new THREE.Vector3(0, 0, 1).applyQuaternion(o.quaternion).setY(0).normalize();
+  const facing = new THREE.Vector3(0, 0, 1)
+    .applyQuaternion(o.quaternion)
+    .setY(0)
+    .normalize();
   const towardEye = new THREE.Vector3(3, 0, 4).sub(pivot).setY(0).normalize();
-  close("faceToward uses the point it is given", facing.dot(towardEye), 1, 1e-5);
+  close(
+    "faceToward uses the point it is given",
+    facing.dot(towardEye),
+    1,
+    1e-5
+  );
 }
 
 if (failures.length) throw new Error(`${failures.length} placement failure(s)`);

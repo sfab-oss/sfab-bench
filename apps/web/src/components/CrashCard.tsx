@@ -40,7 +40,7 @@ export function CrashCard({
       },
       () => {
         /* private mode / permission */
-      },
+      }
     );
   };
 
@@ -49,11 +49,14 @@ export function CrashCard({
       role="alert"
       className={cn(
         "rounded-xl border border-destructive bg-card p-4 text-sm shadow-lg",
-        variant === "page" ? "w-full max-w-md" : "w-80",
+        variant === "page" ? "w-full max-w-md" : "w-80"
       )}
     >
       <strong>Something went wrong</strong>
-      <p className="mt-1 line-clamp-2 break-words text-muted-foreground" title={reason}>
+      <p
+        className="mt-1 line-clamp-2 break-words text-muted-foreground"
+        title={reason}
+      >
         {reason}
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -62,7 +65,12 @@ export function CrashCard({
             Try again
           </Button>
         ) : null}
-        <Button type="button" size="sm" variant="outline" onClick={() => window.location.reload()}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => window.location.reload()}
+        >
           Reload
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={copyReport}>
@@ -73,7 +81,9 @@ export function CrashCard({
   );
 
   if (variant === "page") {
-    return <div className="grid h-dvh place-items-center bg-studio px-4">{card}</div>;
+    return (
+      <div className="grid h-dvh place-items-center bg-studio px-4">{card}</div>
+    );
   }
   return card;
 }
