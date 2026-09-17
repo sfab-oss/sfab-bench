@@ -37,7 +37,7 @@ Do not re-open these unless the human asks.
 - **Tessellation is a loader**, not an adapter. OpenCascade WASM in the API process, and the only one, producing `assembly.json` + `.tess` + `#o…` ([ADR 0002](decisions/0002-step-loader-occt.md), [ADR 0004](decisions/0004-occt-via-opencascade-js.md)). The Python stopgap it replaced is gone.
 - **One process, two HTTPS clients.** Mac tab (loopback trusted) and Quest Browser (paired). No Unity, no APK.
 - **Share the library, not the viewport.** Recents, thread list, messages at rest, pairing. Not: the folder a tab is in, loaded file, selection, camera, XR, which chat is open, live stream. `show_artifact` moves only the asking client. Folder is `?project=` ([ADR 0006](decisions/0006-folder-is-a-tab.md)).
-- **Desktop composer stays TipTap** for future `#` chips (parts, faces, `#o…`). Quest stays plain input + voice.
+- **Desktop composer stays TipTap** for `#` chips (parts, faces, `#o…`). Quest stays plain input + voice.
 - **Electron is a shell, not a client.** It starts the same server and loads the same `https://127.0.0.1:7322` page, and adds exactly one thing a browser cannot do: a native folder dialog ([ADR 0005](decisions/0005-electron-shell.md)). The browser path stays first-class — Quest depends on it.
 - **Ship is a `.app` from GitHub Releases plus `serve`.** No npm until the repo is public. No cask, no auto-update until a notarised `.app` is in a public release.
 - **Auth now is pairing.** Accounts are a later `principal.kind`. Never hold provider credentials; show the login command in the UI.
@@ -55,7 +55,7 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 3 | **done** | Project folder + STEP loader + recents |
 | 4 | **done** | Library, not viewport ([ADR 0003](decisions/0003-library-not-viewport.md)) |
 | 5 | **done** | This repo; sphere-robot `xr-viewer/` deleted |
-| 6 | **partial** | Desktop layout (files left, model tree on canvas, chat right, provider status). **Still to do:** TipTap `#` mentions from parts / faces / `#o…`; chips flatten to those refs; click-in-history selects on this tab |
+| 6 | **done** | Desktop layout (files left, model tree on canvas, chat right, provider status). TipTap `#` mentions from parts / faces / `#o…`; chips flatten to those refs; click a ref in the transcript selects on this tab |
 | 7 | **partial** | Local CLI (`pnpm cli serve` / `dev` / `open`) prints URL, QR, pairing code. **`npx sfab-bench`: not until the repo is public** |
 | 8 | later | `--tunnel` (pairing already required for non-loopback). Do not start until someone needs Quest off this LAN |
 | 9 | later | Docs app (`apps/docs`, `llms.txt`). After a public install path, not before |
