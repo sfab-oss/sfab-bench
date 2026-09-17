@@ -1,6 +1,6 @@
 {
   "name": "@sfab-bench/contract",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "Types shared by the server, the page and the shell.",
   "type": "module",
