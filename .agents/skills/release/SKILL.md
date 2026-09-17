@@ -32,8 +32,8 @@ branch.
 
 1. **Bump** `version` in every `package.json` (root, `apps/desktop`,
    `apps/web`, `apps/server`, `packages/contract`). The zip name comes
-   from `apps/desktop/package.json`. Commit and push `main` (needs
-   owner approval to push default branch) or land via PR.
+   from `apps/desktop/package.json`. Land the bump on `main` via PR.
+   Do not push `main`.
 2. **Package** from the monorepo root (several minutes, ~150 MB zip):
 
    ```bash
