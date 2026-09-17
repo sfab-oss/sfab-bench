@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Hero,
-  ManifestoFooter,
-  ManifestoNav,
   OpenMac,
   Providers,
-  Thesis,
+  SiteFooter,
+  SiteNav,
+  WhatYouGet,
 } from "@/components/home/sections";
+import { VrDemo } from "@/components/home/vr-demo";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -15,14 +16,15 @@ export const Route = createFileRoute("/")({
 function Home() {
   return (
     <div className="sfab-manifesto min-h-screen" id="top">
-      <ManifestoNav />
+      <SiteNav />
       <main>
         <Hero />
-        <Thesis />
+        <WhatYouGet />
         <Providers />
+        <VrDemo />
         <OpenMac />
       </main>
-      <ManifestoFooter />
+      <SiteFooter />
     </div>
   );
 }

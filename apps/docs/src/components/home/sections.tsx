@@ -1,40 +1,53 @@
 import { useEffect, useState } from "react";
 import { DesktopMock } from "@/components/home/desktop-mock";
 import { HairlineGrid } from "@/components/home/hairline-grid";
+import { VrDemo } from "@/components/home/vr-demo";
 import { LogoDots } from "@/components/logo-dots";
 import { Button } from "@/components/ui/button";
 import { Display } from "@/components/ui/display";
-import { LiveDot } from "@/components/ui/live-dot";
 import { Mono } from "@/components/ui/mono";
-import { Pill } from "@/components/ui/pill";
 import { Rule } from "@/components/ui/rule";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const GITHUB = "https://github.com/sfab-oss/sfab-bench";
 const RELEASES = `${GITHUB}/releases`;
+const SFAB = "https://sfab.ai";
 
+/** Vendored from svgl.app. Do not hotlink the API. */
 const PROVIDERS = [
-  { name: "Claude Code", cmd: "claude auth login" },
-  { name: "Codex", cmd: "codex login" },
-  { name: "Grok", cmd: "grok login" },
-  { name: "OpenCode", cmd: "opencode auth login" },
+  {
+    name: "Claude Code",
+    light: "/brand/providers/claude.svg",
+    dark: "/brand/providers/claude.svg",
+  },
+  {
+    name: "Codex",
+    light: "/brand/providers/openai-light.svg",
+    dark: "/brand/providers/openai-dark.svg",
+  },
+  {
+    name: "Grok",
+    light: "/brand/providers/grok-light.svg",
+    dark: "/brand/providers/grok-dark.svg",
+  },
+  {
+    name: "OpenCode",
+    light: "/brand/providers/opencode-light.svg",
+    dark: "/brand/providers/opencode-dark.svg",
+  },
 ] as const;
 
 export function Hero() {
   return (
-    <section className="relative mx-auto w-full max-w-5xl px-6 pt-28 pb-16 md:pt-32">
-      <Pill className="mb-8">
-        <LiveDot className="animate-blink" />
-        CAD workbench
-      </Pill>
+    <section className="relative mx-auto w-full max-w-5xl px-6 pt-20 pb-10 md:pt-24">
       <Display className="max-w-3xl text-4xl sm:text-5xl md:text-6xl">
         Open a folder. Open a STEP. Talk.
       </Display>
-      <p className="mt-6 max-w-xl text-lg text-muted-foreground leading-relaxed">
-        SFab Bench is a CAD workbench that hosts the agents already on your Mac.
-        Quest Browser joins the same process over Wi-Fi.
+      <p className="mt-5 max-w-xl text-lg text-muted-foreground leading-relaxed">
+        A CAD workbench on your Mac. Agents you already have. Quest Browser on
+        the same Wi-Fi.
       </p>
-      <div className="mt-8 flex flex-wrap gap-3">
+      <div className="mt-7 flex flex-wrap gap-3">
         <Button asChild>
           <a href={RELEASES}>Download for macOS</a>
         </Button>
@@ -42,51 +55,33 @@ export function Hero() {
           <a href="#run">How to run</a>
         </Button>
       </div>
-      <div className="mt-12">
+      <div className="mt-8">
         <DesktopMock />
       </div>
     </section>
   );
 }
 
-export function Thesis() {
+export function WhatYouGet() {
   return (
-    <section className="mx-auto w-full max-w-5xl px-6 py-20">
-      <Mono caps className="tracking-[0.2em]" size="xs">
-        01 The job
-      </Mono>
-      <Display className="mt-4 max-w-3xl text-3xl sm:text-4xl">
-        Presence, not authoring.
-      </Display>
-      <p className="mt-6 max-w-2xl text-muted-foreground leading-relaxed">
-        Whatever produced the STEP stays wherever it is. This app tessellates
-        it, lets you select faces and parts, and puts a coding agent on that
-        folder. Mac tab and Quest share recents and chat history. Each client
-        keeps its own camera, selection, and live thread.
-      </p>
-      <HairlineGrid className="mt-10 sm:grid-cols-3">
+    <section className="mx-auto w-full max-w-5xl px-6 py-16">
+      <HairlineGrid className="sm:grid-cols-3">
         {[
           {
-            k: "01",
             t: "Folder",
-            d: "A directory on the Mac. That is the project and the agent cwd.",
+            d: "A directory on the Mac is the project and the agent cwd.",
           },
           {
-            k: "02",
             t: "STEP or GLB",
             d: "OpenCascade in the local server. No Python, no second tessellator.",
           },
           {
-            k: "03",
             t: "Quest",
             d: "Same Wi-Fi, Quest Browser, pair once. Enter Studio on the headset.",
           },
         ].map((cell) => (
-          <div className="bg-background p-6" key={cell.k}>
-            <Mono caps size="xs" tone="brand">
-              {cell.k}
-            </Mono>
-            <h3 className="mt-3 font-semibold text-lg">{cell.t}</h3>
+          <div className="bg-background p-6" key={cell.t}>
+            <h3 className="font-semibold text-lg">{cell.t}</h3>
             <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
               {cell.d}
             </p>
@@ -99,72 +94,64 @@ export function Thesis() {
 
 export function Providers() {
   return (
-    <section className="mx-auto w-full max-w-5xl px-6 py-20">
-      <Mono caps className="tracking-[0.2em]" size="xs">
-        02 Bring your own
-      </Mono>
-      <Display className="mt-4 max-w-3xl text-3xl sm:text-4xl">
-        The logins already on the Mac.
+    <section className="mx-auto w-full max-w-5xl px-6 py-16" id="providers">
+      <Display className="max-w-3xl text-3xl sm:text-4xl">
+        Already on your Mac.
       </Display>
-      <p className="mt-6 max-w-2xl text-muted-foreground leading-relaxed">
-        Bench does not resell tokens. Plug in Claude Code, Codex, Grok, or
-        OpenCode with the credentials you already have. Cursor is in the picker;
-        a Mac login is not visible to this app yet.
+      <p className="mt-4 max-w-2xl text-muted-foreground leading-relaxed">
+        No keys in this app. Claude Code, Codex, Grok, or OpenCode with the
+        logins you already have. Cursor is in the picker; a Mac login is not
+        visible to this app yet.
       </p>
-      <HairlineGrid className="mt-10 sm:grid-cols-2">
+      <ul className="mt-8 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
         {PROVIDERS.map((row) => (
-          <div
-            className="flex items-center justify-between gap-4 bg-background px-5 py-4"
-            key={row.name}
-          >
+          <li className="flex items-center gap-3" key={row.name}>
+            <span className="relative h-7 w-7 shrink-0">
+              <img
+                alt=""
+                className="h-7 w-7 object-contain dark:hidden"
+                height={28}
+                src={row.light}
+                width={28}
+              />
+              <img
+                alt=""
+                className="hidden h-7 w-7 object-contain dark:block"
+                height={28}
+                src={row.dark}
+                width={28}
+              />
+            </span>
             <span className="font-medium text-sm">{row.name}</span>
-            <Mono caps size="xs">
-              {row.cmd}
-            </Mono>
-          </div>
+          </li>
         ))}
-      </HairlineGrid>
-      <p className="mt-6 text-muted-foreground text-sm">
-        No keys in this app. If a harness is signed out, the composer shows the
-        command to run on the Mac.
-      </p>
+      </ul>
     </section>
   );
 }
 
 export function OpenMac() {
   return (
-    <section className="mx-auto w-full max-w-5xl px-6 py-20" id="run">
-      <Mono caps className="tracking-[0.2em]" size="xs">
-        03 Ship
-      </Mono>
-      <Display className="mt-4 max-w-3xl text-3xl sm:text-4xl">
-        A Mac app. A folder. A headset.
+    <section className="mx-auto w-full max-w-5xl px-6 py-16" id="run">
+      <Display className="max-w-3xl text-3xl sm:text-4xl">
+        Unzip. Open Anyway. Pair the headset.
       </Display>
-      <p className="mt-6 max-w-2xl text-muted-foreground leading-relaxed">
-        Unzip the GitHub Release, or clone and{" "}
-        <Mono asChild className="text-foreground" size="sm">
-          <code>pnpm desktop</code>
-        </Mono>
-        . The long runbook stays in the repo.
-      </p>
-      <HairlineGrid className="mt-10 sm:grid-cols-2">
+      <HairlineGrid className="mt-8 sm:grid-cols-2">
         <div className="bg-background p-6">
-          <Mono caps size="xs" tone="brand">
-            Mac
-          </Mono>
-          <h3 className="mt-3 font-semibold text-lg">Open Anyway once</h3>
+          <h3 className="font-semibold text-lg">Mac</h3>
           <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
             Unzip <code>sfab-bench-*-arm64.app.zip</code> from Releases, drag it
             to Applications, double-click, then System Settings → Privacy &
-            Security → Open Anyway. Ad-hoc signed, not notarised yet.
+            Security → Open Anyway. Ad-hoc signed, not notarised yet. Or clone
+            and{" "}
+            <Mono asChild className="text-foreground" size="sm">
+              <code>pnpm desktop</code>
+            </Mono>
+            .
           </p>
         </div>
         <div className="bg-background p-6">
-          <Mono caps size="xs" tone="brand">
-            Quest
-          </Mono>
-          <h3 className="mt-3 font-semibold text-lg">Same Wi-Fi</h3>
+          <h3 className="font-semibold text-lg">Quest</h3>
           <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
             Quest Browser on the same network as the Mac, pair once. Not an APK.
             The Mac tab stays on loopback.
@@ -185,10 +172,10 @@ export function OpenMac() {
   );
 }
 
-export function ManifestoFooter() {
+export function SiteFooter() {
   return (
-    <footer className="mx-auto w-full max-w-5xl px-6 pt-16 pb-20">
-      <Rule className="mb-10" />
+    <footer className="mx-auto w-full max-w-5xl px-6 pt-12 pb-16">
+      <Rule className="mb-8" />
       <div className="flex flex-col items-start justify-between gap-8 sm:flex-row sm:items-center">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <span className="font-sans font-semibold text-base text-foreground tracking-[-0.01em]">
@@ -197,6 +184,7 @@ export function ManifestoFooter() {
           {[
             { label: "GitHub", href: GITHUB },
             { label: "Releases", href: RELEASES },
+            { label: "SFab", href: SFAB },
           ].map((l) => (
             <Mono
               asChild
@@ -205,11 +193,7 @@ export function ManifestoFooter() {
               key={l.label}
               size="md"
             >
-              <a
-                href={l.href}
-                rel="noreferrer"
-                target={l.href.startsWith("http") ? "_blank" : undefined}
-              >
+              <a href={l.href} rel="noreferrer" target="_blank">
                 {l.label}
               </a>
             </Mono>
@@ -217,14 +201,11 @@ export function ManifestoFooter() {
         </div>
         <ThemeToggle />
       </div>
-      <Mono className="mt-12 tracking-[0.18em]" size="sm" tone="muted">
-        Born in Mexico City.
-      </Mono>
     </footer>
   );
 }
 
-export function ManifestoNav() {
+export function SiteNav() {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
