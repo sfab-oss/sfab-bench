@@ -2,7 +2,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
-import { useStore } from "@/state/store";
+import { getXrChatChars, useStore } from "@/state/store";
 
 /** Ashima 3D simplex. Zero-mean, smooth folds — not the blocky value hash. */
 const SNOISE = /* glsl */ `
@@ -157,7 +157,6 @@ export function SpeakingOrb({
   useEffect(() => () => mat.dispose(), [mat]);
 
   const phase = useStore((s) => s.xrChatPhase);
-  const chars = useStore((s) => s.xrChatChars);
   const lastChars = useRef(0);
   const pulse = useRef(0);
   const warp = useRef(0.06);
@@ -167,6 +166,7 @@ export function SpeakingOrb({
   const colB = useRef(IDLE_B.clone());
 
   useFrame((_, dt) => {
+    const chars = getXrChatChars();
     if (chars > lastChars.current) pulse.current = 1;
     lastChars.current = chars;
     pulse.current = Math.max(0, pulse.current - dt * 5);

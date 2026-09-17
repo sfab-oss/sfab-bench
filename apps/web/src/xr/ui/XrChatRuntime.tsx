@@ -25,7 +25,7 @@ import {
 } from "@/components/chat/useViewerChat";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { jsonApi } from "@/lib/api";
-import { store, useStore } from "@/state/store";
+import { setXrChatChars, store, useStore } from "@/state/store";
 
 type Voice = ReturnType<typeof useVoiceInput>;
 
@@ -171,11 +171,10 @@ function XrChatSessionRuntime({
   }, [busy, pendingViewer, status]);
   useEffect(() => {
     const last = [...messages].reverse().find((m) => m.role === "assistant");
-    store
-      .getState()
-      .setXrChatChars(
-        last ? messagePlainText(last as GalleryChatMessage).length : 0
-      );
+    setXrChatChars(
+      last ? messagePlainText(last as GalleryChatMessage).length : 0
+    );
+    return () => setXrChatChars(0);
   }, [messages]);
 
   const value: XrChatRuntime = {
