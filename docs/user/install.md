@@ -5,19 +5,18 @@ Node 22.5 or newer. pnpm 11.
 For a collaborator with Node:
 
 ```bash
-git clone git@github.com:sfab-oss/sfab-bench.git && cd sfab-bench
+git clone https://github.com/sfab-oss/sfab-bench.git && cd sfab-bench
 pnpm install
 pnpm desktop        # or: pnpm dev, then open https://127.0.0.1:7322
 ```
 
 If you were handed `sfab-bench-<version>-arm64.app.zip` from
-[Releases](https://github.com/sfab-oss/sfab-bench/releases) (you need access
-to this private repo): unzip, drag **sfab-bench** to Applications,
+[Releases](https://github.com/sfab-oss/sfab-bench/releases): unzip, drag **sfab-bench** to Applications,
 double-click, then **System Settings → Privacy & Security → Open Anyway**,
 and double-click again. The [Quest](quest.md) steps are unchanged.
 
 `pnpm cli` is the developer name in the clone (`pnpm sfab-bench` is
-the same binary). `npx sfab-bench` is not until this repo is public.
+the same binary). `npx sfab-bench` is not published yet.
 
 On the Mac, open `https://127.0.0.1:7322` and accept the self-signed
 certificate. That tab is trusted (loopback). Do not use the LAN IP for

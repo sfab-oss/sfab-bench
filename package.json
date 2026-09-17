@@ -4,7 +4,7 @@
   "private": true,
   "description": "Open a folder, open a STEP, talk. A CAD workbench for the Mac and the Quest browser.",
   "author": "SFab",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "bin": {
     "sfab-bench": "./apps/server/bin/sfab-bench.mjs"
   },

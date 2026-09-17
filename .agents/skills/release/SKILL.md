@@ -9,7 +9,7 @@ description: >
 
 # Release
 
-Ship is a **GitHub Release** on this private repo with one uploaded file:
+Ship is a **GitHub Release** on this repo with one uploaded file:
 `sfab-bench-<version>-arm64.app.zip` from `pnpm desktop:package`. Not
 `npx`, not Homebrew. Notarisation is a human gate (Apple identity).
 

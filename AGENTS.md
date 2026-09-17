@@ -7,12 +7,12 @@ Follow the links for detail.
 
 **sfab-bench** — a CAD workbench: global server, open a folder, open a
 STEP, talk. Quest Browser joins the same Mac process and shares the
-library, not the live viewport. Private repo:
+library, not the live viewport.
 [sfab-oss/sfab-bench](https://github.com/sfab-oss/sfab-bench).
 
-Living plan: [`docs/product.md`](docs/product.md). T3 Code is inspiration
-only. Do not add accounts, a tunnel, or a second tessellator in this tree
-without an ADR. The Electron shell is [ADR 0005](docs/decisions/0005-electron-shell.md)
+Living plan: [`docs/product.md`](docs/product.md). Do not add accounts,
+a tunnel, or a second tessellator in this tree without an ADR. The
+Electron shell is [ADR 0005](docs/decisions/0005-electron-shell.md)
 — it wraps the server and the same page, and gains no UI of its own.
 
 ## Commands
