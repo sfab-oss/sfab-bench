@@ -5,6 +5,18 @@ export type ViewerTreeItem = {
   ref?: string;
 };
 
+/** One freehand stroke in CadModel wrap-local millimetres (same frame as measure). */
+export type ViewerSketch = {
+  id: string;
+  kind: "stroke";
+  /** Project-relative file this stroke was drawn against. */
+  file: string;
+  /** Face ref when the stroke snapped to a surface; otherwise air. */
+  on: string | null;
+  mm: [number, number, number][];
+  lengthMm: number;
+};
+
 export type ViewerSnapshot = {
   file: string;
   empty: boolean;
@@ -12,7 +24,18 @@ export type ViewerSnapshot = {
   selectedName: string | null;
   tree: ViewerTreeItem[];
   partCount: number;
+  sketches: ViewerSketch[];
 };
+
+/** Short `[viewer]` line prepended to the user turn. */
+export function viewerStamp(snapshot: ViewerSnapshot): string {
+  const bits = [`file=${snapshot.file || "(none)"}`];
+  if (snapshot.empty) bits.push("empty");
+  if (snapshot.selected) bits.push(`selected=${snapshot.selected}`);
+  const n = snapshot.sketches?.length ?? 0;
+  if (n > 0) bits.push(`sketches=${n}`);
+  return `[viewer] ${bits.join(" ")}`;
+}
 
 export type CatalogEntry = {
   path: string;
@@ -27,6 +50,7 @@ export function emptySnapshot(file = ""): ViewerSnapshot {
     selectedName: null,
     tree: [],
     partCount: 0,
+    sketches: [],
   };
 }
 

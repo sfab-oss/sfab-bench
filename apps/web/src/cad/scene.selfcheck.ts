@@ -420,6 +420,9 @@ for (const [name, { review, assembly }] of scenes) {
   });
   const snapshot = viewerSnapshot();
 
+  if (!Array.isArray(snapshot.sketches) || snapshot.sketches.length !== 0) {
+    note(`${name}: a fresh snapshot should have no sketches`);
+  }
   if (snapshot.empty) note(`${name}: the snapshot says the viewer is empty`);
   if (snapshot.partCount !== review.parts.length) {
     note(

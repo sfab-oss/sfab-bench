@@ -5,6 +5,8 @@ import { useShallow } from "zustand/react/shallow";
 
 import { pickAlongRay, pickFromIntersections } from "@/cad/highlights";
 import { MeasureGizmo } from "@/scene/MeasureGizmo";
+import { SketchOverlay } from "@/scene/SketchOverlay";
+import { setSketchWrap } from "@/scene/sketch-anchor";
 import { store, useStore } from "@/state/store";
 
 export function CadModel({ onFit }: { onFit: (obj: THREE.Object3D) => void }) {
@@ -35,7 +37,18 @@ export function CadModel({ onFit }: { onFit: (obj: THREE.Object3D) => void }) {
     if (review) onFit(review.root);
   }, [review, onFit]);
 
-  if (!review) return null;
+  const bindWrap = (group: THREE.Group | null) => {
+    wrap.current = group;
+    setSketchWrap(group);
+  };
+
+  if (!review) {
+    return (
+      <group ref={bindWrap}>
+        <SketchOverlay />
+      </group>
+    );
+  }
 
   const fromEvent = (ev: ThreeEvent<MouseEvent>) => {
     ev.stopPropagation();
@@ -46,7 +59,7 @@ export function CadModel({ onFit }: { onFit: (obj: THREE.Object3D) => void }) {
   };
 
   return (
-    <group ref={wrap}>
+    <group ref={bindWrap}>
       <mesh rotation-x={-Math.PI / 2} position-y={0.0008} raycast={() => {}}>
         <circleGeometry args={[radius, 48]} />
         <meshBasicMaterial color="#1a1d21" transparent opacity={0.12} />
@@ -60,6 +73,7 @@ export function CadModel({ onFit }: { onFit: (obj: THREE.Object3D) => void }) {
           // A pinch that starts or ends a grab is not a click on the model.
           if (store.getState().worldGrabbing || store.getState().cardDragging)
             return;
+          if (tool === "sketch") return;
           if (tool === "measure") {
             const local = wrap.current
               ? wrap.current.worldToLocal(hit.point.clone())
@@ -79,17 +93,18 @@ export function CadModel({ onFit }: { onFit: (obj: THREE.Object3D) => void }) {
         }}
         onPointerMove={(ev) => {
           ev.stopPropagation();
-          if (tool === "measure") return;
+          if (tool === "measure" || tool === "sketch") return;
           hover(fromEvent(ev)?.partId ?? null);
         }}
         onPointerOut={() => {
-          if (tool === "measure") return;
+          if (tool === "measure" || tool === "sketch") return;
           hover(null);
         }}
       >
         <primitive object={review.root} />
       </group>
       <MeasureGizmo />
+      <SketchOverlay />
     </group>
   );
 }

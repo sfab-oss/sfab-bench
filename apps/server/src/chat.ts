@@ -12,6 +12,7 @@ import {
   isChatEffort,
   isHarnessId,
   type ViewerSnapshot,
+  viewerStamp,
 } from "@sfab-bench/contract";
 import {
   convertToModelMessages,
@@ -142,10 +143,7 @@ type ChatBody = {
 };
 
 function stampUser(last: UIMessage, snapshot: ViewerSnapshot): UIMessage {
-  const bits = [`file=${snapshot.file || "(none)"}`];
-  if (snapshot.empty) bits.push("empty");
-  if (snapshot.selected) bits.push(`selected=${snapshot.selected}`);
-  const stamp = `[viewer] ${bits.join(" ")}`;
+  const stamp = viewerStamp(snapshot);
   const parts = last.parts ?? [];
   const texts = parts.filter((p) => p.type === "text");
   if (texts.length === 0)
@@ -223,8 +221,9 @@ export async function handleChat(
   }
   req.signal.addEventListener("abort", () => run.abort());
 
-  const snapshot: ViewerSnapshot =
-    body.viewer ?? emptySnapshot(body.viewerFile ?? "");
+  const snapshot: ViewerSnapshot = body.viewer
+    ? { ...body.viewer, sketches: body.viewer.sketches ?? [] }
+    : emptySnapshot(body.viewerFile ?? "");
   const continueTurn = lastIsToolContinuation(last);
   if (last.role !== "user" && !continueTurn) {
     return new Response("expected a user message or tool result", {
