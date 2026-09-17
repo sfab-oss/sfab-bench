@@ -1,5 +1,2 @@
-# fumadocs-mdx generated collections (regenerated on install/dev/build)
-.source/
-
 # local wrangler / miniflare state
 .wrangler/

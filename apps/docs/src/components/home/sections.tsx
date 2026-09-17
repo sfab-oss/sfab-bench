@@ -39,7 +39,7 @@ export function Hero() {
           <a href={RELEASES}>Download for macOS</a>
         </Button>
         <Button asChild variant="ghost">
-          <a href="/docs">Read the docs</a>
+          <a href="#run">How to run</a>
         </Button>
       </div>
       <div className="mt-12">
@@ -134,7 +134,7 @@ export function Providers() {
 
 export function OpenMac() {
   return (
-    <section className="mx-auto w-full max-w-5xl px-6 py-20">
+    <section className="mx-auto w-full max-w-5xl px-6 py-20" id="run">
       <Mono caps className="tracking-[0.2em]" size="xs">
         03 Ship
       </Mono>
@@ -142,19 +142,41 @@ export function OpenMac() {
         A Mac app. A folder. A headset.
       </Display>
       <p className="mt-6 max-w-2xl text-muted-foreground leading-relaxed">
-        Unzip the GitHub Release, drag it to Applications, and Open Anyway the
-        first time (ad-hoc signed, not notarised yet). Or clone and{" "}
+        Unzip the GitHub Release, or clone and{" "}
         <Mono asChild className="text-foreground" size="sm">
           <code>pnpm desktop</code>
         </Mono>
-        . Quest steps live in the docs.
+        . The long runbook stays in the repo.
       </p>
+      <HairlineGrid className="mt-10 sm:grid-cols-2">
+        <div className="bg-background p-6">
+          <Mono caps size="xs" tone="brand">
+            Mac
+          </Mono>
+          <h3 className="mt-3 font-semibold text-lg">Open Anyway once</h3>
+          <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
+            Unzip <code>sfab-bench-*-arm64.app.zip</code> from Releases, drag it
+            to Applications, double-click, then System Settings → Privacy &
+            Security → Open Anyway. Ad-hoc signed, not notarised yet.
+          </p>
+        </div>
+        <div className="bg-background p-6">
+          <Mono caps size="xs" tone="brand">
+            Quest
+          </Mono>
+          <h3 className="mt-3 font-semibold text-lg">Same Wi-Fi</h3>
+          <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
+            Quest Browser on the same network as the Mac, pair once. Not an APK.
+            The Mac tab stays on loopback.
+          </p>
+        </div>
+      </HairlineGrid>
       <div className="mt-8 flex flex-wrap gap-3">
         <Button asChild>
           <a href={RELEASES}>Releases</a>
         </Button>
         <Button asChild variant="ghost">
-          <a href={`${GITHUB}`} rel="noreferrer" target="_blank">
+          <a href={GITHUB} rel="noreferrer" target="_blank">
             GitHub
           </a>
         </Button>
@@ -175,7 +197,6 @@ export function ManifestoFooter() {
           {[
             { label: "GitHub", href: GITHUB },
             { label: "Releases", href: RELEASES },
-            { label: "Docs", href: "/docs" },
           ].map((l) => (
             <Mono
               asChild
@@ -241,14 +262,6 @@ export function ManifestoNav() {
           </span>
         </a>
         <div className="flex items-center gap-3">
-          <Mono
-            asChild
-            caps
-            className="hidden tracking-[0.16em] transition-colors hover:text-foreground sm:inline"
-            size="sm"
-          >
-            <a href="/docs">Docs</a>
-          </Mono>
           <Mono
             asChild
             caps

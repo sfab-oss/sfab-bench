@@ -12,8 +12,7 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "paths": {
-      "@/*": ["./src/*"],
-      "collections/*": ["./.source/*"]
+      "@/*": ["./src/*"]
     },
     "types": ["./worker-configuration.d.ts", "node", "vite/client"]
   }
