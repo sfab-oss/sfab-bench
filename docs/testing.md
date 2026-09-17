@@ -4,7 +4,9 @@ What "renders correctly" means here, and which parts of it are checked today.
 
 Checks are plain `tsx` scripts named `*.selfcheck.ts`, run by `pnpm test`.
 The desktop packager check is a `node` script next to `package.mjs`.
-No framework. A check either prints `… ok` or throws.
+No framework. A check either prints `… ok` or throws. Pull requests and
+`main` run that same suite on GitHub Actions, with `pnpm lint:check` and
+`pnpm typecheck`. CI does not package a `.app`.
 
 ## The ladder
 

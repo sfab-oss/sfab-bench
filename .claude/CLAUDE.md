@@ -33,6 +33,9 @@ Run from the **monorepo root**:
 | Production build | `pnpm build` |
 | Serve dist + API | `pnpm serve` |
 
+PRs and `main` run `lint:check`, `typecheck`, and `test` on GitHub Actions.
+Do not wait on a desktop `.app` or `pnpm build` there.
+
 Mac tab: `https://127.0.0.1:7322`. Quest needs the LAN host, not loopback.
 
 ## Where things live
