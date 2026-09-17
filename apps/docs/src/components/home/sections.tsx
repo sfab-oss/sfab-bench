@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { DesktopMock } from "@/components/home/desktop-mock";
 import { HairlineGrid } from "@/components/home/hairline-grid";
-import { VrDemo } from "@/components/home/vr-demo";
 import { LogoDots } from "@/components/logo-dots";
 import { Button } from "@/components/ui/button";
 import { Display } from "@/components/ui/display";
@@ -39,14 +38,10 @@ const PROVIDERS = [
 
 export function Hero() {
   return (
-    <section className="relative mx-auto w-full max-w-5xl px-6 pt-20 pb-10 md:pt-24">
+    <section className="relative mx-auto w-full max-w-5xl px-6 pt-20 pb-8 md:pt-24">
       <Display className="max-w-3xl text-4xl sm:text-5xl md:text-6xl">
-        Open a folder. Open a STEP. Talk.
+        CAD on your Mac. Talk to it with the AI you already pay for.
       </Display>
-      <p className="mt-5 max-w-xl text-lg text-muted-foreground leading-relaxed">
-        A CAD workbench on your Mac. It works with the AI subscriptions you
-        already have. Quest Browser on the same Wi-Fi.
-      </p>
       <div className="mt-7 flex flex-wrap gap-3">
         <Button asChild>
           <a href={RELEASES}>Download for macOS</a>
@@ -55,55 +50,20 @@ export function Hero() {
           <a href="#run">How to run</a>
         </Button>
       </div>
-      <div className="mt-8">
+      <div className="mt-10">
+        <p className="mb-3 font-mono text-[0.625rem] text-muted-foreground uppercase tracking-[0.2em]">
+          Desktop
+        </p>
         <DesktopMock />
       </div>
     </section>
   );
 }
 
-export function WhatYouGet() {
-  return (
-    <section className="mx-auto w-full max-w-5xl px-6 py-16">
-      <HairlineGrid className="sm:grid-cols-3">
-        {[
-          {
-            t: "Folder",
-            d: "A directory on the Mac is the project and the agent cwd.",
-          },
-          {
-            t: "STEP or GLB",
-            d: "OpenCascade in the local server. No Python, no second tessellator.",
-          },
-          {
-            t: "Quest",
-            d: "Same Wi-Fi, Quest Browser, pair once. Enter Studio on the headset.",
-          },
-        ].map((cell) => (
-          <div className="bg-background p-6" key={cell.t}>
-            <h3 className="font-semibold text-lg">{cell.t}</h3>
-            <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
-              {cell.d}
-            </p>
-          </div>
-        ))}
-      </HairlineGrid>
-    </section>
-  );
-}
-
 export function Providers() {
   return (
-    <section className="mx-auto w-full max-w-5xl px-6 py-16" id="providers">
-      <Display className="max-w-3xl text-3xl sm:text-4xl">
-        Works with your AI subscriptions.
-      </Display>
-      <p className="mt-4 max-w-2xl text-muted-foreground leading-relaxed">
-        Claude Code, Codex, Grok, or OpenCode: the logins already on your Mac.
-        This app does not take API keys. Cursor is in the picker; a Mac login is
-        not visible here yet.
-      </p>
-      <ul className="mt-8 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+    <section className="mx-auto w-full max-w-5xl px-6 py-10" id="providers">
+      <ul className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
         {PROVIDERS.map((row) => (
           <li className="flex items-center gap-3" key={row.name}>
             <span className="relative h-7 w-7 shrink-0">
@@ -132,18 +92,15 @@ export function Providers() {
 
 export function OpenMac() {
   return (
-    <section className="mx-auto w-full max-w-5xl px-6 py-16" id="run">
-      <Display className="max-w-3xl text-3xl sm:text-4xl">
-        Unzip. Open Anyway. Pair the headset.
-      </Display>
-      <HairlineGrid className="mt-8 sm:grid-cols-2">
+    <section className="mx-auto w-full max-w-5xl px-6 py-12" id="run">
+      <h2 className="font-semibold text-lg">How to run</h2>
+      <HairlineGrid className="mt-6 sm:grid-cols-2">
         <div className="bg-background p-6">
-          <h3 className="font-semibold text-lg">Mac</h3>
+          <h3 className="font-semibold text-base">Mac</h3>
           <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
-            Unzip <code>sfab-bench-*-arm64.app.zip</code> from Releases, drag it
-            to Applications, double-click, then System Settings → Privacy &
-            Security → Open Anyway. Ad-hoc signed, not notarised yet. Or clone
-            and{" "}
+            Unzip the <code>.app</code> from Releases, drag it to Applications,
+            then System Settings → Privacy &amp; Security → Open Anyway. Ad-hoc
+            signed, not notarised yet. Or clone and{" "}
             <Mono asChild className="text-foreground" size="sm">
               <code>pnpm desktop</code>
             </Mono>
@@ -151,23 +108,12 @@ export function OpenMac() {
           </p>
         </div>
         <div className="bg-background p-6">
-          <h3 className="font-semibold text-lg">Quest</h3>
+          <h3 className="font-semibold text-base">Quest</h3>
           <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
-            Quest Browser on the same network as the Mac, pair once. Not an APK.
-            The Mac tab stays on loopback.
+            Quest Browser on the same Wi-Fi, pair once.
           </p>
         </div>
       </HairlineGrid>
-      <div className="mt-8 flex flex-wrap gap-3">
-        <Button asChild>
-          <a href={RELEASES}>Releases</a>
-        </Button>
-        <Button asChild variant="ghost">
-          <a href={GITHUB} rel="noreferrer" target="_blank">
-            GitHub
-          </a>
-        </Button>
-      </div>
     </section>
   );
 }

@@ -5,7 +5,6 @@ import {
   Providers,
   SiteFooter,
   SiteNav,
-  WhatYouGet,
 } from "@/components/home/sections";
 import { VrDemo } from "@/components/home/vr-demo";
 
@@ -19,9 +18,8 @@ function Home() {
       <SiteNav />
       <main>
         <Hero />
-        <WhatYouGet />
-        <Providers />
         <VrDemo />
+        <Providers />
         <OpenMac />
       </main>
       <SiteFooter />

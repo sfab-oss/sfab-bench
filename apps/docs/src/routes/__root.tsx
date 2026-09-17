@@ -5,9 +5,9 @@ import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
 import appCss from "../styles.css?url";
 
-const TITLE = "SFab Bench · Open a folder. Open a STEP. Talk.";
+const TITLE = "SFab Bench · CAD on your Mac";
 const DESCRIPTION =
-  "A CAD workbench for the Mac and Quest. Works with the AI subscriptions you already have.";
+  "A CAD workbench on your Mac. Talk to it with the AI you already pay for.";
 
 export const Route = createRootRoute({
   head: () => ({
