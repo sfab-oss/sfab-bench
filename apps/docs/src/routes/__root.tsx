@@ -7,7 +7,7 @@ import appCss from "../styles.css?url";
 
 const TITLE = "SFab Bench · Open a folder. Open a STEP. Talk.";
 const DESCRIPTION =
-  "A CAD workbench for the Mac and Quest. Use the chat providers already on your machine. Quest Browser joins the same session.";
+  "A CAD workbench for the Mac and Quest. Works with the AI subscriptions you already have.";
 
 export const Route = createRootRoute({
   head: () => ({
