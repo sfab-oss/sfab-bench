@@ -1,6 +1,10 @@
 import { createXRStore } from "@react-three/xr";
 
 import { store } from "@/state/store";
+import {
+  forceIwerRuntimeIfNative,
+  shouldForceIwerOnThisPage,
+} from "@/xr/devIwer";
 import { matchCanvasCssToBuffer } from "@/xr/matchCanvasCss";
 
 /** The subset of `@pmndrs/pointer-events` `Pointer` the opacity callbacks read. */
@@ -11,6 +15,10 @@ type PointerLike = { getButtonsDown(): { size: number } };
 // the headset; raise it if the frame rate is the bottleneck, lower it if the
 // blur is distracting, by editing this constant.
 const FOVEATION = 0.5;
+
+const forceIwer =
+  typeof window !== "undefined" &&
+  shouldForceIwerOnThisPage(window.location.hostname, import.meta.env.DEV);
 
 export const xrStore = createXRStore({
   foveation: FOVEATION,
@@ -24,7 +32,19 @@ export const xrStore = createXRStore({
   depthSensing: false,
   bodyTracking: false,
   handTracking: true,
+  // Default inject hostname is `localhost`; the Mac tab is 127.0.0.1.
+  emulate: forceIwer ? { inject: true } : undefined,
 });
+
+if (forceIwer) {
+  const apply = () => {
+    forceIwerRuntimeIfNative(xrStore.getState().emulator);
+  };
+  apply();
+  xrStore.subscribe((state, prev) => {
+    if (state.emulator && state.emulator !== prev.emulator) apply();
+  });
+}
 
 // The library lifts its flat cursor disc 10 mm off the surface by default
 // (cursorOffset), which reads as floating on a 20 cm model viewed at arm's
