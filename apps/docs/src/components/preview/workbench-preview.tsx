@@ -78,7 +78,7 @@ function replyFor(text: string, selected: PreviewSel): string {
 }
 
 export function WorkbenchPreview() {
-  const [filesOpen, setFilesOpen] = useState(true);
+  const [filesOpen, setFilesOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
   const [partsOpen, setPartsOpen] = useState(true);
   const [selected, setSelected] = useState<PreviewSel>("o12");
