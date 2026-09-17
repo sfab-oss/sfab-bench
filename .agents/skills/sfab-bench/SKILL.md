@@ -4,12 +4,12 @@ description: >
   Start and use the sfab-bench CAD workbench (Vite + React + R3F, Quest
   Browser). Use when reviewing a STEP or GLB on the headset or LAN page,
   showing an artifact in the in-app assistant, or when the user says
-  sfab-bench, WebXR, or Quest. Not CAD Viewer (`cadgen viewer`).
+  sfab-bench, WebXR, or Quest.
 ---
 
 # sfab-bench
 
-This is the app in this repo. It is not Jake's cadgen viewer.
+This is the app in this repo.
 Living plan: `docs/product.md`. Human runbook: `docs/user/`.
 
 ## Start
@@ -28,7 +28,7 @@ Production: `pnpm build && pnpm serve`.
 Open a folder from the Mac tab (Welcome recents or **Open folder**),
 `pnpm cli open /abs/path --dev`, or `SFAB_BENCH_PROJECT=/abs/path pnpm dev`.
 The folder is the tab's (`?project=`). This repo has no STEP files; point
-it at a CAD directory (for example sphere-robot).
+it at a CAD directory.
 
 `pnpm dev` / `pnpm serve` print the Mac URL, Quest pair URL, pairing code, and QR.
 

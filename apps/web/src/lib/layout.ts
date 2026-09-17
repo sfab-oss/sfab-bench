@@ -2,7 +2,7 @@
  * Desktop layout math for the Mac tab / Electron window.
  *
  * Compact chat rule (one place, so the self-check and the UI cannot drift):
- * sheet the chat when `window.innerWidth <= 980` (T3's right-panel breakpoint)
+ * sheet the chat when `window.innerWidth <= 980`
  * *or* when an open files rail + min chat (280) + canvas floor (480) cannot
  * fit. No phone layout — the rail stays a rail; the user can still ⌘B it.
  */
@@ -13,7 +13,7 @@ export const CHAT_MAX_WIDTH = 720;
 export const CHAT_DEFAULT_WIDTH = 384;
 /** `--sidebar-width: 19rem` on `SidebarProvider`. */
 export const FILES_RAIL_WIDTH = 19 * 16;
-/** T3 `RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY = "(max-width: 980px)"`. */
+/** Compact chat when the window is at most this wide. */
 export const COMPACT_CHAT_BREAKPOINT = 980;
 
 export const PART_TREE_WIDTH = 280;
