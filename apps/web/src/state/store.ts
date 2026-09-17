@@ -77,6 +77,17 @@ type Setter = boolean | ((open: boolean) => boolean);
  * drives material tints, so keeping it here avoids a render per frame.
  */
 let hoveredId: number | null = null;
+/**
+ * Stream char count never lives in the store: it changes every token and
+ * only drives the orb pulse in `useFrame`. Persist wraps every `set()`.
+ */
+let xrChatChars = 0;
+export function getXrChatChars() {
+  return xrChatChars;
+}
+export function setXrChatChars(n: number) {
+  xrChatChars = n;
+}
 /** Guards against a stale `loadModel` resolving after a newer one started. */
 let loadToken = 0;
 
@@ -150,7 +161,6 @@ type State = {
   cardMode: CardMode;
   xrChatOpen: boolean;
   xrChatPhase: "idle" | "submitted" | "streaming";
-  xrChatChars: number;
   toolsOpen: boolean;
   appearance: Appearance;
   setPage: (page: Page) => void;
@@ -158,7 +168,6 @@ type State = {
   setCardMode: (mode: CardMode) => void;
   setXrChatOpen: (open: Setter) => void;
   setXrChatPhase: (phase: "idle" | "submitted" | "streaming") => void;
-  setXrChatChars: (n: number) => void;
   /** Places the card in front of the wearer; used by the pin button. */
   bringCard: (() => void) | null;
   setBringCard: (fn: (() => void) | null) => void;
@@ -476,7 +485,6 @@ export const store = createStore<State>()(
       cardMode: "world",
       xrChatOpen: false,
       xrChatPhase: "idle",
-      xrChatChars: 0,
       toolsOpen: false,
       appearance: readDomAppearance(),
       setPage: (page) => set({ page }),
@@ -487,9 +495,6 @@ export const store = createStore<State>()(
         set((s) => ({ xrChatOpen: resolve(s.xrChatOpen, open) })),
       setXrChatPhase: (phase) => {
         if (get().xrChatPhase !== phase) set({ xrChatPhase: phase });
-      },
-      setXrChatChars: (n) => {
-        if (get().xrChatChars !== n) set({ xrChatChars: n });
       },
       bringCard: null,
       setBringCard: (bringCard) => set({ bringCard }),

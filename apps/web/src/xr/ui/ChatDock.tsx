@@ -100,9 +100,7 @@ export function ChatDock() {
           <SpeakingOrb onClick={toggleCard} />
           {xrChatOpen ? null : <ChatOrbHud />}
         </group>
-        <group visible={xrChatOpen}>
-          <ChatPanels width={size.w} height={size.h} />
-        </group>
+        {xrChatOpen ? <ChatPanels width={size.w} height={size.h} /> : null}
       </WorldCard>
     </XrChatRuntimeProvider>
   );
