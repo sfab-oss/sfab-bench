@@ -230,16 +230,6 @@ export function fallbackRoot(): string | null {
   return fallback != null && existsSync(fallback) ? fallback : null;
 }
 
-export function projectPath(): string {
-  const root = fallbackRoot();
-  if (!root) throw new Error("no project open");
-  return root;
-}
-
-export function hasProject(): boolean {
-  return fallbackRoot() != null;
-}
-
 export function currentProject(): ProjectRow | null {
   const root = fallbackRoot();
   if (!root) return null;

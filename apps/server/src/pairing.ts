@@ -4,7 +4,6 @@ import type { DatabaseSync } from "node:sqlite";
 
 import { publicPort } from "./config";
 import { db as defaultDb } from "./db";
-import type { Scope } from "./principal";
 
 export const CODE_TTL_MS = 5 * 60 * 1000;
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -19,16 +18,12 @@ export type IssuedDevice = {
   token: string;
   deviceId: string;
   label: string;
-  scopes: Scope[];
 };
 
 export type StoredDevice = {
   id: string;
   label: string;
-  scopes: Scope[];
 };
-
-const PAIRED_SCOPES: Scope[] = ["view", "chat"];
 
 function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
@@ -61,18 +56,6 @@ export function ensurePairingSchema(db: DatabaseSync = defaultDb) {
       expires_at INTEGER NOT NULL
     );
   `);
-}
-
-function parseScopes(raw: string): Scope[] {
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is Scope => item === "view" || item === "chat"
-    );
-  } catch {
-    return [];
-  }
 }
 
 export function mintOffer(
@@ -126,8 +109,8 @@ function issueDevice(
   const token = `d.${randomBytes(32).toString("base64url")}`;
   db.prepare(
     "INSERT INTO devices (id, label, token_hash, scopes, created_at) VALUES (?, ?, ?, ?, ?)"
-  ).run(id, label, sha256(token), JSON.stringify(PAIRED_SCOPES), now);
-  return { token, deviceId: id, label, scopes: PAIRED_SCOPES };
+  ).run(id, label, sha256(token), '["view","chat"]', now);
+  return { token, deviceId: id, label };
 }
 
 export function redeemCode(
@@ -173,14 +156,10 @@ export function lookupDevice(
 ): StoredDevice | null {
   ensurePairingSchema(db);
   const row = db
-    .prepare("SELECT id, label, scopes FROM devices WHERE token_hash = ?")
-    .get(sha256(token)) as
-    | { id: string; label: string; scopes: string }
-    | undefined;
+    .prepare("SELECT id, label FROM devices WHERE token_hash = ?")
+    .get(sha256(token)) as { id: string; label: string } | undefined;
   if (!row) return null;
-  const scopes = parseScopes(row.scopes);
-  if (scopes.length === 0) return null;
-  return { id: row.id, label: row.label, scopes };
+  return { id: row.id, label: row.label };
 }
 
 export function lanIPv4s(): string[] {

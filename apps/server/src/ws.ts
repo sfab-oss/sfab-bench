@@ -4,7 +4,6 @@ import { type WebSocket, WebSocketServer } from "ws";
 
 import {
   type ClientPrincipal,
-  hasScope,
   resolveUpgradePrincipal,
   runWithPrincipal,
 } from "./principal";
@@ -43,7 +42,7 @@ export function tryUpgradeSession(
   const path = pathOf(req);
   if (path !== "/api/session/live") return false;
   const principal = resolveUpgradePrincipal(req);
-  if (!principal || !hasScope(principal, "view")) {
+  if (!principal) {
     socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
     socket.destroy();
     return true;

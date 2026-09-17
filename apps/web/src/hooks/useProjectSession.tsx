@@ -23,6 +23,7 @@ import {
   setLiveConnectionPhase,
 } from "@/lib/feedback";
 import { shouldReloadOpenFile } from "@/lib/files-rail";
+import { LIBRARY_FILES_EVENT } from "@/lib/motion";
 import { registerAndOpenTab } from "@/lib/project";
 import { projectUrl } from "@/lib/project-query";
 import { redact } from "@/lib/redact";
@@ -87,6 +88,7 @@ export function ProjectSessionProvider({
     setProject({ path });
     setFileRecents(recents);
     store.getState().setRecentFiles(recents);
+    window.dispatchEvent(new Event(LIBRARY_FILES_EVENT));
   }, []);
 
   const adoptTab = useCallback(

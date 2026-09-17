@@ -92,7 +92,7 @@ export const jsonApi = hc<AppType>("/api", {
 
 export type MePrincipal =
   | { kind: "loopback" }
-  | { kind: "paired"; deviceId: string; label: string; scopes: string[] };
+  | { kind: "paired"; deviceId: string; label: string };
 
 export async function fetchMe(): Promise<MePrincipal | null> {
   try {

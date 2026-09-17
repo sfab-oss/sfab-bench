@@ -5,6 +5,7 @@ export const MOTION_READY_ATTR = "data-motion";
 export const MOTION_READY_VALUE = "ready";
 export const CLOSE_FOLDER_EVENT = "sfab-close-folder";
 export const REFRESH_FILES_EVENT = "sfab-refresh-files";
+export const LIBRARY_FILES_EVENT = "sfab-library";
 
 export const CLOSE_FOLDER_BODY =
   "The open model and chat will be cleared from this tab.";

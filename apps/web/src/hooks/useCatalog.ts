@@ -9,7 +9,7 @@ import {
   suppressNetworkFailureToast,
 } from "@/lib/feedback";
 import { messageFromHttpBody } from "@/lib/load-copy";
-import { REFRESH_FILES_EVENT } from "@/lib/motion";
+import { LIBRARY_FILES_EVENT, REFRESH_FILES_EVENT } from "@/lib/motion";
 import type { CatalogEntry } from "@/lib/viewer-snapshot";
 
 export type CatalogState = {
@@ -99,16 +99,13 @@ export function useCatalog(enabled = true): CatalogState {
     const onProject = () => reload();
     const onRefresh = () => reload({ explicit: true });
     window.addEventListener("sfab-project", onProject);
+    window.addEventListener(LIBRARY_FILES_EVENT, onProject);
     window.addEventListener(REFRESH_FILES_EVENT, onRefresh);
     return () => {
       window.removeEventListener("sfab-project", onProject);
+      window.removeEventListener(LIBRARY_FILES_EVENT, onProject);
       window.removeEventListener(REFRESH_FILES_EVENT, onRefresh);
     };
   }, [reload]);
-  useEffect(() => {
-    if (!enabled) return;
-    const id = window.setInterval(reload, 3000);
-    return () => window.clearInterval(id);
-  }, [enabled, reload]);
   return { files, revision, error, ready, refreshing, reload };
 }

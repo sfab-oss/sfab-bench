@@ -3,7 +3,6 @@ import type {
   SessionClient,
   SessionEvent,
   SessionSnapshot,
-  SessionStatus,
 } from "@sfab-bench/contract";
 import { type ClientPrincipal, getPrincipal } from "./principal";
 import {
@@ -23,12 +22,7 @@ let state: ProjectSession = {
   fileRecents: [],
 };
 
-type WorkspaceRun = {
-  run: AbortController;
-  status: SessionStatus;
-};
-
-const runs = new Map<string, WorkspaceRun>();
+const runs = new Map<string, AbortController>();
 
 export function clientOf(principal: ClientPrincipal): SessionClient {
   if (principal.kind === "loopback") return { id: "loopback", label: "Mac" };
@@ -69,12 +63,6 @@ export function subscribeSession(socket: SessionSocket) {
 
 export function sessionState(): ProjectSession {
   return state;
-}
-
-export function sessionStatus(root?: string | null): SessionStatus {
-  const target = root ?? fallbackRoot();
-  if (!target) return "idle";
-  return runs.get(target)?.status ?? "idle";
 }
 
 export function snapshotFor(principal?: ClientPrincipal): SessionSnapshot {
@@ -124,18 +112,10 @@ export function rememberOpenedFile(rel: string, root?: string | null) {
 }
 
 export function startSessionRun(root: string): AbortController | null {
-  const current = runs.get(root);
-  if (current && current.status !== "idle") return null;
-  current?.run.abort();
+  if (runs.has(root)) return null;
   const run = new AbortController();
-  runs.set(root, { run, status: "submitted" });
+  runs.set(root, run);
   return run;
-}
-
-export function setSessionRunStatus(root: string, next: SessionStatus) {
-  const current = runs.get(root);
-  if (!current) return;
-  current.status = next;
 }
 
 export function endSessionRun(root: string) {
@@ -145,5 +125,5 @@ export function endSessionRun(root: string) {
 export function stopSessionRun(root?: string | null) {
   const target = root ?? fallbackRoot();
   if (!target) return;
-  runs.get(target)?.run.abort();
+  runs.get(target)?.abort();
 }
