@@ -1,6 +1,10 @@
 import type { Group, Object3D, Vector3 } from "three";
 import { useStore as useZustandStore } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import {
+  createJSONStorage,
+  persist,
+  type StateStorage,
+} from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
 import { applyHighlights, clearHighlights } from "@/cad/highlights";
 import {
@@ -32,6 +36,37 @@ export {
 
 const DESKTOP_PREFS_KEY = "sfab-bench.desktop";
 const MAX_RECENTS = 12;
+const PREF_WRITE_MS = 250;
+
+/** Skip identical prefs JSON and keep localStorage off the XR frame. */
+function deferredPrefStorage(): StateStorage {
+  let last = "";
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return {
+    getItem: (name) => {
+      const value = localStorage.getItem(name);
+      if (value != null) last = value;
+      return value;
+    },
+    setItem: (name, value) => {
+      if (value === last) return;
+      last = value;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        localStorage.setItem(name, value);
+      }, PREF_WRITE_MS);
+    },
+    removeItem: (name) => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      last = "";
+      localStorage.removeItem(name);
+    },
+  };
+}
 
 export const DEFAULT_CHAT_MODEL = DEFAULT_HARNESS_MODEL.opencode;
 
@@ -558,7 +593,12 @@ export const store = createStore<State>()(
     }),
     {
       name: DESKTOP_PREFS_KEY,
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => {
+        if (typeof localStorage === "undefined") {
+          throw new Error("localStorage unavailable");
+        }
+        return deferredPrefStorage();
+      }),
       partialize: (s): DesktopPrefs => ({
         chatOpen: s.chatOpen,
         treeOpen: s.treeOpen,

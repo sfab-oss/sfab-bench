@@ -177,7 +177,7 @@ export function CardDock() {
           dragging.current = false;
         }}
       >
-        <CardPanels width={size.w} height={size.h} />
+        {cardOpen ? <CardPanels width={size.w} height={size.h} /> : null}
       </WorldCard>
     </>
   );
