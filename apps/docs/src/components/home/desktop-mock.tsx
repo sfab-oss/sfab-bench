@@ -22,7 +22,7 @@ export function DesktopMock() {
     >
       {iframe ? (
         <iframe
-          className="block h-[26rem] w-full bg-[#0c0c0c] md:h-[38rem]"
+          className="block h-[32rem] w-full bg-studio md:h-[46rem]"
           src="/preview/workbench"
           title="SFab Bench workbench preview"
         />

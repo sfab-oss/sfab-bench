@@ -41,6 +41,7 @@
   --brand: oklch(0.59 0.24 357);
   --brand-foreground: oklch(0 0 0);
   --dot: oklch(0 0 0 / 0.16);
+  --studio: #eeeff1;
 }
 
 .dark {
@@ -77,6 +78,7 @@
   --sidebar-border: oklch(0.269 0 0);
   --sidebar-ring: oklch(0.439 0 0);
   --dot: oklch(1 0 0 / 0.14);
+  --studio: #1a1d21;
 }
 
 @theme inline {
@@ -118,6 +120,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-studio: var(--studio);
 }
 
 @layer base {
