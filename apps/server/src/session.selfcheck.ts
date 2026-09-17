@@ -45,7 +45,6 @@ const quest = {
   kind: "paired" as const,
   deviceId: "dev-1",
   label: "Quest",
-  scopes: ["view" as const, "chat" as const],
 };
 expect(clientOf(quest).id === "dev-1", "paired client id is the device");
 

@@ -8,8 +8,6 @@ export type SessionThreadPrefs = {
   effort: ChatEffort;
 };
 
-export type SessionStatus = "idle" | "submitted" | "streaming";
-
 /**
  * Shared library for every paired client of this process.
  * Viewport (open file, selection, camera, active thread, live stream) stays

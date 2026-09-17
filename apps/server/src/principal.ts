@@ -3,12 +3,10 @@ import type { IncomingMessage } from "node:http";
 
 import { lookupDevice } from "./pairing";
 
-export type Scope = "view" | "chat";
-
 export type ClientPrincipal =
   | { kind: "loopback" }
-  | { kind: "paired"; deviceId: string; label: string; scopes: Scope[] }
-  | { kind: "account"; userId: string; deviceId: string; scopes: Scope[] };
+  | { kind: "paired"; deviceId: string; label: string }
+  | { kind: "account"; userId: string; deviceId: string };
 
 const als = new AsyncLocalStorage<ClientPrincipal>();
 
@@ -57,7 +55,6 @@ function principalFromToken(token: string | null): ClientPrincipal | null {
     kind: "paired",
     deviceId: device.id,
     label: device.label,
-    scopes: device.scopes,
   };
 }
 
@@ -97,11 +94,6 @@ export function resolveUpgradePrincipal(
   return principalFromToken(bearerToken(req) ?? queryToken(req));
 }
 
-export function hasScope(principal: ClientPrincipal, scope: Scope): boolean {
-  if (principal.kind === "loopback") return true;
-  return principal.scopes.includes(scope);
-}
-
 export function publicPrincipal(principal: ClientPrincipal) {
   if (principal.kind === "loopback") return { kind: "loopback" as const };
   if (principal.kind === "paired") {
@@ -109,13 +101,11 @@ export function publicPrincipal(principal: ClientPrincipal) {
       kind: "paired" as const,
       deviceId: principal.deviceId,
       label: principal.label,
-      scopes: principal.scopes,
     };
   }
   return {
     kind: "account" as const,
     userId: principal.userId,
     deviceId: principal.deviceId,
-    scopes: principal.scopes,
   };
 }

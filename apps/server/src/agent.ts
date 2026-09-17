@@ -102,17 +102,6 @@ function agentKey(id: HarnessId, effort: ChatEffort, root: string) {
   return id === "cursor" ? `${root}:${id}` : `${root}:${id}:${effort}`;
 }
 
-export function resetAgents(root?: string) {
-  if (!root) {
-    agents.clear();
-    return;
-  }
-  const prefix = `${root}:`;
-  for (const key of agents.keys()) {
-    if (key.startsWith(prefix)) agents.delete(key);
-  }
-}
-
 export function getAgent(id: HarnessId, effort: ChatEffort, root: string) {
   const key = agentKey(id, effort, root);
   let agent = agents.get(key);

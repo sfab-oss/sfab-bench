@@ -52,10 +52,6 @@ export function closeTabProject() {
   syncProjectQuery("");
 }
 
-export function tabProjectPath() {
-  return projectUrl();
-}
-
 export function folderName(path: string) {
   return path.split("/").filter(Boolean).pop() ?? path;
 }

@@ -44,7 +44,6 @@ type DesktopPrefs = {
   chatHarness: HarnessId;
   chatModel: string;
   chatEffort: ChatEffort;
-  recentFiles: string[];
 };
 
 function clampChatWidth(n: number) {
@@ -239,11 +238,7 @@ export const store = createStore<State>()(
       chatEffort: isChatEffort(prefs.chatEffort ?? "")
         ? prefs.chatEffort!
         : DEFAULT_CHAT_EFFORT,
-      recentFiles: Array.isArray(prefs.recentFiles)
-        ? prefs.recentFiles
-            .filter((p): p is string => typeof p === "string" && p.length > 0)
-            .slice(0, MAX_RECENTS)
-        : [],
+      recentFiles: [],
       axesVisible: prefs.axesVisible ?? true,
       hiddenIds: new Set<number>(),
       tool: "select",
@@ -568,8 +563,13 @@ export const store = createStore<State>()(
         chatHarness: s.chatHarness,
         chatModel: s.chatModel,
         chatEffort: s.chatEffort,
-        recentFiles: s.recentFiles,
       }),
+      merge: (persisted, current) => {
+        const stored = persisted as Partial<State> | undefined;
+        if (!stored) return current;
+        const { recentFiles: _ignored, ...rest } = stored;
+        return { ...current, ...rest, recentFiles: current.recentFiles };
+      },
     }
   )
 );

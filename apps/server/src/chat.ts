@@ -29,12 +29,7 @@ import {
   harnessErrorText,
 } from "./chat-stream";
 import { ensureProvisioned } from "./provisioning";
-import {
-  endSessionRun,
-  rememberOpenedFile,
-  setSessionRunStatus,
-  startSessionRun,
-} from "./session";
+import { endSessionRun, rememberOpenedFile, startSessionRun } from "./session";
 import {
   isResumePayload,
   isUnusableResumeError,
@@ -77,27 +72,6 @@ function persistChat(chatId: string, next: UIMessage[], root: string) {
   } catch (err) {
     console.error("[chat] persist failed", err);
   }
-}
-
-function persistIdleSession(
-  chatId: string,
-  root: string,
-  harness: HarnessId,
-  state: unknown,
-  nativeId: string | null
-) {
-  let last: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      saveThreadSession(chatId, root, harness, state, nativeId);
-      return;
-    } catch (err) {
-      last = err;
-    }
-  }
-  throw last instanceof Error
-    ? last
-    : new Error("failed to persist harness session");
 }
 
 async function createLiveSession(
@@ -306,7 +280,6 @@ export async function handleChat(
                   onError: harnessErrorText,
                 }) as never
               );
-              setSessionRunStatus(root, "streaming");
               writer.merge(ui as never);
               try {
                 await result.text;
@@ -337,7 +310,7 @@ export async function handleChat(
           const stripped = stripResumeCredentials(payload);
           const nextNative = nativeIdFromResume(harness, stripped);
           const prev = loadThreadSession(chatId, harness);
-          persistIdleSession(chatId, root, harness, stripped, nextNative);
+          saveThreadSession(chatId, root, harness, stripped, nextNative);
           if (lostContext(prev?.native_id, nextNative)) {
             writer.write({
               type: "data-error",

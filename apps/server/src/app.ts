@@ -29,11 +29,9 @@ import {
 } from "./pairing";
 import {
   type ClientPrincipal,
-  hasScope,
   publicPrincipal,
   resolvePrincipal,
   runWithPrincipal,
-  type Scope,
 } from "./principal";
 import {
   catalogRevision,
@@ -92,17 +90,6 @@ const sessionPrefsSchema = z.object({
   model: z.string().optional(),
   effort: z.string().optional(),
 });
-
-function denyScope(
-  c: {
-    get: (key: "principal") => ClientPrincipal;
-    json: (body: unknown, status: 403) => Response;
-  },
-  scope: Scope
-) {
-  if (hasScope(c.get("principal"), scope)) return null;
-  return c.json({ error: "missing scope" }, 403);
-}
 
 function denyLoopback(c: {
   get: (key: "principal") => ClientPrincipal;
@@ -219,8 +206,6 @@ export const api = new Hono<AppEnv>()
     return c.json(joinInfo(mintOffer()));
   })
   .get("/project", (c) => {
-    const denied = denyScope(c, "view");
-    if (denied) return denied;
     return c.json(projectPayload(c.get("projectRoot")));
   })
   .post("/project", zValidator("json", openProjectSchema), (c) => {
@@ -251,8 +236,6 @@ export const api = new Hono<AppEnv>()
     }
   })
   .get("/catalog", (c) => {
-    const denied = denyScope(c, "view");
-    if (denied) return denied;
     const root = c.get("projectRoot");
     if (!root)
       return c.json({ files: [], recents: [], revision: catalogRevision() });
@@ -263,12 +246,10 @@ export const api = new Hono<AppEnv>()
     });
   })
   .get("/session", (c) => {
-    const denied = denyScope(c, "view");
-    if (denied) return denied;
     return c.json(snapshotFor(c.get("principal")));
   })
   .post("/recents", zValidator("json", recentFileSchema), (c) => {
-    const denied = denyScope(c, "view") ?? denyNoProject(c);
+    const denied = denyNoProject(c);
     if (denied) return denied;
     const root = c.get("projectRoot")!;
     try {
@@ -284,40 +265,34 @@ export const api = new Hono<AppEnv>()
     }
   })
   .post("/chat/stop", (c) => {
-    const denied = denyScope(c, "chat");
-    if (denied) return denied;
     stopSessionRun(c.get("projectRoot"));
     return c.json({ ok: true });
   })
   .get("/models", async (c) => {
-    const denied = denyScope(c, "view");
-    if (denied) return denied;
     return c.json(await listOpenCodeModels(c.get("projectRoot")));
   })
   .get("/harnesses", async (c) => {
-    const denied = denyScope(c, "view");
-    if (denied) return denied;
     return c.json(await listHarnesses(c.get("projectRoot")));
   })
   .get("/threads", (c) => {
-    const denied = denyScope(c, "chat") ?? denyNoProject(c);
+    const denied = denyNoProject(c);
     if (denied) return denied;
     return c.json(listThreads(c.get("projectRoot")!));
   })
   .post("/threads", (c) => {
-    const denied = denyScope(c, "chat") ?? denyNoProject(c);
+    const denied = denyNoProject(c);
     if (denied) return denied;
     return c.json(createThread(c.get("projectRoot")!), 201);
   })
   .get("/threads/:id", (c) => {
-    const denied = denyScope(c, "chat") ?? denyNoProject(c);
+    const denied = denyNoProject(c);
     if (denied) return denied;
     const row = getThread(c.req.param("id"), c.get("projectRoot")!);
     if (!row) return c.json({ error: "not found" }, 404);
     return c.json(row);
   })
   .put("/threads/:id/prefs", zValidator("json", sessionPrefsSchema), (c) => {
-    const denied = denyScope(c, "chat") ?? denyNoProject(c);
+    const denied = denyNoProject(c);
     if (denied) return denied;
     const prefs = prefsFromBody(c.req.valid("json"));
     if (!saveThreadPrefs(c.req.param("id"), c.get("projectRoot")!, prefs)) {
@@ -326,7 +301,7 @@ export const api = new Hono<AppEnv>()
     return c.json({ thread: prefs });
   })
   .put("/threads/:id", zValidator("json", saveMessagesSchema), (c) => {
-    const denied = denyScope(c, "chat") ?? denyNoProject(c);
+    const denied = denyNoProject(c);
     if (denied) return denied;
     const { messages } = c.req.valid("json");
     if (
@@ -341,22 +316,20 @@ export const api = new Hono<AppEnv>()
     return c.json({ ok: true });
   })
   .post("/chat", async (c) => {
-    const denied = denyScope(c, "chat") ?? denyNoProject(c);
+    const denied = denyNoProject(c);
     if (denied) return denied;
     return handleChat(c.req.raw, c.get("projectRoot")!);
   })
   .post("/transcribe", async (c) => {
-    const denied = denyScope(c, "chat");
-    if (denied) return denied;
     return handleTranscribe(c.req.raw);
   })
   .on(["GET", "HEAD"], "/cad-pkg/*", async (c) => {
-    const denied = denyScope(c, "view") ?? denyNoProject(c);
+    const denied = denyNoProject(c);
     if (denied) return denied;
     return handleCadPkg(c.req.raw, c.get("projectRoot")!);
   })
   .on(["GET", "HEAD"], "/files/*", async (c) => {
-    const denied = denyScope(c, "view") ?? denyNoProject(c);
+    const denied = denyNoProject(c);
     if (denied) return denied;
     return handleProjectFile(c.req.raw, c.get("projectRoot")!);
   });
