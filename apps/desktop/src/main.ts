@@ -1,7 +1,11 @@
 import { existsSync } from "node:fs";
 import { request } from "node:https";
 import { join } from "node:path";
-import { loginLikePath, publicPort } from "@sfab-bench/server/config";
+import {
+  loadHomeEnv,
+  loginLikePath,
+  publicPort,
+} from "@sfab-bench/server/config";
 import type { UtilityProcess } from "electron";
 import {
   app,
@@ -14,6 +18,8 @@ import {
   shell,
   utilityProcess,
 } from "electron";
+
+loadHomeEnv();
 
 const ORIGIN = `https://127.0.0.1:${publicPort()}`;
 const PRELOAD = join(__dirname, "preload.cjs");

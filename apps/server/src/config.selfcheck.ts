@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { loginLikePath, loginPathExtras } from "./config";
+import {
+  applyEnvFile,
+  homeEnvPath,
+  loginLikePath,
+  loginPathExtras,
+  parseEnvFile,
+} from "./config";
 
 function expect(cond: unknown, label: string) {
   if (!cond) throw new Error(label);
@@ -41,5 +47,37 @@ expect(
 
 const listen = readFileSync(new URL("./listen.ts", import.meta.url), "utf8");
 expect(listen.includes("ensureLoginLikePath()"), "API boot patches PATH");
+expect(listen.includes("loadHomeEnv()"), "API boot loads ~/.sfab-bench/.env");
+
+const cli = readFileSync(new URL("./cli.ts", import.meta.url), "utf8");
+expect(cli.includes("loadHomeEnv()"), "CLI loads home env before open/serve");
+expect(
+  cli.indexOf("loadHomeEnv()") < cli.indexOf("SFAB_BENCH_PROJECT"),
+  "home env loads before cli open overrides the project"
+);
+
+expect(
+  homeEnvPath("/tmp/sfab-other-home") ===
+    join("/tmp/sfab-other-home", ".sfab-bench", ".env"),
+  "home env path sits next to state.sqlite"
+);
+
+const parsed = parseEnvFile(`
+# comment
+STT_AI_GATEWAY_API_KEY=from-file
+export SFAB_BENCH_PROJECT="/tmp/cad"
+EMPTY=
+not a line
+BAD KEY=no
+`);
+expect(parsed.STT_AI_GATEWAY_API_KEY === "from-file", "parses unquoted");
+expect(parsed.SFAB_BENCH_PROJECT === "/tmp/cad", "parses export and quotes");
+expect(!("EMPTY" in parsed), "skips empty values");
+expect(!("BAD KEY" in parsed), "skips invalid keys");
+
+const env: NodeJS.ProcessEnv = { STT_AI_GATEWAY_API_KEY: "from-shell" };
+applyEnvFile(parsed, env);
+expect(env.STT_AI_GATEWAY_API_KEY === "from-shell", "shell wins");
+expect(env.SFAB_BENCH_PROJECT === "/tmp/cad", "fills unset keys");
 
 console.log("config.selfcheck ok");

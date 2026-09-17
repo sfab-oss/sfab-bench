@@ -8,6 +8,7 @@ import {
   certDir,
   DEV_API_HOST,
   ensureLoginLikePath,
+  loadHomeEnv,
   publicPort,
 } from "./config";
 import { handleRequest } from "./http";
@@ -57,6 +58,7 @@ function onListenError(
 }
 
 async function main() {
+  loadHomeEnv();
   ensureLoginLikePath();
   subscribeProjectChange(() => {
     hydrateSession();
