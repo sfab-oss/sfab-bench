@@ -1,9 +1,60 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
 export const DEV_API_HOST = "127.0.0.1";
 export const APP_HOME = join(homedir(), ".sfab-bench");
+
+const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Copy `.env.example` here. Shell env wins over this file. */
+export function homeEnvPath(home = homedir()): string {
+  return join(home, ".sfab-bench", ".env");
+}
+
+export function parseEnvFile(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const body = line.startsWith("export ") ? line.slice(7).trim() : line;
+    const eq = body.indexOf("=");
+    if (eq <= 0) continue;
+    const key = body.slice(0, eq).trim();
+    if (!ENV_KEY.test(key)) continue;
+    let value = body.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"') && value.length >= 2) ||
+      (value.startsWith("'") && value.endsWith("'") && value.length >= 2)
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (!value) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+/** Fill empty keys only. A set shell var is left alone. */
+export function applyEnvFile(
+  parsed: Record<string, string>,
+  env: NodeJS.ProcessEnv = process.env
+): void {
+  for (const [key, value] of Object.entries(parsed)) {
+    if (env[key]?.trim()) continue;
+    env[key] = value;
+  }
+}
+
+export function loadHomeEnv(home = homedir()): void {
+  const file = homeEnvPath(home);
+  if (!existsSync(file)) return;
+  try {
+    applyEnvFile(parseEnvFile(readFileSync(file, "utf8")));
+  } catch {
+    // Missing or unreadable is the same as no file.
+  }
+}
 
 /** Directories a Dock-launched `.app` does not inherit from the terminal. */
 export function loginPathExtras(home = homedir()): string[] {

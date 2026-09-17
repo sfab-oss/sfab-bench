@@ -1,4 +1,5 @@
 import { parseCli } from "./cli-parse";
+import { loadHomeEnv } from "./config";
 
 const HELP = `sfab-bench — CAD workbench
 
@@ -16,6 +17,7 @@ async function main() {
     console.log(HELP);
     process.exit(action.error ? 1 : 0);
   }
+  loadHomeEnv();
   if (action.project) process.env.SFAB_BENCH_PROJECT = action.project;
   if (action.kind === "dev") {
     await import("./dev");

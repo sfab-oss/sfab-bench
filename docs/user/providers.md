@@ -20,6 +20,6 @@ their bootstrap into `~/.sfab-bench/harness/` (not the CAD folder).
 Voice input posts to `/api/transcribe` through AI Gateway. That key is
 **not** used for Codex, Grok, or OpenCode — those stay on the Mac login
 (`codex login`, `grok login`, …). Cursor is the exception. Set the
-voice key in **Settings**, or `STT_AI_GATEWAY_API_KEY` on the Mac.
-Optional: `STT_MODEL` (default `openai/whisper-1`). Restart after adding
-the env var.
+voice key in **Settings**, or `STT_AI_GATEWAY_API_KEY` on the Mac
+(shell, or `~/.sfab-bench/.env`). Optional: `STT_MODEL` (default
+`openai/whisper-1`). Restart after changing the env var or that file.

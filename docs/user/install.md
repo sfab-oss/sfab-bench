@@ -26,6 +26,10 @@ the Mac tab unless you intend to pair it as a guest.
 State directory: `~/.sfab-bench/` (sqlite, tessellation cache, certs,
 managed tools, OpenCode/Codex bootstrap under `harness/`).
 
+Optional `~/.sfab-bench/.env` fills empty env vars at boot (voice key,
+folder). Copy [`.env.example`](../../.env.example). A value already in
+the shell wins. `pnpm cli open <dir>` still overrides `SFAB_BENCH_PROJECT`.
+
 | Env | Default | Purpose |
 | --- | --- | --- |
 | `SFAB_BENCH_PROJECT` | (none) | Folder to open on boot |

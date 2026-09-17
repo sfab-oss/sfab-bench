@@ -49,6 +49,7 @@ expect(
   main.includes("loginLikePath()"),
   "desktop fork env still gets a login-like PATH"
 );
+expect(main.includes("loadHomeEnv()"), "desktop loads ~/.sfab-bench/.env");
 
 const app = join(here, "release", "mac-arm64", "sfab-bench.app");
 if (existsSync(app)) {
