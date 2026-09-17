@@ -4,7 +4,7 @@ import { Display } from "@/components/ui/display";
 const QUEST_VIDEO_ID = "VeDZJBtUcAE";
 const QUEST_VIDEO_TITLE = "SFab Bench · Hand tracking demo";
 const QUEST_POSTER = "/brand/quest-poster.jpg";
-const QUEST_EMBED = `https://www.youtube-nocookie.com/embed/${QUEST_VIDEO_ID}?autoplay=1&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3`;
+const QUEST_EMBED = `https://www.youtube-nocookie.com/embed/${QUEST_VIDEO_ID}?autoplay=1&start=35&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3`;
 
 /**
  * YouTube cannot restyle its chrome. We keep our 16:9 frame, a custom poster,
