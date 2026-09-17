@@ -24,6 +24,7 @@ Run from the **monorepo root**:
 | Dev (API + Vite HTTPS) | `pnpm dev` |
 | Desktop app (Electron) | `pnpm desktop` |
 | Package a `.app` + Releases zip | `pnpm desktop:package` |
+| Cut a GitHub Release | [`.agents/skills/release/`](.agents/skills/release/) |
 | Open a folder then serve | `pnpm cli open /abs/path` |
 | Open a folder then Vite | `pnpm cli open /abs/path --dev` |
 | Type check | `pnpm typecheck` |
@@ -53,9 +54,10 @@ Mac tab: `https://127.0.0.1:7322`. Quest needs the LAN host, not loopback.
 - **Shared types** → `packages/contract/`
 - **Marketing site** → `apps/docs/` (manifesto home; local `:7323`)
 - **How agents use the viewer** → [`.agents/skills/sfab-bench/`](.agents/skills/sfab-bench/)
+- **How to cut a GitHub Release** → [`.agents/skills/release/`](.agents/skills/release/)
 
 `.claude/CLAUDE.md` is a copy of this file. `.claude/skills/sfab-bench`
-symlinks the skill above.
+and `.claude/skills/release` symlink the skills above.
 
 ## Conventions
 

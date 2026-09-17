@@ -55,6 +55,8 @@ OpenCode already loads `AGENTS.md` and `.agents/skills` from the **open
 folder**. The harness `instructions` are only the workbench identity
 line — do not add a CAD system prompt here.
 
+GitHub Releases of the `.app` zip: [`.agents/skills/release/`](../release/).
+
 ## Do not
 
 - Edit Jake `$cad` / `$cad-viewer` / `$step-parts` from this repo.
