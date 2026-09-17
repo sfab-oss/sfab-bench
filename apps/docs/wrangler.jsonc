@@ -11,5 +11,5 @@
   "observability": {
     "enabled": true
   },
-  "routes": [{ "pattern": "bench.sfab.dev", "custom_domain": true }]
+  "routes": [{ "pattern": "bench.sfab.ai", "custom_domain": true }]
 }

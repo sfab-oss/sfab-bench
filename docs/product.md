@@ -58,7 +58,7 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 6 | **done** | Desktop layout (files left, model tree on canvas, chat right, provider status). TipTap `#` mentions from parts / faces / `#o…`; chips flatten to those refs; click a ref in the transcript selects on this tab |
 | 7 | **partial** | Local CLI (`pnpm cli serve` / `dev` / `open`) prints URL, QR, pairing code. **`npx sfab-bench`: not until the repo is public** |
 | 8 | later | `--tunnel` (pairing already required for non-loopback). Do not start until someone needs Quest off this LAN |
-| 9 | **partial** | Marketing site (`apps/docs`). Manifesto home + desktop placeholder mock. Runbook stays in `docs/user/`. Cloudflare `bench.sfab.dev` and making the GitHub repo public: later, together. Linking the real `apps/web` client (and XR in that preview): later. |
+| 9 | **partial** | Marketing site (`apps/docs`). Manifesto home + desktop placeholder mock. Cloudflare `bench.sfab.ai`. Making the GitHub repo public: later. Linking the real `apps/web` client (and XR in that preview): later. |
 | 10 | **done** | Electron shell: native folder dialog, server starts with the app, keep-alive ([ADR 0005](decisions/0005-electron-shell.md)). `pnpm desktop:package` writes the `.app` and a `ditto` zip; signs with `CSC_NAME` when present, otherwise ad-hoc. Notarisation: gated on an Apple identity on the packaging Mac. |
 | 11 | later | Account `principal.kind`. Only when 8 is used by more than one person |
 | 12 | **done** | OCCT WASM loader. STEP opens with no Python ([ADR 0004](decisions/0004-occt-via-opencascade-js.md)) |
