@@ -14,6 +14,8 @@ export {
   emptySnapshot,
   filterCatalogTree,
   flattenCatalog,
+  type ViewerSketch,
   type ViewerSnapshot,
   type ViewerTreeItem,
+  viewerStamp,
 } from "@sfab-bench/contract";

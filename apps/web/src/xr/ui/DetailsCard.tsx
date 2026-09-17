@@ -19,6 +19,9 @@ export function DetailsCard() {
     measure,
     undoMeasure,
     clearMeasure,
+    sketches,
+    undoSketch,
+    clearSketches,
   } = useStore(
     useShallow((s) => ({
       review: s.review,
@@ -31,10 +34,55 @@ export function DetailsCard() {
       measure: s.measure,
       undoMeasure: s.undoMeasure,
       clearMeasure: s.clearMeasure,
+      sketches: s.sketches,
+      undoSketch: s.undoSketch,
+      clearSketches: s.clearSketches,
     }))
   );
   const part = selectedId !== null ? review?.parts[selectedId] : undefined;
   const theme = useXrTheme();
+
+  if (tool === "sketch") {
+    const n = sketches.length;
+    return (
+      <Container
+        width={184}
+        padding={8}
+        gap={6}
+        flexDirection="column"
+        backgroundColor={theme.card}
+        borderRadius={12}
+        borderWidth={1}
+        borderColor={theme.border}
+        pixelSize={0.001}
+        pointerEvents="auto"
+      >
+        <Text fontSize={13} color={theme.text}>
+          Sketch
+        </Text>
+        <Text fontSize={12} color={theme.subtle}>
+          {n === 0
+            ? "Hold trigger to draw"
+            : n === 1
+              ? "1 stroke"
+              : `${n} strokes`}
+        </Text>
+        <Container flexDirection="row" gap={4} width="100%">
+          <ToolBtn
+            id="sk-undo"
+            icon={Undo2}
+            grow={false}
+            onClick={() => undoSketch()}
+          />
+          <ToolBtn
+            id="sk-clear"
+            label="Clear"
+            onClick={() => clearSketches()}
+          />
+        </Container>
+      </Container>
+    );
+  }
 
   if (tool === "measure") {
     const a = measure.a;

@@ -21,6 +21,7 @@ import { HandTools } from "@/xr/hands/HandTools";
 import { WristWatch } from "@/xr/hands/WristWatch";
 import { XRGrab } from "@/xr/hands/XRGrab";
 import { CornerAxes, RightAxes, RightHandAxes } from "@/xr/RightAxes";
+import { SketchInput } from "@/xr/SketchInput";
 import { ToolDrawer } from "@/xr/ToolDrawer";
 import { CardDock } from "@/xr/ui/CardDock";
 import { ChatDock } from "@/xr/ui/ChatDock";
@@ -135,6 +136,10 @@ export function ViewerCanvas() {
   const setPlaced = useStore((s) => s.setPlaced);
   const xrSession = useXrSession();
   const reduceMotion = usePrefersReducedMotion();
+  useEffect(() => {
+    if (xrSession) return;
+    if (store.getState().tool === "sketch") store.getState().setTool("select");
+  }, [xrSession]);
   const onFit = useCallback(
     (obj: THREE.Object3D) => store.getState().fit?.(obj, homeFitDirection()),
     []
@@ -174,6 +179,7 @@ export function ViewerCanvas() {
           </RenderErrorBoundary>
         </group>
         <XRGrab />
+        <SketchInput />
         <HandSkeletons />
         {/* One wrist XRSpace per hand; everything wrist-mounted hangs off it. */}
         <HandRig handedness="left">

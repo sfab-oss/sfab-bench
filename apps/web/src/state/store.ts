@@ -27,6 +27,11 @@ import {
 import { CHAT_DEFAULT_WIDTH, clampStoredChatWidth } from "@/lib/layout";
 import { projectUrl } from "@/lib/project-query";
 import { invalidateSceneNow } from "@/scene/invalidate";
+import {
+  type SketchStroke,
+  shouldAppendPoint,
+  shouldKeepStroke,
+} from "@/scene/sketches";
 
 export {
   CHAT_DEFAULT_WIDTH,
@@ -99,7 +104,7 @@ function readDesktopPrefs(): Partial<DesktopPrefs> {
 
 const prefs = readDesktopPrefs();
 
-export type Tool = "select" | "measure" | "hide";
+export type Tool = "select" | "measure" | "hide" | "sketch";
 export type MeasurePoint = { cadRef: string; point: [number, number, number] };
 export type Page = "tree" | "settings" | "help";
 /** Where the left-hand card lives: on the wrist, or anchored in the world. */
@@ -125,6 +130,7 @@ export function setXrChatChars(n: number) {
 }
 /** Guards against a stale `loadModel` resolving after a newer one started. */
 let loadToken = 0;
+let sketchSeq = 0;
 
 const apply = (state: Pick<State, "review" | "selectedId">) => {
   if (state.review) applyHighlights(state.review, state.selectedId, hoveredId);
@@ -157,6 +163,8 @@ type State = {
   hiddenIds: Set<number>;
   tool: Tool;
   measure: { a: MeasurePoint | null; b: MeasurePoint | null };
+  sketches: SketchStroke[];
+  draft: SketchStroke | null;
   loadModel: (url: string) => Promise<void>;
   setRecentFiles: (paths: string[]) => void;
   setTreeOpen: (open: Setter) => void;
@@ -189,6 +197,12 @@ type State = {
   /** Removes the most recent measure point. */
   undoMeasure: () => void;
   clearMeasure: () => void;
+  beginSketch: () => void;
+  setDraftSnap: (on: string) => void;
+  appendSketchPoint: (point: [number, number, number]) => void;
+  commitSketch: () => void;
+  undoSketch: () => void;
+  clearSketches: () => void;
 
   // xr ui
   page: Page;
@@ -287,6 +301,8 @@ export const store = createStore<State>()(
       hiddenIds: new Set<number>(),
       tool: "select",
       measure: { a: null, b: null },
+      sketches: [],
+      draft: null,
 
       loadModel: async (next) => {
         const token = ++loadToken;
@@ -514,6 +530,48 @@ export const store = createStore<State>()(
             : { a: null, b: null },
         })),
       clearMeasure: () => set({ measure: { a: null, b: null } }),
+      beginSketch: () => {
+        const s = get();
+        if (s.draft) return;
+        set({
+          draft: {
+            id: `s${++sketchSeq}`,
+            file: s.url,
+            on: null,
+            points: [],
+          },
+        });
+      },
+      setDraftSnap: (on) => {
+        const draft = get().draft;
+        if (!draft || draft.on) return;
+        set({ draft: { ...draft, on } });
+      },
+      appendSketchPoint: (point) => {
+        const draft = get().draft;
+        if (!draft) return;
+        if (!shouldAppendPoint(draft.points, point)) return;
+        set({ draft: { ...draft, points: [...draft.points, point] } });
+      },
+      commitSketch: () => {
+        const draft = get().draft;
+        if (!draft) return;
+        if (shouldKeepStroke(draft)) {
+          set({ sketches: [...get().sketches, draft], draft: null });
+        } else {
+          set({ draft: null });
+        }
+      },
+      undoSketch: () => {
+        const s = get();
+        if (s.draft) {
+          set({ draft: null });
+          return;
+        }
+        if (s.sketches.length === 0) return;
+        set({ sketches: s.sketches.slice(0, -1) });
+      },
+      clearSketches: () => set({ sketches: [], draft: null }),
 
       page: "tree",
       cardOpen: true,

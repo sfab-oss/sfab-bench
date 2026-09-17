@@ -46,7 +46,7 @@ Query string, relative to **this tab's project folder**:
 
 In the in-app assistant (cwd is the open project):
 
-- `get_viewer` — `{ file, empty, selected, selectedName, tree, partCount }`. Paths are project-relative.
+- `get_viewer` — `{ file, empty, selected, selectedName, tree, partCount, sketches }`. Paths are project-relative. `sketches` are Quest freehand strokes in millimetres (`on` is a face `#o…` when snapped).
 - `show_artifact` — pass a STEP or GLB in the project. Loads it on **this
   client only** and adds it to shared recents. Re-call after rebuilding
   the same STEP so this client reloads.

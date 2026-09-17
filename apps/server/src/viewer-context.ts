@@ -30,7 +30,7 @@ export const viewerTools = {
   // the turn. A server execute would freeze the send-time (often empty) view.
   get_viewer: tool({
     description:
-      "What this asking client's visualizer is showing right now: project-relative path, empty, tree names, selected # ref. Call after show_artifact if you need the loaded tree.",
+      "What this asking client's visualizer is showing right now: project-relative path, empty, tree names, selected # ref, and any spatial sketch strokes (mm; face-snapped strokes include on). Call after show_artifact if you need the loaded tree.",
     inputSchema: z.object({}),
   }),
   show_artifact: tool({
