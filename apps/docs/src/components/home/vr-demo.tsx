@@ -1,11 +1,15 @@
+import { useState } from "react";
 import { Display } from "@/components/ui/display";
 
-/**
- * Slot for a Quest / Enter Studio video. Drop a file at
- * `public/demo/quest.mp4` and set `QUEST_DEMO_SRC` to `/demo/quest.mp4`.
- */
-const QUEST_DEMO_SRC: string | null = null;
+const QUEST_VIDEO_ID = "VeDZJBtUcAE";
+const QUEST_VIDEO_TITLE = "SFab Bench · Hand tracking demo";
+const QUEST_POSTER = "/brand/quest-poster.jpg";
+const QUEST_EMBED = `https://www.youtube-nocookie.com/embed/${QUEST_VIDEO_ID}?autoplay=1&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3`;
 
+/**
+ * YouTube cannot restyle its chrome. We keep our 16:9 frame, a custom poster,
+ * and load the privacy-enhanced embed only after play.
+ */
 export function VrDemo() {
   return (
     <section className="mx-auto w-full max-w-5xl px-6 py-16" id="quest">
@@ -16,64 +20,54 @@ export function VrDemo() {
         Same process. Quest Browser.
       </Display>
       <p className="mt-4 max-w-2xl text-muted-foreground leading-relaxed">
-        Pair once on the same Wi-Fi. Enter Studio in the headset. Drop a capture
-        in when you have one.
+        Pair once on the same Wi-Fi. Enter Studio in the headset. Hands in this
+        clip; controllers work the same way.
       </p>
-      <div className="relative mt-8 aspect-video overflow-hidden border border-border bg-muted/10">
-        {QUEST_DEMO_SRC ? (
-          <video
-            className="h-full w-full object-cover"
-            controls
-            playsInline
-            preload="metadata"
-            src={QUEST_DEMO_SRC}
-          >
-            <track kind="captions" />
-          </video>
-        ) : (
-          <VrDemoPlaceholder />
-        )}
-      </div>
+      <QuestPlayer />
     </section>
   );
 }
 
-function VrDemoPlaceholder() {
+function QuestPlayer() {
+  const [playing, setPlaying] = useState(false);
+
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-      <svg
-        aria-hidden
-        className="h-28 w-48 text-muted-foreground"
-        fill="none"
-        viewBox="0 0 192 96"
-      >
-        <ellipse
-          cx="64"
-          cy="48"
-          opacity="0.45"
-          rx="40"
-          ry="36"
-          stroke="currentColor"
-          strokeWidth="1.25"
+    <div className="relative mt-8 aspect-video overflow-hidden border border-border bg-studio">
+      {playing ? (
+        <iframe
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          className="absolute inset-0 h-full w-full"
+          referrerPolicy="strict-origin-when-cross-origin"
+          src={QUEST_EMBED}
+          title={QUEST_VIDEO_TITLE}
         />
-        <ellipse
-          cx="128"
-          cy="48"
-          opacity="0.45"
-          rx="40"
-          ry="36"
-          stroke="currentColor"
-          strokeWidth="1.25"
-        />
-        <circle cx="96" cy="48" fill="var(--brand)" r="5" />
-      </svg>
-      <div className="flex items-center gap-2 font-mono text-[0.6875rem] text-muted-foreground uppercase tracking-[0.16em]">
-        <span
-          aria-hidden
-          className="inline-block border-y-[6px] border-y-transparent border-l-[10px] border-l-foreground"
-        />
-        Quest demo
-      </div>
+      ) : (
+        <button
+          aria-label={`Play ${QUEST_VIDEO_TITLE}`}
+          className="group absolute inset-0 cursor-pointer"
+          onClick={() => setPlaying(true)}
+          type="button"
+        >
+          <img
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+            src={QUEST_POSTER}
+          />
+          <span className="absolute inset-0 bg-black/25 transition-colors group-hover:bg-black/15" />
+          <span className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+            <span className="flex size-16 items-center justify-center rounded-full bg-brand text-brand-foreground shadow-[0_0_0_8px_color-mix(in_oklch,var(--brand)_28%,transparent)] transition-transform group-hover:scale-105">
+              <span
+                aria-hidden
+                className="ml-0.5 inline-block border-y-[8px] border-y-transparent border-l-[14px] border-l-current"
+              />
+            </span>
+            <span className="bg-black/50 px-2 py-1 font-mono text-[0.6875rem] text-white uppercase tracking-[0.16em]">
+              Hand tracking · Quest
+            </span>
+          </span>
+        </button>
+      )}
     </div>
   );
 }
