@@ -37,7 +37,18 @@ export function CadModel({ onFit }: { onFit: (obj: THREE.Object3D) => void }) {
     if (review) onFit(review.root);
   }, [review, onFit]);
 
-  if (!review) return null;
+  const bindWrap = (group: THREE.Group | null) => {
+    wrap.current = group;
+    setSketchWrap(group);
+  };
+
+  if (!review) {
+    return (
+      <group ref={bindWrap}>
+        <SketchOverlay />
+      </group>
+    );
+  }
 
   const fromEvent = (ev: ThreeEvent<MouseEvent>) => {
     ev.stopPropagation();
@@ -48,12 +59,7 @@ export function CadModel({ onFit }: { onFit: (obj: THREE.Object3D) => void }) {
   };
 
   return (
-    <group
-      ref={(group) => {
-        wrap.current = group;
-        setSketchWrap(group);
-      }}
-    >
+    <group ref={bindWrap}>
       <mesh rotation-x={-Math.PI / 2} position-y={0.0008} raycast={() => {}}>
         <circleGeometry args={[radius, 48]} />
         <meshBasicMaterial color="#1a1d21" transparent opacity={0.12} />

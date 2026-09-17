@@ -291,6 +291,22 @@ export function hitChrome(world: THREE.Vector3, pad = NEAR_PAD): Region | null {
   return null;
 }
 
+/** True when a pointer ray hits a visible registered card face. */
+export function rayHitsChrome(ray: THREE.Ray): boolean {
+  for (const entry of cards) {
+    if (!visibleInTree(entry.anchor)) continue;
+    const local = rayOnCard(entry.anchor, ray);
+    if (!local) continue;
+    const s = entry.size();
+    if (
+      classify(local.x, local.y, s.w, s.h, HIT_PAD, entry.opts()) !== "none"
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function cardContains(
   entry: CardReg,
   world: THREE.Vector3,

@@ -121,7 +121,20 @@ store.getState().appendSketchPoint([0, 0, 0]);
 store.getState().commitSketch();
 expect(store.getState().sketches.length === 1, "tiny draft is discarded");
 
-store.setState({ url: "new.step" });
+// Same keys loadModel writes when swapping files; sketches must survive.
+store.setState({
+  url: "new.step",
+  title: "new.step",
+  progress: 0,
+  error: null,
+  review: null,
+  selectedId: null,
+  pickedRef: null,
+  hiddenIds: new Set(),
+  tool: "select",
+  measure: { a: null, b: null },
+  cameraMoved: false,
+});
 const ghost = viewerSnapshot();
 expect(ghost.file === "new.step", "snapshot file is the open one");
 expect(ghost.sketches.length === 1, "strokes persist after the file changes");

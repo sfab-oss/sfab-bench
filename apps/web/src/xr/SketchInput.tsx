@@ -11,10 +11,30 @@ import * as THREE from "three";
 import { sketchWrap } from "@/scene/sketch-anchor";
 import { probeFaceNear, projectOnPlane } from "@/scene/sketches";
 import { store, useStore } from "@/state/store";
+import { hitChrome, rayHitsChrome } from "@/xr/ui/chrome";
 
 const tipWorld = new THREE.Vector3();
 const local = new THREE.Vector3();
 const projected = new THREE.Vector3();
+const drawRay = new THREE.Ray();
+const drawDir = new THREE.Vector3();
+
+function chromeBlocksDraw(
+  controllerTip: THREE.Object3D | null,
+  handTip: THREE.Object3D | null
+): boolean {
+  if (handTip) {
+    handTip.updateWorldMatrix(true, false);
+    handTip.getWorldPosition(tipWorld);
+    return hitChrome(tipWorld) != null;
+  }
+  if (!controllerTip) return false;
+  controllerTip.updateWorldMatrix(true, false);
+  controllerTip.getWorldPosition(drawRay.origin);
+  drawDir.set(0, 0, -1).transformDirection(controllerTip.matrixWorld);
+  drawRay.direction.copy(drawDir);
+  return rayHitsChrome(drawRay);
+}
 
 function sampleTip(
   controllerTip: THREE.Object3D | null,
@@ -49,6 +69,8 @@ export function SketchInput() {
     const s = store.getState();
     if (s.tool !== "sketch") return;
     if (s.toolsOpen || s.worldGrabbing || s.cardDragging) return;
+    if (!sketchWrap()) return;
+    if (chromeBlocksDraw(controllerTip.current, handTip.current)) return;
     if (drawing.current) return;
     drawing.current = true;
     plane.current = null;
@@ -124,8 +146,8 @@ export function SketchInput() {
     }
 
     const wrap = sketchWrap();
-    if (wrap) wrap.worldToLocal(local.copy(world));
-    else local.copy(world);
+    if (!wrap) return;
+    wrap.worldToLocal(local.copy(world));
     store.getState().appendSketchPoint([local.x, local.y, local.z]);
   });
 

@@ -62,7 +62,7 @@ export function DetailsCard() {
         </Text>
         <Text fontSize={12} color={theme.subtle}>
           {n === 0
-            ? "Hold trigger to draw"
+            ? "Hold trigger or pinch to draw"
             : n === 1
               ? "1 stroke"
               : `${n} strokes`}

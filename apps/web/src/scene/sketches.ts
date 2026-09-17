@@ -73,7 +73,8 @@ export function projectOnPlane(
   return out.copy(point).addScaledVector(planeN, -d);
 }
 
-/** Closest face within `radius` of a world-space tip, or undefined (air). */
+/** Closest face within `radius` of a world-space tip, or undefined (air).
+ * v1 only probes the six world axes; an off-axis face inside the radius can miss. */
 export function probeFaceNear(
   review: CadReview,
   worldPoint: THREE.Vector3,
