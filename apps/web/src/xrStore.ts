@@ -1,6 +1,7 @@
 import { createXRStore } from "@react-three/xr";
 
 import { store } from "@/state/store";
+import { matchCanvasCssToBuffer } from "@/xr/matchCanvasCss";
 
 /** The subset of `@pmndrs/pointer-events` `Pointer` the opacity callbacks read. */
 type PointerLike = { getButtonsDown(): { size: number } };
@@ -96,6 +97,23 @@ function applyVRInput() {
   xrStore.setHand(hands, "right");
 }
 
+function unsquashEmulatorPreview() {
+  const apply = () => {
+    const canvas = xrStore.getState().emulator?.appCanvas;
+    if (!canvas || !("style" in canvas)) return false;
+    matchCanvasCssToBuffer(canvas);
+    return true;
+  };
+  // IWER assigns appCanvas in onBaseLayerSet, which can land after enterVR resolves.
+  if (apply()) return;
+  requestAnimationFrame(() => {
+    if (apply()) return;
+    requestAnimationFrame(() => {
+      apply();
+    });
+  });
+}
+
 async function swapSession(next: "immersive-ar" | "immersive-vr") {
   const { session, mode } = xrStore.getState();
   if (session && mode === next) return session;
@@ -103,14 +121,20 @@ async function swapSession(next: "immersive-ar" | "immersive-vr") {
     store.getState().setXrSwitch(next === "immersive-ar" ? "ar" : "vr");
     try {
       await session.end();
-      return await (next === "immersive-ar"
+      const nextSession = await (next === "immersive-ar"
         ? xrStore.enterAR()
         : xrStore.enterVR());
+      unsquashEmulatorPreview();
+      return nextSession;
     } finally {
       store.getState().setXrSwitch(null);
     }
   }
-  return next === "immersive-ar" ? xrStore.enterAR() : xrStore.enterVR();
+  const started = await (next === "immersive-ar"
+    ? xrStore.enterAR()
+    : xrStore.enterVR());
+  unsquashEmulatorPreview();
+  return started;
 }
 
 export function enterAR() {
