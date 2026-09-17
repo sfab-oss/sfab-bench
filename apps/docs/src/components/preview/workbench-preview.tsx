@@ -470,7 +470,7 @@ export function WorkbenchPreview() {
       {chatOpen ? (
         <aside
           aria-label="Assistant"
-          className="@container/chat flex h-full min-h-0 w-96 shrink-0 flex-col overflow-x-hidden border-border border-l bg-background"
+          className="@container/chat flex h-full min-h-0 w-80 shrink-0 flex-col overflow-x-hidden border-border border-l bg-background"
         >
           <header className="flex h-12 shrink-0 items-center gap-1 border-border border-b px-2">
             <IconBtn
