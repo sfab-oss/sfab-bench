@@ -1,9 +1,20 @@
-import { useState } from "react";
-import {
-  PreviewCanvas,
-  type PreviewSel,
-  PreviewShell,
-} from "@/components/preview/preview-scene";
+import { type ComponentType, lazy, Suspense, useState } from "react";
+import type { PreviewSel } from "@/components/preview/preview-types";
+
+function CanvasFallback() {
+  return <div className="h-full w-full bg-[#0c0c0c]" />;
+}
+
+const PreviewCanvas: ComponentType<{
+  onSelect: (id: PreviewSel) => void;
+  selected: PreviewSel;
+}> = import.meta.env.SSR
+  ? CanvasFallback
+  : lazy(() =>
+      import("@/components/preview/preview-scene").then((m) => ({
+        default: m.PreviewCanvas,
+      }))
+    );
 
 const FILES = [
   { name: "cad/", kind: "dir" as const },
@@ -49,7 +60,7 @@ export function WorkbenchPreview() {
   };
 
   return (
-    <PreviewShell>
+    <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <div className="flex items-center gap-2 border-border border-b px-3 py-1.5">
         <span className="h-2 w-2 rounded-full bg-border" />
         <span className="h-2 w-2 rounded-full bg-border" />
@@ -91,7 +102,9 @@ export function WorkbenchPreview() {
           </ul>
         </aside>
         <div className="relative min-h-[14rem] bg-[#0c0c0c]">
-          <PreviewCanvas onSelect={setSelected} selected={selected} />
+          <Suspense fallback={<div className="h-full w-full bg-[#0c0c0c]" />}>
+            <PreviewCanvas onSelect={setSelected} selected={selected} />
+          </Suspense>
           {selected === "o12" ? (
             <span className="pointer-events-none absolute top-3 left-3 font-mono text-[0.625rem] text-brand uppercase tracking-[0.14em]">
               #o12 face
@@ -132,6 +145,6 @@ export function WorkbenchPreview() {
           </form>
         </aside>
       </div>
-    </PreviewShell>
+    </div>
   );
 }

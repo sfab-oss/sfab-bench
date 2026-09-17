@@ -1,8 +1,7 @@
 import { ContactShadows, OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
-import { type ReactNode, useEffect, useState } from "react";
-
-export type PreviewSel = "o12" | "body" | null;
+import { useEffect, useState } from "react";
+import type { PreviewSel } from "@/components/preview/preview-types";
 
 function Bracket({
   selected,
@@ -107,13 +106,5 @@ export function PreviewCanvas({
     >
       <Scene onSelect={onSelect} selected={selected} />
     </Canvas>
-  );
-}
-
-export function PreviewShell({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
-      {children}
-    </div>
   );
 }
