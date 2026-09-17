@@ -9,6 +9,7 @@ Follow the links for detail.
 STEP, talk. Quest Browser joins the same Mac process and shares the
 library, not the live viewport.
 [sfab-oss/sfab-bench](https://github.com/sfab-oss/sfab-bench).
+Site: [bench.sfab.ai](https://bench.sfab.ai).
 
 Living plan: [`docs/product.md`](docs/product.md). Do not add accounts,
 a tunnel, or a second tessellator in this tree without an ADR. The
