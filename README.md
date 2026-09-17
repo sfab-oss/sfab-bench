@@ -46,3 +46,5 @@ docs/           architecture, ADRs, user runbook
 an Electron window. STEP is tessellated in-process by OpenCascade WASM —
 [`docs/decisions/0002-step-loader-occt.md`](docs/decisions/0002-step-loader-occt.md)
 and [`0004`](docs/decisions/0004-occt-via-opencascade-js.md).
+
+MIT. See [`LICENSE`](LICENSE).
