@@ -15,8 +15,8 @@ export const STARTER_HINT_TRAIL = ", then open that folder.";
 
 /** Open folder with no STEP/GLB. Do not send people back to clone. */
 export const NO_CAD_LEAD = "This folder has no STEP or GLB. Drop one in, or ";
-export const NO_CAD_LINK = "install the CAD skill";
-export const NO_CAD_TRAIL = " we use and ask in chat.";
+export const NO_CAD_LINK = "author with the CAD skill";
+export const NO_CAD_TRAIL = " and ask in chat.";
 
 export type EmptySceneKind =
   | "none"

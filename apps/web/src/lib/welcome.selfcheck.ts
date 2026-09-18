@@ -224,6 +224,7 @@ expect(
 expect(
   NO_CAD_LEAD.includes("no STEP") &&
     NO_CAD_LINK.includes("CAD skill") &&
+    !/install/i.test(NO_CAD_LINK) &&
     NO_CAD_TRAIL.includes("chat") &&
     !/clone|starter/i.test(`${NO_CAD_LEAD}${NO_CAD_LINK}${NO_CAD_TRAIL}`),
   "no-cad points at the skill, not clone"
