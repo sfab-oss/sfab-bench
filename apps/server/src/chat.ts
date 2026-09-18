@@ -59,6 +59,15 @@ export function isFillRequest(last: UIMessage): boolean {
   return last.role !== "user";
 }
 
+/** Gate before the harness: UI shape is not enough. */
+export function admitChatTurn(input: {
+  lastRole: UIMessage["role"];
+  liveUnfinished: boolean;
+}): "prompt" | "fill" | "reject" {
+  if (input.lastRole === "user") return "prompt";
+  return input.liveUnfinished ? "fill" : "reject";
+}
+
 export function priorMessages(
   fill: boolean,
   bodyMessages: UIMessage[],
@@ -197,18 +206,21 @@ export async function handleChat(
   }
 
   const key = sessionKey(root, harness, chatId);
-  const fill = isFillRequest(last);
   let fillSession: HarnessAgentSession | undefined;
-  if (fill) {
+  if (isFillRequest(last)) {
     const pending = sessions.get(key);
-    if (!pending) {
-      return new Response(NO_UNFINISHED_TURN, { status: 409 });
+    if (pending) {
+      fillSession = await pending;
     }
-    fillSession = await pending;
-    if (!fillSession.hasUnfinishedTurn()) {
-      return new Response(NO_UNFINISHED_TURN, { status: 409 });
-    }
-  } else {
+  }
+  const kind = admitChatTurn({
+    lastRole: last.role,
+    liveUnfinished: Boolean(fillSession?.hasUnfinishedTurn()),
+  });
+  if (kind === "reject") {
+    return new Response(NO_UNFINISHED_TURN, { status: 409 });
+  }
+  if (kind === "prompt") {
     // First use installs the harness bridge. Wait for it here, so a failed
     // install is a plain send failure with the prompt kept, not a dead turn.
     const installFailed = await ensureProvisioned(root, harness);
@@ -231,7 +243,7 @@ export async function handleChat(
 
   const snapshot: ViewerSnapshot =
     body.viewer ?? emptySnapshot(body.viewerFile ?? "");
-  const stamped = fill ? last : stampUser(last, snapshot);
+  const stamped = kind === "fill" ? last : stampUser(last, snapshot);
   const history = body.messages.slice(0, -1);
   const live = [...history, last];
 
@@ -253,7 +265,7 @@ export async function handleChat(
             async () => {
               const agent = getAgent(harness, effort, root);
               let lost = false;
-              if (fill) {
+              if (kind === "fill") {
                 session = fillSession;
               } else {
                 const resolved = await sessionFor(
@@ -266,7 +278,7 @@ export async function handleChat(
                 lost = resolved.lostContext;
               }
               if (!session) {
-                throw new Error(NO_UNFINISHED_TURN);
+                throw new Error("missing harness session");
               }
               if (lost) {
                 writer.write({
@@ -278,7 +290,11 @@ export async function handleChat(
                 typeof body.model === "string" && body.model.trim()
                   ? body.model.trim()
                   : DEFAULT_HARNESS_MODEL[harness];
-              const prior = priorMessages(fill, body.messages, stamped);
+              const prior = priorMessages(
+                kind === "fill",
+                body.messages,
+                stamped
+              );
               const result = await agent.stream({
                 session,
                 messages: await convertToModelMessages(prior),

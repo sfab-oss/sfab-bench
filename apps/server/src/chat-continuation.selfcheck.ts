@@ -5,7 +5,7 @@
  */
 import type { UIMessage } from "ai";
 
-import { isFillRequest, priorMessages } from "./chat";
+import { admitChatTurn, isFillRequest, priorMessages } from "./chat";
 
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
@@ -40,6 +40,23 @@ expect(
     ] as UIMessage["parts"])
   ),
   "a finished show_artifact is still a fill request, not an auto-continue"
+);
+
+expect(
+  admitChatTurn({ lastRole: "user", liveUnfinished: false }) === "prompt",
+  "user is always a prompt"
+);
+expect(
+  admitChatTurn({ lastRole: "user", liveUnfinished: true }) === "prompt",
+  "an unfinished session does not turn a user line into a fill"
+);
+expect(
+  admitChatTurn({ lastRole: "assistant", liveUnfinished: true }) === "fill",
+  "assistant + live unfinished session is a fill"
+);
+expect(
+  admitChatTurn({ lastRole: "assistant", liveUnfinished: false }) === "reject",
+  "assistant + idle/missing session is 409, not a harness continue"
 );
 
 const stamped: UIMessage = {

@@ -12,6 +12,7 @@ import {
   type AskUserQuestionsOutput,
   findPendingAskUserQuestions,
 } from "@/chat/ask-user-questions";
+import { mapChatErrorMessage } from "@/chat/composer-recovery";
 import { findPendingGetViewer } from "@/chat/get-viewer";
 import { finishPersistMessages } from "@/chat/persist-thread";
 import { useLiveViewerTools } from "@/chat/useLiveViewerTools";
@@ -85,7 +86,7 @@ function XrChatSessionRuntime({
     messages: initialMessages,
     transport: viewerChatTransport(),
     onError: (err) => {
-      turnErrorRef.current = err.message;
+      turnErrorRef.current = mapChatErrorMessage(err) ?? err.message;
     },
     onFinish: ({ messages: next, isError }) => {
       const text = turnErrorRef.current;
