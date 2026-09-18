@@ -28,7 +28,8 @@ Production: `pnpm build && pnpm serve`.
 Open a folder from the Mac tab (Welcome recents or **Open folder**),
 `pnpm cli open /abs/path --dev`, or `SFAB_BENCH_PROJECT=/abs/path pnpm dev`.
 The folder is the tab's (`?project=`). This repo has no STEP files; point
-it at a CAD directory.
+it at a CAD directory, or at
+[sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter).
 
 `pnpm dev` / `pnpm serve` print the Mac URL, Quest pair URL, pairing code, and QR.
 
@@ -53,7 +54,10 @@ In the in-app assistant (cwd is the open project):
 
 OpenCode already loads `AGENTS.md` and `.agents/skills` from the **open
 folder**. The harness `instructions` are only the workbench identity
-line — do not add a CAD system prompt here.
+line — do not add a CAD system prompt here. The
+[starter](https://github.com/sfab-oss/sfab-bench-starter) vendors Jake
+`$cad` plus a project-facing copy of this skill. cadgen is `$cad`'s
+pip runtime, not a second skill.
 
 GitHub Releases of the `.app` zip: [`.agents/skills/release/`](../release/).
 

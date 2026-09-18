@@ -3,6 +3,20 @@
 import { formatShortcut, shortcutTooltip } from "./shortcuts";
 
 export const PRODUCT_TITLE = "sfab-bench";
+export const STARTER_REPO_URL =
+  "https://github.com/sfab-oss/sfab-bench-starter";
+export const CAD_SKILL_URL = "https://github.com/earthtojake/text-to-cad";
+
+/** Welcome / rail when no project is open. */
+export const WELCOME_OPEN_COPY = "Open a folder of STEP or GLB to start.";
+export const STARTER_HINT_LEAD = "Starting from scratch?";
+export const STARTER_HINT_LINK = "Clone the starter";
+export const STARTER_HINT_TRAIL = ", then open that folder.";
+
+/** Open folder with no STEP/GLB. Do not send people back to clone. */
+export const NO_CAD_LEAD = "This folder has no STEP or GLB. Drop one in, or ";
+export const NO_CAD_LINK = "author with the CAD skill";
+export const NO_CAD_TRAIL = " and ask in chat.";
 
 export type EmptySceneKind =
   | "none"

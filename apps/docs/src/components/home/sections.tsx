@@ -100,11 +100,20 @@ export function OpenMac() {
           <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
             Unzip the <code>.app</code> from Releases, drag it to Applications,
             then System Settings → Privacy &amp; Security → Open Anyway. Ad-hoc
-            signed, not notarised yet. Or clone and{" "}
+            signed, not notarised yet. Or clone this repo and{" "}
             <Mono asChild className="text-foreground" size="sm">
               <code>pnpm desktop</code>
             </Mono>
-            .
+            . Then open a folder of STEP or GLB, or clone{" "}
+            <a
+              className="text-foreground underline underline-offset-2"
+              href="https://github.com/sfab-oss/sfab-bench-starter"
+              rel="noreferrer"
+              target="_blank"
+            >
+              the starter
+            </a>{" "}
+            and open <code>cad/block.step</code>.
           </p>
         </div>
         <div className="bg-background p-6">

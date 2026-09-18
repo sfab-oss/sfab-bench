@@ -3,13 +3,21 @@ import {
   type OpenFolderApi,
   OpenFolderButton,
   RecentFiles,
+  StarterHint,
   WelcomeFolders,
 } from "@/components/OpenFolder";
 import { Button } from "@/components/ui/button";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { filesRailToggleTitle } from "@/lib/files-rail";
 import { isMacPlatform } from "@/lib/shortcuts";
-import type { EmptySceneKind } from "@/lib/welcome";
+import {
+  CAD_SKILL_URL,
+  type EmptySceneKind,
+  NO_CAD_LEAD,
+  NO_CAD_LINK,
+  NO_CAD_TRAIL,
+  WELCOME_OPEN_COPY,
+} from "@/lib/welcome";
 import { useStore } from "@/state/store";
 
 function UnavailableFolderCard({ folder }: { folder: OpenFolderApi }) {
@@ -35,11 +43,10 @@ export function EmptyScene({
   return (
     <div className="pointer-events-none absolute inset-0 z-0 grid place-items-center">
       {scene === "welcome-hint" ? (
-        <div className="flex flex-col items-center gap-2 text-center">
+        <div className="pointer-events-auto flex flex-col items-center gap-2 text-center">
           <Lockup />
-          <p className="text-sm text-muted-foreground">
-            Open a folder to start.
-          </p>
+          <p className="text-sm text-muted-foreground">{WELCOME_OPEN_COPY}</p>
+          <StarterHint />
         </div>
       ) : scene === "pick-file" ? (
         <p className="text-xs text-muted-foreground">
@@ -63,7 +70,16 @@ export function EmptyScene({
             <>
               <Lockup />
               <p className="text-sm text-muted-foreground">
-                This folder has no STEP or GLB.
+                {NO_CAD_LEAD}
+                <a
+                  className="underline underline-offset-2 hover:text-foreground"
+                  href={CAD_SKILL_URL}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {NO_CAD_LINK}
+                </a>
+                {NO_CAD_TRAIL}
               </p>
               {folder.canRegister ? <OpenFolderButton folder={folder} /> : null}
             </>
