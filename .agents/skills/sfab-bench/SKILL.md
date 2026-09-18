@@ -55,8 +55,8 @@ In the in-app assistant (cwd is the open project):
 OpenCode already loads `AGENTS.md` and `.agents/skills` from the **open
 folder**. The harness `instructions` are only the workbench identity
 line — do not add a CAD system prompt here. The
-[starter](https://github.com/sfab-oss/sfab-bench-starter) already vendors
-Jake `$cad` plus a project-facing copy of this skill.
+[starter](https://github.com/sfab-oss/sfab-bench-starter) vendors Jake
+`$cad`. Viewer tools (`get_viewer`, `show_artifact`) stay on the app.
 
 GitHub Releases of the `.app` zip: [`.agents/skills/release/`](../release/).
 

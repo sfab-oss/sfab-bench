@@ -33,8 +33,8 @@ Open a folder, open a STEP or GLB, then talk. This app does not author CAD.
 - Starting from scratch: clone
   [sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter), Open
   that folder, pick `cad/block.step`. The starter already has Jake's
-  [CAD skill](https://github.com/earthtojake/text-to-cad) and a Bench
-  skill. Ask in chat for another part.
+  [CAD skill](https://github.com/earthtojake/text-to-cad). Ask in chat
+  for another part.
 
 Do not open this app repo as a CAD project. It has no parts.
 
