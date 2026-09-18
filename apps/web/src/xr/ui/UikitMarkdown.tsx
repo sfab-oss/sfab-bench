@@ -33,6 +33,11 @@ export function asciiSafe(s: string) {
     .replace(/\u2260/g, "!=");
 }
 
+/** uikit Text drops leading/trailing regular spaces between sibling runs. */
+export function keepWrapSpaces(value: string) {
+  return value.replace(/^ +| +$/g, (spaces) => "\u00a0".repeat(spaces.length));
+}
+
 type Weight = "medium" | "semi-bold";
 
 function phrasing(
@@ -50,7 +55,7 @@ function phrasing(
     if (node.type === "text") {
       out.push(
         <Text key={k} fontSize={size} fontWeight={weight} color={color}>
-          {asciiSafe(node.value)}
+          {keepWrapSpaces(asciiSafe(node.value))}
         </Text>
       );
       return;
@@ -99,7 +104,7 @@ function phrasing(
       );
       return;
     }
-    const leftover = asciiSafe(plainNode(node));
+    const leftover = keepWrapSpaces(asciiSafe(plainNode(node)));
     if (leftover) {
       out.push(
         <Text key={k} fontSize={size} fontWeight={weight} color={color}>

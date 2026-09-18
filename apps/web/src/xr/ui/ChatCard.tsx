@@ -29,7 +29,7 @@ import { ChatModelChip } from "@/xr/ui/ChatModelCard";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
 import { useXrTheme } from "@/xr/ui/theme";
 import { asciiSafe, UikitMarkdown } from "@/xr/ui/UikitMarkdown";
-import { useXrChatScroll } from "@/xr/ui/useXrChatScroll";
+import { useXrChatScroll, XR_SCROLL_GUTTER } from "@/xr/ui/useXrChatScroll";
 import { VoiceRecordRow } from "@/xr/ui/VoiceRecordRow";
 import { useXrChatRuntime } from "@/xr/ui/XrChatRuntime";
 
@@ -203,13 +203,7 @@ function XrWorked({
         </Text>
       </Container>
       {open ? (
-        <Container
-          width="100%"
-          flexShrink={0}
-          flexDirection="column"
-          gap={4}
-          paddingLeft={8}
-        >
+        <Container width="100%" flexShrink={0} flexDirection="column" gap={4}>
           {children}
         </Container>
       ) : null}
@@ -307,6 +301,13 @@ function XrPart({
 }) {
   const theme = useXrTheme();
   if (part.type === "text" && "text" in part && part.text.trim()) {
+    if (isStreaming || ("state" in part && part.state === "streaming")) {
+      return (
+        <Text fontSize={13} color={theme.text}>
+          {asciiSafe(part.text)}
+        </Text>
+      );
+    }
     return <UikitMarkdown markdown={part.text} />;
   }
   const errorText = turnErrorText(part);
@@ -470,6 +471,7 @@ function XrChatSession({
           gap={6}
           flexDirection="column"
           paddingTop={4}
+          paddingRight={XR_SCROLL_GUTTER}
           onScroll={onScroll}
         >
           {messages.length === 0 ? (
@@ -559,6 +561,7 @@ function XrChatSession({
                   ? askUserComposerPlaceholder(pendingAsk.input.questions[0])
                   : "Ask for a change..."
               }
+              placeholderStyle={{ color: theme.subtle }}
               disabled={busy || lockSend}
               width="100%"
               height="100%"

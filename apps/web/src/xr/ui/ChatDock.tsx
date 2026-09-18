@@ -77,31 +77,31 @@ export function ChatDock() {
 
   if (!session) return null;
   return (
-    <XrChatRuntimeProvider>
-      <WorldCard
-        ref={anchor}
-        visible={false}
-        size={size}
-        onSizeChange={setSize}
-        limits={CHAT_CARD}
-        shape={xrChatOpen ? "card" : "orb"}
-        radius={ORB_RADIUS}
-        resizable={xrChatOpen}
-        movable
-        handle={xrChatOpen}
-        onDragStart={() => {
-          dragging.current = true;
-        }}
-        onDragEnd={() => {
-          dragging.current = false;
-        }}
-      >
+    <WorldCard
+      ref={anchor}
+      visible={false}
+      size={size}
+      onSizeChange={setSize}
+      limits={CHAT_CARD}
+      shape={xrChatOpen ? "card" : "orb"}
+      radius={ORB_RADIUS}
+      resizable={xrChatOpen}
+      movable
+      handle={xrChatOpen}
+      onDragStart={() => {
+        dragging.current = true;
+      }}
+      onDragEnd={() => {
+        dragging.current = false;
+      }}
+    >
+      <XrChatRuntimeProvider>
         <group ref={orbSlot}>
           <SpeakingOrb onClick={toggleCard} />
           {xrChatOpen ? null : <ChatOrbHud />}
         </group>
         {xrChatOpen ? <ChatPanels width={size.w} height={size.h} /> : null}
-      </WorldCard>
-    </XrChatRuntimeProvider>
+      </XrChatRuntimeProvider>
+    </WorldCard>
   );
 }
