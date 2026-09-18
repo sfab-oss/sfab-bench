@@ -50,6 +50,7 @@ import {
   ChatInputSubmitButton,
 } from "@/components/ui/chat-input";
 import { InputGroupAddon } from "@/components/ui/input-group";
+import { useFirstSetupHint } from "@/hooks/useFirstSetupHint";
 import { useHarnesses } from "@/hooks/useHarnesses";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { HARNESS_LABEL } from "@/lib/harness";
@@ -321,6 +322,7 @@ function ChatInputInner({
     canStop && status !== "submitted" && status !== "streaming"
       ? "streaming"
       : status;
+  const firstSetupHint = useFirstSetupHint(status, catalog);
 
   const submitButton = (
     <ChatInputSubmitButton
@@ -425,6 +427,10 @@ function ChatInputInner({
       </ChatInput>
       {voice.error && !voice.active ? (
         <p className="px-2 pt-1 text-xs text-error">{voice.error}</p>
+      ) : firstSetupHint ? (
+        <p className="px-2 pt-1 text-xs text-muted-foreground">
+          {firstSetupHint}
+        </p>
       ) : null}
     </div>
   );

@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import {
@@ -20,6 +20,7 @@ import type {
   Experimental_SandboxProcess,
   Experimental_SandboxSession,
 } from "@ai-sdk/provider-utils";
+import type { HarnessId } from "@sfab-bench/contract";
 import { APP_HOME } from "./config";
 
 const live = new Set<ChildProcess>();
@@ -140,6 +141,21 @@ function resolvePath(root: string, p: string, extra: string[] = []) {
  */
 export function harnessHome(appHome = APP_HOME): string {
   return join(appHome, "harness", "shared");
+}
+
+/** Vendor marker for `prepareHarnessSandboxTemplate` — one dir per harness. */
+export function harnessBootstrapDir(
+  id: HarnessId,
+  home = harnessHome()
+): string {
+  return join(home, ".harness-bootstrap", id);
+}
+
+export function harnessBridgeReady(
+  id: HarnessId,
+  home = harnessHome()
+): boolean {
+  return existsSync(harnessBootstrapDir(id, home));
 }
 
 /** Spawn/run: coding commands in the open folder; bootstrap stays in the cache. */

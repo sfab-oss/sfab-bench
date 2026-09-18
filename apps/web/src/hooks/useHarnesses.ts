@@ -28,6 +28,7 @@ export type HarnessInfo = {
   detail?: string;
   defaultModel: string;
   models: HarnessModel[];
+  bridgeReady: boolean;
 };
 
 export function harnessModelName(

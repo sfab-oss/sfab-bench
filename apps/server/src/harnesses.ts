@@ -10,6 +10,7 @@ import {
   type HarnessStatus,
   STATIC_HARNESS_MODELS,
 } from "@sfab-bench/contract";
+import { harnessBridgeReady } from "./local-sandbox";
 import { listOpenCodeModels } from "./models";
 
 export type { HarnessStatus };
@@ -28,7 +29,10 @@ export type HarnessInfo = {
   detail?: string;
   defaultModel: string;
   models: HarnessModel[];
+  bridgeReady: boolean;
 };
+
+type ProbedHarness = Omit<HarnessInfo, "bridgeReady">;
 
 function envSet(name: string) {
   const v = process.env[name];
@@ -69,7 +73,7 @@ function staticModels(id: Exclude<HarnessId, "opencode">): HarnessModel[] {
   return STATIC_HARNESS_MODELS[id].map((m) => ({ ...m, slug: m.id }));
 }
 
-async function probeOpenCode(root?: string | null): Promise<HarnessInfo> {
+async function probeOpenCode(root?: string | null): Promise<ProbedHarness> {
   const catalog = await listOpenCodeModels(root);
   const models: HarnessModel[] = catalog.providers.flatMap((p) =>
     p.models.map((m) => ({
@@ -98,7 +102,7 @@ async function probeOpenCode(root?: string | null): Promise<HarnessInfo> {
   };
 }
 
-function probeCodex(): HarnessInfo {
+function probeCodex(): ProbedHarness {
   const authed =
     envSet("OPENAI_API_KEY") ||
     envSet("CODEX_API_KEY") ||
@@ -115,7 +119,7 @@ function probeCodex(): HarnessInfo {
   };
 }
 
-function probeCursor(): HarnessInfo {
+function probeCursor(): ProbedHarness {
   const authed = cursorLoggedIn();
   return {
     id: "cursor",
@@ -129,7 +133,7 @@ function probeCursor(): HarnessInfo {
   };
 }
 
-function probeGrok(): HarnessInfo {
+function probeGrok(): ProbedHarness {
   const authed = grokLoggedIn();
   return {
     id: "grok-build",
@@ -149,10 +153,15 @@ export async function listHarnesses(
   const opencode = await probeOpenCode(root);
   return {
     harnesses: HARNESS_IDS.map((id) => {
-      if (id === "opencode") return opencode;
-      if (id === "codex") return probeCodex();
-      if (id === "cursor") return probeCursor();
-      return probeGrok();
+      const info =
+        id === "opencode"
+          ? opencode
+          : id === "codex"
+            ? probeCodex()
+            : id === "cursor"
+              ? probeCursor()
+              : probeGrok();
+      return { ...info, bridgeReady: harnessBridgeReady(info.id) };
     }),
   };
 }

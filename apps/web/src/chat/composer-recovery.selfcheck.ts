@@ -1,8 +1,12 @@
 import {
+  firstSetupCopy,
+  inFlightHarness,
   lastUserPromptText,
   mapChatErrorMessage,
   NO_UNFINISHED_TURN_MESSAGE,
   providerSendBlockReason,
+  shouldLatchFirstSetup,
+  showFirstSetupHint,
   stripViewerStamp,
   userPromptText,
   WORKSPACE_BUSY_MESSAGE,
@@ -91,6 +95,106 @@ expect(
     status: "needs-auth",
   }) === null,
   "catalog not loaded yet"
+);
+
+expect(
+  firstSetupCopy("Grok") ===
+    "First-time setup for Grok. Takes a minute, then we skip this.",
+  "first-time setup copy"
+);
+expect(
+  showFirstSetupHint({
+    status: "submitted",
+    bridgeReady: false,
+    latched: false,
+  }),
+  "submitted before the vendor dir exists"
+);
+expect(
+  !showFirstSetupHint({
+    status: "submitted",
+    bridgeReady: true,
+    latched: false,
+  }),
+  "already installed stays quiet"
+);
+expect(
+  !showFirstSetupHint({
+    status: "submitted",
+    bridgeReady: undefined,
+    latched: false,
+  }),
+  "unknown catalog is not a first-time claim"
+);
+expect(
+  !showFirstSetupHint({
+    status: "streaming",
+    bridgeReady: false,
+    latched: false,
+  }),
+  "stream started is past the wait"
+);
+expect(
+  !showFirstSetupHint({
+    status: "submitted",
+    bridgeReady: false,
+    latched: true,
+  }),
+  "stale false after a stream does not flash"
+);
+
+expect(
+  inFlightHarness({
+    status: "submitted",
+    live: "grok-build",
+    frozen: null,
+  }).harness === "grok-build",
+  "first submitted freezes the live picker"
+);
+expect(
+  inFlightHarness({
+    status: "submitted",
+    live: "cursor",
+    frozen: "grok-build",
+  }).harness === "grok-build",
+  "mid-wait picker change does not steal the line"
+);
+expect(
+  inFlightHarness({
+    status: "ready",
+    live: "cursor",
+    frozen: "grok-build",
+  }).frozen === null &&
+    inFlightHarness({
+      status: "ready",
+      live: "cursor",
+      frozen: "grok-build",
+    }).harness === "cursor",
+  "idle follows the live picker again"
+);
+expect(
+  shouldLatchFirstSetup({
+    status: "streaming",
+    harness: "grok-build",
+    latched: new Set(),
+  }),
+  "first stream latches"
+);
+expect(
+  !shouldLatchFirstSetup({
+    status: "streaming",
+    harness: "grok-build",
+    latched: new Set(["grok-build"]),
+  }),
+  "already latched does not latch again"
+);
+expect(
+  !shouldLatchFirstSetup({
+    status: "submitted",
+    harness: "grok-build",
+    latched: new Set(),
+  }),
+  "wait is not a latch"
 );
 
 console.log("composer-recovery.selfcheck ok");

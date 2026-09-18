@@ -145,3 +145,39 @@ export function composerPlaceholder(input: {
   if (input.modelLoaded) return MENTION_PLACEHOLDER;
   return DEFAULT_PLACEHOLDER;
 }
+
+export function firstSetupCopy(label: string): string {
+  return `First-time setup for ${label}. Takes a minute, then we skip this.`;
+}
+
+/** Catalog unknown is not a first-time install. Latch covers a stale false after the stream starts. */
+export function showFirstSetupHint(input: {
+  status: string;
+  bridgeReady: boolean | undefined;
+  latched: boolean;
+}): boolean {
+  return (
+    input.status === "submitted" &&
+    input.bridgeReady === false &&
+    !input.latched
+  );
+}
+
+/** Copy and latch follow the send's provider, not a mid-wait picker change. */
+export function inFlightHarness<T extends string>(input: {
+  status: string;
+  live: T;
+  frozen: T | null;
+}): { frozen: T | null; harness: T } {
+  const inFlight = input.status === "submitted" || input.status === "streaming";
+  const frozen = inFlight ? (input.frozen ?? input.live) : null;
+  return { frozen, harness: frozen ?? input.live };
+}
+
+export function shouldLatchFirstSetup(input: {
+  status: string;
+  harness: string;
+  latched: ReadonlySet<string>;
+}): boolean {
+  return input.status === "streaming" && !input.latched.has(input.harness);
+}

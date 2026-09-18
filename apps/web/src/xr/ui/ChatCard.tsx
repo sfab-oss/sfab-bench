@@ -25,6 +25,8 @@ import {
 } from "@/components/chat/useViewerChat";
 import { toolTitle } from "@/components/ui/tool";
 import { workedLabel } from "@/components/ui/worked";
+import { useFirstSetupHint } from "@/hooks/useFirstSetupHint";
+import { useHarnesses } from "@/hooks/useHarnesses";
 import { ChatModelChip } from "@/xr/ui/ChatModelCard";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
 import { useXrTheme } from "@/xr/ui/theme";
@@ -431,6 +433,8 @@ function XrChatSession({
   onToggleModels: () => void;
 }) {
   const runtime = useXrChatRuntime();
+  const catalog = useHarnesses();
+  const firstSetupHint = useFirstSetupHint(runtime?.status ?? "ready", catalog);
   const { ref: listRef, atEnd, onScroll, jumpToEnd } = useXrChatScroll();
   const theme = useXrTheme();
   if (!runtime) return null;
@@ -602,6 +606,10 @@ function XrChatSession({
       {voice.error && !voice.active ? (
         <Text fontSize={11} color={theme.danger}>
           {asciiSafe(voice.error)}
+        </Text>
+      ) : firstSetupHint ? (
+        <Text fontSize={11} color={theme.subtle}>
+          {asciiSafe(firstSetupHint)}
         </Text>
       ) : null}
       <Container
