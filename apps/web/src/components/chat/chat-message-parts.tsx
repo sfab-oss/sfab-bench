@@ -486,6 +486,10 @@ function workedDurationSeconds(
   return Math.max(1, Math.round(responseTime / 1000));
 }
 
+export function messageCopyVisible(isStreaming: boolean, text: string) {
+  return Boolean(text) && !isStreaming;
+}
+
 export function ChatMessageRow({
   message,
   isStreaming = false,
@@ -547,7 +551,7 @@ export function ChatMessageRow({
               return partRow(segment.item.part, segment.item.index);
             })
           : message.parts.map((part, partIndex) => partRow(part, partIndex))}
-        {textForCopy ? (
+        {messageCopyVisible(isStreaming, textForCopy) ? (
           <MessageFooter
             className={
               message.role === "user"

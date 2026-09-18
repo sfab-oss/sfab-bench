@@ -1,4 +1,7 @@
-import { splitChatWorkedParts } from "../components/chat/chat-message-parts";
+import {
+  messageCopyVisible,
+  splitChatWorkedParts,
+} from "../components/chat/chat-message-parts";
 
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
@@ -89,5 +92,9 @@ expect(
   errorRow.join("|") === "worked:reasoning|visible:data-error",
   `turn error stays outside the fold, got ${errorRow.join("|")}`
 );
+
+expect(messageCopyVisible(false, "hi") === true, "copy after the turn");
+expect(messageCopyVisible(true, "hi") === false, "no copy while streaming");
+expect(messageCopyVisible(false, "") === false, "no copy without text");
 
 console.log("chat-message-parts.selfcheck ok");
