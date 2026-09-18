@@ -104,7 +104,16 @@ export function OpenMac() {
             <Mono asChild className="text-foreground" size="sm">
               <code>pnpm desktop</code>
             </Mono>
-            .
+            . Then open a folder of STEP or GLB, or clone{" "}
+            <a
+              className="text-foreground underline underline-offset-2"
+              href="https://github.com/sfab-oss/sfab-bench-starter"
+              rel="noreferrer"
+              target="_blank"
+            >
+              the starter
+            </a>{" "}
+            and open that.
           </p>
         </div>
         <div className="bg-background p-6">

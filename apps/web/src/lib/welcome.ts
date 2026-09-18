@@ -3,6 +3,9 @@
 import { formatShortcut, shortcutTooltip } from "./shortcuts";
 
 export const PRODUCT_TITLE = "sfab-bench";
+export const STARTER_REPO_URL =
+  "https://github.com/sfab-oss/sfab-bench-starter";
+export const CAD_SKILL_URL = "https://github.com/earthtojake/text-to-cad";
 
 export type EmptySceneKind =
   | "none"

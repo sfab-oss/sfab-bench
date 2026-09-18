@@ -15,7 +15,7 @@ import { viewerTools } from "./viewer-context";
 const callOptions = z.object({ model: z.string().min(1) });
 
 const identity =
-  "You are an agent running inside this CAD workbench. The open folder is your cwd. Visualization is a STEP or GLB in that folder.";
+  "You are an agent running inside this CAD workbench. The open folder is your cwd. Visualization is a STEP or GLB in that folder. If there is no CAD yet, tell the user to drop a STEP or author with the CAD skill (earthtojake/text-to-cad). Do not git clone into this folder.";
 
 type ReasoningLevel = Exclude<ChatEffort, "default">;
 

@@ -3,13 +3,14 @@ import {
   type OpenFolderApi,
   OpenFolderButton,
   RecentFiles,
+  StarterHint,
   WelcomeFolders,
 } from "@/components/OpenFolder";
 import { Button } from "@/components/ui/button";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { filesRailToggleTitle } from "@/lib/files-rail";
 import { isMacPlatform } from "@/lib/shortcuts";
-import type { EmptySceneKind } from "@/lib/welcome";
+import { CAD_SKILL_URL, type EmptySceneKind } from "@/lib/welcome";
 import { useStore } from "@/state/store";
 
 function UnavailableFolderCard({ folder }: { folder: OpenFolderApi }) {
@@ -35,11 +36,12 @@ export function EmptyScene({
   return (
     <div className="pointer-events-none absolute inset-0 z-0 grid place-items-center">
       {scene === "welcome-hint" ? (
-        <div className="flex flex-col items-center gap-2 text-center">
+        <div className="pointer-events-auto flex flex-col items-center gap-2 text-center">
           <Lockup />
           <p className="text-sm text-muted-foreground">
-            Open a folder to start.
+            Open a folder of STEP or GLB to start.
           </p>
+          <StarterHint />
         </div>
       ) : scene === "pick-file" ? (
         <p className="text-xs text-muted-foreground">
@@ -63,7 +65,16 @@ export function EmptyScene({
             <>
               <Lockup />
               <p className="text-sm text-muted-foreground">
-                This folder has no STEP or GLB.
+                This folder has no STEP or GLB. Drop one in, or{" "}
+                <a
+                  className="underline underline-offset-2 hover:text-foreground"
+                  href={CAD_SKILL_URL}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  install the CAD skill
+                </a>{" "}
+                we use and ask in chat.
               </p>
               {folder.canRegister ? <OpenFolderButton folder={folder} /> : null}
             </>

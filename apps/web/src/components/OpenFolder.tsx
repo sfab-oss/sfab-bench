@@ -24,6 +24,7 @@ import {
   fileRecentLines,
   openFolderButtonTitle,
   pathFieldEnterAction,
+  STARTER_REPO_URL,
 } from "@/lib/welcome";
 
 function openErrorMessage(
@@ -433,15 +434,33 @@ export function BrowseFolderDialog({
   );
 }
 
+export function StarterHint() {
+  return (
+    <p className="text-[13px] text-muted-foreground">
+      Starting from scratch?{" "}
+      <a
+        className="underline underline-offset-2 hover:text-foreground"
+        href={STARTER_REPO_URL}
+        rel="noreferrer"
+        target="_blank"
+      >
+        Clone the starter
+      </a>
+      , then open that folder.
+    </p>
+  );
+}
+
 export function WelcomeFolders({ folder }: { folder: OpenFolderApi }) {
   return (
     <div className="flex w-full flex-col items-center gap-3">
       <p className="text-sm text-muted-foreground">
         {folder.canRegister
-          ? "Open a folder to start."
+          ? "Open a folder of STEP or GLB to start."
           : "Pick a folder the Mac has opened. Opening a new path is Mac-only."}
       </p>
       {folder.canRegister ? <OpenFolderButton folder={folder} /> : null}
+      {folder.canRegister ? <StarterHint /> : null}
       {folder.recents.length > 0 ? (
         <div className="w-full">
           <p className="px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
@@ -471,7 +490,10 @@ export function EmptyFolderRail({ folder }: { folder: OpenFolderApi }) {
           : "Pick a folder the Mac has opened."}
       </p>
       {folder.canRegister ? (
-        <OpenFolderButton folder={folder} className="h-8" />
+        <>
+          <OpenFolderButton folder={folder} className="h-8" />
+          <StarterHint />
+        </>
       ) : null}
       <RecentFolders recents={folder.recents} onPick={folder.pickRecent} />
       {!folder.canRegister && folder.recents.length === 0 ? (

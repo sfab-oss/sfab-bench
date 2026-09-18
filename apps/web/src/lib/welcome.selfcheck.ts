@@ -1,5 +1,6 @@
 import {
   browseListingApply,
+  CAD_SKILL_URL,
   documentTitle,
   emptySceneKind,
   fileRecentLines,
@@ -8,6 +9,7 @@ import {
   openFolderShortcutLabel,
   PRODUCT_TITLE,
   pathFieldEnterAction,
+  STARTER_REPO_URL,
 } from "./welcome";
 
 function expect(cond: boolean, label: string) {
@@ -193,5 +195,13 @@ expect(
 expect(openFolderShortcutLabel(true) === "⌘O", "mac open chord");
 expect(openFolderShortcutLabel(false) === "Ctrl+O", "other open chord");
 expect(openFolderButtonTitle(true) === "Open folder (⌘O)", "open button title");
+expect(
+  STARTER_REPO_URL === "https://github.com/sfab-oss/sfab-bench-starter",
+  "starter url"
+);
+expect(
+  CAD_SKILL_URL === "https://github.com/earthtojake/text-to-cad",
+  "cad skill url"
+);
 
 console.log("welcome.selfcheck ok");

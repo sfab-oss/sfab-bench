@@ -25,6 +25,19 @@ pnpm desktop
 Quest: same Wi-Fi, Quest Browser, pair once. Details:
 [`docs/user/`](docs/user/).
 
+## After you install
+
+Open a folder, open a STEP or GLB, then talk. This app does not author CAD.
+
+- Already have parts: **Open folder** and pick that directory.
+- Starting from scratch: clone
+  [sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter), Open
+  that folder, pick `cad/block.step`. To generate more, install
+  [Jake's CAD skill](https://github.com/earthtojake/text-to-cad)
+  (`npx skills install earthtojake/text-to-cad`) and ask in chat.
+
+Do not open this app repo as a CAD project. It has no parts.
+
 ## Layout
 
 ```text

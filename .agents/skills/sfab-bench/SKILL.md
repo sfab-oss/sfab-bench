@@ -28,7 +28,8 @@ Production: `pnpm build && pnpm serve`.
 Open a folder from the Mac tab (Welcome recents or **Open folder**),
 `pnpm cli open /abs/path --dev`, or `SFAB_BENCH_PROJECT=/abs/path pnpm dev`.
 The folder is the tab's (`?project=`). This repo has no STEP files; point
-it at a CAD directory.
+it at a CAD directory, or at
+[sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter).
 
 `pnpm dev` / `pnpm serve` print the Mac URL, Quest pair URL, pairing code, and QR.
 

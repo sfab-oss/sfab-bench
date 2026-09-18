@@ -18,6 +18,23 @@ name a new Mac path.
 A folder with no `?file=` is an empty scene. Pick a recent STEP, or one
 from Files. The last file is not opened automatically.
 
+## Starting from scratch
+
+This app visualizes CAD. It does not generate it.
+
+- Already have STEP or GLB: **Open folder** and pick that directory.
+- Nothing yet: clone
+  [sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter)
+  (or Use this template), Open that folder in Bench, pick `cad/block.step`.
+
+To author more parts, install
+[Jake's CAD skill](https://github.com/earthtojake/text-to-cad) in that
+folder (`npx skills install earthtojake/text-to-cad`, or the Codex /
+Claude Code plugin), then ask in chat. The in-app agent only exists
+after a folder is open, so it cannot clone the starter for you.
+
+Do not open the sfab-bench app repo as the project.
+
 From a terminal:
 
 ```bash
