@@ -56,7 +56,8 @@ OpenCode already loads `AGENTS.md` and `.agents/skills` from the **open
 folder**. The harness `instructions` are only the workbench identity
 line — do not add a CAD system prompt here. The
 [starter](https://github.com/sfab-oss/sfab-bench-starter) vendors Jake
-`$cad`. Viewer tools (`get_viewer`, `show_artifact`) stay on the app.
+`$cad` plus a project-facing copy of this skill. cadgen is `$cad`'s
+pip runtime, not a second skill.
 
 GitHub Releases of the `.app` zip: [`.agents/skills/release/`](../release/).
 

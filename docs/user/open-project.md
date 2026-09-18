@@ -27,10 +27,11 @@ This app visualizes CAD. It does not generate it.
   [sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter)
   (or Use this template), Open that folder in Bench, pick `cad/block.step`.
   The starter already has Jake's
-  [CAD skill](https://github.com/earthtojake/text-to-cad) under
-  `.agents/skills/cad`. Ask in chat for another part. cadgen is
-  a one-time Mac install if authoring fails because it is missing
-  (`python -m pip install -r .agents/skills/cad/requirements.txt`).
+  [CAD skill](https://github.com/earthtojake/text-to-cad) and a Bench
+  skill under `.agents/skills`. Ask in chat for another part. cadgen is
+  the Python runtime `$cad` installs, not a second skill
+  (`python -m pip install -r .agents/skills/cad/requirements.txt` if
+  authoring fails because it is missing).
 
 The in-app agent only exists after a folder is open, so it cannot clone
 the starter for you. If you opened some other empty folder, drop a STEP
