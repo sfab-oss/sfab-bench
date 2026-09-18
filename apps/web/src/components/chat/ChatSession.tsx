@@ -318,7 +318,7 @@ export function ChatSession({
           )}
         </div>
       ) : null}
-      <MessageScrollerProvider>
+      <MessageScrollerProvider autoScroll>
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport>
             <MessageScrollerContent className="px-3 py-3">
@@ -337,7 +337,16 @@ export function ChatSession({
                 </Empty>
               ) : (
                 messages.map((message) => (
-                  <MessageScrollerItem key={message.id}>
+                  <MessageScrollerItem
+                    key={message.id}
+                    messageId={message.id}
+                    scrollAnchor={message.role === "user"}
+                    className={
+                      streamingMessageId === message.id
+                        ? "[content-visibility:visible]"
+                        : undefined
+                    }
+                  >
                     <ChatMessageRow
                       isStreaming={streamingMessageId === message.id}
                       message={message as GalleryChatMessage}
