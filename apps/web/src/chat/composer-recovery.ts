@@ -89,11 +89,20 @@ export function isWorkspaceBusyError(
   return /a reply is already in progress/i.test(errorMessage(error));
 }
 
+export const NO_UNFINISHED_TURN_MESSAGE = "That reply already finished.";
+
+export function isNoUnfinishedTurnError(
+  error: { message?: string } | string | null | undefined
+): boolean {
+  return /no unfinished turn/i.test(errorMessage(error));
+}
+
 export function mapChatErrorMessage(
   error: { message?: string } | string | null | undefined
 ): string | null {
   if (error == null) return null;
   if (isWorkspaceBusyError(error)) return WORKSPACE_BUSY_MESSAGE;
+  if (isNoUnfinishedTurnError(error)) return NO_UNFINISHED_TURN_MESSAGE;
   return errorMessage(error) || null;
 }
 

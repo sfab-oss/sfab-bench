@@ -52,10 +52,13 @@ function waitUntilReady(
 export function useLiveViewerTools(
   messages: GalleryChatMessage[],
   addToolOutput: ChatAddToolOutputFunction<GalleryChatMessage>,
-  streaming: boolean
+  streaming: boolean,
+  onFilled?: () => void | Promise<void>
 ) {
   const seen = useRef(new Set<string>());
   const inFlight = useRef<string | null>(null);
+  const onFilledRef = useRef(onFilled);
+  onFilledRef.current = onFilled;
 
   useEffect(() => {
     const applyShows = streaming || lastAssistantHasPendingTools(messages);
@@ -94,6 +97,7 @@ export function useLiveViewerTools(
         toolCallId: pending.toolCallId,
         output: viewerSnapshot(),
       });
+      await onFilledRef.current?.();
     })();
 
     return () => {

@@ -1,5 +1,4 @@
 import { useChat } from "@ai-sdk/react";
-import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import {
   Check,
   Copy,
@@ -161,7 +160,6 @@ export function ChatSession({
     status,
     error,
     stop,
-    regenerate,
     addToolOutput,
     setMessages,
   } = useChat({
@@ -169,7 +167,6 @@ export function ChatSession({
     throttle: 50,
     messages: initialMessages,
     transport: viewerChatTransport(),
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onError: (err) => {
       turnErrorRef.current = mapChatErrorMessage(err) ?? err.message;
     },
@@ -240,7 +237,15 @@ export function ChatSession({
     onLive(live);
     return () => onLive(false);
   }, [live, onLive]);
-  useLiveViewerTools(messages as GalleryChatMessage[], addToolOutput, busy);
+  const fillSuspendedTurn = useCallback(() => {
+    void sendMessage();
+  }, [sendMessage]);
+  useLiveViewerTools(
+    messages as GalleryChatMessage[],
+    addToolOutput,
+    busy,
+    fillSuspendedTurn
+  );
   messagesRef.current = messages as GalleryChatMessage[];
   messagesThreadIdRef.current = threadId;
   const streamingMessageId =
@@ -256,18 +261,27 @@ export function ChatSession({
   };
 
   const retryFailedTurn = () => {
-    void regenerate();
+    const last = messages.at(-1);
+    if (last?.role === "user") {
+      void sendMessage();
+      return;
+    }
+    const text = lastUserPromptText(messages);
+    if (!text) return;
+    void sendMessage({ text });
   };
 
   const onAnswerAskUser = useCallback(
     (toolCallId: string, output: AskUserQuestionsOutput) => {
-      void addToolOutput({
-        tool: "askUserQuestions",
-        toolCallId,
-        output,
-      });
+      void Promise.resolve(
+        addToolOutput({
+          tool: "askUserQuestions",
+          toolCallId,
+          output,
+        })
+      ).then(() => sendMessage());
     },
-    [addToolOutput]
+    [addToolOutput, sendMessage]
   );
 
   const errorText = mapChatErrorMessage(error);
