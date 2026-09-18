@@ -16,8 +16,8 @@ expect(
 
 expect(AGENT_IDENTITY.includes("drop a STEP"), "identity: drop STEP");
 expect(
-  AGENT_IDENTITY.includes("earthtojake/text-to-cad"),
-  "identity names the CAD skill"
+  !/cad skill|earthtojake/i.test(AGENT_IDENTITY),
+  "identity does not name the CAD skill"
 );
 expect(
   AGENT_IDENTITY.includes("Do not git clone into this folder."),
