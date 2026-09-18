@@ -17,7 +17,6 @@ import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
-  lastAssistantMessageIsCompleteWithToolCalls,
   toUIMessageStream,
   type UIMessage,
 } from "ai";
@@ -54,15 +53,30 @@ function sessionKey(root: string, harness: HarnessId, chatId: string) {
   return `${root}:${harness}:${chatId}`;
 }
 
+export const NO_UNFINISHED_TURN = "no unfinished turn";
+
+export function isFillRequest(last: UIMessage): boolean {
+  return last.role !== "user";
+}
+
+/** Gate before the harness: UI shape is not enough. */
+export function admitChatTurn(input: {
+  lastRole: UIMessage["role"];
+  liveUnfinished: boolean;
+}): "prompt" | "fill" | "reject" {
+  if (input.lastRole === "user") return "prompt";
+  return input.liveUnfinished ? "fill" : "reject";
+}
+
 export function priorMessages(
-  continueTurn: boolean,
+  fill: boolean,
   bodyMessages: UIMessage[],
   stamped: UIMessage
 ): UIMessage[] {
-  // Tool continuations must send the full client payload. A normal turn is the
-  // last user message only: the harness collapses any array to that anyway
-  // (`_resolvePromptTurnInput`). Sqlite history does not restore vendor memory.
-  return continueTurn ? bodyMessages : [stamped];
+  // A fill carries the client tool result on the last assistant message. A
+  // prompt is the last user message only: the harness session already owns
+  // prior turns.
+  return fill ? bodyMessages : [stamped];
 }
 
 function persistChat(chatId: string, next: UIMessage[], root: string) {
@@ -164,19 +178,6 @@ function stampUser(last: UIMessage, snapshot: ViewerSnapshot): UIMessage {
   };
 }
 
-/**
- * The client resubmits a tool turn when the SDK's own predicate says so
- * (`sendAutomaticallyWhen` in ChatSession/XrChatRuntime), so this gate has to
- * be that same predicate — not a copy of it. The copy had drifted twice: it
- * judged every part instead of only the last step, and it counted
- * provider-executed tools, which the harness runs itself and never reports a
- * result for. A model emitting a provider `bash` alongside one of our viewer
- * tools therefore resubmitted and got "expected a user message or tool result".
- */
-export function lastIsToolContinuation(last: UIMessage): boolean {
-  return lastAssistantMessageIsCompleteWithToolCalls({ messages: [last] });
-}
-
 export async function handleChat(
   req: Request,
   root: string
@@ -204,10 +205,27 @@ export async function handleChat(
     return new Response("missing message", { status: 400 });
   }
 
-  // First use installs the harness bridge. Wait for it here, so a failed
-  // install is a plain send failure with the prompt kept, not a dead turn.
-  const installFailed = await ensureProvisioned(root, harness);
-  if (installFailed) return new Response(installFailed, { status: 503 });
+  const key = sessionKey(root, harness, chatId);
+  let fillSession: HarnessAgentSession | undefined;
+  if (isFillRequest(last)) {
+    const pending = sessions.get(key);
+    if (pending) {
+      fillSession = await pending;
+    }
+  }
+  const kind = admitChatTurn({
+    lastRole: last.role,
+    liveUnfinished: Boolean(fillSession?.hasUnfinishedTurn()),
+  });
+  if (kind === "reject") {
+    return new Response(NO_UNFINISHED_TURN, { status: 409 });
+  }
+  if (kind === "prompt") {
+    // First use installs the harness bridge. Wait for it here, so a failed
+    // install is a plain send failure with the prompt kept, not a dead turn.
+    const installFailed = await ensureProvisioned(root, harness);
+    if (installFailed) return new Response(installFailed, { status: 503 });
+  }
 
   // That wait is the longest gap in the handler, and `abort` does not replay
   // for a listener added afterwards — so a stop during the install would
@@ -225,20 +243,13 @@ export async function handleChat(
 
   const snapshot: ViewerSnapshot =
     body.viewer ?? emptySnapshot(body.viewerFile ?? "");
-  const continueTurn = lastIsToolContinuation(last);
-  if (last.role !== "user" && !continueTurn) {
-    return new Response("expected a user message or tool result", {
-      status: 400,
-    });
-  }
-  const stamped = continueTurn ? last : stampUser(last, snapshot);
+  const stamped = kind === "fill" ? last : stampUser(last, snapshot);
   const history = body.messages.slice(0, -1);
   const live = [...history, last];
 
   return createUIMessageStreamResponse({
     stream: createUIMessageStream({
       execute: async ({ writer }) => {
-        const key = sessionKey(root, harness, chatId);
         let session: HarnessAgentSession | undefined;
         try {
           await runViewerContext(
@@ -253,9 +264,23 @@ export async function handleChat(
             },
             async () => {
               const agent = getAgent(harness, effort, root);
-              const resolved = await sessionFor(root, harness, chatId, effort);
-              session = resolved.session;
-              if (resolved.lostContext) {
+              let lost = false;
+              if (kind === "fill") {
+                session = fillSession;
+              } else {
+                const resolved = await sessionFor(
+                  root,
+                  harness,
+                  chatId,
+                  effort
+                );
+                session = resolved.session;
+                lost = resolved.lostContext;
+              }
+              if (!session) {
+                throw new Error("missing harness session");
+              }
+              if (lost) {
                 writer.write({
                   type: "data-error",
                   data: { message: LOST_CONTEXT_LINE },
@@ -265,7 +290,11 @@ export async function handleChat(
                 typeof body.model === "string" && body.model.trim()
                   ? body.model.trim()
                   : DEFAULT_HARNESS_MODEL[harness];
-              const prior = priorMessages(continueTurn, body.messages, stamped);
+              const prior = priorMessages(
+                kind === "fill",
+                body.messages,
+                stamped
+              );
               const result = await agent.stream({
                 session,
                 messages: await convertToModelMessages(prior),
@@ -290,8 +319,13 @@ export async function handleChat(
           );
 
           if (!session || run.signal.aborted) return;
-          // do not detach during get_viewer — the live handle stays in the Map
-          if (session.hasUnfinishedTurn()) return;
+          const unfinished = session.hasUnfinishedTurn();
+          writer.write({
+            type: "data-turn",
+            data: { state: unfinished ? "suspended" : "idle" },
+          });
+          // Client tools (get_viewer, ask) leave the live handle in the Map.
+          if (unfinished) return;
           let payload: HarnessAgentResumeSessionState;
           try {
             payload = await session.detach();

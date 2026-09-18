@@ -93,6 +93,16 @@ expect(
   `turn error stays outside the fold, got ${errorRow.join("|")}`
 );
 
+const turnState = kinds([
+  { type: "reasoning" },
+  { type: "text" },
+  { type: "data-turn" },
+]);
+expect(
+  turnState.join("|") === "worked:reasoning|visible:text",
+  `data-turn is structural, got ${turnState.join("|")}`
+);
+
 expect(messageCopyVisible(false, "hi") === true, "copy after the turn");
 expect(messageCopyVisible(true, "hi") === false, "no copy while streaming");
 expect(messageCopyVisible(false, "") === false, "no copy without text");

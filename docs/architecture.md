@@ -24,6 +24,11 @@ Product calls and ranked next: [`product.md`](product.md).
   chat is open, live stream. `show_artifact` moves only the asking client
   and appends recents.
 
+Chat turns are **prompt**, **fill**, or **idle** ([ADR 0007](decisions/0007-harness-chat-fill.md)).
+A fill is a client tool result (`get_viewer`, `askUserQuestions`) into a
+live unfinished harness session. `show_artifact` runs on the server in the
+prompt stream and does not fill.
+
 Auth: loopback is trusted. Anything else on `/api` needs a paired device
 token. Accounts and a public tunnel are later `principal.kind`s, not a
 rewrite.

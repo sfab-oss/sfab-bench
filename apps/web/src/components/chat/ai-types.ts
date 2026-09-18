@@ -23,4 +23,7 @@ export type AIDataPart = {
   error: {
     message: string;
   };
+  turn: {
+    state: "suspended" | "idle";
+  };
 };

@@ -1,6 +1,7 @@
 import {
   lastUserPromptText,
   mapChatErrorMessage,
+  NO_UNFINISHED_TURN_MESSAGE,
   providerSendBlockReason,
   stripViewerStamp,
   userPromptText,
@@ -58,6 +59,16 @@ expect(
   "Failed to fetch is not a 409"
 );
 expect(mapChatErrorMessage(null) === null, "null error");
+expect(
+  mapChatErrorMessage("no unfinished turn") === NO_UNFINISHED_TURN_MESSAGE,
+  "idle fill 409"
+);
+expect(
+  mapChatErrorMessage(
+    new Error("Harness session abc has no unfinished turn to continue.")
+  ) === NO_UNFINISHED_TURN_MESSAGE,
+  "harness idle continue maps the same"
+);
 
 expect(
   providerSendBlockReason({

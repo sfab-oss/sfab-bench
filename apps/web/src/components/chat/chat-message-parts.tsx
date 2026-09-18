@@ -410,7 +410,11 @@ function CopyMessageButton({ text }: { text: string }) {
 }
 
 function isStructuralChatPart(part: { type: string }): boolean {
-  return part.type === "step-start" || part.type === "step-finish";
+  return (
+    part.type === "step-start" ||
+    part.type === "step-finish" ||
+    part.type === "data-turn"
+  );
 }
 
 function isAskUserWorkedPart(part: {

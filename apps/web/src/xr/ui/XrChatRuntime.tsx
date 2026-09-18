@@ -1,5 +1,4 @@
 import { useChat } from "@ai-sdk/react";
-import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import {
   createContext,
   type ReactNode,
@@ -13,6 +12,7 @@ import {
   type AskUserQuestionsOutput,
   findPendingAskUserQuestions,
 } from "@/chat/ask-user-questions";
+import { mapChatErrorMessage } from "@/chat/composer-recovery";
 import { findPendingGetViewer } from "@/chat/get-viewer";
 import { finishPersistMessages } from "@/chat/persist-thread";
 import { useLiveViewerTools } from "@/chat/useLiveViewerTools";
@@ -85,9 +85,8 @@ function XrChatSessionRuntime({
     throttle: 50,
     messages: initialMessages,
     transport: viewerChatTransport(),
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onError: (err) => {
-      turnErrorRef.current = err.message;
+      turnErrorRef.current = mapChatErrorMessage(err) ?? err.message;
     },
     onFinish: ({ messages: next, isError }) => {
       const text = turnErrorRef.current;
@@ -106,7 +105,15 @@ function XrChatSessionRuntime({
   const busy = status === "submitted" || status === "streaming";
   const pendingAsk = findPendingAskUserQuestions(messages);
   const pendingViewer = findPendingGetViewer(messages);
-  useLiveViewerTools(messages as GalleryChatMessage[], addToolOutput, busy);
+  const fillSuspendedTurn = useCallback(() => {
+    void sendMessage();
+  }, [sendMessage]);
+  useLiveViewerTools(
+    messages as GalleryChatMessage[],
+    addToolOutput,
+    busy,
+    fillSuspendedTurn
+  );
   busyRef.current = busy || pendingViewer !== null;
 
   const send = useCallback(() => {
@@ -117,14 +124,16 @@ function XrChatSessionRuntime({
       const question = pending.input.questions[0];
       if (!question?.allowFreeForm) return;
       setDraft("");
-      void addToolOutput({
-        tool: "askUserQuestions",
-        toolCallId: pending.toolCallId,
-        output: {
-          action: "answered",
-          answers: { [question.id]: { optionIds: [], freeform: text } },
-        },
-      });
+      void Promise.resolve(
+        addToolOutput({
+          tool: "askUserQuestions",
+          toolCallId: pending.toolCallId,
+          output: {
+            action: "answered",
+            answers: { [question.id]: { optionIds: [], freeform: text } },
+          },
+        })
+      ).then(() => sendMessage());
       return;
     }
     setDraft("");
@@ -138,14 +147,16 @@ function XrChatSessionRuntime({
     if (pending) {
       const question = pending.input.questions[0];
       if (!question?.allowFreeForm) return;
-      void addToolOutput({
-        tool: "askUserQuestions",
-        toolCallId: pending.toolCallId,
-        output: {
-          action: "answered",
-          answers: { [question.id]: { optionIds: [], freeform: trimmed } },
-        },
-      });
+      void Promise.resolve(
+        addToolOutput({
+          tool: "askUserQuestions",
+          toolCallId: pending.toolCallId,
+          output: {
+            action: "answered",
+            answers: { [question.id]: { optionIds: [], freeform: trimmed } },
+          },
+        })
+      ).then(() => sendMessage());
       return;
     }
     void sendMessage({ text: trimmed });
@@ -190,11 +201,13 @@ function XrChatSessionRuntime({
     },
     pendingAsk,
     answerAskUser: (toolCallId, output) => {
-      void addToolOutput({
-        tool: "askUserQuestions",
-        toolCallId,
-        output,
-      });
+      void Promise.resolve(
+        addToolOutput({
+          tool: "askUserQuestions",
+          toolCallId,
+          output,
+        })
+      ).then(() => sendMessage());
     },
     voice,
   };
