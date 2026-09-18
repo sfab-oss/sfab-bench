@@ -24,7 +24,11 @@ import {
   fileRecentLines,
   openFolderButtonTitle,
   pathFieldEnterAction,
+  STARTER_HINT_LEAD,
+  STARTER_HINT_LINK,
+  STARTER_HINT_TRAIL,
   STARTER_REPO_URL,
+  WELCOME_OPEN_COPY,
 } from "@/lib/welcome";
 
 function openErrorMessage(
@@ -437,16 +441,16 @@ export function BrowseFolderDialog({
 export function StarterHint() {
   return (
     <p className="text-[13px] text-muted-foreground">
-      Starting from scratch?{" "}
+      {STARTER_HINT_LEAD}{" "}
       <a
         className="underline underline-offset-2 hover:text-foreground"
         href={STARTER_REPO_URL}
         rel="noreferrer"
         target="_blank"
       >
-        Clone the starter
+        {STARTER_HINT_LINK}
       </a>
-      , then open that folder.
+      {STARTER_HINT_TRAIL}
     </p>
   );
 }
@@ -456,7 +460,7 @@ export function WelcomeFolders({ folder }: { folder: OpenFolderApi }) {
     <div className="flex w-full flex-col items-center gap-3">
       <p className="text-sm text-muted-foreground">
         {folder.canRegister
-          ? "Open a folder of STEP or GLB to start."
+          ? WELCOME_OPEN_COPY
           : "Pick a folder the Mac has opened. Opening a new path is Mac-only."}
       </p>
       {folder.canRegister ? <OpenFolderButton folder={folder} /> : null}

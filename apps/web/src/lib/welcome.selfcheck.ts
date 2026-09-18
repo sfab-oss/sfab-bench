@@ -4,12 +4,19 @@ import {
   documentTitle,
   emptySceneKind,
   fileRecentLines,
+  NO_CAD_LEAD,
+  NO_CAD_LINK,
+  NO_CAD_TRAIL,
   normalizeDirPath,
   openFolderButtonTitle,
   openFolderShortcutLabel,
   PRODUCT_TITLE,
   pathFieldEnterAction,
+  STARTER_HINT_LEAD,
+  STARTER_HINT_LINK,
+  STARTER_HINT_TRAIL,
   STARTER_REPO_URL,
+  WELCOME_OPEN_COPY,
 } from "./welcome";
 
 function expect(cond: boolean, label: string) {
@@ -202,6 +209,24 @@ expect(
 expect(
   CAD_SKILL_URL === "https://github.com/earthtojake/text-to-cad",
   "cad skill url"
+);
+expect(
+  WELCOME_OPEN_COPY.includes("Open a folder of STEP or GLB") &&
+    !/starter|clone/i.test(WELCOME_OPEN_COPY),
+  "welcome open line is not the starter CTA"
+);
+expect(
+  STARTER_HINT_LEAD.includes("scratch") &&
+    STARTER_HINT_LINK.toLowerCase().includes("starter") &&
+    STARTER_HINT_TRAIL.includes("open"),
+  "starter hint is the no-project path"
+);
+expect(
+  NO_CAD_LEAD.includes("no STEP") &&
+    NO_CAD_LINK.includes("CAD skill") &&
+    NO_CAD_TRAIL.includes("chat") &&
+    !/clone|starter/i.test(`${NO_CAD_LEAD}${NO_CAD_LINK}${NO_CAD_TRAIL}`),
+  "no-cad points at the skill, not clone"
 );
 
 console.log("welcome.selfcheck ok");

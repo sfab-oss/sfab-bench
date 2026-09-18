@@ -9,13 +9,11 @@ import {
   type HarnessId,
 } from "@sfab-bench/contract";
 import { z } from "zod";
+import { AGENT_IDENTITY } from "./agent-identity";
 import { createLocalSandbox } from "./local-sandbox";
 import { viewerTools } from "./viewer-context";
 
 const callOptions = z.object({ model: z.string().min(1) });
-
-const identity =
-  "You are an agent running inside this CAD workbench. The open folder is your cwd. Visualization is a STEP or GLB in that folder. If there is no CAD yet, tell the user to drop a STEP or author with the CAD skill (earthtojake/text-to-cad). Do not git clone into this folder.";
 
 type ReasoningLevel = Exclude<ChatEffort, "default">;
 
@@ -52,7 +50,7 @@ function makeAgent(id: HarnessId, effort: ChatEffort, root: string) {
   const shared = {
     sandbox: createLocalSandbox(root),
     tools: viewerTools,
-    instructions: identity,
+    instructions: AGENT_IDENTITY,
     permissionMode: "allow-all" as const,
     callOptionsSchema: callOptions,
     prepareCall: ({ options, ...rest }: { options: { model: string } }) => ({
