@@ -1,7 +1,7 @@
 {
   "name": "@sfab-bench/desktop",
   "productName": "sfab-bench",
-  "version": "0.3.0",
+  "version": "0.2.2",
   "private": true,
   "description": "Electron shell around the server and the same page, plus a native folder chooser.",
   "author": "SFab",
