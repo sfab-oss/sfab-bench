@@ -1,4 +1,4 @@
-import { Container, Input, Text } from "@react-three/uikit";
+import { Container, Text, Textarea } from "@react-three/uikit";
 import {
   ChevronDown,
   History,
@@ -34,6 +34,7 @@ import { asciiSafe, UikitMarkdown } from "@/xr/ui/UikitMarkdown";
 import { useXrChatScroll, XR_SCROLL_GUTTER } from "@/xr/ui/useXrChatScroll";
 import { VoiceRecordRow } from "@/xr/ui/VoiceRecordRow";
 import { useXrChatRuntime } from "@/xr/ui/XrChatRuntime";
+import { XR_COMPOSER_MAX_H, xrComposerHeight } from "@/xr/ui/xrChatChrome";
 
 function workedDurationSeconds(message: GalleryChatMessage) {
   const n = message.metadata?.responseTime;
@@ -457,6 +458,7 @@ function XrChatSession({
     send();
     jumpToEnd();
   };
+  const composerH = xrComposerHeight(draft);
 
   return (
     <>
@@ -545,19 +547,22 @@ function XrChatSession({
         <Container
           flexDirection="row"
           flexShrink={0}
-          alignItems="center"
+          alignItems="flex-end"
           gap={4}
           width="100%"
         >
           <Container
             flexGrow={1}
             minWidth={0}
-            height={36}
+            height={composerH}
+            maxHeight={XR_COMPOSER_MAX_H}
             borderRadius={8}
             backgroundColor={theme.muted}
             paddingX={8}
+            paddingY={8}
+            overflow="scroll"
           >
-            <Input
+            <Textarea
               value={draft}
               onValueChange={(value: string) => setDraft(value)}
               placeholder={
@@ -571,6 +576,7 @@ function XrChatSession({
               height="100%"
               fontSize={14}
               color={theme.text}
+              wordBreak="break-word"
             />
           </Container>
           <ToolBtn
@@ -629,6 +635,7 @@ export function ChatCard({
   onToggleHistory,
   modelsOpen,
   onToggleModels,
+  overlay,
   width = 340,
   height = 520,
 }: {
@@ -636,6 +643,7 @@ export function ChatCard({
   onToggleHistory: () => void;
   modelsOpen: boolean;
   onToggleModels: () => void;
+  overlay?: ReactNode;
   width?: number;
   height?: number;
 }) {
@@ -655,57 +663,71 @@ export function ChatCard({
       pixelSize={0.001}
       pointerEvents="auto"
     >
-      <Container
-        flexDirection="row"
-        flexShrink={0}
-        alignItems="center"
-        gap={4}
-        width="100%"
-      >
+      {overlay ? (
         <Container
           flexGrow={1}
-          minWidth={0}
-          flexDirection="row"
+          width="100%"
+          minHeight={0}
           alignItems="center"
-          gap={6}
+          justifyContent="center"
         >
-          <Text fontSize={14} color={theme.text}>
-            {active?.title ?? "Assistant"}
-          </Text>
+          {overlay}
         </Container>
-        <ToolBtn
-          id="xr-chat-history"
-          icon={History}
-          tip="History"
-          grow={false}
-          active={historyOpen}
-          onClick={onToggleHistory}
-        />
-        <ToolBtn
-          id="xr-chat-new"
-          icon={Plus}
-          tip="New chat"
-          grow={false}
-          onClick={() => void newThread()}
-        />
-      </Container>
-      <Container
-        width="100%"
-        height={1}
-        flexShrink={0}
-        backgroundColor={theme.border}
-      />
-      {threadId ? (
-        <XrChatSession
-          modelsOpen={modelsOpen}
-          onToggleModels={onToggleModels}
-        />
       ) : (
-        <Container flexGrow={1}>
-          <Text fontSize={13} color={theme.subtle}>
-            Loading...
-          </Text>
-        </Container>
+        <>
+          <Container
+            flexDirection="row"
+            flexShrink={0}
+            alignItems="center"
+            gap={4}
+            width="100%"
+          >
+            <Container
+              flexGrow={1}
+              minWidth={0}
+              flexDirection="row"
+              alignItems="center"
+              gap={6}
+            >
+              <Text fontSize={14} color={theme.text} wordBreak="break-word">
+                {asciiSafe(active?.title ?? "Assistant")}
+              </Text>
+            </Container>
+            <ToolBtn
+              id="xr-chat-history"
+              icon={History}
+              tip="History"
+              grow={false}
+              active={historyOpen}
+              onClick={onToggleHistory}
+            />
+            <ToolBtn
+              id="xr-chat-new"
+              icon={Plus}
+              tip="New chat"
+              grow={false}
+              onClick={() => void newThread()}
+            />
+          </Container>
+          <Container
+            width="100%"
+            height={1}
+            flexShrink={0}
+            backgroundColor={theme.border}
+          />
+          {threadId ? (
+            <XrChatSession
+              modelsOpen={modelsOpen}
+              onToggleModels={onToggleModels}
+            />
+          ) : (
+            <Container flexGrow={1}>
+              <Text fontSize={13} color={theme.subtle}>
+                Loading...
+              </Text>
+            </Container>
+          )}
+        </>
       )}
     </Container>
   );

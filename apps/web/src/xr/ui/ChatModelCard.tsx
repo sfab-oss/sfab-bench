@@ -61,8 +61,8 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
 
   return (
     <Container
-      width={240}
-      height={308}
+      width="100%"
+      height="100%"
       padding={8}
       gap={6}
       flexDirection="column"
@@ -70,7 +70,6 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
       borderRadius={12}
       borderWidth={1}
       borderColor={theme.border}
-      pixelSize={0.001}
       pointerEvents="auto"
     >
       <Container flexDirection="row" gap={4} width="100%" flexShrink={0}>
@@ -212,6 +211,7 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
                   <Container
                     key={m.slug}
                     width="100%"
+                    minWidth={0}
                     flexShrink={0}
                     padding={6}
                     borderRadius={8}
@@ -229,7 +229,11 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
                       onClose();
                     }}
                   >
-                    <Text fontSize={13} color={theme.text}>
+                    <Text
+                      fontSize={13}
+                      color={theme.text}
+                      wordBreak="break-word"
+                    >
                       {asciiSafe(m.name)}
                     </Text>
                   </Container>
@@ -263,6 +267,8 @@ export function ChatModelChip({
       alignItems="center"
       gap={6}
       height={28}
+      maxWidth="100%"
+      minWidth={0}
       paddingX={8}
       borderRadius={8}
       backgroundColor={active ? theme.active : theme.muted}
@@ -277,7 +283,7 @@ export function ChatModelChip({
       }}
     >
       <XrProviderMark id={chatHarness} size={14} />
-      <Text fontSize={12} color={theme.text}>
+      <Text fontSize={12} color={theme.text} wordBreak="break-word">
         {name}
       </Text>
     </Container>

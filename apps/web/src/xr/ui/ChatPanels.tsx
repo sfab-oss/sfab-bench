@@ -21,25 +21,20 @@ export function ChatPanels({
   const toggle = (next: Overlay) =>
     setOverlay((cur) => (cur === next ? "none" : next));
   return (
-    <>
-      <ChatCard
-        width={width}
-        height={height}
-        historyOpen={overlay === "history"}
-        onToggleHistory={() => toggle("history")}
-        modelsOpen={overlay === "models"}
-        onToggleModels={() => toggle("models")}
-      />
-      {overlay === "history" ? (
-        <group position={[0, 0.04, 0.055]}>
+    <ChatCard
+      width={width}
+      height={height}
+      historyOpen={overlay === "history"}
+      onToggleHistory={() => toggle("history")}
+      modelsOpen={overlay === "models"}
+      onToggleModels={() => toggle("models")}
+      overlay={
+        overlay === "history" ? (
           <ChatHistoryCard onClose={() => setOverlay("none")} />
-        </group>
-      ) : null}
-      {overlay === "models" ? (
-        <group position={[0, 0.04, 0.055]}>
+        ) : overlay === "models" ? (
           <ChatModelCard onClose={() => setOverlay("none")} />
-        </group>
-      ) : null}
-    </>
+        ) : null
+      }
+    />
   );
 }

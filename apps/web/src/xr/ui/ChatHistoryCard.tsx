@@ -3,14 +3,15 @@ import { Container, Text } from "@react-three/uikit";
 import { useViewerChat } from "@/components/chat/useViewerChat";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
 import { useXrTheme } from "@/xr/ui/theme";
+import { asciiSafe } from "@/xr/ui/UikitMarkdown";
 
 export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
   const { threads, threadId, openThread } = useViewerChat();
   const theme = useXrTheme();
   return (
     <Container
-      width={192}
-      maxHeight={320}
+      width="100%"
+      height="100%"
       padding={8}
       gap={6}
       flexDirection="column"
@@ -18,7 +19,6 @@ export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
       borderRadius={12}
       borderWidth={1}
       borderColor={theme.border}
-      pixelSize={0.001}
       pointerEvents="auto"
     >
       <Container flexDirection="row" gap={4} width="100%" flexShrink={0}>
@@ -26,6 +26,7 @@ export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
       </Container>
       <Container
         flexGrow={1}
+        minHeight={0}
         width="100%"
         overflow="scroll"
         gap={4}
@@ -40,6 +41,8 @@ export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
             <Container
               key={t.id}
               width="100%"
+              minWidth={0}
+              flexShrink={0}
               padding={8}
               borderRadius={8}
               backgroundColor={t.id === threadId ? theme.hover : theme.muted}
@@ -49,8 +52,8 @@ export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
                 onClose();
               }}
             >
-              <Text fontSize={13} color={theme.text}>
-                {t.title}
+              <Text fontSize={13} color={theme.text} wordBreak="break-word">
+                {asciiSafe(t.title)}
               </Text>
             </Container>
           ))
