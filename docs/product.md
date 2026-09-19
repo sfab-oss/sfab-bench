@@ -61,10 +61,10 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 12 | **done** | OCCT WASM loader. STEP opens with no Python ([ADR 0004](decisions/0004-occt-via-opencascade-js.md)) |
 | 13 | **done** | sessions-01 — project is a request parameter, per-workspace `409` ([ADR 0006](decisions/0006-folder-is-a-tab.md)). Server and contract; web unchanged. |
 | 14 | **done** | sessions-02 — `?project=` as tab state, switcher sets the tab instead of `POST /api/project`, paired clients pick from recents, ⌘O targets the window's tab. Welcome is `/`; a folder with no `?file=` is an empty scene. |
-| 15 | **done** | ship-01 — tag `v0.1.0`: `bin` field, Releases zip via `ditto`, signing auto-detect with today's ad-hoc fallback, `install.md` recipe "now". `v0.1.1` restores Codex/OpenCode in the packaged app. `v0.2.0` is the desktop UX + harness + sessions cut. `v0.2.1` is the zip after MIT / public-ready README and the loopback-dev IWER inject gate. |
+| 15 | **done** | ship-01 — tag `v0.1.0`: `bin` field, Releases zip via `ditto`, signing auto-detect with today's ad-hoc fallback, `install.md` recipe "now". `v0.1.1` restores Codex/OpenCode in the packaged app. `v0.2.0` is the desktop UX + harness + sessions cut. `v0.2.1` is the zip after MIT / public-ready README and the loopback-dev IWER inject gate. `v0.3.0` is chat follow + stop looping a finished turn, Quest card still while streaming, first-time provider setup line, and first-run pointing at the starter. |
 | 16 | later | ship-02 — `sfab-bench app [dir]`, binary inside the `.app`, "Open at login". Not until the `.app` sits in `/Applications` and launches from the Dock |
 | 17 | later | IWER in the packaged `.app`: confirm the zip does not ship or inject IWER; a future marketing-demo force-install must not leak into Quest LAN or the `.app`. |
-| 18 | this PR | First-run: README + Welcome + user doc point at [sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter), which vendors Jake `$cad` and a project Bench skill. No in-app clone. |
+| 18 | **done** | First-run: README + Welcome + user doc point at [sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter), which vendors Jake `$cad` and a project Bench skill. No in-app clone. |
 
 ## Do not build
 
