@@ -70,22 +70,39 @@ export function placeAtGaze(
   if (resetScale) obj.scale.setScalar(1);
 }
 
+export type CadSpawnKey = { session: unknown; url: string };
+
+/** First spawn / file switch / new session. Same-path reload in this session is false. */
+export function shouldPlaceAtGaze(input: {
+  session: unknown;
+  url: string;
+  last: CadSpawnKey | null;
+}): boolean {
+  if (!input.session || !input.url) return false;
+  return input.last?.session !== input.session || input.last?.url !== input.url;
+}
+
 export function SpawnInFront() {
   const session = useXR((s) => s.session);
   const camera = useThree((s) => s.camera);
-  const { review, placed, setRecenter, setModelScale } = useStore(
+  const { url, review, placed, setRecenter, setModelScale } = useStore(
     useShallow((s) => ({
+      url: s.url,
       review: s.review,
       placed: s.placed,
       setRecenter: s.setRecenter,
       setModelScale: s.setModelScale,
     }))
   );
+  const last = useRef<CadSpawnKey | null>(null);
   const pending = useRef(false);
 
   useEffect(() => {
-    pending.current = Boolean(session && review && placed);
-  }, [session, review, placed]);
+    if (!session || !url) last.current = null;
+    pending.current =
+      shouldPlaceAtGaze({ session, url, last: last.current }) &&
+      Boolean(review && placed);
+  }, [session, url, review, placed]);
 
   // "Recenter" on the card: same placement as the first spawn, at 1:1.
   useEffect(() => {
@@ -105,7 +122,7 @@ export function SpawnInFront() {
   }, [session, placed, camera, setRecenter, setModelScale]);
 
   useFrame(() => {
-    if (!pending.current || !session || !review || !placed) return;
+    if (!pending.current || !session || !url || !review || !placed) return;
     camera.getWorldPosition(pos);
     if (pos.lengthSq() < 0.01) return;
     pending.current = false;
@@ -115,6 +132,7 @@ export function SpawnInFront() {
       face: true,
     });
     setModelScale(1);
+    last.current = { session, url };
   });
 
   return null;

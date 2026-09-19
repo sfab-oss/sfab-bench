@@ -135,10 +135,10 @@ export function ViewerCanvas() {
   const setPlaced = useStore((s) => s.setPlaced);
   const xrSession = useXrSession();
   const reduceMotion = usePrefersReducedMotion();
-  const onFit = useCallback(
-    (obj: THREE.Object3D) => store.getState().fit?.(obj, homeFitDirection()),
-    []
-  );
+  const onFit = useCallback((obj: THREE.Object3D) => {
+    if (xrStore.getState().session) return;
+    store.getState().fit?.(obj, homeFitDirection());
+  }, []);
 
   return (
     <Canvas

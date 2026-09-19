@@ -3,6 +3,7 @@ import * as THREE from "three";
 import {
   faceToward,
   placeAtGaze,
+  shouldPlaceAtGaze,
   XR_CAD_SPAWN_DISTANCE,
   XR_CAD_SPAWN_DROP,
 } from "@/scene/SpawnInFront";
@@ -253,6 +254,76 @@ for (const yaw of [0, 0.7, -2.1]) {
     1e-5
   );
   close("default spawn drop", o.position.y, eye.y - XR_CAD_SPAWN_DROP, 1e-6);
+}
+
+/**
+ * Same-path reload in this XR session must not look like a first spawn.
+ * Empty url / no session never places; the caller also forgets `last` then,
+ * so close-and-reopen of the same path places again.
+ */
+{
+  const sess = { id: 1 };
+  const other = { id: 2 };
+  const placed = (got: boolean, want: boolean, label: string) => {
+    if (got !== want) note(`${label}: ${got}, expected ${want}`);
+  };
+  placed(
+    shouldPlaceAtGaze({ session: sess, url: "a.step", last: null }),
+    true,
+    "first spawn"
+  );
+  placed(
+    shouldPlaceAtGaze({
+      session: sess,
+      url: "a.step",
+      last: { session: sess, url: "a.step" },
+    }),
+    false,
+    "same-path reload"
+  );
+  placed(
+    shouldPlaceAtGaze({
+      session: sess,
+      url: "b.step",
+      last: { session: sess, url: "a.step" },
+    }),
+    true,
+    "file switch"
+  );
+  placed(
+    shouldPlaceAtGaze({
+      session: other,
+      url: "a.step",
+      last: { session: sess, url: "a.step" },
+    }),
+    true,
+    "new session same url"
+  );
+  placed(
+    shouldPlaceAtGaze({ session: null, url: "a.step", last: null }),
+    false,
+    "no session"
+  );
+  placed(
+    shouldPlaceAtGaze({
+      session: sess,
+      url: "",
+      last: { session: sess, url: "a.step" },
+    }),
+    false,
+    "empty url does not place"
+  );
+  let last: { session: unknown; url: string } | null = {
+    session: sess,
+    url: "a.step",
+  };
+  const closed = "";
+  if (!closed) last = null;
+  placed(
+    shouldPlaceAtGaze({ session: sess, url: "a.step", last }),
+    true,
+    "reopen after close"
+  );
 }
 
 if (failures.length) throw new Error(`${failures.length} placement failure(s)`);
