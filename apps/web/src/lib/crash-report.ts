@@ -1,7 +1,8 @@
+import { version as packageVersion } from "../../package.json";
 import { redact } from "./redact";
 
 export const APP_DISPLAY_NAME = "sfab-bench";
-export const APP_VERSION = "0.1.1";
+export const APP_VERSION = packageVersion;
 
 /** One-line card copy: message only, no stack. Truncation is CSS. */
 export function crashCardReason(error: unknown, projectPath = ""): string {
