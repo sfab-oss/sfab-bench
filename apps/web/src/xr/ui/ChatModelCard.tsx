@@ -61,8 +61,8 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
 
   return (
     <Container
-      width="100%"
-      height="100%"
+      width={240}
+      height={308}
       padding={8}
       gap={6}
       flexDirection="column"
@@ -70,6 +70,9 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
       borderRadius={12}
       borderWidth={1}
       borderColor={theme.border}
+      pixelSize={0.001}
+      opacity={1}
+      zIndexOffset={10}
       pointerEvents="auto"
     >
       <Container flexDirection="row" gap={4} width="100%" flexShrink={0}>
