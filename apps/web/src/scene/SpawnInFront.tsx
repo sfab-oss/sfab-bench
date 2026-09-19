@@ -11,6 +11,10 @@ const quat = new THREE.Quaternion();
 const forward = new THREE.Vector3();
 const right = new THREE.Vector3();
 
+/** Floor-plane metres. Chat and files cards spawn at 0.55; the model stays a step behind them. */
+export const XR_CAD_SPAWN_DISTANCE = 0.7;
+export const XR_CAD_SPAWN_DROP = 0.12;
+
 /** Yaw-only billboard so `obj` (or `lookAt`) faces the camera on the floor plane. */
 export function faceToward(
   obj: THREE.Object3D,
@@ -31,7 +35,13 @@ export function faceToward(
 export function placeAtGaze(
   obj: THREE.Object3D,
   camera: THREE.Camera,
-  { distance = 1.2, drop = 0.2, face = false, resetScale = true, side = 0 } = {}
+  {
+    distance = XR_CAD_SPAWN_DISTANCE,
+    drop = XR_CAD_SPAWN_DROP,
+    face = false,
+    resetScale = true,
+    side = 0,
+  } = {}
 ) {
   camera.getWorldPosition(pos);
   camera.getWorldQuaternion(quat);
@@ -84,7 +94,11 @@ export function SpawnInFront() {
       return;
     }
     setRecenter(() => {
-      placeAtGaze(placed, camera, { face: true });
+      placeAtGaze(placed, camera, {
+        distance: XR_CAD_SPAWN_DISTANCE,
+        drop: XR_CAD_SPAWN_DROP,
+        face: true,
+      });
       setModelScale(1);
     });
     return () => setRecenter(null);
@@ -95,7 +109,11 @@ export function SpawnInFront() {
     camera.getWorldPosition(pos);
     if (pos.lengthSq() < 0.01) return;
     pending.current = false;
-    placeAtGaze(placed, camera, { face: true });
+    placeAtGaze(placed, camera, {
+      distance: XR_CAD_SPAWN_DISTANCE,
+      drop: XR_CAD_SPAWN_DROP,
+      face: true,
+    });
     setModelScale(1);
   });
 

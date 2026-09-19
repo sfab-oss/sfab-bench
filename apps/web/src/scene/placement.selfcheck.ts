@@ -1,6 +1,11 @@
 import * as THREE from "three";
 
-import { faceToward, placeAtGaze } from "@/scene/SpawnInFront";
+import {
+  faceToward,
+  placeAtGaze,
+  XR_CAD_SPAWN_DISTANCE,
+  XR_CAD_SPAWN_DROP,
+} from "@/scene/SpawnInFront";
 
 /**
  * Tier 5a — where the model lands when a headset spawns it.
@@ -122,10 +127,10 @@ for (const yaw of [0, 0.7, -2.1]) {
   const camera = head(0.9, -0.3);
   const eye = camera.getWorldPosition(new THREE.Vector3());
   const middle = obj();
-  placeAtGaze(middle, camera, { distance: 1.2 });
+  placeAtGaze(middle, camera, { distance: 1.2, drop: 0.2 });
   for (const side of [0.5, -0.5]) {
     const o = obj();
-    placeAtGaze(o, camera, { distance: 1.2, side });
+    placeAtGaze(o, camera, { distance: 1.2, drop: 0.2, side });
     const step = o.position.clone().sub(middle.position);
     close(`side ${side} distance`, step.length(), Math.abs(side), 1e-5);
     close(`side ${side} stays level`, step.y, 0, 1e-6);
@@ -225,6 +230,29 @@ for (const yaw of [0, 0.7, -2.1]) {
     1,
     1e-5
   );
+}
+
+/**
+ * Product spawn: 0.7 m / 0.12 m drop. Cards sit at 0.55 m; the old CAD
+ * spawn was 1.2 m. Algorithm tests above keep 1.2 as an explicit override.
+ */
+{
+  if (!(XR_CAD_SPAWN_DISTANCE > 0.55 && XR_CAD_SPAWN_DISTANCE < 1.2)) {
+    note(
+      `CAD spawn ${XR_CAD_SPAWN_DISTANCE}m is not between the 0.55m cards and the old 1.2m`
+    );
+  }
+  const camera = head(0, 0);
+  const o = obj();
+  placeAtGaze(o, camera);
+  const eye = camera.getWorldPosition(new THREE.Vector3());
+  close(
+    "default spawn distance",
+    floorGap(o.position, eye),
+    XR_CAD_SPAWN_DISTANCE,
+    1e-5
+  );
+  close("default spawn drop", o.position.y, eye.y - XR_CAD_SPAWN_DROP, 1e-6);
 }
 
 if (failures.length) throw new Error(`${failures.length} placement failure(s)`);

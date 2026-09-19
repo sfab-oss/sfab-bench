@@ -2,7 +2,11 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useXR } from "@react-three/xr";
 import { useEffect, useRef } from "react";
 
-import { placeAtGaze } from "@/scene/SpawnInFront";
+import {
+  placeAtGaze,
+  XR_CAD_SPAWN_DISTANCE,
+  XR_CAD_SPAWN_DROP,
+} from "@/scene/SpawnInFront";
 import { store } from "@/state/store";
 
 /** Quest hold-Meta recenter fires XRReferenceSpace `reset`. Bring the CAD
@@ -20,7 +24,12 @@ export function RecenterOnReset() {
     if (pending.current > 0) return;
     const s = store.getState();
     if (s.placed)
-      placeAtGaze(s.placed, camera, { face: true, resetScale: false });
+      placeAtGaze(s.placed, camera, {
+        distance: XR_CAD_SPAWN_DISTANCE,
+        drop: XR_CAD_SPAWN_DROP,
+        face: true,
+        resetScale: false,
+      });
     if (s.cardOpen && s.cardMode === "world") s.bringCard?.();
     s.bringChat?.();
   });
