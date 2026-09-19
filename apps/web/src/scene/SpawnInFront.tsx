@@ -82,6 +82,16 @@ export function shouldPlaceAtGaze(input: {
   return input.last?.session !== input.session || input.last?.url !== input.url;
 }
 
+/** Close the file or leave Studio: next open of the same path is a first spawn. */
+export function forgetCadSpawnKey(
+  last: CadSpawnKey | null,
+  session: unknown,
+  url: string
+): CadSpawnKey | null {
+  if (!session || !url) return null;
+  return last;
+}
+
 export function SpawnInFront() {
   const session = useXR((s) => s.session);
   const camera = useThree((s) => s.camera);
@@ -98,7 +108,7 @@ export function SpawnInFront() {
   const pending = useRef(false);
 
   useEffect(() => {
-    if (!session || !url) last.current = null;
+    last.current = forgetCadSpawnKey(last.current, session, url);
     pending.current =
       shouldPlaceAtGaze({ session, url, last: last.current }) &&
       Boolean(review && placed);

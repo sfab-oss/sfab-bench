@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import {
   faceToward,
+  forgetCadSpawnKey,
   placeAtGaze,
   shouldPlaceAtGaze,
   XR_CAD_SPAWN_DISTANCE,
@@ -313,14 +314,18 @@ for (const yaw of [0, 0.7, -2.1]) {
     false,
     "empty url does not place"
   );
-  let last: { session: unknown; url: string } | null = {
-    session: sess,
-    url: "a.step",
-  };
-  const closed = "";
-  if (!closed) last = null;
+  const key = { session: sess, url: "a.step" };
+  if (forgetCadSpawnKey(key, sess, "a.step") !== key)
+    note("same path keeps last");
+  if (forgetCadSpawnKey(key, sess, "") !== null) note("empty url forgets last");
+  if (forgetCadSpawnKey(key, null, "a.step") !== null)
+    note("no session forgets last");
   placed(
-    shouldPlaceAtGaze({ session: sess, url: "a.step", last }),
+    shouldPlaceAtGaze({
+      session: sess,
+      url: "a.step",
+      last: forgetCadSpawnKey(key, sess, ""),
+    }),
     true,
     "reopen after close"
   );
