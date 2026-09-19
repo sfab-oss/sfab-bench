@@ -1,4 +1,8 @@
-import { crashCardReason, formatCrashReport } from "./crash-report";
+import {
+  APP_VERSION,
+  crashCardReason,
+  formatCrashReport,
+} from "./crash-report";
 import {
   displayLoadError,
   friendlyLoadReason,
@@ -179,7 +183,7 @@ const report = formatCrashReport({
   ),
   projectPath: "/Users/you/proj",
 });
-expect(report.includes("sfab-bench 0.1.1"), "app + version");
+expect(report.includes(`sfab-bench ${APP_VERSION}`), "app + version");
 expect(report.includes("Path: /"), "pathname only");
 expect(report.includes("?project=") === false, "no query");
 expect(report.includes("/Users/") === false, "no Users dir");

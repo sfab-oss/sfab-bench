@@ -1,6 +1,6 @@
 {
   "name": "@sfab-bench/server",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "The global server: open a folder, tessellate STEP with OpenCascade, host the agents.",
   "type": "module",
