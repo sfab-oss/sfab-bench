@@ -1,4 +1,8 @@
 import {
+  XR_CHAT_DEFAULT_H,
+  XR_CHAT_DEFAULT_W,
+  XR_CHAT_OVERLAY_H,
+  XR_CHAT_OVERLAY_W,
   XR_COMPOSER_MAX_H,
   XR_COMPOSER_MIN_H,
   xrComposerHeight,
@@ -30,6 +34,17 @@ expect(
   xrComposerHeight("a\n".repeat(20)),
   XR_COMPOSER_MAX_H,
   "many newlines cap"
+);
+
+expect(
+  XR_CHAT_OVERLAY_W < XR_CHAT_DEFAULT_W,
+  true,
+  "overlay narrower than chat"
+);
+expect(
+  XR_CHAT_OVERLAY_H < XR_CHAT_DEFAULT_H,
+  true,
+  "overlay shorter than chat"
 );
 
 console.log("xr-chat-chrome.selfcheck ok");

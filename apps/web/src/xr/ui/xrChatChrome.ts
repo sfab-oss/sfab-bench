@@ -2,6 +2,11 @@ export const XR_COMPOSER_MIN_H = 36;
 export const XR_COMPOSER_MAX_H = 120;
 export const XR_COMPOSER_LINE_H = 18;
 export const XR_COMPOSER_PAD_Y = 16;
+/** Keep in sync with ChatDock `CHAT_CARD` default. Overlays must stay smaller. */
+export const XR_CHAT_DEFAULT_W = 340;
+export const XR_CHAT_DEFAULT_H = 520;
+export const XR_CHAT_OVERLAY_W = 300;
+export const XR_CHAT_OVERLAY_H = 440;
 /** Approx chars that fit 14px in the Quest composer (~248px field). */
 export const XR_COMPOSER_CHARS_PER_LINE = 32;
 

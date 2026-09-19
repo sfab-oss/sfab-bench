@@ -4,14 +4,15 @@ import { useViewerChat } from "@/components/chat/useViewerChat";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
 import { useXrTheme } from "@/xr/ui/theme";
 import { asciiSafe } from "@/xr/ui/UikitMarkdown";
+import { XR_CHAT_OVERLAY_H, XR_CHAT_OVERLAY_W } from "@/xr/ui/xrChatChrome";
 
 export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
   const { threads, threadId, openThread } = useViewerChat();
   const theme = useXrTheme();
   return (
     <Container
-      width={192}
-      maxHeight={320}
+      width={XR_CHAT_OVERLAY_W}
+      maxHeight={XR_CHAT_OVERLAY_H}
       padding={8}
       gap={6}
       flexDirection="column"

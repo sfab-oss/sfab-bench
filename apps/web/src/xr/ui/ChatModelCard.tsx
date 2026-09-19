@@ -19,6 +19,7 @@ import { FeedbackContext, ToolBtn } from "@/xr/ui/ToolBtn";
 import { useXrTheme } from "@/xr/ui/theme";
 import { asciiSafe } from "@/xr/ui/UikitMarkdown";
 import { XrProviderMark } from "@/xr/ui/XrProviderMark";
+import { XR_CHAT_OVERLAY_H, XR_CHAT_OVERLAY_W } from "@/xr/ui/xrChatChrome";
 
 export function ChatModelCard({ onClose }: { onClose: () => void }) {
   const chatHarness = useStore((s) => s.chatHarness);
@@ -61,8 +62,8 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
 
   return (
     <Container
-      width={240}
-      height={308}
+      width={XR_CHAT_OVERLAY_W}
+      height={XR_CHAT_OVERLAY_H}
       padding={8}
       gap={6}
       flexDirection="column"
