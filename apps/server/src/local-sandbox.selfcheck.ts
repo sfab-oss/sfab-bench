@@ -1,9 +1,11 @@
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, normalize } from "node:path";
 
 import {
   createLocalSandbox,
+  harnessBootstrapDir,
+  harnessBridgeReady,
   harnessHome,
   pinProjectWorkdir,
   projectCwd,
@@ -28,6 +30,21 @@ expect(
 expect(
   stateDir === join(appHome, "harness", "shared"),
   "one named home for the machine, so a second folder reuses the install"
+);
+expect(
+  harnessBootstrapDir("codex", stateDir) ===
+    join(stateDir, ".harness-bootstrap", "codex"),
+  "install marker sits under the shared home"
+);
+expect(
+  !harnessBridgeReady("codex", stateDir),
+  "missing vendor dir is not ready"
+);
+mkdirSync(harnessBootstrapDir("codex", stateDir), { recursive: true });
+expect(harnessBridgeReady("codex", stateDir), "vendor dir is the ready marker");
+expect(
+  !harnessBridgeReady("cursor", stateDir),
+  "another harness stays unready"
 );
 
 // The claim above is about behaviour, not about a string: the sandbox a second

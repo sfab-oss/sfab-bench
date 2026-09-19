@@ -1,4 +1,5 @@
 import { useChat } from "@ai-sdk/react";
+import type { ChatStatus } from "ai";
 import {
   createContext,
   type ReactNode,
@@ -32,6 +33,7 @@ type Voice = ReturnType<typeof useVoiceInput>;
 export type XrChatRuntime = {
   messages: GalleryChatMessage[];
   busy: boolean;
+  status: ChatStatus;
   error: Error | undefined;
   draft: string;
   setDraft: (value: string | ((cur: string) => string)) => void;
@@ -191,6 +193,7 @@ function XrChatSessionRuntime({
   const value: XrChatRuntime = {
     messages: messages as GalleryChatMessage[],
     busy: busy || pendingViewer !== null,
+    status,
     error,
     draft,
     setDraft,
