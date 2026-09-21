@@ -56,6 +56,14 @@ function touch(key: string, machine: Machine) {
   }, IDLE_MS);
 }
 
+/** A worker that already failed must leave the map, or polls keep it alive. */
+function faulted(key: string, machine: Machine): { error: string } | null {
+  if (!machine.error) return null;
+  const error = machine.error;
+  void stopKey(key);
+  return { error };
+}
+
 async function stopKey(key: string) {
   const machine = machines.get(key);
   if (!machine) return;
@@ -151,6 +159,8 @@ export function readSerial(
   const key = machineKey(project, resolved.rel);
   const machine = machines.get(key);
   if (!machine) return { error: "device is not running" };
+  const fault = faulted(key, machine);
+  if (fault) return fault;
   touch(key, machine);
   const start = Math.max(0, from - machine.base);
   return {
@@ -169,6 +179,8 @@ export function sendSerial(
   const key = machineKey(project, resolved.rel);
   const machine = machines.get(key);
   if (!machine) return { error: "device is not running" };
+  const fault = faulted(key, machine);
+  if (fault) return fault;
   const line = text.endsWith("\n") ? text : `${text}\r\n`;
   machine.worker.postMessage({ type: "uart", text: line } satisfies ToWorker);
   touch(key, machine);

@@ -59,6 +59,24 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 40));
   }
   expect(log.includes("SFAB-BENCH 42"), "repl round trip");
+
+  await stopDevice(root, rel);
+  const stopped = readSerial(root, rel, 0);
+  expect(
+    "error" in stopped && stopped.error === "device is not running",
+    "a stopped machine tells the console to open again"
+  );
+  const again = await openDevice(root, rel);
+  if ("error" in again) throw new Error(again.error);
+  let rebooted = "";
+  const againDeadline = Date.now() + 20_000;
+  while (Date.now() < againDeadline && !rebooted.includes(">>> ")) {
+    const read = readSerial(root, rel, 0);
+    if ("error" in read) throw new Error(read.error);
+    rebooted = read.text;
+    await new Promise((resolve) => setTimeout(resolve, 40));
+  }
+  expect(rebooted.includes(">>> "), "opening again reaches the prompt");
 } finally {
   await stopDevice(root, rel);
   rmSync(root, { recursive: true, force: true });

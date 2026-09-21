@@ -34,6 +34,8 @@ export function SerialConsole({ path }: { path: string }) {
   useEffect(() => {
     let cancelled = false;
     let cursor = 0;
+    let opening = false;
+    let hold = false;
     let timer: ReturnType<typeof setInterval> | undefined;
     const pull = async () => {
       const res = await jsonApi.device.serial.$post({
@@ -42,6 +44,27 @@ export function SerialConsole({ path }: { path: string }) {
       const body: unknown = await res.json();
       if (cancelled) return;
       const failed = errorText(body);
+      if (failed === "device is not running") {
+        if (opening || hold) return;
+        opening = true;
+        try {
+          const opened = await jsonApi.device.open.$post({ json: { path } });
+          const openedBody: unknown = await opened.json();
+          if (cancelled) return;
+          const openFailed = errorText(openedBody);
+          if (openFailed) {
+            hold = true;
+            setError(openFailed);
+            return;
+          }
+          cursor = 0;
+          setText("");
+          setError(null);
+        } finally {
+          opening = false;
+        }
+        return;
+      }
       if (failed) {
         setError(failed);
         return;
