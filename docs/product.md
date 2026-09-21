@@ -23,8 +23,9 @@ Three jobs, kept separate:
 | **Agent host** | This Node process: open folder, harnesses, threads, `get_viewer` / `show_artifact`, and the same shape for a device. |
 
 A firmware image is a document beside STEP and GLB
-([ADR 0008](decisions/0008-second-domain.md)). The console and the
-device tools are ranked below. They are not in the app yet.
+([ADR 0008](decisions/0008-second-domain.md)). The desktop serial
+console is in the app. The device tools are ranked below and are not
+in the app yet.
 
 North star: global server → **open a folder** → **open a STEP or a firmware image** → talk.
 Quest Browser joins over HTTPS and shares the **library**, not the live
@@ -72,7 +73,7 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 17 | later | IWER in the packaged `.app`: confirm the zip does not ship or inject IWER; a future marketing-demo force-install must not leak into Quest LAN or the `.app`. |
 | 18 | **done** | First-run: README + Welcome + user doc point at [sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter), which vendors Jake `$cad` and a project Bench skill. No in-app clone. |
 | 19 | **done** | Second domain ([ADR 0008](decisions/0008-second-domain.md)). A firmware image named `.<chip>.bin` is a document. First chip `esp32c3`. Console under the viewport via `?device=`, beside `?file=`. One running machine per document, shared by tabs and the agent. |
-| 20 | later | Open that image: esp-emu WASM on a worker thread, serial console under the viewport on desktop. Pin the emulator and check its checksum. Do not put it in the `.app` until that packaging choice is made. |
+| 20 | **done** | Open a `.<chip>.bin` on esp-emu v0.43.0 (worker thread, checksum checked). Serial console under the viewport on desktop. The MicroPython C3 image is a committed fixture and the selfcheck boots it to `>>>`. The binary is not in the `.app`. |
 | 21 | later | Agent tools `get_device`, `run_firmware`, `read_serial`, `send_serial`. Then stop and check that this contract fits a long-running device. |
 | 22 | later | Real board. The server owns the serial port. Same four tools. |
 | 23 | later | Telemetry lines bound to a CAD occurrence, shown on Quest. |

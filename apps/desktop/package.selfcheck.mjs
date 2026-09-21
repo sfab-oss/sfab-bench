@@ -43,6 +43,12 @@ expect(
   packager.includes("assertHarnessBridgeAssets"),
   "package.mjs still asserts those files after restore"
 );
+expect(
+  packager.includes('["api.mjs", "occt-worker.mjs"]'),
+  "the .app still copies only the API and the tessellation worker"
+);
+expect(!packager.includes("emu-worker"), "esp-emu worker is not packaged");
+expect(!packager.includes("vendor/esp-emu"), "esp-emu wasm is not packaged");
 
 const main = readFileSync(join(here, "src", "main.ts"), "utf8");
 expect(

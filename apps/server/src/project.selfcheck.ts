@@ -33,6 +33,8 @@ writeFileSync(join(root, "cad", "STEP", "envelopes", "box.step"), "ISO-10303");
 mkdirSync(join(root, "cad", "src"), { recursive: true });
 writeFileSync(join(root, "cad", "src", "box.py"), "print(1)\n");
 writeFileSync(join(root, "part.glb"), "glTF");
+writeFileSync(join(root, "firmware.bin"), "bootloader");
+writeFileSync(join(root, "app.esp32c3.bin"), "image");
 
 const files = listProjectFiles(root);
 expect(
@@ -50,6 +52,14 @@ expect(
 expect(
   !files.some((f) => f.path.endsWith(".py")),
   "python scripts are not documents"
+);
+expect(
+  files.some((f) => f.path === "app.esp32c3.bin" && f.kind === "firmware"),
+  "chip-qualified image is a document"
+);
+expect(
+  !files.some((f) => f.path === "firmware.bin"),
+  "bare bin is not a document"
 );
 
 const tree = catalogTree(files);

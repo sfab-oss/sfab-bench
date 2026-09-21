@@ -168,8 +168,12 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
   const projectPath = useProjectSession().project.path;
   const { files, error, ready } = useCatalog(Boolean(projectPath));
   const theme = useXrTheme();
-  const { recents: recentRows } = catalogSections(files, recents);
-  const tree = useMemo(() => catalogTree(files), [files]);
+  const cadFiles = useMemo(
+    () => files.filter((file) => file.kind !== "firmware"),
+    [files]
+  );
+  const { recents: recentRows } = catalogSections(cadFiles, recents);
+  const tree = useMemo(() => catalogTree(cadFiles), [cadFiles]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
@@ -219,7 +223,7 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
       </Text>
     );
   }
-  if (files.length === 0) {
+  if (cadFiles.length === 0) {
     return (
       <Text fontSize={12} color={theme.subtle}>
         {projectPath

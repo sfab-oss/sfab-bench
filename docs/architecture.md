@@ -13,9 +13,9 @@ Product calls and ranked next: [`product.md`](product.md).
   `{ path, lastFile, openedAt }`.
 - **Document** = a STEP or GLB inside that directory, and a firmware
   image whose name ends in `.<chip>.bin`
-  ([ADR 0008](decisions/0008-second-domain.md)). The catalog walk still
-  lists STEP and GLB only. The suffix rule lives in
-  `@sfab-bench/contract` (`firmwareChip`). Recursive walk, skipping
+  ([ADR 0008](decisions/0008-second-domain.md)). The catalog walk lists
+  those images too. The suffix rule lives in `@sfab-bench/contract`
+  (`firmwareChip`). Recursive walk, skipping
   `node_modules`, `.git`, and cache dirs.
 - **Agent cwd** = the project directory. Skills and kernels belong to
   the folder, not to this app. Harness adapters keep `.harness-bootstrap`
@@ -31,7 +31,9 @@ Product calls and ranked next: [`product.md`](product.md).
 - **The running device is one per document**, keyed by the project plus
   the image path ([ADR 0008](decisions/0008-second-domain.md)). Tabs and
   the agent tools share it. It is not one process-global slot, and it is
-  not one machine per tab. The loader that starts it is a later row.
+  not one machine per tab. The loader is esp-emu v0.43.0 on a worker
+  thread (`apps/server/src/emu/`). The desktop `.app` does not carry that
+  binary.
 
 Chat turns are **prompt**, **fill**, or **idle** ([ADR 0007](decisions/0007-harness-chat-fill.md)).
 A fill is a client tool result (`get_viewer`, `askUserQuestions`) into a
