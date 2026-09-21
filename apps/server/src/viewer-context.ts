@@ -9,12 +9,23 @@ type ViewerStore = {
   file: string;
   snapshot: ViewerSnapshot;
   show: (file: string) => void;
+  showDevice?: (path: string) => void;
 };
 
 const als = new AsyncLocalStorage<ViewerStore>();
 
 export function runViewerContext<T>(store: ViewerStore, fn: () => Promise<T>) {
   return als.run(store, fn);
+}
+
+export function projectRoot(): { root: string } | { error: string } {
+  const root = als.getStore()?.root;
+  if (!root) return { error: "no project open" };
+  return { root };
+}
+
+export function showDeviceOnClient(path: string) {
+  als.getStore()?.showDevice?.(path);
 }
 
 export function viewerFileUrl(path: string) {

@@ -261,6 +261,9 @@ export async function handleChat(
                 rememberOpenedFile(file, root);
                 writer.write({ type: "data-viewer", data: { file } });
               },
+              showDevice: (device) => {
+                writer.write({ type: "data-device", data: { device } });
+              },
             },
             async () => {
               const agent = getAgent(harness, effort, root);
