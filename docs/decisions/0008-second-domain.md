@@ -60,9 +60,12 @@ The original ESP32 is not a catalog chip. This loader does not boot it.
 
 ### Not in this decision
 
-A chip emulator. A managed install of Arduino, ESP-IDF, or PlatformIO.
-A circuit editor. Agent tools that run and read the device. Those are
-later rows, and they follow this shape instead of reopening it.
+Writing a chip emulator. A managed install of Arduino, ESP-IDF, or
+PlatformIO. A circuit editor. The loader row vendors Espressif's
+binary behind one module. It does not become a core this repo maintains.
+
+Agent tools that run and read the device are a later row. They follow
+this shape instead of reopening it.
 
 ## Consequences
 

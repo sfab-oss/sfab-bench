@@ -84,8 +84,9 @@ Sign-in, a relay, a component registry, a mobile app, a
 background service (Login Items is not one), thread-scoped cwd or a
 thread sidebar as primary navigation, a diff or terminal panel, a
 second tessellator, Tailscale integration, Fusion / CAD-tool integration,
-Windows anything, merging sfab-cad, a chip emulator, a managed
-firmware toolchain, a circuit editor.
+Windows anything, merging sfab-cad, writing a chip emulator, a managed
+firmware toolchain, a circuit editor. Row 20 vendors Espressif's
+binary. It does not author a core.
 
 Electron came off this list on 2026-09-14 by direct ask, as a shell only
 ([ADR 0005](decisions/0005-electron-shell.md)). A second UI inside it is
