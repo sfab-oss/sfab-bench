@@ -21,9 +21,11 @@ import {
   lastUserPromptText,
   mapChatErrorMessage,
 } from "@/chat/composer-recovery";
+import { findPendingGetDevice } from "@/chat/device-tools";
 import { findPendingGetViewer } from "@/chat/get-viewer";
 import { firstUserLine } from "@/chat/history";
 import { finishPersistMessages, isTurnErrorPart } from "@/chat/persist-thread";
+import { useLiveDeviceTools } from "@/chat/useLiveDeviceTools";
 import { useLiveViewerTools } from "@/chat/useLiveViewerTools";
 import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
 import {
@@ -199,7 +201,8 @@ export function ChatSession({
   const busy = status === "submitted" || status === "streaming";
   const pendingAsk = findPendingAskUserQuestions(messages);
   const pendingViewer = findPendingGetViewer(messages);
-  const live = busy || pendingViewer !== null;
+  const pendingDevice = findPendingGetDevice(messages);
+  const live = busy || pendingViewer !== null || pendingDevice !== null;
   const loadingModel = pendingViewer !== null || progress !== null;
   const abortWorkspaceTurn = useCallback(() => {
     stop();
@@ -241,6 +244,12 @@ export function ChatSession({
     void sendMessage();
   }, [sendMessage]);
   useLiveViewerTools(
+    messages as GalleryChatMessage[],
+    addToolOutput,
+    busy,
+    fillSuspendedTurn
+  );
+  useLiveDeviceTools(
     messages as GalleryChatMessage[],
     addToolOutput,
     busy,
@@ -377,7 +386,7 @@ export function ChatSession({
         </MessageScroller>
       </MessageScrollerProvider>
       <GalleryChatInput
-        canStop={pendingViewer !== null}
+        canStop={pendingViewer !== null || pendingDevice !== null}
         loadingModel={loadingModel}
         modelLoaded={Boolean(url) && progress === null}
         onAnswerAskUser={onAnswerAskUser}

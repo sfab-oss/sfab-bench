@@ -14,8 +14,10 @@ import {
   findPendingAskUserQuestions,
 } from "@/chat/ask-user-questions";
 import { mapChatErrorMessage } from "@/chat/composer-recovery";
+import { findPendingGetDevice } from "@/chat/device-tools";
 import { findPendingGetViewer } from "@/chat/get-viewer";
 import { finishPersistMessages } from "@/chat/persist-thread";
+import { useLiveDeviceTools } from "@/chat/useLiveDeviceTools";
 import { useLiveViewerTools } from "@/chat/useLiveViewerTools";
 import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
@@ -107,6 +109,7 @@ function XrChatSessionRuntime({
   const busy = status === "submitted" || status === "streaming";
   const pendingAsk = findPendingAskUserQuestions(messages);
   const pendingViewer = findPendingGetViewer(messages);
+  const pendingDevice = findPendingGetDevice(messages);
   const fillSuspendedTurn = useCallback(() => {
     void sendMessage();
   }, [sendMessage]);
@@ -116,7 +119,13 @@ function XrChatSessionRuntime({
     busy,
     fillSuspendedTurn
   );
-  busyRef.current = busy || pendingViewer !== null;
+  useLiveDeviceTools(
+    messages as GalleryChatMessage[],
+    addToolOutput,
+    busy,
+    fillSuspendedTurn
+  );
+  busyRef.current = busy || pendingViewer !== null || pendingDevice !== null;
 
   const send = useCallback(() => {
     const text = draft.trim();
@@ -173,7 +182,7 @@ function XrChatSessionRuntime({
   });
 
   useEffect(() => {
-    const waiting = busy || pendingViewer !== null;
+    const waiting = busy || pendingViewer !== null || pendingDevice !== null;
     const phase = waiting
       ? status === "streaming"
         ? "streaming"
@@ -181,7 +190,7 @@ function XrChatSessionRuntime({
       : "idle";
     store.getState().setXrChatPhase(phase);
     return () => store.getState().setXrChatPhase("idle");
-  }, [busy, pendingViewer, status]);
+  }, [busy, pendingDevice, pendingViewer, status]);
   useEffect(() => {
     const last = [...messages].reverse().find((m) => m.role === "assistant");
     setXrChatChars(
@@ -192,7 +201,7 @@ function XrChatSessionRuntime({
 
   const value: XrChatRuntime = {
     messages: messages as GalleryChatMessage[],
-    busy: busy || pendingViewer !== null,
+    busy: busy || pendingViewer !== null || pendingDevice !== null,
     status,
     error,
     draft,

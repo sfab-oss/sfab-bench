@@ -16,6 +16,10 @@ expect(
 
 expect(AGENT_IDENTITY.includes("drop a STEP"), "identity: drop STEP");
 expect(
+  AGENT_IDENTITY.includes("run_firmware"),
+  "identity names the firmware runner"
+);
+expect(
   !/cad skill|earthtojake/i.test(AGENT_IDENTITY),
   "identity does not name the CAD skill"
 );
