@@ -466,7 +466,7 @@ function ViewerShell({ host }: { host: boolean }) {
     ro.observe(el);
     setCanvasSize({ w: el.clientWidth, h: el.clientHeight });
     return () => ro.disconnect();
-  }, []);
+  }, [deviceMode]);
 
   useEffect(() => {
     const file = url ? fileLabel(url) : "";

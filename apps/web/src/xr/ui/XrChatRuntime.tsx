@@ -87,7 +87,7 @@ function XrChatSessionRuntime({
     id: threadId,
     throttle: 50,
     messages: initialMessages,
-    transport: viewerChatTransport(),
+    transport: viewerChatTransport("cad"),
     onError: (err) => {
       turnErrorRef.current = mapChatErrorMessage(err) ?? err.message;
     },
