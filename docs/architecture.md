@@ -11,8 +11,12 @@ Product calls and ranked next: [`product.md`](product.md).
 - **Server** is global. It does not live inside a CAD repo.
 - **Project** = a directory on the Mac (git or not). Recorded as
   `{ path, lastFile, openedAt }`.
-- **Document** = a STEP or GLB inside that directory. Recursive walk,
-  skipping `node_modules`, `.git`, and cache dirs.
+- **Document** = a STEP or GLB inside that directory, and a firmware
+  image whose name ends in `.<chip>.bin`
+  ([ADR 0008](decisions/0008-second-domain.md)). The catalog walk still
+  lists STEP and GLB only. The suffix rule lives in
+  `@sfab-bench/contract` (`firmwareChip`). Recursive walk, skipping
+  `node_modules`, `.git`, and cache dirs.
 - **Agent cwd** = the project directory. Skills and kernels belong to
   the folder, not to this app. Harness adapters keep `.harness-bootstrap`
   and session dirs under `~/.sfab-bench/harness/`, not in that folder.
@@ -21,8 +25,13 @@ Product calls and ranked next: [`product.md`](product.md).
   ([ADR 0006](decisions/0006-folder-is-a-tab.md),
   [ADR 0003](decisions/0003-library-not-viewport.md)).
 - **Viewport is per browser:** loaded file, selection, camera, XR, which
-  chat is open, live stream. `show_artifact` moves only the asking client
-  and appends recents.
+  chat is open, live stream, and which firmware image the tab is watching
+  (`?device=`, beside `?file=`). `show_artifact` moves only the asking
+  client and appends recents.
+- **The running device is one per document**, keyed by the project plus
+  the image path ([ADR 0008](decisions/0008-second-domain.md)). Tabs and
+  the agent tools share it. It is not one process-global slot, and it is
+  not one machine per tab. The loader that starts it is a later row.
 
 Chat turns are **prompt**, **fill**, or **idle** ([ADR 0007](decisions/0007-harness-chat-fill.md)).
 A fill is a client tool result (`get_viewer`, `askUserQuestions`) into a

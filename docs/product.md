@@ -18,11 +18,15 @@ Three jobs, kept separate:
 
 | Job | Who |
 | --- | --- |
-| **Authoring** | Whatever produced the STEP in the open folder (Jake cadgen, Fusion export, a human, …). This app does not author. |
-| **Presence** | The viewer: tessellated package, tree, selection, measure, Quest world. This is the product. |
-| **Agent host** | This Node process: open folder, harnesses, threads, `get_viewer` / `show_artifact`. |
+| **Authoring** | Whatever produced the STEP or the flash image in the open folder (Jake cadgen, Fusion export, Arduino, ESP-IDF, a human, …). This app does not author, and it does not learn which tool did. |
+| **Presence** | The CAD viewer, and the device console under it: tessellated package, tree, selection, measure, Quest world, serial from the open image. |
+| **Agent host** | This Node process: open folder, harnesses, threads, `get_viewer` / `show_artifact`, and the same shape for a device. |
 
-North star: global server → **open a folder** → **open a STEP** → talk.
+A firmware image is a document beside STEP and GLB
+([ADR 0008](decisions/0008-second-domain.md)). The console and the
+device tools are ranked below. They are not in the app yet.
+
+North star: global server → **open a folder** → **open a STEP or a firmware image** → talk.
 Quest Browser joins over HTTPS and shares the **library**, not the live
 viewport ([ADR 0003](decisions/0003-library-not-viewport.md)).
 
@@ -30,7 +34,9 @@ viewport ([ADR 0003](decisions/0003-library-not-viewport.md)).
 
 Do not re-open these unless the human asks.
 
-- **No adapters.** Project = a directory. Document = a STEP or GLB in it. Agent cwd = that directory. Skills live in the project if the user put them there.
+- **No adapters.** Project = a directory. Document = a STEP, a GLB, or a firmware image named `.<chip>.bin` (first chip `esp32c3`, [ADR 0008](decisions/0008-second-domain.md)). Agent cwd = that directory. Skills live in the project if the user put them there. Bench does not learn which tool wrote the file.
+- **Device beside the model.** `?file=` is the CAD document. `?device=` is the firmware image, per tab. The console sits under the viewport on desktop. Quest keeps the CAD world. Setting `?device=` does not unload the STEP.
+- **One machine per document.** Keyed by the project plus the image path. Every tab watching it, and the agent tools, share that emulator or serial port and its log.
 - **Tessellation is a loader**, not an adapter. OpenCascade WASM in the API process, and the only one, producing `assembly.json` + `.tess` + `#o…` ([ADR 0002](decisions/0002-step-loader-occt.md), [ADR 0004](decisions/0004-occt-via-opencascade-js.md)). The Python stopgap it replaced is gone.
 - **One process, two HTTPS clients.** Mac tab (loopback trusted) and Quest Browser (paired). No Unity, no APK.
 - **Share the library, not the viewport.** Recents, thread list, messages at rest, pairing. Not: the folder a tab is in, loaded file, selection, camera, XR, which chat is open, live stream. `show_artifact` moves only the asking client. Folder is `?project=` ([ADR 0006](decisions/0006-folder-is-a-tab.md)).
@@ -65,6 +71,12 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 16 | later | ship-02 — `sfab-bench app [dir]`, binary inside the `.app`, "Open at login". Not until the `.app` sits in `/Applications` and launches from the Dock |
 | 17 | later | IWER in the packaged `.app`: confirm the zip does not ship or inject IWER; a future marketing-demo force-install must not leak into Quest LAN or the `.app`. |
 | 18 | **done** | First-run: README + Welcome + user doc point at [sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter), which vendors Jake `$cad` and a project Bench skill. No in-app clone. |
+| 19 | **done** | Second domain ([ADR 0008](decisions/0008-second-domain.md)). A firmware image named `.<chip>.bin` is a document. First chip `esp32c3`. Console under the viewport via `?device=`, beside `?file=`. One running machine per document, shared by tabs and the agent. |
+| 20 | later | Open that image: esp-emu WASM on a worker thread, serial console under the viewport on desktop. Pin the emulator and check its checksum. Do not put it in the `.app` until that packaging choice is made. |
+| 21 | later | Agent tools `get_device`, `run_firmware`, `read_serial`, `send_serial`. Then stop and check that this contract fits a long-running device. |
+| 22 | later | Real board. The server owns the serial port. Same four tools. |
+| 23 | later | Telemetry lines bound to a CAD occurrence, shown on Quest. |
+| 24 | later | MicroPython ESP32-C3 starter. A new public repo, separate approval. |
 
 ## Do not build
 
@@ -72,7 +84,9 @@ Sign-in, a relay, a component registry, a mobile app, a
 background service (Login Items is not one), thread-scoped cwd or a
 thread sidebar as primary navigation, a diff or terminal panel, a
 second tessellator, Tailscale integration, Fusion / CAD-tool integration,
-Windows anything, merging sfab-cad.
+Windows anything, merging sfab-cad, writing a chip emulator, a managed
+firmware toolchain, a circuit editor. Row 20 vendors Espressif's
+binary. It does not author a core.
 
 Electron came off this list on 2026-09-14 by direct ask, as a shell only
 ([ADR 0005](decisions/0005-electron-shell.md)). A second UI inside it is

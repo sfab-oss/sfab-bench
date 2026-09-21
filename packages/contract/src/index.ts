@@ -1,3 +1,4 @@
+export * from "./device";
 export * from "./harness";
 export * from "./principal";
 export * from "./session";
