@@ -23,8 +23,9 @@ Three jobs, kept separate:
 | **Agent host** | This Node process: open folder, harnesses, threads, `get_viewer` / `show_artifact`, and the same shape for a device. |
 
 A firmware image is a document beside STEP and GLB
-([ADR 0008](decisions/0008-second-domain.md)). The console and the
-device tools are ranked below. They are not in the app yet.
+([ADR 0008](decisions/0008-second-domain.md)). The desktop serial
+console is in the app. The device tools are ranked below and are not
+in the app yet.
 
 North star: global server → **open a folder** → **open a STEP or a firmware image** → talk.
 Quest Browser joins over HTTPS and shares the **library**, not the live
