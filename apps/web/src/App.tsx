@@ -46,7 +46,12 @@ import {
 import { useXrSession } from "@/hooks/useXrSession";
 import { useXrSupport } from "@/hooks/useXrSupport";
 import { fetchMe, jsonApi, type MePrincipal } from "@/lib/api";
-import { filesRailToggleTitle } from "@/lib/files-rail";
+import { useExperience } from "@/lib/experience";
+import {
+  cadCatalog,
+  deviceCatalog,
+  filesRailToggleTitle,
+} from "@/lib/files-rail";
 import {
   chatLayoutWidth,
   detailPanelWidth,
@@ -425,6 +430,8 @@ function Overlay({
 function ViewerShell({ host }: { host: boolean }) {
   const session = useXrSession();
   const device = useDevicePath();
+  const mode = useExperience();
+  const deviceMode = mode === "device" && !session;
   const treeOpen = useStore((s) => s.treeOpen);
   const setTreeOpen = useStore((s) => s.setTreeOpen);
   const url = useStore((s) => s.url);
@@ -482,30 +489,39 @@ function ViewerShell({ host }: { host: boolean }) {
         <DesktopSidebar catalog={catalog} host={host} folder={folder} />
       ) : null}
       <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
-        <div
-          ref={canvasRef}
-          className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
-        >
-          <RenderErrorBoundary
-            resetKeys={[url]}
-            fallback={({ error, reset }) => (
-              <div className="absolute inset-0 z-10 grid place-items-center bg-studio">
-                <CrashCard error={error} onRetry={reset} />
-              </div>
-            )}
+        {deviceMode ? (
+          device ? (
+            <SerialConsole path={device} screen />
+          ) : (
+            <div className="grid min-h-0 flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">
+              Open a firmware image from Files.
+            </div>
+          )
+        ) : (
+          <div
+            ref={canvasRef}
+            className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
           >
-            <ViewerCanvas />
-          </RenderErrorBoundary>
-          <Overlay
-            canvasHeight={canvasSize.h}
-            canvasWidth={canvasSize.w}
-            catalog={catalog}
-            chatToggleRef={chatToggleRef}
-            compactChat={compactChat}
-            folder={folder}
-          />
-        </div>
-        {!session && device ? <SerialConsole path={device} /> : null}
+            <RenderErrorBoundary
+              resetKeys={[url]}
+              fallback={({ error, reset }) => (
+                <div className="absolute inset-0 z-10 grid place-items-center bg-studio">
+                  <CrashCard error={error} onRetry={reset} />
+                </div>
+              )}
+            >
+              <ViewerCanvas />
+            </RenderErrorBoundary>
+            <Overlay
+              canvasHeight={canvasSize.h}
+              canvasWidth={canvasSize.w}
+              catalog={{ ...catalog, files: cadCatalog(catalog.files) }}
+              chatToggleRef={chatToggleRef}
+              compactChat={compactChat}
+              folder={folder}
+            />
+          </div>
+        )}
       </SidebarInset>
       {!session && hasProject ? (
         <RenderErrorBoundary
@@ -538,7 +554,12 @@ function ViewerShell({ host }: { host: boolean }) {
           />
           <CloseFolderDialog />
           <CommandPalette
-            catalogFiles={catalog.files}
+            catalogFiles={
+              deviceMode
+                ? deviceCatalog(catalog.files)
+                : cadCatalog(catalog.files)
+            }
+            currentPath={deviceMode ? device : url}
             compactChat={compactChat}
             folder={folder}
           />

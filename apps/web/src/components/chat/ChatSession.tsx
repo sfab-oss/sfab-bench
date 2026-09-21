@@ -59,6 +59,7 @@ import {
 } from "@/components/ui/popover";
 import { showNetworkErrorToast } from "@/components/ui/toast";
 import { jsonApi } from "@/lib/api";
+import { useExperience } from "@/lib/experience";
 import { copyText } from "@/lib/settings";
 import { useStore } from "@/state/store";
 
@@ -202,7 +203,11 @@ export function ChatSession({
   const pendingAsk = findPendingAskUserQuestions(messages);
   const pendingViewer = findPendingGetViewer(messages);
   const pendingDevice = findPendingGetDevice(messages);
-  const live = busy || pendingViewer !== null || pendingDevice !== null;
+  const deviceMode = useExperience() === "device";
+  const live =
+    busy ||
+    (!deviceMode && pendingViewer !== null) ||
+    (deviceMode && pendingDevice !== null);
   const loadingModel = pendingViewer !== null || progress !== null;
   const abortWorkspaceTurn = useCallback(() => {
     stop();
@@ -247,13 +252,15 @@ export function ChatSession({
     messages as GalleryChatMessage[],
     addToolOutput,
     busy,
-    fillSuspendedTurn
+    fillSuspendedTurn,
+    !deviceMode
   );
   useLiveDeviceTools(
     messages as GalleryChatMessage[],
     addToolOutput,
     busy,
-    fillSuspendedTurn
+    fillSuspendedTurn,
+    deviceMode
   );
   messagesRef.current = messages as GalleryChatMessage[];
   messagesThreadIdRef.current = threadId;
@@ -353,8 +360,9 @@ export function ChatSession({
                     </EmptyMedia>
                     <EmptyTitle>How can I help?</EmptyTitle>
                     <EmptyDescription>
-                      Ask for a CAD change. Try “What am I looking at?” then a
-                      size change.
+                      {deviceMode
+                        ? "Ask it to run the open image and read the serial log."
+                        : "Ask for a CAD change. Try “What am I looking at?” then a size change."}
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -386,7 +394,10 @@ export function ChatSession({
         </MessageScroller>
       </MessageScrollerProvider>
       <GalleryChatInput
-        canStop={pendingViewer !== null || pendingDevice !== null}
+        canStop={
+          (!deviceMode && pendingViewer !== null) ||
+          (deviceMode && pendingDevice !== null)
+        }
         loadingModel={loadingModel}
         modelLoaded={Boolean(url) && progress === null}
         onAnswerAskUser={onAnswerAskUser}

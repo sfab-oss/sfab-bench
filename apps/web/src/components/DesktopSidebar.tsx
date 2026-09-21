@@ -23,7 +23,12 @@ import type { CatalogState } from "@/hooks/useCatalog";
 import { useDevicePath } from "@/hooks/useDevicePath";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { commandPaletteShortcutLabel } from "@/lib/command-palette";
-import { filesRailToggleTitle } from "@/lib/files-rail";
+import { syncExperience, useExperience } from "@/lib/experience";
+import {
+  cadCatalog,
+  deviceCatalog,
+  filesRailToggleTitle,
+} from "@/lib/files-rail";
 import { refreshFilesTooltip } from "@/lib/motion";
 import {
   isMacPlatform,
@@ -63,6 +68,9 @@ export function DesktopSidebar({
     typeof navigator === "undefined" ? "" : navigator.userAgent
   );
   const device = useDevicePath();
+  const mode = useExperience();
+  const deviceMode = mode === "device";
+  const listed = deviceMode ? deviceCatalog(files) : cadCatalog(files);
   const { toggleSidebar } = useSidebar();
   const filesTitle = filesRailToggleTitle(mac);
 
@@ -103,6 +111,28 @@ export function DesktopSidebar({
           <p className="px-2 text-xs text-error">{folder.error}</p>
         ) : null}
         {hasProject ? (
+          <div className="flex gap-1 px-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={deviceMode ? "ghost" : "secondary"}
+              className="h-7 flex-1"
+              onClick={() => syncExperience("cad")}
+            >
+              CAD
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={deviceMode ? "secondary" : "ghost"}
+              className="h-7 flex-1"
+              onClick={() => syncExperience("device")}
+            >
+              Device
+            </Button>
+          </div>
+        ) : null}
+        {hasProject ? (
           <div className="flex items-center gap-1">
             <SidebarInput
               className="min-w-0 flex-1"
@@ -134,9 +164,14 @@ export function DesktopSidebar({
           <FileTree
             key={project.path}
             projectPath={project.path}
-            files={files}
-            current={url}
-            device={device}
+            files={listed}
+            current={deviceMode ? device : url}
+            kinds={!deviceMode}
+            emptyLabel={
+              deviceMode
+                ? "No firmware image in this folder."
+                : "No STEP or GLB in this folder."
+            }
             filter={filter}
             recents={recentFiles}
             error={error}

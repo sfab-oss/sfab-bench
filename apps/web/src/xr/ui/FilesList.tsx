@@ -4,6 +4,7 @@ import { useContext, useEffect, useMemo, useState } from "react";
 
 import { useCatalog } from "@/hooks/useCatalog";
 import { useProjectSession } from "@/hooks/useProjectSession";
+import { cadCatalog } from "@/lib/files-rail";
 import {
   type CatalogEntry,
   type CatalogNode,
@@ -168,10 +169,7 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
   const projectPath = useProjectSession().project.path;
   const { files, error, ready } = useCatalog(Boolean(projectPath));
   const theme = useXrTheme();
-  const cadFiles = useMemo(
-    () => files.filter((file) => file.kind !== "firmware"),
-    [files]
-  );
+  const cadFiles = useMemo(() => cadCatalog(files), [files]);
   const { recents: recentRows } = catalogSections(cadFiles, recents);
   const tree = useMemo(() => catalogTree(cadFiles), [cadFiles]);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());

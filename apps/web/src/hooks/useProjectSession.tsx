@@ -14,6 +14,7 @@ import { modelUrl } from "@/cad/loadCadReview";
 import { closeToast, showToast } from "@/components/ui/toast";
 import { getDeviceToken, jsonApi } from "@/lib/api";
 import { syncDeviceQuery } from "@/lib/device-query";
+import { experience } from "@/lib/experience";
 import {
   CONNECTION_GRACE_MS,
   CONNECTION_RELOAD_AFTER_MS,
@@ -285,10 +286,11 @@ export function ProjectSessionProvider({
   const setDoc = useCallback(async (file: string | null, reload = false) => {
     const { url, error, loadModel } = store.getState();
     const next = file ?? "";
-    if (next && firmwareChip(next)) {
-      syncDeviceQuery(next);
+    if (experience() === "device") {
+      if (next && firmwareChip(next)) syncDeviceQuery(next);
       return;
     }
+    if (next && firmwareChip(next)) return;
     if (!reload && next && !shouldReloadOpenFile(next, url, Boolean(error)))
       return;
     await loadModel(next);

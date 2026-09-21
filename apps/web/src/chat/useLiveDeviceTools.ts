@@ -14,7 +14,8 @@ export function useLiveDeviceTools(
   messages: GalleryChatMessage[],
   addToolOutput: ChatAddToolOutputFunction<GalleryChatMessage>,
   streaming: boolean,
-  onFilled?: () => void | Promise<void>
+  onFilled?: () => void | Promise<void>,
+  enabled = true
 ) {
   const seen = useRef(new Set<string>());
   const inFlight = useRef<string | null>(null);
@@ -22,6 +23,7 @@ export function useLiveDeviceTools(
   onFilledRef.current = onFilled;
 
   useEffect(() => {
+    if (!enabled) return;
     const last = messages.at(-1);
     const pendingOnLast =
       last?.role === "assistant" &&
@@ -66,5 +68,5 @@ export function useLiveDeviceTools(
       cancelled = true;
       if (inFlight.current === pending.toolCallId) inFlight.current = null;
     };
-  }, [addToolOutput, messages, streaming]);
+  }, [addToolOutput, enabled, messages, streaming]);
 }

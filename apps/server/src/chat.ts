@@ -20,7 +20,7 @@ import {
   toUIMessageStream,
   type UIMessage,
 } from "ai";
-import { getAgent } from "./agent";
+import { benchExperience, getAgent } from "./agent";
 import { messagesToPersist, withTurnError } from "./chat-persist";
 import {
   dropTrailingHarnessErrors,
@@ -49,8 +49,13 @@ import { runViewerContext } from "./viewer-context";
 
 const sessions = new Map<string, Promise<HarnessAgentSession>>();
 
-function sessionKey(root: string, harness: HarnessId, chatId: string) {
-  return `${root}:${harness}:${chatId}`;
+function sessionKey(
+  root: string,
+  harness: HarnessId,
+  chatId: string,
+  experience: ReturnType<typeof benchExperience>
+) {
+  return `${root}:${harness}:${chatId}:${experience}`;
 }
 
 export const NO_UNFINISHED_TURN = "no unfinished turn";
@@ -93,9 +98,10 @@ async function createLiveSession(
   harness: HarnessId,
   chatId: string,
   effort: ChatEffort,
+  experience: ReturnType<typeof benchExperience>,
   resumeFrom?: HarnessAgentResumeSessionState
 ) {
-  return getAgent(harness, effort, root).createSession({
+  return getAgent(harness, effort, root, experience).createSession({
     sessionId: chatId,
     ...(resumeFromStored(resumeFrom) as {
       resumeFrom?: HarnessAgentResumeSessionState;
@@ -107,9 +113,10 @@ async function sessionFor(
   root: string,
   harness: HarnessId,
   chatId: string,
-  effort: ChatEffort
+  effort: ChatEffort,
+  experience: ReturnType<typeof benchExperience>
 ): Promise<{ session: HarnessAgentSession; lostContext: boolean }> {
-  const key = sessionKey(root, harness, chatId);
+  const key = sessionKey(root, harness, chatId, experience);
   const pending = sessions.get(key);
   if (pending) return { session: await pending, lostContext: false };
 
@@ -126,14 +133,22 @@ async function sessionFor(
   }
 
   const start = async () => {
-    if (!resumeFrom) return createLiveSession(root, harness, chatId, effort);
+    if (!resumeFrom)
+      return createLiveSession(root, harness, chatId, effort, experience);
     try {
-      return await createLiveSession(root, harness, chatId, effort, resumeFrom);
+      return await createLiveSession(
+        root,
+        harness,
+        chatId,
+        effort,
+        experience,
+        resumeFrom
+      );
     } catch (err) {
       if (!isUnusableResumeError(err)) throw err;
       dropThreadSession(chatId, harness);
       lost = true;
-      return createLiveSession(root, harness, chatId, effort);
+      return createLiveSession(root, harness, chatId, effort, experience);
     }
   };
 
@@ -153,6 +168,7 @@ type ChatBody = {
   model?: string;
   harness?: string;
   effort?: string;
+  experience?: string;
 };
 
 function stampUser(last: UIMessage, snapshot: ViewerSnapshot): UIMessage {
@@ -200,12 +216,13 @@ export async function handleChat(
   const effort: ChatEffort = isChatEffort(requestedEffort)
     ? requestedEffort
     : DEFAULT_CHAT_EFFORT;
+  const experience = benchExperience(body.experience);
   const last = body.messages?.at(-1);
   if (!last) {
     return new Response("missing message", { status: 400 });
   }
 
-  const key = sessionKey(root, harness, chatId);
+  const key = sessionKey(root, harness, chatId, experience);
   let fillSession: HarnessAgentSession | undefined;
   if (isFillRequest(last)) {
     const pending = sessions.get(key);
@@ -243,7 +260,10 @@ export async function handleChat(
 
   const snapshot: ViewerSnapshot =
     body.viewer ?? emptySnapshot(body.viewerFile ?? "");
-  const stamped = kind === "fill" ? last : stampUser(last, snapshot);
+  const stamped =
+    kind === "fill" || experience === "device"
+      ? last
+      : stampUser(last, snapshot);
   const history = body.messages.slice(0, -1);
   const live = [...history, last];
 
@@ -261,12 +281,9 @@ export async function handleChat(
                 rememberOpenedFile(file, root);
                 writer.write({ type: "data-viewer", data: { file } });
               },
-              showDevice: (device) => {
-                writer.write({ type: "data-device", data: { device } });
-              },
             },
             async () => {
-              const agent = getAgent(harness, effort, root);
+              const agent = getAgent(harness, effort, root, experience);
               let lost = false;
               if (kind === "fill") {
                 session = fillSession;
@@ -275,7 +292,8 @@ export async function handleChat(
                   root,
                   harness,
                   chatId,
-                  effort
+                  effort,
+                  experience
                 );
                 session = resolved.session;
                 lost = resolved.lostContext;

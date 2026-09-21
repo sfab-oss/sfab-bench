@@ -9,7 +9,6 @@ type ViewerStore = {
   file: string;
   snapshot: ViewerSnapshot;
   show: (file: string) => void;
-  showDevice?: (path: string) => void;
 };
 
 const als = new AsyncLocalStorage<ViewerStore>();
@@ -22,10 +21,6 @@ export function projectRoot(): { root: string } | { error: string } {
   const root = als.getStore()?.root;
   if (!root) return { error: "no project open" };
   return { root };
-}
-
-export function showDeviceOnClient(path: string) {
-  als.getStore()?.showDevice?.(path);
 }
 
 export function viewerFileUrl(path: string) {

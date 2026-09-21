@@ -1,13 +1,24 @@
+import type { CatalogEntry } from "@sfab-bench/contract";
+
 import { shortcutTooltip } from "./shortcuts";
 
 export const FILE_TREE_EXPANSION_KEY = "sfab-bench.file-tree-expansion";
 
-export type CatalogKindFilter = "all" | "step" | "glb" | "firmware";
+export type CatalogKindFilter = "all" | "step" | "glb";
+
+/** CAD screens never list a firmware image. Device screens list only those. */
+export function cadCatalog(files: CatalogEntry[]): CatalogEntry[] {
+  return files.filter((file) => file.kind !== "firmware");
+}
+
+export function deviceCatalog(files: CatalogEntry[]): CatalogEntry[] {
+  return files.filter((file) => file.kind === "firmware");
+}
 
 export type CatalogEmptyReason =
   | { type: "ready" }
   | { type: "no-cad" }
-  | { type: "kind"; kind: Exclude<CatalogKindFilter, "all"> }
+  | { type: "kind"; kind: "step" | "glb" }
   | { type: "search" };
 
 export function filesRailToggleTitle(

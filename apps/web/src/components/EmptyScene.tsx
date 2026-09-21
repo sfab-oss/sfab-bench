@@ -1,3 +1,4 @@
+import { firmwareChip } from "@sfab-bench/contract";
 import { Lockup } from "@/components/brand/Lockup";
 import {
   type OpenFolderApi,
@@ -7,6 +8,7 @@ import {
   WelcomeFolders,
 } from "@/components/OpenFolder";
 import { Button } from "@/components/ui/button";
+
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { filesRailToggleTitle } from "@/lib/files-rail";
 import { isMacPlatform } from "@/lib/shortcuts";
@@ -101,7 +103,7 @@ export function EmptyScene({
                 Show files
               </Button>
               <RecentFiles
-                recents={fileRecents}
+                recents={fileRecents.filter((path) => !firmwareChip(path))}
                 onPick={(path) => void setDoc(path)}
               />
             </>

@@ -2,6 +2,7 @@ import { DefaultChatTransport } from "ai";
 
 import { viewerSnapshot } from "@/cad/viewer-snapshot";
 import { apiFetch, authHeaders } from "@/lib/api";
+import { experience } from "@/lib/experience";
 import { store } from "@/state/store";
 
 export function viewerChatTransport() {
@@ -12,6 +13,7 @@ export function viewerChatTransport() {
     body: () => ({
       viewerFile: store.getState().url,
       viewer: viewerSnapshot(),
+      experience: experience(),
       harness: store.getState().chatHarness,
       model: store.getState().chatModel,
       effort: store.getState().chatEffort,

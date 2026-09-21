@@ -14,7 +14,6 @@ import {
   findPendingAskUserQuestions,
 } from "@/chat/ask-user-questions";
 import { mapChatErrorMessage } from "@/chat/composer-recovery";
-import { findPendingGetDevice } from "@/chat/device-tools";
 import { findPendingGetViewer } from "@/chat/get-viewer";
 import { finishPersistMessages } from "@/chat/persist-thread";
 import { useLiveDeviceTools } from "@/chat/useLiveDeviceTools";
@@ -109,7 +108,6 @@ function XrChatSessionRuntime({
   const busy = status === "submitted" || status === "streaming";
   const pendingAsk = findPendingAskUserQuestions(messages);
   const pendingViewer = findPendingGetViewer(messages);
-  const pendingDevice = findPendingGetDevice(messages);
   const fillSuspendedTurn = useCallback(() => {
     void sendMessage();
   }, [sendMessage]);
@@ -123,9 +121,10 @@ function XrChatSessionRuntime({
     messages as GalleryChatMessage[],
     addToolOutput,
     busy,
-    fillSuspendedTurn
+    fillSuspendedTurn,
+    false
   );
-  busyRef.current = busy || pendingViewer !== null || pendingDevice !== null;
+  busyRef.current = busy || pendingViewer !== null;
 
   const send = useCallback(() => {
     const text = draft.trim();
@@ -182,7 +181,7 @@ function XrChatSessionRuntime({
   });
 
   useEffect(() => {
-    const waiting = busy || pendingViewer !== null || pendingDevice !== null;
+    const waiting = busy || pendingViewer !== null;
     const phase = waiting
       ? status === "streaming"
         ? "streaming"
@@ -190,7 +189,7 @@ function XrChatSessionRuntime({
       : "idle";
     store.getState().setXrChatPhase(phase);
     return () => store.getState().setXrChatPhase("idle");
-  }, [busy, pendingDevice, pendingViewer, status]);
+  }, [busy, pendingViewer, status]);
   useEffect(() => {
     const last = [...messages].reverse().find((m) => m.role === "assistant");
     setXrChatChars(
@@ -201,7 +200,7 @@ function XrChatSessionRuntime({
 
   const value: XrChatRuntime = {
     messages: messages as GalleryChatMessage[],
-    busy: busy || pendingViewer !== null || pendingDevice !== null,
+    busy: busy || pendingViewer !== null,
     status,
     error,
     draft,

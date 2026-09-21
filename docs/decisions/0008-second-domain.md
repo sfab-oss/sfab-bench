@@ -34,13 +34,14 @@ documents. Bench still does not learn which tool wrote the file. The
 tool writes `firmware.bin`. The file you open is the one placed under
 the suffix.
 
-**The console sits under the viewport.** `?file=` stays the CAD
-document. `?device=` is a second per-tab parameter naming the image
-([ADR 0003](0003-library-not-viewport.md),
-[ADR 0006](0006-folder-is-a-tab.md)). Setting `?device=` does not clear
-`?file=`. With no STEP open, the viewport is the empty scene and the
-console still shows. The console is desktop-only. Quest keeps the CAD
-world.
+**CAD and Device are two screens.** The default screen is CAD: STEP and
+GLB, the viewport, `get_viewer` and `show_artifact`. Device is desktop
+only: `.<chip>.bin` files and the serial console as the screen, with
+`get_device`, `run_firmware`, `read_serial`, and `send_serial`. `?file=`
+is the CAD document. `?device=` is the firmware image. One screen does
+not read the other's document. Both may stay in the URL so switching
+back restores the previous file. Putting them on one screen, and
+binding telemetry to a CAD part, is deferred. Quest stays CAD.
 
 **One running machine per document.** The key is the project plus the
 project-relative image path. Every tab with that `?device=`, and the
@@ -97,8 +98,9 @@ this shape instead of reopening it.
 - `apps/server/src/emu/` — pinned esp-emu on a worker, one machine per
   document. `apps/server/src/emu.selfcheck.ts` boots the committed
   MicroPython C3 image to `>>>`.
-- The catalog lists the suffix. Desktop `?device=` opens the console
-  under the viewport. The `.app` does not copy the wasm.
+- The catalog lists the suffix. CAD screens show STEP and GLB. The
+  device screen shows the suffix and the console. The `.app` does not
+  copy the wasm.
 
 ## Related
 

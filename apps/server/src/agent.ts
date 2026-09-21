@@ -9,7 +9,14 @@ import {
   type HarnessId,
 } from "@sfab-bench/contract";
 import { z } from "zod";
-import { AGENT_IDENTITY } from "./agent-identity";
+import { AGENT_IDENTITY, DEVICE_IDENTITY } from "./agent-identity";
+
+export type BenchExperience = "cad" | "device";
+
+export function benchExperience(value: unknown): BenchExperience {
+  return value === "device" ? "device" : "cad";
+}
+
 import { deviceTools } from "./device-tools";
 import { createLocalSandbox } from "./local-sandbox";
 import { viewerTools } from "./viewer-context";
@@ -47,11 +54,17 @@ export function harnessAdapter(id: HarnessId, effort: ChatEffort = "default") {
   });
 }
 
-function makeAgent(id: HarnessId, effort: ChatEffort, root: string) {
+function makeAgent(
+  id: HarnessId,
+  effort: ChatEffort,
+  root: string,
+  experience: BenchExperience
+) {
+  const device = experience === "device";
   const shared = {
     sandbox: createLocalSandbox(root),
-    tools: { ...viewerTools, ...deviceTools },
-    instructions: AGENT_IDENTITY,
+    tools: device ? deviceTools : viewerTools,
+    instructions: device ? DEVICE_IDENTITY : AGENT_IDENTITY,
     permissionMode: "allow-all" as const,
     callOptionsSchema: callOptions,
     prepareCall: ({ options, ...rest }: { options: { model: string } }) => ({
@@ -63,7 +76,7 @@ function makeAgent(id: HarnessId, effort: ChatEffort, root: string) {
 
   if (id === "codex") {
     return new HarnessAgent({
-      id: `sfab-codex-${effort}`,
+      id: `sfab-codex-${effort}${device ? "-device" : ""}`,
       harness,
       model: DEFAULT_HARNESS_MODEL.codex,
       ...shared,
@@ -71,7 +84,7 @@ function makeAgent(id: HarnessId, effort: ChatEffort, root: string) {
   }
   if (id === "cursor") {
     return new HarnessAgent({
-      id: "sfab-cursor",
+      id: device ? "sfab-cursor-device" : "sfab-cursor",
       harness,
       model: DEFAULT_HARNESS_MODEL.cursor,
       ...shared,
@@ -79,14 +92,14 @@ function makeAgent(id: HarnessId, effort: ChatEffort, root: string) {
   }
   if (id === "grok-build") {
     return new HarnessAgent({
-      id: `sfab-grok-build-${effort}`,
+      id: `sfab-grok-build-${effort}${device ? "-device" : ""}`,
       harness,
       model: DEFAULT_HARNESS_MODEL["grok-build"],
       ...shared,
     });
   }
   return new HarnessAgent({
-    id: `sfab-opencode-${effort}`,
+    id: `sfab-opencode-${effort}${device ? "-device" : ""}`,
     harness,
     model: process.env.OPENCODE_MODEL ?? DEFAULT_HARNESS_MODEL.opencode,
     ...shared,
@@ -97,15 +110,26 @@ type AnyAgent = ReturnType<typeof makeAgent>;
 
 const agents = new Map<string, AnyAgent>();
 
-function agentKey(id: HarnessId, effort: ChatEffort, root: string) {
-  return id === "cursor" ? `${root}:${id}` : `${root}:${id}:${effort}`;
+function agentKey(
+  id: HarnessId,
+  effort: ChatEffort,
+  root: string,
+  experience: BenchExperience
+) {
+  const base = id === "cursor" ? `${root}:${id}` : `${root}:${id}:${effort}`;
+  return `${base}:${experience}`;
 }
 
-export function getAgent(id: HarnessId, effort: ChatEffort, root: string) {
-  const key = agentKey(id, effort, root);
+export function getAgent(
+  id: HarnessId,
+  effort: ChatEffort,
+  root: string,
+  experience: BenchExperience = "cad"
+) {
+  const key = agentKey(id, effort, root, experience);
   let agent = agents.get(key);
   if (!agent) {
-    agent = makeAgent(id, effort, root);
+    agent = makeAgent(id, effort, root, experience);
     agents.set(key, agent);
   }
   return agent;

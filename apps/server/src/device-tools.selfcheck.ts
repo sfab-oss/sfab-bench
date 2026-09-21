@@ -35,7 +35,6 @@ const fixture = fileURLToPath(
 );
 const root = mkdtempSync(join(tmpdir(), "sfab-device-tools-"));
 const rel = "firmware.esp32c3.bin";
-const shown: string[] = [];
 try {
   copyFileSync(fixture, join(root, rel));
   await runViewerContext(
@@ -44,7 +43,6 @@ try {
       file: "",
       snapshot: emptySnapshot(),
       show: () => {},
-      showDevice: (path) => shown.push(path),
     },
     async () => {
       const opened = await deviceTools.run_firmware.execute!(
@@ -59,8 +57,6 @@ try {
         opened && "chip" in opened && opened.chip === "esp32c3",
         "run_firmware names the chip"
       );
-      expect(shown[0] === rel, "run_firmware shows the console on this tab");
-
       const deadline = Date.now() + 20_000;
       let text = "";
       let next = 0;

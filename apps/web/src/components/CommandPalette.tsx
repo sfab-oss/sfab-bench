@@ -44,10 +44,12 @@ export function CommandPalette({
   folder,
   compactChat,
   catalogFiles,
+  currentPath,
 }: {
   folder: OpenFolderApi;
   compactChat: boolean;
   catalogFiles: CatalogEntry[];
+  currentPath: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -58,9 +60,8 @@ export function CommandPalette({
   const activeRowRef = useRef<HTMLButtonElement | null>(null);
   const { setTheme } = useTheme();
   const { project, setDoc } = useProjectSession();
-  const { url, treeOpen, chatOpen, compactChatOpen } = useStore(
+  const { treeOpen, chatOpen, compactChatOpen } = useStore(
     useShallow((s) => ({
-      url: s.url,
       treeOpen: s.treeOpen,
       chatOpen: s.chatOpen,
       compactChatOpen: s.compactChatOpen,
@@ -84,7 +85,7 @@ export function CommandPalette({
       files: catalogFiles.map((file) => ({
         name: folderName(file.path),
         path: file.path,
-        current: file.path === url,
+        current: file.path === currentPath,
       })),
       folders: folder.recents
         .filter((row) => row.path !== currentPath)
@@ -103,7 +104,7 @@ export function CommandPalette({
     treeOpen,
     chatVisible,
     catalogFiles,
-    url,
+    currentPath,
   ]);
 
   const items = useMemo(

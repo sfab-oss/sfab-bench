@@ -1,4 +1,4 @@
-import { AGENT_IDENTITY } from "./agent-identity";
+import { AGENT_IDENTITY, DEVICE_IDENTITY } from "./agent-identity";
 import { viewerTools } from "./viewer-context";
 
 function expect(cond: boolean, label: string) {
@@ -16,8 +16,12 @@ expect(
 
 expect(AGENT_IDENTITY.includes("drop a STEP"), "identity: drop STEP");
 expect(
-  AGENT_IDENTITY.includes("run_firmware"),
-  "identity names the firmware runner"
+  !AGENT_IDENTITY.includes("run_firmware"),
+  "CAD identity does not name the device tools"
+);
+expect(
+  DEVICE_IDENTITY.includes("run_firmware"),
+  "device identity names the runner"
 );
 expect(
   !/cad skill|earthtojake/i.test(AGENT_IDENTITY),
