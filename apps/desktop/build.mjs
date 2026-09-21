@@ -61,3 +61,13 @@ await build({
   format: "esm",
   external: runtimeDeps,
 });
+
+// Emitted so a bundled server can spawn it. package.mjs does not copy this
+// file or vendor/esp-emu into the .app. ADR 0008 leaves that packaging choice open.
+await build({
+  ...common,
+  entryPoints: ["../server/src/emu/worker.ts"],
+  outfile: "../server/dist/emu-worker.mjs",
+  format: "esm",
+  external: runtimeDeps,
+});

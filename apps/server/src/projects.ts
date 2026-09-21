@@ -16,7 +16,7 @@ import {
   resolve,
   sep,
 } from "node:path";
-import type { CatalogEntry } from "@sfab-bench/contract";
+import { type CatalogEntry, firmwareChip } from "@sfab-bench/contract";
 import { db } from "./db";
 
 const STEP_RE = /\.(step|stp)$/i;
@@ -144,10 +144,13 @@ function walk(dir: string, root: string, acc: CatalogEntry[]) {
       continue;
     }
     if (!ent.isFile()) continue;
+    const rel = posixRel(root, join(dir, ent.name));
     if (STEP_RE.test(ent.name)) {
-      acc.push({ path: posixRel(root, join(dir, ent.name)), kind: "step" });
+      acc.push({ path: rel, kind: "step" });
     } else if (GLB_RE.test(ent.name) && !/\.raw\.(glb|gltf)$/i.test(ent.name)) {
-      acc.push({ path: posixRel(root, join(dir, ent.name)), kind: "glb" });
+      acc.push({ path: rel, kind: "glb" });
+    } else if (firmwareChip(ent.name)) {
+      acc.push({ path: rel, kind: "firmware" });
     }
   }
 }

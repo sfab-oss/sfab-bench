@@ -94,9 +94,11 @@ this shape instead of reopening it.
 
 - `packages/contract/src/device.ts` — `firmwareChip`, `DeviceMachine`.
 - `apps/server/src/device.selfcheck.ts` — the suffix cases above.
-- The catalog walk still lists STEP and GLB only. `?device=`, the
-  console, and the worker are later rows. This ADR does not open an
-  image.
+- `apps/server/src/emu/` — pinned esp-emu on a worker, one machine per
+  document. `apps/server/src/emu.selfcheck.ts` boots the committed
+  MicroPython C3 image to `>>>`.
+- The catalog lists the suffix. Desktop `?device=` opens the console
+  under the viewport. The `.app` does not copy the wasm.
 
 ## Related
 

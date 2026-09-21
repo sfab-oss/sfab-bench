@@ -108,6 +108,8 @@ writeFileSync(
 for (const file of ["main.cjs", "preload.cjs"]) {
   cpSync(join(here, "dist", file), join(next, file));
 }
+// The emulator worker and its wasm stay out of this copy list. ADR 0008.
+// package.selfcheck asserts the list.
 for (const file of ["api.mjs", "occt-worker.mjs"]) {
   cpSync(join(here, "..", "server", "dist", file), join(next, file));
 }

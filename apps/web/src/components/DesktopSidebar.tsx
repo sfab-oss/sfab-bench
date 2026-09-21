@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/sidebar";
 import { WorkbenchSettings } from "@/components/WorkbenchSettings";
 import type { CatalogState } from "@/hooks/useCatalog";
+import { useDevicePath } from "@/hooks/useDevicePath";
 import { useProjectSession } from "@/hooks/useProjectSession";
 import { commandPaletteShortcutLabel } from "@/lib/command-palette";
 import { filesRailToggleTitle } from "@/lib/files-rail";
@@ -61,6 +62,7 @@ export function DesktopSidebar({
     typeof navigator === "undefined" ? "" : navigator.platform,
     typeof navigator === "undefined" ? "" : navigator.userAgent
   );
+  const device = useDevicePath();
   const { toggleSidebar } = useSidebar();
   const filesTitle = filesRailToggleTitle(mac);
 
@@ -134,6 +136,7 @@ export function DesktopSidebar({
             projectPath={project.path}
             files={files}
             current={url}
+            device={device}
             filter={filter}
             recents={recentFiles}
             error={error}

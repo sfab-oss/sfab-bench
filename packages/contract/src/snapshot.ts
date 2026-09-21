@@ -1,3 +1,5 @@
+import { firmwareChip } from "./device";
+
 /** Shared viewer context for get_viewer / catalog. Client and server both import this. */
 
 export type ViewerTreeItem = {
@@ -16,7 +18,7 @@ export type ViewerSnapshot = {
 
 export type CatalogEntry = {
   path: string;
-  kind: "step" | "glb";
+  kind: "step" | "glb" | "firmware";
 };
 
 export function emptySnapshot(file = ""): ViewerSnapshot {
@@ -32,6 +34,7 @@ export function emptySnapshot(file = ""): ViewerSnapshot {
 
 export function catalogLabel(path: string): string {
   const name = path.split("/").filter(Boolean).pop() ?? path;
+  if (firmwareChip(name)) return name.replace(/\.([a-z0-9]+)\.bin$/i, "");
   return name.replace(/\.(step|stp|glb|gltf)$/i, "");
 }
 
@@ -43,7 +46,9 @@ export function catalogFolder(path: string): string | null {
 }
 
 export function catalogKindLabel(kind: CatalogEntry["kind"]): string {
-  return kind === "glb" ? "GLB" : "STEP";
+  if (kind === "glb") return "GLB";
+  if (kind === "firmware") return "Firmware";
+  return "STEP";
 }
 
 export function flattenCatalog(files: CatalogEntry[]): CatalogEntry[] {

@@ -2,12 +2,12 @@ import { shortcutTooltip } from "./shortcuts";
 
 export const FILE_TREE_EXPANSION_KEY = "sfab-bench.file-tree-expansion";
 
-export type CatalogKindFilter = "all" | "step" | "glb";
+export type CatalogKindFilter = "all" | "step" | "glb" | "firmware";
 
 export type CatalogEmptyReason =
   | { type: "ready" }
   | { type: "no-cad" }
-  | { type: "kind"; kind: "step" | "glb" }
+  | { type: "kind"; kind: Exclude<CatalogKindFilter, "all"> }
   | { type: "search" };
 
 export function filesRailToggleTitle(

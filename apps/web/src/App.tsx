@@ -25,6 +25,7 @@ import { BrowseFolderDialog, useOpenFolder } from "@/components/OpenFolder";
 import { PairPage } from "@/components/PairPage";
 import { PartTree } from "@/components/PartTree";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
+import { SerialConsole } from "@/components/SerialConsole";
 import { Toolbar } from "@/components/Toolbar";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +37,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ToastProvider, Toasts } from "@/components/ui/toast";
 import { useCanvasFit } from "@/hooks/useCanvasFit";
 import { type CatalogState, useCatalog } from "@/hooks/useCatalog";
+import { useDevicePath } from "@/hooks/useDevicePath";
 import { useMotionReady } from "@/hooks/useMotionReady";
 import {
   ProjectSessionProvider,
@@ -422,6 +424,7 @@ function Overlay({
 
 function ViewerShell({ host }: { host: boolean }) {
   const session = useXrSession();
+  const device = useDevicePath();
   const treeOpen = useStore((s) => s.treeOpen);
   const setTreeOpen = useStore((s) => s.setTreeOpen);
   const url = useStore((s) => s.url);
@@ -478,7 +481,7 @@ function ViewerShell({ host }: { host: boolean }) {
       {!session ? (
         <DesktopSidebar catalog={catalog} host={host} folder={folder} />
       ) : null}
-      <SidebarInset className="min-h-0 overflow-hidden">
+      <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
         <div
           ref={canvasRef}
           className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
@@ -502,6 +505,7 @@ function ViewerShell({ host }: { host: boolean }) {
             folder={folder}
           />
         </div>
+        {!session && device ? <SerialConsole path={device} /> : null}
       </SidebarInset>
       {!session && hasProject ? (
         <RenderErrorBoundary

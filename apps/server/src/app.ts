@@ -17,6 +17,7 @@ import {
   shownUrl,
 } from "./cad-pkg";
 import { handleChat } from "./chat";
+import { openDevice, readSerial, sendSerial } from "./emu/host";
 import { listHarnesses } from "./harnesses";
 import { listOpenCodeModels } from "./models";
 import {
@@ -98,6 +99,16 @@ function denyLoopback(c: {
   if (c.get("principal").kind === "loopback") return null;
   return c.json({ error: "only for this Mac" }, 403);
 }
+
+const devicePathSchema = z.object({ path: z.string().min(1) });
+const deviceReadSchema = z.object({
+  path: z.string().min(1),
+  from: z.number().int().nonnegative().optional(),
+});
+const deviceWriteSchema = z.object({
+  path: z.string().min(1),
+  text: z.string().max(1024),
+});
 
 function denyNoProject(c: {
   get: (key: "projectRoot") => string | undefined;
@@ -322,6 +333,32 @@ export const api = new Hono<AppEnv>()
   })
   .post("/transcribe", async (c) => {
     return handleTranscribe(c.req.raw);
+  })
+  .post("/device/open", zValidator("json", devicePathSchema), async (c) => {
+    const denied = denyNoProject(c);
+    if (denied) return denied;
+    const opened = await openDevice(
+      c.get("projectRoot")!,
+      c.req.valid("json").path
+    );
+    if ("error" in opened) return c.json(opened, 400);
+    return c.json(opened);
+  })
+  .post("/device/serial", zValidator("json", deviceReadSchema), (c) => {
+    const denied = denyNoProject(c);
+    if (denied) return denied;
+    const body = c.req.valid("json");
+    const read = readSerial(c.get("projectRoot")!, body.path, body.from);
+    if ("error" in read) return c.json(read, 400);
+    return c.json(read);
+  })
+  .post("/device/input", zValidator("json", deviceWriteSchema), (c) => {
+    const denied = denyNoProject(c);
+    if (denied) return denied;
+    const body = c.req.valid("json");
+    const sent = sendSerial(c.get("projectRoot")!, body.path, body.text);
+    if ("error" in sent) return c.json(sent, 400);
+    return c.json(sent);
   })
   .on(["GET", "HEAD"], "/cad-pkg/*", async (c) => {
     const denied = denyNoProject(c);
