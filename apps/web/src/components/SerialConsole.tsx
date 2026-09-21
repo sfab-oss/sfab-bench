@@ -129,19 +129,25 @@ export function SerialConsole({ path }: { path: string }) {
         onSubmit={(event) => {
           event.preventDefault();
           const next = line;
-          if (!next) return;
+          if (!next || error) return;
           setLine("");
           void jsonApi.device.input.$post({ json: { path, text: next } });
         }}
       >
         <input
-          className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           aria-label="Serial input"
           value={line}
           placeholder="Send a line"
+          disabled={error !== null}
           onChange={(event) => setLine(event.target.value)}
         />
-        <Button type="submit" size="sm" variant="secondary">
+        <Button
+          type="submit"
+          size="sm"
+          variant="secondary"
+          disabled={error !== null}
+        >
           Send
         </Button>
       </form>
