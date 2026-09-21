@@ -62,7 +62,7 @@ and `.claude/skills/release` symlink the skills above.
 
 ## Conventions
 
-- Project = a directory. Document = a STEP or GLB in it. Agent cwd = that directory.
+- Project = a directory. Document = a STEP, a GLB, or a firmware image named `.<chip>.bin` ([ADR 0008](docs/decisions/0008-second-domain.md)). The catalog still walks STEP and GLB until the device loader lands. Agent cwd = that directory.
 - Tessellation is a loader, not a project adapter. It is OCCT WASM in the API process, and the only one ([ADR 0002](docs/decisions/0002-step-loader-occt.md), [ADR 0004](docs/decisions/0004-occt-via-opencascade-js.md)).
 - Loopback is trusted. Anything else on `/api` needs pairing.
 - Electron is a shell: same server, same `https://127.0.0.1:7322` page, plus a native folder dialog. `apps/web` never imports from it ([ADR 0005](docs/decisions/0005-electron-shell.md)).

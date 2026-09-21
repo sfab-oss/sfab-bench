@@ -11,8 +11,12 @@ Product calls and ranked next: [`product.md`](product.md).
 - **Server** is global. It does not live inside a CAD repo.
 - **Project** = a directory on the Mac (git or not). Recorded as
   `{ path, lastFile, openedAt }`.
-- **Document** = a STEP or GLB inside that directory. Recursive walk,
-  skipping `node_modules`, `.git`, and cache dirs.
+- **Document** = a STEP or GLB inside that directory, and a firmware
+  image whose name ends in `.<chip>.bin`
+  ([ADR 0008](decisions/0008-second-domain.md)). The catalog walk still
+  lists STEP and GLB only. The suffix rule lives in
+  `@sfab-bench/contract` (`firmwareChip`). Recursive walk, skipping
+  `node_modules`, `.git`, and cache dirs.
 - **Agent cwd** = the project directory. Skills and kernels belong to
   the folder, not to this app. Harness adapters keep `.harness-bootstrap`
   and session dirs under `~/.sfab-bench/harness/`, not in that folder.

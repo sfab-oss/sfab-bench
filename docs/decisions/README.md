@@ -13,3 +13,4 @@ Use [`template.md`](template.md) (SFab 4-digit). Prefer a short note in
 | [0005-electron-shell](0005-electron-shell.md) | Electron is a shell around the same server and the same page |
 | [0006-folder-is-a-tab](0006-folder-is-a-tab.md) | The folder is a tab's choice, not the process's |
 | [0007-harness-chat-fill](0007-harness-chat-fill.md) | Chat continue is fill vs prompt from the live session, not the UI-tool helper |
+| [0008-second-domain](0008-second-domain.md) | A firmware image is a document, beside STEP and GLB |
