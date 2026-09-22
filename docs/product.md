@@ -72,8 +72,8 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 16 | later | ship-02 — `sfab-bench app [dir]`, binary inside the `.app`, "Open at login". Not until the `.app` sits in `/Applications` and launches from the Dock |
 | 17 | later | IWER in the packaged `.app`: confirm the zip does not ship or inject IWER; a future marketing-demo force-install must not leak into Quest LAN or the `.app`. |
 | 18 | **done** | First-run: README + Welcome + user doc point at [sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter), which vendors Jake `$cad` and a project Bench skill. No in-app clone. |
-| 19 | **done** | Second domain ([ADR 0008](decisions/0008-second-domain.md)). A firmware image named `.<chip>.bin` is a document. First chip `esp32c3`. Console under the viewport via `?device=`, beside `?file=`. One running machine per document, shared by tabs and the agent. |
-| 20 | **done** | Open a `.<chip>.bin` on esp-emu v0.43.0 (worker thread, checksum checked). Serial console under the viewport on desktop. The MicroPython C3 image is a committed fixture and the selfcheck boots it to `>>>`. The binary is not in the `.app`. |
+| 19 | **done** | Second domain ([ADR 0008](decisions/0008-second-domain.md)). A firmware image named `.<chip>.bin` is a document. First chip `esp32c3`. CAD and Device are separate screens. One running machine per document, shared by tabs and the agent. |
+| 20 | **done** | Open a `.<chip>.bin` on esp-emu v0.43.0 (worker thread, checksum checked). The serial console is the Device screen, desktop only. The MicroPython C3 image is a committed fixture and the selfcheck boots it to `>>>`. The binary is not in the `.app`. |
 | 21 | **done** | Agent tools `get_device`, `run_firmware`, `read_serial`, `send_serial`. `get_device` is this tab, like `get_viewer`. The other three run on the server and share the one machine. |
 | 22 | later | Real board. The server owns the serial port. Same four tools. |
 | 23 | later | Telemetry lines bound to a CAD occurrence, shown on Quest. |

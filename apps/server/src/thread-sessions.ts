@@ -8,10 +8,11 @@ export const THREAD_SESSIONS_DDL = `
   CREATE TABLE IF NOT EXISTS thread_sessions (
     thread_id  TEXT NOT NULL,
     harness    TEXT NOT NULL,
+    experience TEXT NOT NULL DEFAULT 'cad',
     state      TEXT NOT NULL,
     native_id  TEXT,
     updated_at INTEGER NOT NULL,
-    PRIMARY KEY (thread_id, harness)
+    PRIMARY KEY (thread_id, harness, experience)
   );
 `;
 
@@ -23,8 +24,41 @@ export type ResumePayload = {
   continueFrom?: unknown;
 };
 
+function threadSessionsHasExperience(db: DatabaseSync): boolean {
+  const cols = db.prepare("PRAGMA table_info(thread_sessions)").all() as {
+    name: string;
+  }[];
+  return cols.some((col) => col.name === "experience");
+}
+
 export function applyThreadSessionsSchema(db: DatabaseSync) {
-  db.exec(THREAD_SESSIONS_DDL);
+  const existing = db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'thread_sessions'"
+    )
+    .get();
+  if (!existing) {
+    db.exec(THREAD_SESSIONS_DDL);
+    return;
+  }
+  if (threadSessionsHasExperience(db)) return;
+  db.exec(`
+    CREATE TABLE thread_sessions_next (
+      thread_id  TEXT NOT NULL,
+      harness    TEXT NOT NULL,
+      experience TEXT NOT NULL DEFAULT 'cad',
+      state      TEXT NOT NULL,
+      native_id  TEXT,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (thread_id, harness, experience)
+    );
+    INSERT INTO thread_sessions_next
+      (thread_id, harness, experience, state, native_id, updated_at)
+    SELECT thread_id, harness, 'cad', state, native_id, updated_at
+    FROM thread_sessions;
+    DROP TABLE thread_sessions;
+    ALTER TABLE thread_sessions_next RENAME TO thread_sessions;
+  `);
 }
 
 export function stripResumeCredentials<T>(payload: T): T {
@@ -120,24 +154,28 @@ export function saveThreadSession(
     threadId: string;
     workspace: string;
     harness: string;
+    experience?: string;
     state: unknown;
     nativeId: string | null;
   }
 ): boolean {
+  const experience = args.experience === "device" ? "device" : "cad";
   const existing = db
     .prepare("SELECT id FROM threads WHERE id = ? AND workspace = ?")
     .get(args.threadId, args.workspace);
   if (!existing) return false;
   db.prepare(
-    `INSERT INTO thread_sessions (thread_id, harness, state, native_id, updated_at)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(thread_id, harness) DO UPDATE SET
+    `INSERT INTO thread_sessions
+       (thread_id, harness, experience, state, native_id, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(thread_id, harness, experience) DO UPDATE SET
        state = excluded.state,
        native_id = excluded.native_id,
        updated_at = excluded.updated_at`
   ).run(
     args.threadId,
     args.harness,
+    experience,
     JSON.stringify(args.state),
     args.nativeId,
     Date.now()
@@ -148,13 +186,16 @@ export function saveThreadSession(
 export function loadThreadSession(
   db: DatabaseSync,
   threadId: string,
-  harness: string
+  harness: string,
+  experience = "cad"
 ): { state: unknown; native_id: string | null } | null {
+  const screen = experience === "device" ? "device" : "cad";
   const row = db
     .prepare(
-      "SELECT state, native_id FROM thread_sessions WHERE thread_id = ? AND harness = ?"
+      `SELECT state, native_id FROM thread_sessions
+       WHERE thread_id = ? AND harness = ? AND experience = ?`
     )
-    .get(threadId, harness) as
+    .get(threadId, harness, screen) as
     | { state: string; native_id: string | null }
     | undefined;
   if (!row) return null;
@@ -164,9 +205,12 @@ export function loadThreadSession(
 export function dropThreadSession(
   db: DatabaseSync,
   threadId: string,
-  harness: string
+  harness: string,
+  experience = "cad"
 ) {
+  const screen = experience === "device" ? "device" : "cad";
   db.prepare(
-    "DELETE FROM thread_sessions WHERE thread_id = ? AND harness = ?"
-  ).run(threadId, harness);
+    `DELETE FROM thread_sessions
+     WHERE thread_id = ? AND harness = ? AND experience = ?`
+  ).run(threadId, harness, screen);
 }

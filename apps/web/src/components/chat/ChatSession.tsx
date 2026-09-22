@@ -204,10 +204,8 @@ export function ChatSession({
   const pendingViewer = findPendingGetViewer(messages);
   const pendingDevice = findPendingGetDevice(messages);
   const deviceMode = useExperience() === "device";
-  const live =
-    busy ||
-    (!deviceMode && pendingViewer !== null) ||
-    (deviceMode && pendingDevice !== null);
+  const toolPending = pendingViewer !== null || pendingDevice !== null;
+  const live = busy || toolPending;
   const loadingModel = pendingViewer !== null || progress !== null;
   const abortWorkspaceTurn = useCallback(() => {
     stop();
@@ -394,12 +392,9 @@ export function ChatSession({
         </MessageScroller>
       </MessageScrollerProvider>
       <GalleryChatInput
-        canStop={
-          (!deviceMode && pendingViewer !== null) ||
-          (deviceMode && pendingDevice !== null)
-        }
-        loadingModel={loadingModel}
-        modelLoaded={Boolean(url) && progress === null}
+        canStop={toolPending}
+        loadingModel={deviceMode ? false : loadingModel}
+        modelLoaded={deviceMode ? false : Boolean(url) && progress === null}
         onAnswerAskUser={onAnswerAskUser}
         onStop={abortWorkspaceTurn}
         onSubmit={onSubmit}

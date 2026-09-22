@@ -266,9 +266,13 @@ export function FileTree({
   emptyLabel?: string;
 }) {
   const [kind, setKind] = useState<CatalogKindFilter>("all");
+  const activeKind = kinds ? kind : "all";
   const listed = useMemo(
-    () => (kind === "all" ? files : files.filter((file) => file.kind === kind)),
-    [files, kind]
+    () =>
+      activeKind === "all"
+        ? files
+        : files.filter((file) => file.kind === activeKind),
+    [files, activeKind]
   );
   const tree = useMemo(
     () => filterCatalogTree(catalogTree(listed), filter),
@@ -276,10 +280,10 @@ export function FileTree({
   );
   const recentRows = useMemo(
     () =>
-      filter.trim() || kind !== "all"
+      filter.trim() || activeKind !== "all"
         ? []
         : catalogSections(files, recents ?? []).recents,
-    [files, recents, filter, kind]
+    [files, recents, filter, activeKind]
   );
   const { expanded, toggle, collapseAll } = useFileTreeExpansion(
     projectPath,

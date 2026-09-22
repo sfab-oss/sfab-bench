@@ -75,11 +75,11 @@ export function CommandPalette({
 
   const commands = useMemo(() => {
     if (!open) return EMPTY_COMMANDS;
-    const currentPath = project.path;
+    const folderPath = project.path;
     return buildCommands({
       mac,
       canOpenFolder: folder.canRegister,
-      hasProject: Boolean(currentPath),
+      hasProject: Boolean(folderPath),
       filesOpen: treeOpen,
       chatOpen: chatVisible,
       files: catalogFiles.map((file) => ({
@@ -88,7 +88,7 @@ export function CommandPalette({
         current: file.path === currentPath,
       })),
       folders: folder.recents
-        .filter((row) => row.path !== currentPath)
+        .filter((row) => row.path !== folderPath)
         .map((row) => ({
           name: row.name || folderName(row.path),
           path: row.path,

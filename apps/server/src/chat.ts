@@ -120,12 +120,12 @@ async function sessionFor(
   const pending = sessions.get(key);
   if (pending) return { session: await pending, lostContext: false };
 
-  const stored = loadThreadSession(chatId, harness);
+  const stored = loadThreadSession(chatId, harness, experience);
   let resumeFrom: HarnessAgentResumeSessionState | undefined;
   let lost = false;
   if (stored) {
     if (!isResumePayload(stored.state)) {
-      dropThreadSession(chatId, harness);
+      dropThreadSession(chatId, harness, experience);
       lost = true;
     } else {
       resumeFrom = stored.state as HarnessAgentResumeSessionState;
@@ -146,7 +146,7 @@ async function sessionFor(
       );
     } catch (err) {
       if (!isUnusableResumeError(err)) throw err;
-      dropThreadSession(chatId, harness);
+      dropThreadSession(chatId, harness, experience);
       lost = true;
       return createLiveSession(root, harness, chatId, effort, experience);
     }
@@ -364,8 +364,15 @@ export async function handleChat(
           }
           const stripped = stripResumeCredentials(payload);
           const nextNative = nativeIdFromResume(harness, stripped);
-          const prev = loadThreadSession(chatId, harness);
-          saveThreadSession(chatId, root, harness, stripped, nextNative);
+          const prev = loadThreadSession(chatId, harness, experience);
+          saveThreadSession(
+            chatId,
+            root,
+            harness,
+            stripped,
+            nextNative,
+            experience
+          );
           if (lostContext(prev?.native_id, nextNative)) {
             writer.write({
               type: "data-error",

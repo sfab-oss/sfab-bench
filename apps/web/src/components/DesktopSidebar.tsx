@@ -162,7 +162,7 @@ export function DesktopSidebar({
       <SidebarContent>
         {hasProject ? (
           <FileTree
-            key={project.path}
+            key={`${project.path}:${deviceMode ? "device" : "cad"}`}
             projectPath={project.path}
             files={listed}
             current={deviceMode ? device : url}

@@ -208,4 +208,53 @@ const loaded = loadThreadSession(db, "thr-1", "codex");
 expect(loaded?.native_id === "t1", "load returns native_id");
 expect(isResumePayload(loaded?.state), "load returns resume state");
 
+expect(
+  saveThreadSession(db, {
+    threadId: "thr-1",
+    workspace: "/tmp/ws",
+    harness: "codex",
+    experience: "device",
+    state: { ...stripped, data: { ...stripped.data, threadId: "dev-1" } },
+    nativeId: "dev-1",
+  }),
+  "device park writes its own row"
+);
+expect(
+  loadThreadSession(db, "thr-1", "codex")?.native_id === "t1",
+  "a device park does not replace the CAD park"
+);
+expect(
+  loadThreadSession(db, "thr-1", "codex", "device")?.native_id === "dev-1",
+  "the device park loads on its own"
+);
+
+const legacy = new DatabaseSync(":memory:");
+legacy.exec(
+  "CREATE TABLE threads (id TEXT PRIMARY KEY, workspace TEXT NOT NULL)"
+);
+legacy.exec(`
+  CREATE TABLE thread_sessions (
+    thread_id TEXT NOT NULL,
+    harness TEXT NOT NULL,
+    state TEXT NOT NULL,
+    native_id TEXT,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (thread_id, harness)
+  );
+`);
+legacy
+  .prepare("INSERT INTO threads (id, workspace) VALUES (?, ?)")
+  .run("thr-old", "/tmp/ws");
+legacy
+  .prepare(
+    `INSERT INTO thread_sessions (thread_id, harness, state, native_id, updated_at)
+     VALUES (?, ?, ?, ?, ?)`
+  )
+  .run("thr-old", "codex", JSON.stringify(stripped), "old-1", 1);
+applyThreadSessionsSchema(legacy);
+expect(
+  loadThreadSession(legacy, "thr-old", "codex")?.native_id === "old-1",
+  "an old park migrates onto the CAD screen"
+);
+
 console.log("thread-sessions.selfcheck ok");
