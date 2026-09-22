@@ -1,5 +1,6 @@
 import { useChat } from "@ai-sdk/react";
-import type { ChatStatus } from "ai";
+import type { ChatAddToolOutputFunction, ChatStatus } from "ai";
+import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import {
   createContext,
   type ReactNode,
@@ -9,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { answerClientTool, shownFileFrom } from "@/chat/answer-client-tool";
 import {
   type AskUserQuestionsOutput,
   findPendingAskUserQuestions,
@@ -75,6 +77,9 @@ function XrChatSessionRuntime({
   const sendRef = useRef<(text: string) => void>(() => {});
 
   const turnErrorRef = useRef<string | null>(null);
+  const messagesRef = useRef<GalleryChatMessage[]>([]);
+  const addToolOutputRef =
+    useRef<ChatAddToolOutputFunction<GalleryChatMessage> | null>(null);
   const {
     messages,
     sendMessage,
@@ -88,6 +93,14 @@ function XrChatSessionRuntime({
     throttle: 50,
     messages: initialMessages,
     transport: viewerChatTransport("cad"),
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    onToolCall({ toolCall }) {
+      const add = addToolOutputRef.current;
+      if (!add) return;
+      answerClientTool(toolCall, add, "cad", () =>
+        shownFileFrom(messagesRef.current)
+      );
+    },
     onError: (err) => {
       turnErrorRef.current = mapChatErrorMessage(err) ?? err.message;
     },
@@ -104,26 +117,14 @@ function XrChatSessionRuntime({
       void persistThread(threadId, toSave).then(onPersist);
     },
   });
+  addToolOutputRef.current = addToolOutput;
+  messagesRef.current = messages as GalleryChatMessage[];
 
   const busy = status === "submitted" || status === "streaming";
   const pendingAsk = findPendingAskUserQuestions(messages);
   const pendingViewer = findPendingGetViewer(messages);
-  const fillSuspendedTurn = useCallback(() => {
-    void sendMessage();
-  }, [sendMessage]);
-  useLiveViewerTools(
-    messages as GalleryChatMessage[],
-    addToolOutput,
-    busy,
-    fillSuspendedTurn
-  );
-  useLiveDeviceTools(
-    messages as GalleryChatMessage[],
-    addToolOutput,
-    busy,
-    fillSuspendedTurn,
-    false
-  );
+  useLiveViewerTools(messages as GalleryChatMessage[], busy);
+  useLiveDeviceTools(messages as GalleryChatMessage[], busy, false);
   busyRef.current = busy || pendingViewer !== null;
 
   const send = useCallback(() => {
@@ -134,16 +135,14 @@ function XrChatSessionRuntime({
       const question = pending.input.questions[0];
       if (!question?.allowFreeForm) return;
       setDraft("");
-      void Promise.resolve(
-        addToolOutput({
-          tool: "askUserQuestions",
-          toolCallId: pending.toolCallId,
-          output: {
-            action: "answered",
-            answers: { [question.id]: { optionIds: [], freeform: text } },
-          },
-        })
-      ).then(() => sendMessage());
+      addToolOutput({
+        tool: "askUserQuestions",
+        toolCallId: pending.toolCallId,
+        output: {
+          action: "answered",
+          answers: { [question.id]: { optionIds: [], freeform: text } },
+        },
+      });
       return;
     }
     setDraft("");
@@ -157,16 +156,14 @@ function XrChatSessionRuntime({
     if (pending) {
       const question = pending.input.questions[0];
       if (!question?.allowFreeForm) return;
-      void Promise.resolve(
-        addToolOutput({
-          tool: "askUserQuestions",
-          toolCallId: pending.toolCallId,
-          output: {
-            action: "answered",
-            answers: { [question.id]: { optionIds: [], freeform: trimmed } },
-          },
-        })
-      ).then(() => sendMessage());
+      addToolOutput({
+        tool: "askUserQuestions",
+        toolCallId: pending.toolCallId,
+        output: {
+          action: "answered",
+          answers: { [question.id]: { optionIds: [], freeform: trimmed } },
+        },
+      });
       return;
     }
     void sendMessage({ text: trimmed });

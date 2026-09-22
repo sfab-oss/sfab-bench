@@ -1,4 +1,6 @@
 import { useChat } from "@ai-sdk/react";
+import type { ChatAddToolOutputFunction } from "ai";
+import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import {
   Check,
   Copy,
@@ -13,6 +15,11 @@ import {
   useState,
 } from "react";
 import {
+  answerClientTool,
+  assistantHasUnresolvedTool,
+  shownFileFrom,
+} from "@/chat/answer-client-tool";
+import {
   type AskUserQuestionsOutput,
   findPendingAskUserQuestions,
 } from "@/chat/ask-user-questions";
@@ -21,8 +28,6 @@ import {
   lastUserPromptText,
   mapChatErrorMessage,
 } from "@/chat/composer-recovery";
-import { findPendingGetDevice } from "@/chat/device-tools";
-import { findPendingGetViewer } from "@/chat/get-viewer";
 import { firstUserLine } from "@/chat/history";
 import { finishPersistMessages, isTurnErrorPart } from "@/chat/persist-thread";
 import { useLiveDeviceTools } from "@/chat/useLiveDeviceTools";
@@ -157,6 +162,11 @@ export function ChatSession({
   const turnErrorRef = useRef<string | null>(null);
   const progress = useStore((s) => s.progress);
   const url = useStore((s) => s.url);
+  const deviceMode = useExperience() === "device";
+  const deviceModeRef = useRef(deviceMode);
+  deviceModeRef.current = deviceMode;
+  const addToolOutputRef =
+    useRef<ChatAddToolOutputFunction<GalleryChatMessage> | null>(null);
   const {
     messages,
     sendMessage,
@@ -170,6 +180,17 @@ export function ChatSession({
     throttle: 50,
     messages: initialMessages,
     transport: viewerChatTransport(),
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    onToolCall({ toolCall }) {
+      const add = addToolOutputRef.current;
+      if (!add) return;
+      answerClientTool(
+        toolCall,
+        add,
+        deviceModeRef.current ? "device" : "cad",
+        () => shownFileFrom(messagesRef.current)
+      );
+    },
     onError: (err) => {
       turnErrorRef.current = mapChatErrorMessage(err) ?? err.message;
     },
@@ -199,14 +220,12 @@ export function ChatSession({
       );
     },
   });
+  addToolOutputRef.current = addToolOutput;
   const busy = status === "submitted" || status === "streaming";
   const pendingAsk = findPendingAskUserQuestions(messages);
-  const pendingViewer = findPendingGetViewer(messages);
-  const pendingDevice = findPendingGetDevice(messages);
-  const deviceMode = useExperience() === "device";
-  const toolPending = pendingViewer !== null || pendingDevice !== null;
-  const live = busy || toolPending;
-  const loadingModel = pendingViewer !== null || progress !== null;
+  const awaitingTool = assistantHasUnresolvedTool(messages);
+  const live = busy;
+  const loadingModel = progress !== null;
   const abortWorkspaceTurn = useCallback(() => {
     stop();
     void jsonApi["chat"].stop.$post().then(
@@ -243,23 +262,8 @@ export function ChatSession({
     onLive(live);
     return () => onLive(false);
   }, [live, onLive]);
-  const fillSuspendedTurn = useCallback(() => {
-    void sendMessage();
-  }, [sendMessage]);
-  useLiveViewerTools(
-    messages as GalleryChatMessage[],
-    addToolOutput,
-    busy,
-    fillSuspendedTurn,
-    !deviceMode
-  );
-  useLiveDeviceTools(
-    messages as GalleryChatMessage[],
-    addToolOutput,
-    busy,
-    fillSuspendedTurn,
-    deviceMode
-  );
+  useLiveViewerTools(messages as GalleryChatMessage[], busy, !deviceMode);
+  useLiveDeviceTools(messages as GalleryChatMessage[], busy, deviceMode);
   messagesRef.current = messages as GalleryChatMessage[];
   messagesThreadIdRef.current = threadId;
   const streamingMessageId =
@@ -270,7 +274,7 @@ export function ChatSession({
 
   const onSubmit = (payload: GalleryPromptMessage) => {
     const text = payload.text.trim();
-    if (!text) return;
+    if (!text || awaitingTool) return;
     void sendMessage({ text });
   };
 
@@ -287,15 +291,13 @@ export function ChatSession({
 
   const onAnswerAskUser = useCallback(
     (toolCallId: string, output: AskUserQuestionsOutput) => {
-      void Promise.resolve(
-        addToolOutput({
-          tool: "askUserQuestions",
-          toolCallId,
-          output,
-        })
-      ).then(() => sendMessage());
+      addToolOutput({
+        tool: "askUserQuestions",
+        toolCallId,
+        output,
+      });
     },
-    [addToolOutput, sendMessage]
+    [addToolOutput]
   );
 
   const errorText = mapChatErrorMessage(error);
@@ -392,7 +394,7 @@ export function ChatSession({
         </MessageScroller>
       </MessageScrollerProvider>
       <GalleryChatInput
-        canStop={toolPending}
+        awaitingTool={awaitingTool}
         loadingModel={deviceMode ? false : loadingModel}
         modelLoaded={deviceMode ? false : Boolean(url) && progress === null}
         onAnswerAskUser={onAnswerAskUser}
