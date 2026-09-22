@@ -14,11 +14,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  answerClientTool,
-  assistantHasUnresolvedTool,
-  shownFileFrom,
-} from "@/chat/answer-client-tool";
+import { useClientToolFill } from "@/chat/answer-client-tool";
 import {
   type AskUserQuestionsOutput,
   findPendingAskUserQuestions,
@@ -163,8 +159,13 @@ export function ChatSession({
   const progress = useStore((s) => s.progress);
   const url = useStore((s) => s.url);
   const deviceMode = useExperience() === "device";
-  const deviceModeRef = useRef(deviceMode);
-  deviceModeRef.current = deviceMode;
+  const fillRef = useRef<
+    (toolCall: {
+      dynamic?: boolean;
+      toolName: string;
+      toolCallId: string;
+    }) => void
+  >(() => {});
   const addToolOutputRef =
     useRef<ChatAddToolOutputFunction<GalleryChatMessage> | null>(null);
   const {
@@ -182,14 +183,7 @@ export function ChatSession({
     transport: viewerChatTransport(),
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onToolCall({ toolCall }) {
-      const add = addToolOutputRef.current;
-      if (!add) return;
-      answerClientTool(
-        toolCall,
-        add,
-        deviceModeRef.current ? "device" : "cad",
-        () => shownFileFrom(messagesRef.current)
-      );
+      fillRef.current(toolCall);
     },
     onError: (err) => {
       turnErrorRef.current = mapChatErrorMessage(err) ?? err.message;
@@ -221,9 +215,16 @@ export function ChatSession({
     },
   });
   addToolOutputRef.current = addToolOutput;
+  const { filling: awaitingTool, begin: beginFill } = useClientToolFill(
+    messages as GalleryChatMessage[],
+    status === "submitted" || status === "streaming",
+    deviceMode ? "device" : "cad",
+    addToolOutputRef,
+    messagesRef
+  );
+  fillRef.current = beginFill;
   const busy = status === "submitted" || status === "streaming";
   const pendingAsk = findPendingAskUserQuestions(messages);
-  const awaitingTool = assistantHasUnresolvedTool(messages);
   const live = busy;
   const loadingModel = progress !== null;
   const abortWorkspaceTurn = useCallback(() => {

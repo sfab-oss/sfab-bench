@@ -10,13 +10,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { answerClientTool, shownFileFrom } from "@/chat/answer-client-tool";
+import { useClientToolFill } from "@/chat/answer-client-tool";
 import {
   type AskUserQuestionsOutput,
   findPendingAskUserQuestions,
 } from "@/chat/ask-user-questions";
 import { mapChatErrorMessage } from "@/chat/composer-recovery";
-import { findPendingGetViewer } from "@/chat/get-viewer";
 import { finishPersistMessages } from "@/chat/persist-thread";
 import { useLiveDeviceTools } from "@/chat/useLiveDeviceTools";
 import { useLiveViewerTools } from "@/chat/useLiveViewerTools";
@@ -78,6 +77,13 @@ function XrChatSessionRuntime({
 
   const turnErrorRef = useRef<string | null>(null);
   const messagesRef = useRef<GalleryChatMessage[]>([]);
+  const fillRef = useRef<
+    (toolCall: {
+      dynamic?: boolean;
+      toolName: string;
+      toolCallId: string;
+    }) => void
+  >(() => {});
   const addToolOutputRef =
     useRef<ChatAddToolOutputFunction<GalleryChatMessage> | null>(null);
   const {
@@ -95,11 +101,7 @@ function XrChatSessionRuntime({
     transport: viewerChatTransport("cad"),
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onToolCall({ toolCall }) {
-      const add = addToolOutputRef.current;
-      if (!add) return;
-      answerClientTool(toolCall, add, "cad", () =>
-        shownFileFrom(messagesRef.current)
-      );
+      fillRef.current(toolCall);
     },
     onError: (err) => {
       turnErrorRef.current = mapChatErrorMessage(err) ?? err.message;
@@ -119,13 +121,20 @@ function XrChatSessionRuntime({
   });
   addToolOutputRef.current = addToolOutput;
   messagesRef.current = messages as GalleryChatMessage[];
+  const { filling, begin: beginFill } = useClientToolFill(
+    messages as GalleryChatMessage[],
+    status === "submitted" || status === "streaming",
+    "cad",
+    addToolOutputRef,
+    messagesRef
+  );
+  fillRef.current = beginFill;
 
   const busy = status === "submitted" || status === "streaming";
   const pendingAsk = findPendingAskUserQuestions(messages);
-  const pendingViewer = findPendingGetViewer(messages);
   useLiveViewerTools(messages as GalleryChatMessage[], busy);
   useLiveDeviceTools(messages as GalleryChatMessage[], busy, false);
-  busyRef.current = busy || pendingViewer !== null;
+  busyRef.current = busy || filling;
 
   const send = useCallback(() => {
     const text = draft.trim();
@@ -178,7 +187,7 @@ function XrChatSessionRuntime({
   });
 
   useEffect(() => {
-    const waiting = busy || pendingViewer !== null;
+    const waiting = busy || filling;
     const phase = waiting
       ? status === "streaming"
         ? "streaming"
@@ -186,7 +195,7 @@ function XrChatSessionRuntime({
       : "idle";
     store.getState().setXrChatPhase(phase);
     return () => store.getState().setXrChatPhase("idle");
-  }, [busy, pendingViewer, status]);
+  }, [busy, filling, status]);
   useEffect(() => {
     const last = [...messages].reverse().find((m) => m.role === "assistant");
     setXrChatChars(
@@ -197,7 +206,7 @@ function XrChatSessionRuntime({
 
   const value: XrChatRuntime = {
     messages: messages as GalleryChatMessage[],
-    busy: busy || pendingViewer !== null,
+    busy: busy || filling,
     status,
     error,
     draft,
