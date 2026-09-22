@@ -15,6 +15,7 @@ import {
   latestShownArtifact,
   viewerIsReady,
 } from "@/chat/get-viewer";
+import { pinNextChatExperience } from "@/chat/viewer-chat-runtime";
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
 import { deviceUrl } from "@/lib/device-query";
 import type { Experience } from "@/lib/experience";
@@ -51,6 +52,7 @@ export function answerClientTool(
 ): Promise<void> | null {
   if (toolCall.dynamic) return null;
   if (mode === "device" && toolCall.toolName === GET_DEVICE_TOOL) {
+    pinNextChatExperience(mode);
     addToolOutput({
       tool: GET_DEVICE_TOOL,
       toolCallId: toolCall.toolCallId,
@@ -67,6 +69,7 @@ export function answerClientTool(
         void store.getState().loadModel(target);
       }
       await waitUntilReady(target);
+      pinNextChatExperience(mode);
       addToolOutput({
         tool: GET_VIEWER_TOOL,
         toolCallId,

@@ -28,7 +28,10 @@ import { firstUserLine } from "@/chat/history";
 import { finishPersistMessages, isTurnErrorPart } from "@/chat/persist-thread";
 import { useLiveDeviceTools } from "@/chat/useLiveDeviceTools";
 import { useLiveViewerTools } from "@/chat/useLiveViewerTools";
-import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
+import {
+  pinNextChatExperience,
+  viewerChatTransport,
+} from "@/chat/viewer-chat-runtime";
 import {
   type GalleryChatHandle,
   GalleryChatInput,
@@ -292,13 +295,14 @@ export function ChatSession({
 
   const onAnswerAskUser = useCallback(
     (toolCallId: string, output: AskUserQuestionsOutput) => {
+      pinNextChatExperience(deviceMode ? "device" : "cad");
       addToolOutput({
         tool: "askUserQuestions",
         toolCallId,
         output,
       });
     },
-    [addToolOutput]
+    [addToolOutput, deviceMode]
   );
 
   const errorText = mapChatErrorMessage(error);

@@ -187,15 +187,15 @@ function XrChatSessionRuntime({
   });
 
   useEffect(() => {
-    const waiting = busy || filling;
-    const phase = waiting
-      ? status === "streaming"
+    const phase =
+      status === "streaming"
         ? "streaming"
-        : "submitted"
-      : "idle";
+        : status === "submitted"
+          ? "submitted"
+          : "idle";
     store.getState().setXrChatPhase(phase);
     return () => store.getState().setXrChatPhase("idle");
-  }, [busy, filling, status]);
+  }, [status]);
   useEffect(() => {
     const last = [...messages].reverse().find((m) => m.role === "assistant");
     setXrChatChars(
@@ -206,7 +206,7 @@ function XrChatSessionRuntime({
 
   const value: XrChatRuntime = {
     messages: messages as GalleryChatMessage[],
-    busy: busy || filling,
+    busy,
     status,
     error,
     draft,
