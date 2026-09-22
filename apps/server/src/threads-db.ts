@@ -194,21 +194,31 @@ export function saveThreadSession(
   workspace: string,
   harness: string,
   state: unknown,
-  nativeId: string | null
+  nativeId: string | null,
+  experience = "cad"
 ) {
   return saveThreadSessionIn(db, {
     threadId,
     workspace,
     harness,
+    experience,
     state,
     nativeId,
   });
 }
 
-export function loadThreadSession(threadId: string, harness: string) {
-  return loadThreadSessionIn(db, threadId, harness);
+export function loadThreadSession(
+  threadId: string,
+  harness: string,
+  experience = "cad"
+) {
+  return loadThreadSessionIn(db, threadId, harness, experience);
 }
 
-export function dropThreadSession(threadId: string, harness: string) {
-  dropThreadSessionIn(db, threadId, harness);
+export function dropThreadSession(
+  threadId: string,
+  harness: string,
+  experience = "cad"
+) {
+  dropThreadSessionIn(db, threadId, harness, experience);
 }

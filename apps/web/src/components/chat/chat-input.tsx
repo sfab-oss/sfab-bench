@@ -130,7 +130,7 @@ function ChatInputInner({
   attached,
   threadId,
   restorePrompt,
-  canStop,
+  awaitingTool,
   loadingModel,
   sendBlockReason,
   inputRef,
@@ -146,7 +146,7 @@ function ChatInputInner({
   attached: boolean;
   threadId: string;
   restorePrompt: string | null;
-  canStop: boolean;
+  awaitingTool: boolean;
   loadingModel: boolean;
   sendBlockReason: string | null;
   inputRef: RefObject<ChatInputHandle | null>;
@@ -314,19 +314,17 @@ function ChatInputInner({
   });
   const inFlight = status === "submitted" || status === "streaming";
   const emptyPrompt = !draftText.trim();
-  const sendReason =
-    inFlight || canStop
-      ? null
+  const sendReason = inFlight
+    ? null
+    : awaitingTool
+      ? "Waiting for the current turn…"
       : (reason ?? (emptyPrompt ? EMPTY_PROMPT_REASON : null));
-  const submitStatus: ChatStatus =
-    canStop && status !== "submitted" && status !== "streaming"
-      ? "streaming"
-      : status;
+  const submitStatus: ChatStatus = status;
   const firstSetupHint = useFirstSetupHint(status, catalog);
 
   const submitButton = (
     <ChatInputSubmitButton
-      disabled={inFlight || canStop ? undefined : Boolean(sendReason)}
+      disabled={inFlight ? undefined : Boolean(sendReason)}
       title={sendReason ?? "Send"}
     />
   );
@@ -351,6 +349,7 @@ function ChatInputInner({
           if (
             !trimmed ||
             inFlight ||
+            awaitingTool ||
             lockSend ||
             loadingModel ||
             sendBlockReason
@@ -453,7 +452,7 @@ export function GalleryChatInput({
   onAnswerAskUser,
   threadId,
   restorePrompt = null,
-  canStop = false,
+  awaitingTool = false,
   loadingModel = false,
   modelLoaded = false,
   ref,
@@ -469,7 +468,7 @@ export function GalleryChatInput({
   ) => void;
   threadId: string;
   restorePrompt?: string | null;
-  canStop?: boolean;
+  awaitingTool?: boolean;
   loadingModel?: boolean;
   modelLoaded?: boolean;
   ref?: Ref<GalleryChatHandle>;
@@ -556,7 +555,7 @@ export function GalleryChatInput({
           <div className={cn(attached && "border-t border-border")}>
             <ChatInputInner
               attached={attached}
-              canStop={canStop}
+              awaitingTool={awaitingTool}
               catalog={catalog}
               cancelVoiceRef={cancelVoiceRef}
               disabled={disabled}

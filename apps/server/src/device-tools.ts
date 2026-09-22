@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 
 import { openDevice, readSerial, sendSerial } from "./emu/host";
-import { projectRoot, showDeviceOnClient } from "./viewer-context";
+import { projectRoot } from "./viewer-context";
 
 /** What an agent needs from a REPL, not the whole retained log. */
 const SERIAL_TAIL = 8_000;
@@ -23,7 +23,6 @@ export const deviceTools = {
       if ("error" in root) return root;
       const opened = await openDevice(root.root, path);
       if ("error" in opened) return opened;
-      showDeviceOnClient(opened.path);
       return { running: opened.path, chip: opened.chip };
     },
   }),

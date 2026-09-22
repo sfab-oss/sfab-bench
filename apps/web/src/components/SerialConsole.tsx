@@ -24,7 +24,13 @@ function serialPage(body: unknown): { text: string; next: number } | null {
  * Desktop serial log for the tab's `?device=`. The viewport stays above this.
  * Quest does not mount it.
  */
-export function SerialConsole({ path }: { path: string }) {
+export function SerialConsole({
+  path,
+  screen = false,
+}: {
+  path: string;
+  screen?: boolean;
+}) {
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [line, setLine] = useState("");
@@ -101,7 +107,13 @@ export function SerialConsole({ path }: { path: string }) {
   }, [text]);
 
   return (
-    <section className="flex h-44 shrink-0 flex-col border-t border-border bg-background">
+    <section
+      className={
+        screen
+          ? "flex min-h-0 flex-1 flex-col bg-background"
+          : "flex h-44 shrink-0 flex-col border-t border-border bg-background"
+      }
+    >
       <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border px-3 text-xs">
         <span className="min-w-0 flex-1 truncate font-medium" title={path}>
           {path}

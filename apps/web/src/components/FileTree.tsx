@@ -68,17 +68,15 @@ function FileRow({
   node,
   current,
   onPick,
-  device,
   nested,
 }: {
   node: Extract<CatalogNode, { type: "file" }>;
   current: string;
-  device: string;
   onPick: (path: string) => void;
   nested: boolean;
 }) {
   const [actionsOpen, setActionsOpen] = useState(false);
-  const active = node.path === current || node.path === device;
+  const active = node.path === current;
   const name = node.name || fileName(node.path);
   const inner = (
     <>
@@ -127,7 +125,6 @@ function FileRow({
 function Tree({
   node,
   current,
-  device,
   expanded,
   toggle,
   onPick,
@@ -135,7 +132,6 @@ function Tree({
 }: {
   node: CatalogNode;
   current: string;
-  device: string;
   expanded: Set<string>;
   toggle: (path: string, next: boolean) => void;
   onPick: (path: string) => void;
@@ -143,13 +139,7 @@ function Tree({
 }) {
   if (node.type === "file") {
     return (
-      <FileRow
-        node={node}
-        current={current}
-        device={device}
-        onPick={onPick}
-        nested={nested}
-      />
+      <FileRow node={node} current={current} onPick={onPick} nested={nested} />
     );
   }
 
@@ -180,7 +170,6 @@ function Tree({
                 key={child.type === "dir" ? `d:${child.path}` : child.path}
                 node={child}
                 current={current}
-                device={device}
                 expanded={expanded}
                 toggle={toggle}
                 onPick={onPick}
@@ -208,7 +197,6 @@ function KindChips({
           ["all", "All"],
           ["step", "STEP"],
           ["glb", "GLB"],
-          ["firmware", "Device"],
         ] as const
       ).map(([id, label]) => (
         <button
@@ -255,7 +243,6 @@ function EmptyHint({
 export function FileTree({
   files,
   current,
-  device = "",
   filter,
   projectPath,
   recents,
@@ -263,10 +250,11 @@ export function FileTree({
   ready,
   onPick,
   onClearSearch,
+  kinds = true,
+  emptyLabel = "No STEP or GLB in this folder.",
 }: {
   files: CatalogEntry[];
   current: string;
-  device?: string;
   filter: string;
   projectPath: string;
   recents?: string[];
@@ -274,11 +262,17 @@ export function FileTree({
   ready?: boolean;
   onPick: (path: string) => void;
   onClearSearch: () => void;
+  kinds?: boolean;
+  emptyLabel?: string;
 }) {
   const [kind, setKind] = useState<CatalogKindFilter>("all");
+  const activeKind = kinds ? kind : "all";
   const listed = useMemo(
-    () => (kind === "all" ? files : files.filter((file) => file.kind === kind)),
-    [files, kind]
+    () =>
+      activeKind === "all"
+        ? files
+        : files.filter((file) => file.kind === activeKind),
+    [files, activeKind]
   );
   const tree = useMemo(
     () => filterCatalogTree(catalogTree(listed), filter),
@@ -286,10 +280,10 @@ export function FileTree({
   );
   const recentRows = useMemo(
     () =>
-      filter.trim() || kind !== "all"
+      filter.trim() || activeKind !== "all"
         ? []
         : catalogSections(files, recents ?? []).recents,
-    [files, recents, filter, kind]
+    [files, recents, filter, activeKind]
   );
   const { expanded, toggle, collapseAll } = useFileTreeExpansion(
     projectPath,
@@ -321,7 +315,7 @@ export function FileTree({
   if (empty.type === "no-cad") {
     return (
       <div className="px-4 py-2 text-xs text-muted-foreground">
-        No STEP or GLB in this folder.
+        {emptyLabel}
       </div>
     );
   }
@@ -344,7 +338,6 @@ export function FileTree({
                     entry: row,
                   }}
                   current={current}
-                  device={device}
                   onPick={onPick}
                   nested={false}
                 />
@@ -355,7 +348,7 @@ export function FileTree({
       ) : null}
       <SidebarGroup>
         <SidebarGroupLabel>Files</SidebarGroupLabel>
-        <KindChips kind={kind} onKind={setKind} />
+        {kinds ? <KindChips kind={kind} onKind={setKind} /> : null}
         {dirs.length > 0 ? (
           <SidebarGroupAction
             title="Collapse all"
@@ -370,9 +363,7 @@ export function FileTree({
             <EmptyHint action="Show all" onAction={() => setKind("all")}>
               {empty.kind === "glb"
                 ? "No GLB in this folder."
-                : empty.kind === "firmware"
-                  ? "No firmware image in this folder."
-                  : "No STEP in this folder."}
+                : "No STEP in this folder."}
             </EmptyHint>
           ) : null}
           {empty.type === "search" ? (
@@ -387,7 +378,6 @@ export function FileTree({
                   key={node.type === "dir" ? `d:${node.path}` : node.path}
                   node={node}
                   current={current}
-                  device={device}
                   expanded={expanded}
                   toggle={toggle}
                   onPick={onPick}

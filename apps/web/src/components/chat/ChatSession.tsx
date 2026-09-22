@@ -1,4 +1,6 @@
 import { useChat } from "@ai-sdk/react";
+import type { ChatAddToolOutputFunction } from "ai";
+import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import {
   Check,
   Copy,
@@ -12,6 +14,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useClientToolFill } from "@/chat/answer-client-tool";
 import {
   type AskUserQuestionsOutput,
   findPendingAskUserQuestions,
@@ -21,13 +24,14 @@ import {
   lastUserPromptText,
   mapChatErrorMessage,
 } from "@/chat/composer-recovery";
-import { findPendingGetDevice } from "@/chat/device-tools";
-import { findPendingGetViewer } from "@/chat/get-viewer";
 import { firstUserLine } from "@/chat/history";
 import { finishPersistMessages, isTurnErrorPart } from "@/chat/persist-thread";
 import { useLiveDeviceTools } from "@/chat/useLiveDeviceTools";
 import { useLiveViewerTools } from "@/chat/useLiveViewerTools";
-import { viewerChatTransport } from "@/chat/viewer-chat-runtime";
+import {
+  pinNextChatExperience,
+  viewerChatTransport,
+} from "@/chat/viewer-chat-runtime";
 import {
   type GalleryChatHandle,
   GalleryChatInput,
@@ -59,6 +63,7 @@ import {
 } from "@/components/ui/popover";
 import { showNetworkErrorToast } from "@/components/ui/toast";
 import { jsonApi } from "@/lib/api";
+import { useExperience } from "@/lib/experience";
 import { copyText } from "@/lib/settings";
 import { useStore } from "@/state/store";
 
@@ -156,6 +161,16 @@ export function ChatSession({
   const turnErrorRef = useRef<string | null>(null);
   const progress = useStore((s) => s.progress);
   const url = useStore((s) => s.url);
+  const deviceMode = useExperience() === "device";
+  const fillRef = useRef<
+    (toolCall: {
+      dynamic?: boolean;
+      toolName: string;
+      toolCallId: string;
+    }) => void
+  >(() => {});
+  const addToolOutputRef =
+    useRef<ChatAddToolOutputFunction<GalleryChatMessage> | null>(null);
   const {
     messages,
     sendMessage,
@@ -169,6 +184,10 @@ export function ChatSession({
     throttle: 50,
     messages: initialMessages,
     transport: viewerChatTransport(),
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    onToolCall({ toolCall }) {
+      fillRef.current(toolCall);
+    },
     onError: (err) => {
       turnErrorRef.current = mapChatErrorMessage(err) ?? err.message;
     },
@@ -198,12 +217,19 @@ export function ChatSession({
       );
     },
   });
+  addToolOutputRef.current = addToolOutput;
+  const { filling: awaitingTool, begin: beginFill } = useClientToolFill(
+    messages as GalleryChatMessage[],
+    status === "submitted" || status === "streaming",
+    deviceMode ? "device" : "cad",
+    addToolOutputRef,
+    messagesRef
+  );
+  fillRef.current = beginFill;
   const busy = status === "submitted" || status === "streaming";
   const pendingAsk = findPendingAskUserQuestions(messages);
-  const pendingViewer = findPendingGetViewer(messages);
-  const pendingDevice = findPendingGetDevice(messages);
-  const live = busy || pendingViewer !== null || pendingDevice !== null;
-  const loadingModel = pendingViewer !== null || progress !== null;
+  const live = busy;
+  const loadingModel = progress !== null;
   const abortWorkspaceTurn = useCallback(() => {
     stop();
     void jsonApi["chat"].stop.$post().then(
@@ -240,21 +266,8 @@ export function ChatSession({
     onLive(live);
     return () => onLive(false);
   }, [live, onLive]);
-  const fillSuspendedTurn = useCallback(() => {
-    void sendMessage();
-  }, [sendMessage]);
-  useLiveViewerTools(
-    messages as GalleryChatMessage[],
-    addToolOutput,
-    busy,
-    fillSuspendedTurn
-  );
-  useLiveDeviceTools(
-    messages as GalleryChatMessage[],
-    addToolOutput,
-    busy,
-    fillSuspendedTurn
-  );
+  useLiveViewerTools(messages as GalleryChatMessage[], busy, !deviceMode);
+  useLiveDeviceTools(messages as GalleryChatMessage[], busy, deviceMode);
   messagesRef.current = messages as GalleryChatMessage[];
   messagesThreadIdRef.current = threadId;
   const streamingMessageId =
@@ -265,7 +278,7 @@ export function ChatSession({
 
   const onSubmit = (payload: GalleryPromptMessage) => {
     const text = payload.text.trim();
-    if (!text) return;
+    if (!text || awaitingTool) return;
     void sendMessage({ text });
   };
 
@@ -282,15 +295,14 @@ export function ChatSession({
 
   const onAnswerAskUser = useCallback(
     (toolCallId: string, output: AskUserQuestionsOutput) => {
-      void Promise.resolve(
-        addToolOutput({
-          tool: "askUserQuestions",
-          toolCallId,
-          output,
-        })
-      ).then(() => sendMessage());
+      pinNextChatExperience(deviceMode ? "device" : "cad");
+      addToolOutput({
+        tool: "askUserQuestions",
+        toolCallId,
+        output,
+      });
     },
-    [addToolOutput, sendMessage]
+    [addToolOutput, deviceMode]
   );
 
   const errorText = mapChatErrorMessage(error);
@@ -353,8 +365,9 @@ export function ChatSession({
                     </EmptyMedia>
                     <EmptyTitle>How can I help?</EmptyTitle>
                     <EmptyDescription>
-                      Ask for a CAD change. Try “What am I looking at?” then a
-                      size change.
+                      {deviceMode
+                        ? "Ask it to run the open image and read the serial log."
+                        : "Ask for a CAD change. Try “What am I looking at?” then a size change."}
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -386,9 +399,9 @@ export function ChatSession({
         </MessageScroller>
       </MessageScrollerProvider>
       <GalleryChatInput
-        canStop={pendingViewer !== null || pendingDevice !== null}
-        loadingModel={loadingModel}
-        modelLoaded={Boolean(url) && progress === null}
+        awaitingTool={awaitingTool}
+        loadingModel={deviceMode ? false : loadingModel}
+        modelLoaded={deviceMode ? false : Boolean(url) && progress === null}
         onAnswerAskUser={onAnswerAskUser}
         onStop={abortWorkspaceTurn}
         onSubmit={onSubmit}

@@ -19,13 +19,13 @@ Three jobs, kept separate:
 | Job | Who |
 | --- | --- |
 | **Authoring** | Whatever produced the STEP or the flash image in the open folder (Jake cadgen, Fusion export, Arduino, ESP-IDF, a human, …). This app does not author, and it does not learn which tool did. |
-| **Presence** | The CAD viewer, and the device console under it: tessellated package, tree, selection, measure, Quest world, serial from the open image. |
+| **Presence** | Two screens. CAD is the viewer: tessellated package, tree, selection, measure, Quest world. Device is the serial console for a firmware image, desktop only. |
 | **Agent host** | This Node process: open folder, harnesses, threads, `get_viewer` / `show_artifact`, and the same shape for a device. |
 
 A firmware image is a document beside STEP and GLB
-([ADR 0008](decisions/0008-second-domain.md)). The desktop serial
-console is in the app. The agent can run that image and read its
-serial log. A real board is still a later row.
+([ADR 0008](decisions/0008-second-domain.md)). CAD and Device are
+separate screens. The combination is deferred. A real board is still
+a later row.
 
 North star: global server → **open a folder** → **open a STEP or a firmware image** → talk.
 Quest Browser joins over HTTPS and shares the **library**, not the live
@@ -36,7 +36,7 @@ viewport ([ADR 0003](decisions/0003-library-not-viewport.md)).
 Do not re-open these unless the human asks.
 
 - **No adapters.** Project = a directory. Document = a STEP, a GLB, or a firmware image named `.<chip>.bin` (first chip `esp32c3`, [ADR 0008](decisions/0008-second-domain.md)). Agent cwd = that directory. Skills live in the project if the user put them there. Bench does not learn which tool wrote the file.
-- **Device beside the model.** `?file=` is the CAD document. `?device=` is the firmware image, per tab. The console sits under the viewport on desktop. Quest keeps the CAD world. Setting `?device=` does not unload the STEP.
+- **Two screens.** CAD is STEP and GLB, the viewport, and `get_viewer` / `show_artifact`. Device is desktop only: `.<chip>.bin` and the serial console, with `get_device`, `run_firmware`, `read_serial`, and `send_serial`. One screen does not show the other's document. Quest stays CAD. Putting both on one screen is deferred.
 - **One machine per document.** Keyed by the project plus the image path. Every tab watching it, and the agent tools, share that emulator or serial port and its log.
 - **Tessellation is a loader**, not an adapter. OpenCascade WASM in the API process, and the only one, producing `assembly.json` + `.tess` + `#o…` ([ADR 0002](decisions/0002-step-loader-occt.md), [ADR 0004](decisions/0004-occt-via-opencascade-js.md)). The Python stopgap it replaced is gone.
 - **One process, two HTTPS clients.** Mac tab (loopback trusted) and Quest Browser (paired). No Unity, no APK.
@@ -72,8 +72,8 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 16 | later | ship-02 — `sfab-bench app [dir]`, binary inside the `.app`, "Open at login". Not until the `.app` sits in `/Applications` and launches from the Dock |
 | 17 | later | IWER in the packaged `.app`: confirm the zip does not ship or inject IWER; a future marketing-demo force-install must not leak into Quest LAN or the `.app`. |
 | 18 | **done** | First-run: README + Welcome + user doc point at [sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter), which vendors Jake `$cad` and a project Bench skill. No in-app clone. |
-| 19 | **done** | Second domain ([ADR 0008](decisions/0008-second-domain.md)). A firmware image named `.<chip>.bin` is a document. First chip `esp32c3`. Console under the viewport via `?device=`, beside `?file=`. One running machine per document, shared by tabs and the agent. |
-| 20 | **done** | Open a `.<chip>.bin` on esp-emu v0.43.0 (worker thread, checksum checked). Serial console under the viewport on desktop. The MicroPython C3 image is a committed fixture and the selfcheck boots it to `>>>`. The binary is not in the `.app`. |
+| 19 | **done** | Second domain ([ADR 0008](decisions/0008-second-domain.md)). A firmware image named `.<chip>.bin` is a document. First chip `esp32c3`. CAD and Device are separate screens. One running machine per document, shared by tabs and the agent. |
+| 20 | **done** | Open a `.<chip>.bin` on esp-emu v0.43.0 (worker thread, checksum checked). The serial console is the Device screen, desktop only. The MicroPython C3 image is a committed fixture and the selfcheck boots it to `>>>`. The binary is not in the `.app`. |
 | 21 | **done** | Agent tools `get_device`, `run_firmware`, `read_serial`, `send_serial`. `get_device` is this tab, like `get_viewer`. The other three run on the server and share the one machine. |
 | 22 | later | Real board. The server owns the serial port. Same four tools. |
 | 23 | later | Telemetry lines bound to a CAD occurrence, shown on Quest. |

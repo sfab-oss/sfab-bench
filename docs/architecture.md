@@ -25,9 +25,10 @@ Product calls and ranked next: [`product.md`](product.md).
   ([ADR 0006](decisions/0006-folder-is-a-tab.md),
   [ADR 0003](decisions/0003-library-not-viewport.md)).
 - **Viewport is per browser:** loaded file, selection, camera, XR, which
-  chat is open, live stream, and which firmware image the tab is watching
-  (`?device=`, beside `?file=`). `show_artifact` moves only the asking
-  client and appends recents.
+  chat is open, live stream, and which experience the tab is showing
+  (CAD or Device). `?file=` is the CAD document. `?device=` is the
+  firmware image. One screen does not read the other.
+  `show_artifact` moves only the asking client and appends recents.
 - **The running device is one per document**, keyed by the project plus
   the image path ([ADR 0008](decisions/0008-second-domain.md)). Tabs and
   the agent tools share it. It is not one process-global slot, and it is
@@ -36,7 +37,7 @@ Product calls and ranked next: [`product.md`](product.md).
   binary.
 
 Chat turns are **prompt**, **fill**, or **idle** ([ADR 0007](decisions/0007-harness-chat-fill.md)).
-A fill is a client tool result (`get_viewer`, `askUserQuestions`) into a
+A fill is a client tool result (`get_viewer`, `get_device`, `askUserQuestions`) into a
 live unfinished harness session. `show_artifact` runs on the server in the
 prompt stream and does not fill.
 
