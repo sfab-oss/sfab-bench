@@ -10,6 +10,7 @@ import {
   fallbackRoot,
   listProjectFiles,
   openProject,
+  readProjectSource,
   registerProject,
   resolveRequestRoot,
   shouldSkipDir,
@@ -32,6 +33,13 @@ mkdirSync(join(root, "cad", "STEP", "envelopes"), { recursive: true });
 writeFileSync(join(root, "cad", "STEP", "envelopes", "box.step"), "ISO-10303");
 mkdirSync(join(root, "cad", "src"), { recursive: true });
 writeFileSync(join(root, "cad", "src", "box.py"), "print(1)\n");
+mkdirSync(join(root, "main"), { recursive: true });
+writeFileSync(join(root, "main", "main.c"), "void app_main(void) {}\n");
+writeFileSync(
+  join(root, "CMakeLists.txt"),
+  "cmake_minimum_required(VERSION 3.16)\n"
+);
+writeFileSync(join(root, "README.md"), "notes\n");
 writeFileSync(join(root, "part.glb"), "glTF");
 writeFileSync(join(root, "firmware.bin"), "bootloader");
 writeFileSync(join(root, "app.esp32c3.bin"), "image");
@@ -52,6 +60,28 @@ expect(
 expect(
   !files.some((f) => f.path.endsWith(".py")),
   "python scripts are not documents"
+);
+expect(
+  files.some((f) => f.path === "main/main.c" && f.kind === "source"),
+  "c source is listed"
+);
+expect(
+  files.some((f) => f.path === "CMakeLists.txt" && f.kind === "source"),
+  "cmakelists is listed"
+);
+expect(!files.some((f) => f.path === "README.md"), "notes are not source");
+const source = readProjectSource(root, "main/main.c");
+expect(
+  !("error" in source) && source.text.includes("app_main"),
+  "reads source"
+);
+expect(
+  "error" in readProjectSource(root, "../secret.c"),
+  "source path cannot leave the folder"
+);
+expect(
+  "error" in readProjectSource(root, "app.esp32c3.bin"),
+  "firmware image is not source text"
 );
 expect(
   files.some((f) => f.path === "app.esp32c3.bin" && f.kind === "firmware"),

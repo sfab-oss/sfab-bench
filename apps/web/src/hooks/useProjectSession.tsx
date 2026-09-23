@@ -1,4 +1,4 @@
-import { firmwareChip } from "@sfab-bench/contract";
+import { firmwareChip, sourceFile } from "@sfab-bench/contract";
 import {
   createContext,
   type ReactNode,
@@ -37,6 +37,7 @@ import type {
   SessionEvent,
   SessionSnapshot,
 } from "@/lib/session";
+import { syncSourceQuery } from "@/lib/source-query";
 import { emitFolderError } from "@/lib/welcome";
 import { store } from "@/state/store";
 
@@ -287,10 +288,18 @@ export function ProjectSessionProvider({
     const { url, error, loadModel } = store.getState();
     const next = file ?? "";
     if (experience() === "device") {
-      if (next && firmwareChip(next)) syncDeviceQuery(next);
+      if (next && firmwareChip(next)) {
+        syncDeviceQuery(next);
+        syncSourceQuery("");
+        return;
+      }
+      if (next && sourceFile(next)) {
+        syncSourceQuery(next);
+        return;
+      }
       return;
     }
-    if (next && firmwareChip(next)) return;
+    if (next && (firmwareChip(next) || sourceFile(next))) return;
     if (!reload && next && !shouldReloadOpenFile(next, url, Boolean(error)))
       return;
     await loadModel(next);

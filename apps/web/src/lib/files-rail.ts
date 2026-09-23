@@ -6,13 +6,15 @@ export const FILE_TREE_EXPANSION_KEY = "sfab-bench.file-tree-expansion";
 
 export type CatalogKindFilter = "all" | "step" | "glb";
 
-/** CAD screens never list a firmware image. Device screens list only those. */
+/** CAD screens list STEP and GLB. Device screens list the image and the source. */
 export function cadCatalog(files: CatalogEntry[]): CatalogEntry[] {
-  return files.filter((file) => file.kind !== "firmware");
+  return files.filter((file) => file.kind === "step" || file.kind === "glb");
 }
 
 export function deviceCatalog(files: CatalogEntry[]): CatalogEntry[] {
-  return files.filter((file) => file.kind === "firmware");
+  return files.filter(
+    (file) => file.kind === "firmware" || file.kind === "source"
+  );
 }
 
 export type CatalogEmptyReason =

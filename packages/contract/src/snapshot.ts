@@ -18,7 +18,7 @@ export type ViewerSnapshot = {
 
 export type CatalogEntry = {
   path: string;
-  kind: "step" | "glb" | "firmware";
+  kind: "step" | "glb" | "firmware" | "source";
 };
 
 export function emptySnapshot(file = ""): ViewerSnapshot {
@@ -48,6 +48,7 @@ export function catalogFolder(path: string): string | null {
 export function catalogKindLabel(kind: CatalogEntry["kind"]): string {
   if (kind === "glb") return "GLB";
   if (kind === "firmware") return "Firmware";
+  if (kind === "source") return "Source";
   return "STEP";
 }
 

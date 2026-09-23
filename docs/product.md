@@ -79,6 +79,7 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 23 | later | Telemetry lines bound to a CAD occurrence, shown on Quest. |
 | 24 | dropped | MicroPython starter. The program we write is ESP-IDF C. The loader still opens any `*.esp32c3.bin`. |
 | 25 | **done** | Device board view. An open `esp32c3` image shows a fixed ESP32-C3-DevKitM-1. Orbit, pan, zoom, and home. The console docks under it. No pin state. Quest stays CAD. |
+| 26 | **done** | Device can show a source file read-only (C, headers, CMakeLists, sdkconfig). The app does not edit it and does not compile. |
 
 ## Do not build
 

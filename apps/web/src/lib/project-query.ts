@@ -1,4 +1,5 @@
 import { DEVICE_QUERY_EVENT } from "./device-query";
+import { SOURCE_QUERY_EVENT } from "./source-query";
 
 /** Tab folder, next to `?file=` and `?device=`. See ADR 0006 and ADR 0008. */
 
@@ -25,6 +26,7 @@ export function applyProjectSearch(
       next.delete("device");
       clearedDevice = true;
     }
+    next.delete("source");
   }
   return { search: next.toString(), changed, clearedDevice };
 }
@@ -49,6 +51,8 @@ export function syncProjectQuery(path: string, opts?: { clearFile?: boolean }) {
   if (applied.changed) window.dispatchEvent(new Event("sfab-project"));
   if (applied.clearedDevice)
     window.dispatchEvent(new Event(DEVICE_QUERY_EVENT));
+  if (applied.changed && opts?.clearFile !== false)
+    window.dispatchEvent(new Event(SOURCE_QUERY_EVENT));
 }
 
 export function appendProjectQuery(url: URL): URL {

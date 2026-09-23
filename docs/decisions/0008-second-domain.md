@@ -112,7 +112,9 @@ The Device screen was the serial console alone. It is now the board
 view, with that console docked under it. The console still opens the
 same machine. Quest, the suffix rule, and one machine per document are
 unchanged. The mesh is geometry this repo draws. Espressif's DXF is
-not in the tree. The published DevKitM-1 v1 connector is Micro-USB.
+not in the tree. The published DevKitM-1 v1 connector is Micro-USB. The Device
+screen can also show a source file from the folder, read-only. That
+file is not a document, and the app does not compile it.
 
 The committed fixture was a MicroPython image. It is now ESP-IDF
 v5.5.5 `hello_world` for esp32c3, one merged flash file. The loader

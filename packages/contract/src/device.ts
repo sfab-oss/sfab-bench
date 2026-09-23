@@ -22,6 +22,33 @@ export function firmwareChip(path: string): FirmwareChip | null {
   return null;
 }
 
+const SOURCE_EXT = new Set([
+  "c",
+  "h",
+  "cc",
+  "hh",
+  "cpp",
+  "hpp",
+  "cxx",
+  "hxx",
+  "s",
+]);
+
+/** A source file the Device screen can show. Not a document, and not CAD. */
+export function sourceFile(path: string): boolean {
+  const name = path.split(/[/\\]/).pop() ?? path;
+  if (
+    name === "CMakeLists.txt" ||
+    name === "sdkconfig" ||
+    name === "sdkconfig.defaults"
+  ) {
+    return true;
+  }
+  const dot = name.lastIndexOf(".");
+  if (dot <= 0) return false;
+  return SOURCE_EXT.has(name.slice(dot + 1).toLowerCase());
+}
+
 /**
  * One running machine. Every tab with this `?device=`, and the agent tools,
  * attach to it. They do not each own a copy.
