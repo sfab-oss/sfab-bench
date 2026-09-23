@@ -26,8 +26,10 @@ Product calls and ranked next: [`product.md`](product.md).
   [ADR 0003](decisions/0003-library-not-viewport.md)).
 - **Viewport is per browser:** loaded file, selection, camera, XR, which
   chat is open, live stream, and which experience the tab is showing
-  (CAD or Device). `?file=` is the CAD document. `?device=` is the
-  firmware image. One screen does not read the other.
+  (CAD or Device). On Device the main view is a fixed board picture for
+  the open chip, and the serial console docks under it. `?file=` is the
+  CAD document. `?device=` is the firmware image. One screen does not
+  read the other.
   `show_artifact` moves only the asking client and appends recents.
 - **The running device is one per document**, keyed by the project plus
   the image path ([ADR 0008](decisions/0008-second-domain.md)). Tabs and

@@ -21,7 +21,8 @@ function serialPage(body: unknown): { text: string; next: number } | null {
 }
 
 /**
- * Desktop serial log for the tab's `?device=`. The viewport stays above this.
+ * Desktop serial log for the tab's `?device=`. On Device it docks under the
+ * board view. `screen` is the full column, used when that chip has no picture.
  * Quest does not mount it.
  */
 export function SerialConsole({
