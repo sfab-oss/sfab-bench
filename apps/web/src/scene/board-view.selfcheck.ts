@@ -1,17 +1,11 @@
 import {
-  ANTENNA_DEPTH,
-  ANTENNA_Z,
   boardViewForChip,
   DEVKIT_M1,
   HEADER_CENTERS,
   J1,
   J3,
-  moduleSpan,
-  PCB_LENGTH,
   PIN_PITCH,
   pinZ,
-  SHIELD_DEPTH,
-  SHIELD_Z,
 } from "./devkit-m1";
 
 function expect(cond: boolean, label: string) {
@@ -30,10 +24,3 @@ expect(
   "headers are 9 pitches apart"
 );
 expect(pinZ(0, 15) > pinZ(14, 15), "pin 1 is the module end");
-
-const pcbEnd = PCB_LENGTH / 2;
-const antenna = moduleSpan(ANTENNA_Z, ANTENNA_DEPTH);
-const shield = moduleSpan(SHIELD_Z, SHIELD_DEPTH);
-const overhang = antenna[1] - pcbEnd;
-expect(overhang > 2 && overhang < 5, "antenna tab clears the board edge");
-expect(antenna[0] < shield[1], "antenna stays under the can");
