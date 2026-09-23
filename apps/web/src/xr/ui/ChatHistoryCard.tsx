@@ -3,14 +3,16 @@ import { Container, Text } from "@react-three/uikit";
 import { useViewerChat } from "@/components/chat/useViewerChat";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
 import { useXrTheme } from "@/xr/ui/theme";
+import { asciiSafe } from "@/xr/ui/UikitMarkdown";
+import { XR_CHAT_OVERLAY_H, XR_CHAT_OVERLAY_W } from "@/xr/ui/xrChatChrome";
 
 export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
   const { threads, threadId, openThread } = useViewerChat();
   const theme = useXrTheme();
   return (
     <Container
-      width={192}
-      maxHeight={320}
+      width={XR_CHAT_OVERLAY_W}
+      maxHeight={XR_CHAT_OVERLAY_H}
       padding={8}
       gap={6}
       flexDirection="column"
@@ -19,6 +21,8 @@ export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
       borderWidth={1}
       borderColor={theme.border}
       pixelSize={0.001}
+      opacity={1}
+      zIndexOffset={10}
       pointerEvents="auto"
     >
       <Container flexDirection="row" gap={4} width="100%" flexShrink={0}>
@@ -26,6 +30,7 @@ export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
       </Container>
       <Container
         flexGrow={1}
+        minHeight={0}
         width="100%"
         overflow="scroll"
         gap={4}
@@ -40,6 +45,8 @@ export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
             <Container
               key={t.id}
               width="100%"
+              minWidth={0}
+              flexShrink={0}
               padding={8}
               borderRadius={8}
               backgroundColor={t.id === threadId ? theme.hover : theme.muted}
@@ -49,8 +56,8 @@ export function ChatHistoryCard({ onClose }: { onClose: () => void }) {
                 onClose();
               }}
             >
-              <Text fontSize={13} color={theme.text}>
-                {t.title}
+              <Text fontSize={13} color={theme.text} wordBreak="break-word">
+                {asciiSafe(t.title)}
               </Text>
             </Container>
           ))

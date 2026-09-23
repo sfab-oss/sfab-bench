@@ -31,12 +31,12 @@ export function ChatPanels({
         onToggleModels={() => toggle("models")}
       />
       {overlay === "history" ? (
-        <group position={[0, 0.04, 0.055]}>
+        <group position={[0, 0.04, 0.1]} renderOrder={10}>
           <ChatHistoryCard onClose={() => setOverlay("none")} />
         </group>
       ) : null}
       {overlay === "models" ? (
-        <group position={[0, 0.04, 0.055]}>
+        <group position={[0, 0.04, 0.1]} renderOrder={10}>
           <ChatModelCard onClose={() => setOverlay("none")} />
         </group>
       ) : null}

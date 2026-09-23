@@ -19,6 +19,7 @@ import { FeedbackContext, ToolBtn } from "@/xr/ui/ToolBtn";
 import { useXrTheme } from "@/xr/ui/theme";
 import { asciiSafe } from "@/xr/ui/UikitMarkdown";
 import { XrProviderMark } from "@/xr/ui/XrProviderMark";
+import { XR_CHAT_OVERLAY_H, XR_CHAT_OVERLAY_W } from "@/xr/ui/xrChatChrome";
 
 export function ChatModelCard({ onClose }: { onClose: () => void }) {
   const chatHarness = useStore((s) => s.chatHarness);
@@ -61,8 +62,8 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
 
   return (
     <Container
-      width={240}
-      height={308}
+      width={XR_CHAT_OVERLAY_W}
+      height={XR_CHAT_OVERLAY_H}
       padding={8}
       gap={6}
       flexDirection="column"
@@ -71,6 +72,8 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
       borderWidth={1}
       borderColor={theme.border}
       pixelSize={0.001}
+      opacity={1}
+      zIndexOffset={10}
       pointerEvents="auto"
     >
       <Container flexDirection="row" gap={4} width="100%" flexShrink={0}>
@@ -212,6 +215,7 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
                   <Container
                     key={m.slug}
                     width="100%"
+                    minWidth={0}
                     flexShrink={0}
                     padding={6}
                     borderRadius={8}
@@ -229,7 +233,11 @@ export function ChatModelCard({ onClose }: { onClose: () => void }) {
                       onClose();
                     }}
                   >
-                    <Text fontSize={13} color={theme.text}>
+                    <Text
+                      fontSize={13}
+                      color={theme.text}
+                      wordBreak="break-word"
+                    >
                       {asciiSafe(m.name)}
                     </Text>
                   </Container>
@@ -263,6 +271,8 @@ export function ChatModelChip({
       alignItems="center"
       gap={6}
       height={28}
+      maxWidth="100%"
+      minWidth={0}
       paddingX={8}
       borderRadius={8}
       backgroundColor={active ? theme.active : theme.muted}
@@ -277,7 +287,7 @@ export function ChatModelChip({
       }}
     >
       <XrProviderMark id={chatHarness} size={14} />
-      <Text fontSize={12} color={theme.text}>
+      <Text fontSize={12} color={theme.text} wordBreak="break-word">
         {name}
       </Text>
     </Container>

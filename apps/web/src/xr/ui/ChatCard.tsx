@@ -1,4 +1,4 @@
-import { Container, Input, Text } from "@react-three/uikit";
+import { Container, Text, Textarea } from "@react-three/uikit";
 import {
   ChevronDown,
   History,
@@ -34,6 +34,7 @@ import { asciiSafe, UikitMarkdown } from "@/xr/ui/UikitMarkdown";
 import { useXrChatScroll, XR_SCROLL_GUTTER } from "@/xr/ui/useXrChatScroll";
 import { VoiceRecordRow } from "@/xr/ui/VoiceRecordRow";
 import { useXrChatRuntime } from "@/xr/ui/XrChatRuntime";
+import { XR_COMPOSER_MAX_H, xrComposerHeight } from "@/xr/ui/xrChatChrome";
 
 function workedDurationSeconds(message: GalleryChatMessage) {
   const n = message.metadata?.responseTime;
@@ -457,6 +458,7 @@ function XrChatSession({
     send();
     jumpToEnd();
   };
+  const composerH = xrComposerHeight(draft);
 
   return (
     <>
@@ -545,19 +547,22 @@ function XrChatSession({
         <Container
           flexDirection="row"
           flexShrink={0}
-          alignItems="center"
+          alignItems="flex-end"
           gap={4}
           width="100%"
         >
           <Container
             flexGrow={1}
             minWidth={0}
-            height={36}
+            height={composerH}
+            maxHeight={XR_COMPOSER_MAX_H}
             borderRadius={8}
             backgroundColor={theme.muted}
             paddingX={8}
+            paddingY={8}
+            overflow="scroll"
           >
-            <Input
+            <Textarea
               value={draft}
               onValueChange={(value: string) => setDraft(value)}
               placeholder={
@@ -571,6 +576,7 @@ function XrChatSession({
               height="100%"
               fontSize={14}
               color={theme.text}
+              wordBreak="break-word"
             />
           </Container>
           <ToolBtn
@@ -669,8 +675,8 @@ export function ChatCard({
           alignItems="center"
           gap={6}
         >
-          <Text fontSize={14} color={theme.text}>
-            {active?.title ?? "Assistant"}
+          <Text fontSize={14} color={theme.text} wordBreak="break-word">
+            {asciiSafe(active?.title ?? "Assistant")}
           </Text>
         </Container>
         <ToolBtn
