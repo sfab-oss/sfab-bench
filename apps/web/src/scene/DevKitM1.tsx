@@ -2,12 +2,17 @@ import { useMemo } from "react";
 import * as THREE from "three";
 
 import {
+  ANTENNA_DEPTH,
+  ANTENNA_Z,
   J1,
   J3,
+  MODULE_Z,
   PCB_LENGTH,
   PCB_THICKNESS,
   PCB_WIDTH,
   pinZ,
+  SHIELD_DEPTH,
+  SHIELD_Z,
 } from "./devkit-m1";
 
 const HEADER_X = 22.86 / 2;
@@ -86,13 +91,13 @@ function Header({ x, count }: { x: number; count: number }) {
 
 function Module() {
   return (
-    <group position={[0, PCB_THICKNESS / 2, 14.2]}>
-      <mesh position={[0, 0.45, 9.4]} raycast={noHit}>
-        <boxGeometry args={[12.2, 0.9, 10]} />
+    <group position={[0, PCB_THICKNESS / 2, MODULE_Z]}>
+      <mesh position={[0, 0.45, ANTENNA_Z]} raycast={noHit}>
+        <boxGeometry args={[12.2, 0.9, ANTENNA_DEPTH]} />
         <meshStandardMaterial color="#2a2a2a" roughness={0.8} />
       </mesh>
-      <mesh position={[0, 1.45, -0.4]} raycast={noHit}>
-        <boxGeometry args={[13.2, 2.4, 12.4]} />
+      <mesh position={[0, 1.45, SHIELD_Z]} raycast={noHit}>
+        <boxGeometry args={[13.2, 2.4, SHIELD_DEPTH]} />
         <meshStandardMaterial
           color="#d5d8de"
           metalness={0.8}
