@@ -36,12 +36,16 @@ the suffix.
 
 **CAD and Device are two screens.** The default screen is CAD: STEP and
 GLB, the viewport, `get_viewer` and `show_artifact`. Device is desktop
-only: `.<chip>.bin` files and the serial console as the screen, with
-`get_device`, `run_firmware`, `read_serial`, and `send_serial`. `?file=`
-is the CAD document. `?device=` is the firmware image. One screen does
-not read the other's document. Both may stay in the URL so switching
-back restores the previous file. Putting them on one screen, and
-binding telemetry to a CAD part, is deferred. Quest stays CAD.
+only: `.<chip>.bin` files, a fixed board view as the main area, and the
+serial console docked under it, with `get_device`, `run_firmware`,
+`read_serial`, and `send_serial`. The picture for `esp32c3` is the
+Espressif ESP32-C3-DevKitM-1, shipped with the app. It is not a project
+file, and every image of that chip shows the same board. The picture
+does not report pin levels. `?file=` is the CAD document. `?device=` is
+the firmware image. One screen does not read the other's document. Both
+may stay in the URL so switching back restores the previous file.
+Putting them on one screen, and binding telemetry to a CAD part, is
+deferred. Quest stays CAD.
 
 **One running machine per document.** The key is the project plus the
 project-relative image path. Every tab with that `?device=`, and the
@@ -101,6 +105,14 @@ this shape instead of reopening it.
 - The catalog lists the suffix. CAD screens show STEP and GLB. The
   device screen shows the suffix and the console. The `.app` does not
   copy the wasm.
+
+## Amendment — 2026-09-23
+
+The Device screen was the serial console alone. It is now the board
+view, with that console docked under it. The console still opens the
+same machine. Quest, the suffix rule, and one machine per document are
+unchanged. The mesh is geometry this repo draws. Espressif's DXF is
+not in the tree. The published DevKitM-1 v1 connector is Micro-USB.
 
 ## Related
 

@@ -1,3 +1,4 @@
+import { firmwareChip } from "@sfab-bench/contract";
 import { Box, PanelRight, Scan } from "lucide-react";
 import {
   type CSSProperties,
@@ -69,6 +70,8 @@ import { redeemFragmentToken } from "@/lib/pairing";
 import { folderName } from "@/lib/project";
 import { isMacPlatform } from "@/lib/shortcuts";
 import { documentTitle, emptySceneKind, PRODUCT_TITLE } from "@/lib/welcome";
+import { BoardView } from "@/scene/BoardView";
+import { boardViewForChip } from "@/scene/devkit-m1";
 import { ViewerCanvas } from "@/scene/ViewerCanvas";
 import { useStore } from "@/state/store";
 import { enterAR, enterVR } from "@/xrStore";
@@ -427,6 +430,16 @@ function Overlay({
   );
 }
 
+function DeviceScreen({ path }: { path: string }) {
+  const picture = boardViewForChip(firmwareChip(path));
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {picture ? <BoardView /> : null}
+      <SerialConsole path={path} screen={!picture} />
+    </div>
+  );
+}
+
 function ViewerShell({ host }: { host: boolean }) {
   const session = useXrSession();
   const device = useDevicePath();
@@ -491,7 +504,7 @@ function ViewerShell({ host }: { host: boolean }) {
       <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
         {deviceMode ? (
           device ? (
-            <SerialConsole path={device} screen />
+            <DeviceScreen path={device} />
           ) : (
             <div className="grid min-h-0 flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">
               Open a firmware image from Files.
