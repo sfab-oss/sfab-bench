@@ -59,8 +59,7 @@ try {
       );
       const deadline = Date.now() + 20_000;
       let text = "";
-      let next = 0;
-      while (Date.now() < deadline && !text.includes(">>> ")) {
+      while (Date.now() < deadline && !text.includes("Hello world!")) {
         const read = await deviceTools.read_serial.execute!(
           { path: rel },
           {} as never
@@ -68,32 +67,17 @@ try {
         if (read && "error" in read) throw new Error(String(read.error));
         if (read && "text" in read && typeof read.text === "string") {
           text = read.text;
-          next = read.next;
         }
         await new Promise((resolve) => setTimeout(resolve, 40));
       }
-      expect(text.includes("MicroPython"), "read_serial has the banner");
-      expect(text.includes(">>> "), "read_serial reaches the prompt");
+      expect(text.includes("Hello world!"), "read_serial has the banner");
+      expect(text.includes("esp32c3"), "read_serial names the chip");
 
       const sent = await deviceTools.send_serial.execute!(
-        { path: rel, text: "print('SFAB-TOOL', 6*7)" },
+        { path: rel, text: "SFAB-TOOL" },
         {} as never
       );
       expect(sent && "ok" in sent && sent.ok === true, "send_serial writes");
-
-      while (Date.now() < deadline && !text.includes("SFAB-TOOL 42")) {
-        const read = await deviceTools.read_serial.execute!(
-          { path: rel, from: next },
-          {} as never
-        );
-        if (read && "error" in read) throw new Error(String(read.error));
-        if (read && "text" in read && typeof read.text === "string") {
-          text += read.text;
-          next = read.next;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 40));
-      }
-      expect(text.includes("SFAB-TOOL 42"), "the tool loop round-trips");
     }
   );
 } finally {

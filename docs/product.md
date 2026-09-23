@@ -73,11 +73,11 @@ Each row is one PR-sized unit. Update status here when it ships.
 | 17 | later | IWER in the packaged `.app`: confirm the zip does not ship or inject IWER; a future marketing-demo force-install must not leak into Quest LAN or the `.app`. |
 | 18 | **done** | First-run: README + Welcome + user doc point at [sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter), which vendors Jake `$cad` and a project Bench skill. No in-app clone. |
 | 19 | **done** | Second domain ([ADR 0008](decisions/0008-second-domain.md)). A firmware image named `.<chip>.bin` is a document. First chip `esp32c3`. CAD and Device are separate screens. One running machine per document, shared by tabs and the agent. |
-| 20 | **done** | Open a `.<chip>.bin` on esp-emu v0.43.0 (worker thread, checksum checked). The serial console docks under the board view, desktop only. The MicroPython C3 image is a committed fixture and the selfcheck boots it to `>>>`. The binary is not in the `.app`. |
+| 20 | **done** | Open a `.<chip>.bin` on esp-emu v0.43.0 (worker thread, checksum checked). The serial console docks under the board view, desktop only. The committed fixture is ESP-IDF v5.5.5 hello_world for the C3, and the selfcheck boots it to `Hello world!`. The binary is not in the `.app`. |
 | 21 | **done** | Agent tools `get_device`, `run_firmware`, `read_serial`, `send_serial`. `get_device` is this tab, like `get_viewer`. The other three run on the server and share the one machine. |
 | 22 | later | Real board. The server owns the serial port. Same four tools. |
 | 23 | later | Telemetry lines bound to a CAD occurrence, shown on Quest. |
-| 24 | later | MicroPython ESP32-C3 starter. A new public repo, separate approval. |
+| 24 | dropped | MicroPython starter. The program we write is ESP-IDF C. The loader still opens any `*.esp32c3.bin`. |
 | 25 | **done** | Device board view. An open `esp32c3` image shows a fixed ESP32-C3-DevKitM-1. Orbit, pan, zoom, and home. The console docks under it. No pin state. Quest stays CAD. |
 
 ## Do not build

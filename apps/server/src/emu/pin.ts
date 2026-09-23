@@ -12,6 +12,9 @@ export const ESP_EMU_JS_SHA256 =
 export const ESP_EMU_WASM_SHA256 =
   "464828e0e402343f7907ba4a0c5fbba9bbbb93a39d7f608722b472e04fe57db8";
 
-/** MicroPython 1.29.0 ESP32_GENERIC_C3, 2026-08-24. The committed fixture. */
-export const MPY_C3_SHA256 =
-  "bf72ed9eb88ad3a8f49d02c3d371f9ea34c90a8a303aeb9e324d8efd4a2a655a";
+/**
+ * ESP-IDF v5.5.5 `examples/get-started/hello_world` for esp32c3, merged
+ * flash (bootloader + partition table + app). The committed fixture.
+ */
+export const IDF_HELLO_C3_SHA256 =
+  "084ffd78023c0e0d5c4cd5fd29835806175d750f87496a9c1583129f102335fb";
