@@ -61,18 +61,6 @@ export const HOME_TARGET = [0, 0, -2] as const;
  */
 export const BOARD_STAGE_DARK = "#4e535a";
 
-/** Module group origin, then local centers. Millimetres, module end is +Z. */
-export const MODULE_Z = 14.2;
-export const SHIELD_Z = -0.4;
-export const SHIELD_DEPTH = 12.4;
-export const ANTENNA_Z = 5.3;
-export const ANTENNA_DEPTH = 7;
-
-export function moduleSpan(localZ: number, depth: number): [number, number] {
-  const center = MODULE_Z + localZ;
-  return [center - depth / 2, center + depth / 2];
-}
-
 export function pinZ(index: number, count: number): number {
   return ((count - 1) / 2 - index) * PIN_PITCH;
 }
