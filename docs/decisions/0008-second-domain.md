@@ -101,7 +101,7 @@ this shape instead of reopening it.
 - `apps/server/src/device.selfcheck.ts` — the suffix cases above.
 - `apps/server/src/emu/` — pinned esp-emu on a worker, one machine per
   document. `apps/server/src/emu.selfcheck.ts` boots the committed
-  MicroPython C3 image to `>>>`.
+  ESP-IDF hello_world image to `Hello world!`.
 - The catalog lists the suffix. CAD screens show STEP and GLB. The
   device screen shows the suffix and the console. The `.app` does not
   copy the wasm.
@@ -113,6 +113,11 @@ view, with that console docked under it. The console still opens the
 same machine. Quest, the suffix rule, and one machine per document are
 unchanged. The mesh is geometry this repo draws. Espressif's DXF is
 not in the tree. The published DevKitM-1 v1 connector is Micro-USB.
+
+The committed fixture was a MicroPython image. It is now ESP-IDF
+v5.5.5 `hello_world` for esp32c3, one merged flash file. The loader
+still accepts any `*.esp32c3.bin`. The hello image prints its banner
+and does not read the serial line.
 
 ## Related
 
