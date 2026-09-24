@@ -1,4 +1,4 @@
-import { firmwareChip } from "@sfab-bench/contract";
+import { firmwareChip, sourceFile } from "@sfab-bench/contract";
 
 function expect(cond: unknown, label: string) {
   if (!cond) throw new Error(label);
@@ -20,5 +20,9 @@ expect(
   firmwareChip("firmware.esp32c3.bin.bak") === null,
   "suffix has to be the end of the name"
 );
+expect(sourceFile("main/main.c"), "c file is source");
+expect(sourceFile("CMakeLists.txt"), "cmakelists is source");
+expect(!sourceFile("notes.md"), "markdown is not source");
+expect(!sourceFile("app.esp32c3.bin"), "firmware image is not source");
 
 console.log("device.selfcheck ok");

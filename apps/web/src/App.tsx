@@ -27,6 +27,7 @@ import { PairPage } from "@/components/PairPage";
 import { PartTree } from "@/components/PartTree";
 import { RenderErrorBoundary } from "@/components/RenderErrorBoundary";
 import { SerialConsole } from "@/components/SerialConsole";
+import { SourceView } from "@/components/SourceView";
 import { Toolbar } from "@/components/Toolbar";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +45,7 @@ import {
   ProjectSessionProvider,
   useProjectSession,
 } from "@/hooks/useProjectSession";
+import { useSourcePath } from "@/hooks/useSourcePath";
 import { useXrSession } from "@/hooks/useXrSession";
 import { useXrSupport } from "@/hooks/useXrSupport";
 import { fetchMe, jsonApi, type MePrincipal } from "@/lib/api";
@@ -443,6 +445,7 @@ function DeviceScreen({ path }: { path: string }) {
 function ViewerShell({ host }: { host: boolean }) {
   const session = useXrSession();
   const device = useDevicePath();
+  const source = useSourcePath();
   const mode = useExperience();
   const deviceMode = mode === "device" && !session;
   const treeOpen = useStore((s) => s.treeOpen);
@@ -503,11 +506,18 @@ function ViewerShell({ host }: { host: boolean }) {
       ) : null}
       <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
         {deviceMode ? (
-          device ? (
-            <DeviceScreen path={device} />
+          source || device ? (
+            source ? (
+              <div className="flex min-h-0 flex-1 flex-col">
+                <SourceView path={source} />
+                {device ? <SerialConsole path={device} /> : null}
+              </div>
+            ) : (
+              <DeviceScreen path={device} />
+            )
           ) : (
             <div className="grid min-h-0 flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">
-              Open a firmware image from Files.
+              Open a firmware image or a source file from Files.
             </div>
           )
         ) : (
@@ -572,7 +582,7 @@ function ViewerShell({ host }: { host: boolean }) {
                 ? deviceCatalog(catalog.files)
                 : cadCatalog(catalog.files)
             }
-            currentPath={deviceMode ? device : url}
+            currentPath={deviceMode ? source || device : url}
             compactChat={compactChat}
             folder={folder}
           />

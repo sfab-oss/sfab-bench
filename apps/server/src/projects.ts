@@ -3,6 +3,8 @@ import {
   existsSync,
   type FSWatcher,
   readdirSync,
+  readFileSync,
+  realpathSync,
   statSync,
   watch,
 } from "node:fs";
@@ -16,7 +18,11 @@ import {
   resolve,
   sep,
 } from "node:path";
-import { type CatalogEntry, firmwareChip } from "@sfab-bench/contract";
+import {
+  type CatalogEntry,
+  firmwareChip,
+  sourceFile,
+} from "@sfab-bench/contract";
 import { db } from "./db";
 
 const STEP_RE = /\.(step|stp)$/i;
@@ -151,8 +157,44 @@ function walk(dir: string, root: string, acc: CatalogEntry[]) {
       acc.push({ path: rel, kind: "glb" });
     } else if (firmwareChip(ent.name)) {
       acc.push({ path: rel, kind: "firmware" });
+    } else if (sourceFile(ent.name)) {
+      acc.push({ path: rel, kind: "source" });
     }
   }
+}
+
+const SOURCE_MAX_BYTES = 256 * 1024;
+
+/** UTF-8 text for a catalogued source path. Refuses anything else. */
+export function readProjectSource(
+  root: string,
+  rel: string
+): { text: string } | { error: string } {
+  const trimmed = rel.trim().replace(/\\/g, "/");
+  if (!root || !sourceFile(trimmed) || trimmed.split("/").includes("..")) {
+    return { error: "not a source file" };
+  }
+  let rootReal: string;
+  try {
+    rootReal = realpathSync(root);
+  } catch {
+    return { error: "not a source file" };
+  }
+  const abs = resolve(rootReal, trimmed);
+  if (!existsSync(abs)) return { error: "not a source file" };
+  let real: string;
+  try {
+    real = realpathSync(abs);
+  } catch {
+    return { error: "not a source file" };
+  }
+  if (!insideRoot(rootReal, real)) return { error: "not a source file" };
+  const stat = statSync(real);
+  if (!stat.isFile()) return { error: "not a source file" };
+  if (stat.size > SOURCE_MAX_BYTES) return { error: "file is too large" };
+  const buf = readFileSync(real);
+  if (buf.includes(0)) return { error: "not a text file" };
+  return { text: buf.toString("utf8") };
 }
 
 export function listProjectFiles(root: string): CatalogEntry[] {

@@ -5,12 +5,13 @@ function expect(cond: unknown, label: string) {
 }
 
 const switched = applyProjectSearch(
-  "?project=/tmp/a&file=part.step&device=firmware.esp32c3.bin",
+  "?project=/tmp/a&file=part.step&device=firmware.esp32c3.bin&source=main/main.c",
   "/tmp/b"
 );
 expect(switched.changed, "folder change is a change");
 expect(switched.clearedDevice, "folder change drops the device");
 expect(!switched.search.includes("device="), "device param is gone");
+expect(!switched.search.includes("source="), "folder change drops the source");
 expect(!switched.search.includes("file="), "file param is gone");
 expect(switched.search.includes("project=%2Ftmp%2Fb"), "new folder is set");
 

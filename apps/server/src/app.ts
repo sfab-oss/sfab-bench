@@ -43,6 +43,7 @@ import {
   listRecents,
   openProject,
   projectRow,
+  readProjectSource,
   resolveRequestRoot,
 } from "./projects";
 import { rememberOpenedFile, snapshotFor, stopSessionRun } from "./session";
@@ -218,6 +219,13 @@ export const api = new Hono<AppEnv>()
   })
   .get("/project", (c) => {
     return c.json(projectPayload(c.get("projectRoot")));
+  })
+  .get("/project/source", (c) => {
+    const root = c.get("projectRoot");
+    if (!root) return c.json({ error: "no project" }, 400);
+    const read = readProjectSource(root, c.req.query("path") ?? "");
+    if ("error" in read) return c.json(read, 404);
+    return c.json(read);
   })
   .post("/project", zValidator("json", openProjectSchema), (c) => {
     const denied = denyLoopback(c);

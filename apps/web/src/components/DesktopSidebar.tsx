@@ -22,6 +22,7 @@ import { WorkbenchSettings } from "@/components/WorkbenchSettings";
 import type { CatalogState } from "@/hooks/useCatalog";
 import { useDevicePath } from "@/hooks/useDevicePath";
 import { useProjectSession } from "@/hooks/useProjectSession";
+import { useSourcePath } from "@/hooks/useSourcePath";
 import { commandPaletteShortcutLabel } from "@/lib/command-palette";
 import { syncExperience, useExperience } from "@/lib/experience";
 import {
@@ -68,6 +69,7 @@ export function DesktopSidebar({
     typeof navigator === "undefined" ? "" : navigator.userAgent
   );
   const device = useDevicePath();
+  const source = useSourcePath();
   const mode = useExperience();
   const deviceMode = mode === "device";
   const listed = deviceMode ? deviceCatalog(files) : cadCatalog(files);
@@ -165,11 +167,11 @@ export function DesktopSidebar({
             key={`${project.path}:${deviceMode ? "device" : "cad"}`}
             projectPath={project.path}
             files={listed}
-            current={deviceMode ? device : url}
+            current={deviceMode ? source || device : url}
             kinds={!deviceMode}
             emptyLabel={
               deviceMode
-                ? "No firmware image in this folder."
+                ? "No firmware image or source in this folder."
                 : "No STEP or GLB in this folder."
             }
             filter={filter}
