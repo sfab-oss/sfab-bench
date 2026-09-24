@@ -13,8 +13,8 @@ export const ESP_EMU_WASM_SHA256 =
   "464828e0e402343f7907ba4a0c5fbba9bbbb93a39d7f608722b472e04fe57db8";
 
 /**
- * ESP-IDF v5.5.5 `examples/get-started/hello_world` for esp32c3, merged
- * flash (bootloader + partition table + app). The committed fixture.
+ * ESP-IDF v5.5.5 C3 image that prints `SFAB-C3 ready` and echoes one
+ * serial line. Merged flash (bootloader + partition table + app).
  */
-export const IDF_HELLO_C3_SHA256 =
-  "084ffd78023c0e0d5c4cd5fd29835806175d750f87496a9c1583129f102335fb";
+export const IDF_ECHO_C3_SHA256 =
+  "8a5406ac2741245823dc54ab48372127becac8a801519532269201da14285237";
