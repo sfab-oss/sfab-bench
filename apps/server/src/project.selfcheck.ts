@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -83,6 +89,18 @@ expect(
   "error" in readProjectSource(root, "app.esp32c3.bin"),
   "firmware image is not source text"
 );
+const outside = mkdtempSync(join(tmpdir(), "xr-outside-"));
+writeFileSync(join(outside, "secret.c"), "SECRET\n");
+symlinkSync(join(outside, "secret.c"), join(root, "helper.c"));
+const linked = readProjectSource(root, "helper.c");
+expect("error" in linked, "a symlink cannot leave the folder");
+mkdirSync(join(root, "lib.c"));
+const dir = readProjectSource(root, "lib.c");
+expect(
+  "error" in dir && dir.error === "not a source file",
+  "a directory named like source is not a file"
+);
+rmSync(outside, { recursive: true, force: true });
 expect(
   files.some((f) => f.path === "app.esp32c3.bin" && f.kind === "firmware"),
   "chip-qualified image is a document"

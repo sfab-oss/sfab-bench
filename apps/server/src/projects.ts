@@ -4,6 +4,7 @@ import {
   type FSWatcher,
   readdirSync,
   readFileSync,
+  realpathSync,
   statSync,
   watch,
 } from "node:fs";
@@ -173,15 +174,25 @@ export function readProjectSource(
   if (!root || !sourceFile(trimmed) || trimmed.split("/").includes("..")) {
     return { error: "not a source file" };
   }
-  const abs = resolve(root, trimmed);
-  if (!insideRoot(root, abs) || !existsSync(abs)) {
+  let rootReal: string;
+  try {
+    rootReal = realpathSync(root);
+  } catch {
     return { error: "not a source file" };
   }
-  const stat = statSync(abs);
-  if (!stat.isFile() || stat.size > SOURCE_MAX_BYTES) {
-    return { error: "file is too large" };
+  const abs = resolve(rootReal, trimmed);
+  if (!existsSync(abs)) return { error: "not a source file" };
+  let real: string;
+  try {
+    real = realpathSync(abs);
+  } catch {
+    return { error: "not a source file" };
   }
-  const buf = readFileSync(abs);
+  if (!insideRoot(rootReal, real)) return { error: "not a source file" };
+  const stat = statSync(real);
+  if (!stat.isFile()) return { error: "not a source file" };
+  if (stat.size > SOURCE_MAX_BYTES) return { error: "file is too large" };
+  const buf = readFileSync(real);
   if (buf.includes(0)) return { error: "not a text file" };
   return { text: buf.toString("utf8") };
 }
