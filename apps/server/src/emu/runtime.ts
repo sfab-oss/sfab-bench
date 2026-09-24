@@ -7,7 +7,7 @@ import { ESP_EMU_JS_SHA256, ESP_EMU_VERSION, ESP_EMU_WASM_SHA256 } from "./pin";
 
 /**
  * Cycles per `run_batch` call. The v0.43 probe used this and reached the
- * hello banner in about 200 ms. The return value is not one type:
+ * ready banner in about 200 ms. The return value is not one type:
  * a string, a byte array, or `{ uart }`.
  */
 export const RUN_BATCH_CYCLES = 50_000;

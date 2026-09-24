@@ -101,7 +101,7 @@ this shape instead of reopening it.
 - `apps/server/src/device.selfcheck.ts` — the suffix cases above.
 - `apps/server/src/emu/` — pinned esp-emu on a worker, one machine per
   document. `apps/server/src/emu.selfcheck.ts` boots the committed
-  ESP-IDF hello_world image to `Hello world!`.
+  ESP-IDF image to `SFAB-C3 ready`, then echoes the serial line.
 - The catalog lists the suffix. CAD screens show STEP and GLB. The
   device screen shows the suffix and the console. The `.app` does not
   copy the wasm.
@@ -119,7 +119,9 @@ file is not a document, and the app does not compile it.
 The committed fixture was a MicroPython image. It is now ESP-IDF
 v5.5.5 `hello_world` for esp32c3, one merged flash file. The loader
 still accepts any `*.esp32c3.bin`. The hello image prints its banner
-and does not read the serial line.
+and does not read the serial line. The fixture after that is a C
+program that prints `SFAB-C3 ready` and writes `echo` plus the line it
+read. Bench still does not compile it.
 
 ## Related
 

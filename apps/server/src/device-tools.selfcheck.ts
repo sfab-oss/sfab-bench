@@ -59,7 +59,8 @@ try {
       );
       const deadline = Date.now() + 20_000;
       let text = "";
-      while (Date.now() < deadline && !text.includes("Hello world!")) {
+      let next = 0;
+      while (Date.now() < deadline && !text.includes("SFAB-C3 ready")) {
         const read = await deviceTools.read_serial.execute!(
           { path: rel },
           {} as never
@@ -67,17 +68,30 @@ try {
         if (read && "error" in read) throw new Error(String(read.error));
         if (read && "text" in read && typeof read.text === "string") {
           text = read.text;
+          next = read.next;
         }
         await new Promise((resolve) => setTimeout(resolve, 40));
       }
-      expect(text.includes("Hello world!"), "read_serial has the banner");
-      expect(text.includes("esp32c3"), "read_serial names the chip");
+      expect(text.includes("SFAB-C3 ready"), "read_serial has the banner");
 
       const sent = await deviceTools.send_serial.execute!(
         { path: rel, text: "SFAB-TOOL" },
         {} as never
       );
       expect(sent && "ok" in sent && sent.ok === true, "send_serial writes");
+      while (Date.now() < deadline && !text.includes("echo SFAB-TOOL")) {
+        const read = await deviceTools.read_serial.execute!(
+          { path: rel, from: next },
+          {} as never
+        );
+        if (read && "error" in read) throw new Error(String(read.error));
+        if (read && "text" in read && typeof read.text === "string") {
+          text += read.text;
+          next = read.next;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 40));
+      }
+      expect(text.includes("echo SFAB-TOOL"), "the tool loop echoes the line");
     }
   );
 } finally {
