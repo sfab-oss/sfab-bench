@@ -16,7 +16,7 @@ export type ViewerSnapshot = {
 
 export type CatalogEntry = {
   path: string;
-  kind: "step" | "glb";
+  kind: "step" | "glb" | "world";
 };
 
 export function emptySnapshot(file = ""): ViewerSnapshot {
@@ -32,7 +32,9 @@ export function emptySnapshot(file = ""): ViewerSnapshot {
 
 export function catalogLabel(path: string): string {
   const name = path.split("/").filter(Boolean).pop() ?? path;
-  return name.replace(/\.(step|stp|glb|gltf)$/i, "");
+  return name
+    .replace(/\.world\.json$/i, "")
+    .replace(/\.(step|stp|glb|gltf)$/i, "");
 }
 
 function flattenCatalog(files: CatalogEntry[]): CatalogEntry[] {

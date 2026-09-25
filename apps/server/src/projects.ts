@@ -21,6 +21,7 @@ import { db } from "./db";
 
 const STEP_RE = /\.(step|stp)$/i;
 const GLB_RE = /\.(glb|gltf)$/i;
+const WORLD_RE = /\.world\.json$/i;
 const MAX_FILES = 2500;
 
 const SKIP_DIRS = new Set([
@@ -64,10 +65,14 @@ db.exec(`
 
 export const MAX_FILE_RECENTS = 12;
 
+type WatchListener = (names: string[]) => void;
+
 type LiveRoot = {
   revision: number;
   watcher: FSWatcher | null;
   watchTimer: ReturnType<typeof setTimeout> | null;
+  pending: Set<string>;
+  listeners: Set<WatchListener>;
 };
 
 /** Watchers and catalog revisions, one per folder this process has used. */
@@ -88,7 +93,13 @@ function notifyFallbackChanged() {
 function liveOf(root: string): LiveRoot {
   let row = live.get(root);
   if (!row) {
-    row = { revision: 0, watcher: null, watchTimer: null };
+    row = {
+      revision: 0,
+      watcher: null,
+      watchTimer: null,
+      pending: new Set(),
+      listeners: new Set(),
+    };
     live.set(root, row);
   }
   return row;
@@ -148,6 +159,8 @@ function walk(dir: string, root: string, acc: CatalogEntry[]) {
       acc.push({ path: posixRel(root, join(dir, ent.name)), kind: "step" });
     } else if (GLB_RE.test(ent.name) && !/\.raw\.(glb|gltf)$/i.test(ent.name)) {
       acc.push({ path: posixRel(root, join(dir, ent.name)), kind: "glb" });
+    } else if (WORLD_RE.test(ent.name)) {
+      acc.push({ path: posixRel(root, join(dir, ent.name)), kind: "world" });
     }
   }
 }
@@ -201,10 +214,23 @@ function startWatch(root: string) {
   if (slot.watcher) return;
   try {
     slot.watcher = watch(root, { recursive: true }, (_event, filename) => {
-      const name = filename ? (String(filename).split(sep)[0] ?? "") : "";
+      const raw = filename ? String(filename) : "";
+      const name = raw ? (raw.split(sep)[0] ?? "") : "";
       if (name && skipDir(name)) return;
+      slot.pending.add(raw ? raw.split(sep).join("/") : "");
       if (slot.watchTimer) clearTimeout(slot.watchTimer);
-      slot.watchTimer = setTimeout(() => bumpCatalog(root), 250);
+      slot.watchTimer = setTimeout(() => {
+        const names = [...slot.pending];
+        slot.pending.clear();
+        bumpCatalog(root);
+        for (const fn of slot.listeners) {
+          try {
+            fn(names);
+          } catch (err) {
+            console.error("[watch]", err);
+          }
+        }
+      }, 250);
       slot.watchTimer.unref();
     });
     slot.watcher.unref();
@@ -219,6 +245,20 @@ function startWatch(root: string) {
 function ensureLive(root: string) {
   liveOf(root);
   startWatch(root);
+}
+
+/** File changes under a project, debounced with the catalog revision bump. */
+export function subscribeRootWatch(
+  root: string,
+  fn: WatchListener
+): () => void {
+  const abs = resolve(root);
+  const slot = liveOf(abs);
+  startWatch(abs);
+  slot.listeners.add(fn);
+  return () => {
+    slot.listeners.delete(fn);
+  };
 }
 
 export function projectRow(root: string): ProjectRow {
