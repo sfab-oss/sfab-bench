@@ -91,6 +91,17 @@ export function arduinoPinMask(
   return (portD & 0xff) | ((portB & 0x3f) << 8) | ((portC & 0x3f) << 14);
 }
 
+/**
+ * One part in the shared run, at the state rate. `null` is no signal:
+ * the pulse was missing, out of range, or older than the gap.
+ */
+export type WorldPartState = {
+  /** Last complete pulse width, in microseconds. */
+  pulseUs: number | null;
+  /** Command angle in degrees, from the servo map. */
+  commandDeg: number | null;
+};
+
 /** One board in the shared run. `pins` is the 20-bit snapshot for this tick. */
 export type WorldBoardState = {
   /**
@@ -114,6 +125,11 @@ export type WorldState = {
   joints: Record<string, Record<string, number>>;
   /** board id → whether that CPU is loaded. */
   boards: Record<string, WorldBoardState>;
+  /**
+   * part id → pulse and command. Optional so a client from before this
+   * field still reads the rest of the state.
+   */
+  parts?: Record<string, WorldPartState>;
 };
 
 /**

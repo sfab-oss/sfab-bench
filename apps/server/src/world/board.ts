@@ -53,6 +53,11 @@ export class AvrBoard {
    * in; the state tick is the only place that reads the registers.
    */
   private toggled = 0;
+  /** Arduino bits whose rising and falling edges are timed. */
+  private edgeMask = 0;
+  /** Cycle count at the rising edge, keyed by Arduino bit. */
+  private riseAt = new Map<number, number>();
+  private pulses: { bit: number; us: number }[] = [];
   private rx: number[] = [];
   private tx = "";
 
@@ -86,6 +91,8 @@ export class AvrBoard {
     this.portC = portC;
     this.portD = portD;
     this.toggled = 0;
+    this.riseAt.clear();
+    this.pulses = [];
     const peripherals = [
       portB,
       portC,
@@ -124,6 +131,8 @@ export class AvrBoard {
     this.portC = null;
     this.portD = null;
     this.toggled = 0;
+    this.riseAt.clear();
+    this.pulses = [];
     this.rx = [];
     this.overshoot = 0;
   }
@@ -152,13 +161,58 @@ export class AvrBoard {
     };
   }
 
+  /**
+   * Time edges on this Arduino bit. The port listener already runs on a
+   * pin write; this adds no per-instruction work. A servo is two edges
+   * per 20 ms frame.
+   */
+  watchEdge(bit: number) {
+    if (bit < 0 || bit > 19) return;
+    this.edgeMask |= 1 << bit;
+  }
+
+  /** Completed pulses since the last take. Empty most milliseconds. */
+  takePulses(): { bit: number; us: number }[] {
+    if (this.pulses.length === 0) return [];
+    const out = this.pulses;
+    this.pulses = [];
+    return out;
+  }
+
   /** OR changed pin bits. Runs only when avr8js already noticed a port write. */
   private watchPort(port: AVRIOPort, shift: number, width: number) {
     const mask = (1 << width) - 1;
     port.addListener((value, oldValue) => {
       const changed = (value ^ oldValue) & mask;
-      if (changed !== 0) this.toggled |= changed << shift;
+      if (changed === 0) return;
+      this.toggled |= changed << shift;
+      this.noteEdges(changed, shift, value);
     });
+  }
+
+  /**
+   * Pulse width is (fall − rise) / 16. The CPU is 16 MHz, so 16 cycles
+   * are one microsecond. Both edges use `cpu.cycles` at the port write.
+   */
+  private noteEdges(changed: number, shift: number, value: number) {
+    const cpu = this.cpu;
+    if (!cpu || this.edgeMask === 0) return;
+    for (let index = 0; index < 8; index++) {
+      if ((changed & (1 << index)) === 0) continue;
+      const bit = shift + index;
+      if ((this.edgeMask & (1 << bit)) === 0) continue;
+      const now = (value >> index) & 1;
+      if (now === 1) {
+        this.riseAt.set(bit, cpu.cycles);
+        continue;
+      }
+      const rise = this.riseAt.get(bit);
+      this.riseAt.delete(bit);
+      if (rise === undefined) continue;
+      const us = (cpu.cycles - rise) / 16;
+      if (us < 0) continue;
+      this.pulses.push({ bit, us });
+    }
   }
 
   takeTx(): string {

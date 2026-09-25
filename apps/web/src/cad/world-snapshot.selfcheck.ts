@@ -61,6 +61,13 @@ expect(
     linkSnap.selection.link === "upper_arm",
   "get_viewer names the selected link"
 );
+const partPick = { kind: "part" as const, part: "servo" };
+worldStore.getState().select(partPick);
+const partSnap = viewerSnapshot();
+expect(
+  partSnap.selection?.kind === "part" && partSnap.selection.part === "servo",
+  "get_viewer names the selected part"
+);
 
 worldStore.getState().close();
 setWorldLiveState(null);

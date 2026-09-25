@@ -6,7 +6,13 @@ function expect(cond: unknown, label: string) {
 
 const link = { kind: "link" as const, robot: "arm", link: "upper_arm" };
 const board = { kind: "board" as const, board: "uno" };
+const part = { kind: "part" as const, part: "servo" };
 const links = [{ robot: "arm", link: "upper_arm" }];
+const reload = {
+  links,
+  boards: ["uno"] as readonly string[],
+  parts: ["servo"] as readonly string[],
+};
 
 let selection = reduceWorldSelection(null, {
   type: "select",
@@ -27,8 +33,7 @@ expect(
 
 const keptBoard = reduceWorldSelection(selection, {
   type: "reload",
-  links,
-  boards: ["uno"],
+  ...reload,
 });
 expect(keptBoard === selection, "a reload that keeps the board keeps it");
 
@@ -36,6 +41,7 @@ const droppedBoard = reduceWorldSelection(selection, {
   type: "reload",
   links,
   boards: [],
+  parts: ["servo"],
 });
 expect(droppedBoard === null, "a reload that removes the board clears it");
 
@@ -45,14 +51,14 @@ const pickedLink = reduceWorldSelection(null, {
 });
 const keptLink = reduceWorldSelection(pickedLink, {
   type: "reload",
-  links,
-  boards: ["uno"],
+  ...reload,
 });
 expect(keptLink === pickedLink, "a reload that keeps the link keeps it");
 const droppedLink = reduceWorldSelection(pickedLink, {
   type: "reload",
   links: [{ robot: "arm", link: "base" }],
   boards: ["uno"],
+  parts: ["servo"],
 });
 expect(droppedLink === null, "a reload that removes the link clears it");
 expect(
@@ -69,6 +75,31 @@ expect(
     selection: null,
   }) === null,
   "selecting nothing stays clear"
+);
+
+const pickedPart = reduceWorldSelection(null, {
+  type: "select",
+  selection: part,
+});
+expect(
+  pickedPart?.kind === "part" && pickedPart.part === "servo",
+  "selects a part"
+);
+const keptPart = reduceWorldSelection(pickedPart, {
+  type: "reload",
+  ...reload,
+});
+expect(keptPart === pickedPart, "a reload that keeps the part keeps it");
+const droppedPart = reduceWorldSelection(pickedPart, {
+  type: "reload",
+  links,
+  boards: ["uno"],
+  parts: [],
+});
+expect(droppedPart === null, "a reload that removes the part clears it");
+expect(
+  reduceWorldSelection(pickedPart, { type: "close" }) === null,
+  "close clears a part"
 );
 
 worldStore.getState().open("examples/arm/arm.world.json");
@@ -89,6 +120,7 @@ worldStore.getState().setOutline({
       links: [{ name: "upper_arm", meshes: [], joint: null }],
     },
   ],
+  parts: [{ id: "servo", model: "sg90", drives: null, wires: [] }],
   boards: [{ id: "uno", chip: "atmega328p", firmware: "hold.hex" }],
 });
 expect(
@@ -102,11 +134,36 @@ worldStore.getState().setOutline({
       links: [{ name: "base", meshes: [], joint: null }],
     },
   ],
+  parts: [],
   boards: [],
 });
 expect(
   worldStore.getState().selection === null,
   "the store clears a board the reloaded outline dropped"
+);
+worldStore.getState().select(part);
+worldStore.getState().setOutline({
+  robots: [
+    {
+      id: "arm",
+      links: [{ name: "base", meshes: [], joint: null }],
+    },
+  ],
+  parts: [{ id: "servo", model: "sg90", drives: null, wires: [] }],
+  boards: [],
+});
+expect(
+  worldStore.getState().selection?.kind === "part",
+  "the store keeps a part the reloaded outline still has"
+);
+worldStore.getState().setOutline({
+  robots: [],
+  parts: [],
+  boards: [],
+});
+expect(
+  worldStore.getState().selection === null,
+  "the store clears a part the reloaded outline dropped"
 );
 worldStore.getState().close();
 

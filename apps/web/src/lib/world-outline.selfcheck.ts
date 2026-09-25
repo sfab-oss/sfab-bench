@@ -5,6 +5,8 @@ import {
   formatDegrees,
   formatJointReadout,
   formatLiveDegrees,
+  formatPartWire,
+  outlinePartLabel,
 } from "./world-outline";
 
 function expect(cond: boolean, label: string) {
@@ -53,6 +55,18 @@ const outline = buildWorldOutline(
         firmware: "firmware/hold/hold.hex",
         source: "firmware/hold/hold.ino",
       },
+    ],
+    parts: [
+      {
+        id: "servo",
+        model: "sg90",
+        drives: { robot: "arm", joint: "shoulder" },
+      },
+    ],
+    wires: [
+      ["uno.D9", "servo.signal"],
+      ["uno.5V", "servo.V+"],
+      ["uno.GND", "servo.GND"],
     ],
   },
   { arm, gripper }
@@ -144,5 +158,22 @@ const continuous = formatJointReadout(
 expect(continuous.label === "Angle", "a continuous joint is an angle");
 expect(continuous.value === "180.0°", `continuous value ${continuous.value}`);
 expect(continuous.limits === null, "a continuous joint has no degree limits");
+
+expect(outline.parts.length === 1, "one part");
+const servo = outline.parts[0];
+expect(servo?.id === "servo" && servo.model === "sg90", "servo · sg90");
+expect(
+  outlinePartLabel(servo ?? { id: "", model: "" }) === "servo · sg90",
+  "part label"
+);
+expect(
+  servo?.drives?.robot === "arm" && servo.drives.joint === "shoulder",
+  "drives shoulder"
+);
+expect(
+  servo?.wires.map(formatPartWire).join(", ") ===
+    "signal ← uno.D9, V+ ← uno.5V, GND ← uno.GND",
+  `wires ${servo?.wires.map(formatPartWire).join(", ")}`
+);
 
 console.log("world-outline.selfcheck ok");

@@ -14,14 +14,14 @@ import {
 import type { WorldBytes } from "./files";
 
 /**
- * Position-servo gains from the P2 probe. A 90° step overshoots on the way
- * and is within a degree of the target at 2 s. W4 tunes them; leave them.
+ * Position gains that track the slewed SG90 setpoint on the fixture arm.
+ * Implicit integration, so this damping does not fight the 1 ms step.
+ * No control filter: the part-model slew is already the rate limit.
+ * Hold sketch, the 10° → 90° move: overshoot 0.054°, within 1° at
+ * 101 ms after the slew ended. Torque is the part model's 0.176 N·m.
  */
-const SERVO_KP = 4;
-const SERVO_KV = 0.2;
-const SERVO_DAMP_RATIO = 1;
-const SERVO_TIMECONST = 0.1;
-const SERVO_INHERIT_RANGE = 1;
+const SERVO_KP = 0.8;
+const SERVO_KV = 0.03;
 
 const TIMESTEP_S = 0.001;
 
@@ -196,7 +196,7 @@ function worldXml(doc: WorldDocument): string {
     })
     .join("");
   return `<mujoco model="world">
-    <option timestep="${TIMESTEP_S}" gravity="0 0 -9.81"/>
+    <option timestep="${TIMESTEP_S}" gravity="0 0 -9.81" integrator="implicitfast"/>
     <worldbody>
       ${geoms.join("\n")}
       ${mounts}
@@ -300,6 +300,8 @@ export async function compileWorld(
     if (worldError) return { ok: false, errors: [schemaError(worldError)] };
     forceCompiler(scene);
     scene.option.timestep = TIMESTEP_S;
+    scene.option.integrator = mj.mjtIntegrator.mjINT_IMPLICITFAST
+      .value as unknown as typeof scene.option.integrator;
 
     worldDoc.robots.forEach((robot, i) => {
       const spec = robotSpecs[i];
@@ -335,15 +337,29 @@ export async function compileWorld(
       actuator.trntype = mj.mjtTrn.mjTRN_JOINT
         .value as unknown as typeof actuator.trntype;
       actuator.target = `${part.drives.robot}/${part.drives.joint}`;
+      // Position servo, no filter, ctrl not clipped to the joint range
+      // (a 180° command pushes into the limit). The binding has no null
+      // pointer, so dampratio is passed as 0 and kv is written after:
+      // a zero dampratio would otherwise clear the damping term.
       const setErr = mj.mjs_setToPosition(
         actuator,
         SERVO_KP,
         new Float64Array([SERVO_KV]),
-        new Float64Array([SERVO_DAMP_RATIO]),
-        new Float64Array([SERVO_TIMECONST]),
-        SERVO_INHERIT_RANGE
+        new Float64Array([0]),
+        new Float64Array([0]),
+        0
       );
       if (setErr) throw new Error(setErr);
+      const bias = actuator.biasprm as Float64Array;
+      bias[2] = -SERVO_KV;
+      const torque = model.torqueNm;
+      if (torque !== undefined && torque > 0) {
+        actuator.forcelimited = mj.mjtLimited.mjLIMITED_TRUE
+          .value as unknown as typeof actuator.forcelimited;
+        const range = actuator.forcerange as Float64Array;
+        range[0] = -torque;
+        range[1] = torque;
+      }
     }
 
     try {

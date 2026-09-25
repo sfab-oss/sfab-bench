@@ -172,6 +172,8 @@ export function releaseMeshes(keys: readonly string[]) {
 
 function asDocument(value: unknown): {
   robots: WorldDocument["robots"];
+  parts: NonNullable<WorldDocument["parts"]>;
+  wires: NonNullable<WorldDocument["wires"]>;
   scene: WorldSceneDocument;
 } | null {
   if (!value || typeof value !== "object") return null;
@@ -181,6 +183,8 @@ function asDocument(value: unknown): {
   if (!environment || typeof environment !== "object") return null;
   return {
     robots: doc.robots,
+    parts: Array.isArray(doc.parts) ? doc.parts : [],
+    wires: Array.isArray(doc.wires) ? doc.wires : [],
     scene: {
       environment: {
         ground: { plane: Boolean(environment.ground?.plane) },
@@ -265,7 +269,12 @@ export async function loadWorldAssets(
   }
 
   const outline = buildWorldOutline(
-    { robots: read.robots, boards: document.boards },
+    {
+      robots: read.robots,
+      boards: document.boards,
+      parts: read.parts,
+      wires: read.wires,
+    },
     urdfByRobot
   );
   return { document, visuals, meshKeys, problems, outline };

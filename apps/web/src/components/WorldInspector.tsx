@@ -20,9 +20,14 @@ import {
 import { relFromWorldFile } from "@/lib/world-assets";
 import {
   formatJointReadout,
+  formatLiveDegrees,
+  formatPartWire,
+  outlinePartLabel,
   type WorldOutline,
   type WorldOutlineBoard,
+  type WorldOutlineJoint,
   type WorldOutlineLink,
+  type WorldOutlinePart,
 } from "@/lib/world-outline";
 import {
   type BoardConsoleEntry,
@@ -48,6 +53,8 @@ function useWorldSelectionEsc() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 }
+
+const EMPTY_PARTS: readonly WorldOutlinePart[] = [];
 
 function transcriptText(entries: readonly BoardConsoleEntry[]): string {
   let text = "";
@@ -82,11 +89,14 @@ function OutlineBody({ outline }: { outline: WorldOutline | null }) {
       <p className="text-[12px] text-muted-foreground">Reading the world…</p>
     );
   }
-  const empty = outline.robots.length === 0 && outline.boards.length === 0;
+  const empty =
+    outline.robots.length === 0 &&
+    outline.parts.length === 0 &&
+    outline.boards.length === 0;
   if (empty) {
     return (
       <p className="text-[12px] text-muted-foreground">
-        This world has no robots or boards.
+        This world has no robots, parts, or boards.
       </p>
     );
   }
@@ -112,6 +122,21 @@ function OutlineBody({ outline }: { outline: WorldOutline | null }) {
           ))}
         </div>
       ))}
+      {outline.parts.length > 0 ? (
+        <div>
+          <div className="px-1 text-[12px] font-medium">Parts</div>
+          {outline.parts.map((part) => (
+            <button
+              key={part.id}
+              type="button"
+              className="flex w-full rounded-md px-1 py-0.5 text-left text-[12px] hover:bg-muted"
+              onClick={() => select({ kind: "part", part: part.id })}
+            >
+              {outlinePartLabel(part)}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {outline.boards.length > 0 ? (
         <div>
           <div className="px-1 text-[12px] font-medium">Boards</div>
@@ -179,7 +204,41 @@ function LinkBody({
   );
 }
 
-function PinTable({ pins }: { pins: WorldPinState | undefined }) {
+function pulseOnPin(
+  boardId: string,
+  pin: string,
+  parts: readonly WorldOutlinePart[],
+  live: Record<string, { pulseUs: number | null }>
+): number | null | undefined {
+  const hit = parts.find((part) =>
+    part.wires.some((wire) => wire.other === `${boardId}.${pin}`)
+  );
+  if (!hit) return undefined;
+  return live[hit.id]?.pulseUs ?? null;
+}
+
+function pulseText(us: number | null): string {
+  if (us === null) return "No signal";
+  return `${Math.round(us)} µs`;
+}
+
+function commandText(deg: number | null): string {
+  if (deg === null) return "—";
+  const shown = Math.round(deg * 10) / 10;
+  return `${shown.toFixed(1)}°`;
+}
+
+function PinTable({
+  pins,
+  boardId,
+  parts,
+  live,
+}: {
+  pins: WorldPinState | undefined;
+  boardId: string;
+  parts: readonly WorldOutlinePart[];
+  live: Record<string, { pulseUs: number | null }>;
+}) {
   if (!pins) {
     return (
       <p className="mb-3 text-[12px] text-muted-foreground">
@@ -202,14 +261,25 @@ function PinTable({ pins }: { pins: WorldPinState | undefined }) {
       <tbody>
         {ARDUINO_PINS.map((pin) => {
           const active = maskHasPin(pins.toggled, pin);
+          const pulse = pulseOnPin(boardId, pin, parts, live);
+          const width =
+            pulse === undefined || pulse === null
+              ? null
+              : `${Math.round(pulse)} µs`;
           return (
             <tr key={pin} className="font-mono">
               <td>{pin}</td>
               <td>{maskHasPin(pins.ddr, pin) ? "out" : "in"}</td>
               <td>{maskHasPin(pins.level, pin) ? "H" : "L"}</td>
-              <td>
+              <td className="whitespace-nowrap">
                 {active ? (
                   <span title="Toggled since the last state">●</span>
+                ) : null}
+                {width ? (
+                  <span title="Servo pulse width">
+                    {active ? " " : ""}
+                    {width}
+                  </span>
                 ) : null}
               </td>
             </tr>
@@ -217,6 +287,77 @@ function PinTable({ pins }: { pins: WorldPinState | undefined }) {
         })}
       </tbody>
     </table>
+  );
+}
+
+function drivenJoint(
+  outline: WorldOutline | null,
+  drives: { robot: string; joint: string } | null
+): WorldOutlineJoint | null {
+  if (!outline || !drives) return null;
+  const robot = outline.robots.find((item) => item.id === drives.robot);
+  for (const link of robot?.links ?? []) {
+    if (link.joint?.name === drives.joint) return link.joint;
+  }
+  return null;
+}
+
+function PartBody({
+  id,
+  info,
+  pending,
+}: {
+  id: string;
+  info: WorldOutlinePart | undefined;
+  pending: boolean;
+}) {
+  const outline = useWorld((s) => s.outline);
+  const live = useWorld((s) => s.parts[id]);
+  const drives = info?.drives ?? null;
+  const qpos = useWorld((s) =>
+    drives ? s.joints[drives.robot]?.[drives.joint] : undefined
+  );
+  if (pending) {
+    return (
+      <p className="text-[12px] text-muted-foreground">Reading the world…</p>
+    );
+  }
+  const joint = drivenJoint(outline, drives);
+  const angle = joint
+    ? formatJointReadout(joint, qpos).value
+    : qpos === undefined
+      ? "—"
+      : `${formatLiveDegrees(qpos)}°`;
+  const wires = info?.wires ?? [];
+  return (
+    <>
+      <Field label="Part" value={id} />
+      <Field label="Model" value={info?.model ?? "—"} />
+      <div className="mb-1.5 min-w-0">
+        <div className="text-[11px] text-muted-foreground">Wires</div>
+        {wires.length === 0 ? (
+          <div className="text-[12px]">None</div>
+        ) : (
+          wires.map((wire) => (
+            <div
+              key={`${wire.pin}:${wire.other}`}
+              className="truncate font-mono text-[12px]"
+              title={formatPartWire(wire)}
+            >
+              {formatPartWire(wire)}
+            </div>
+          ))
+        )}
+      </div>
+      <Field label="Pulse" value={pulseText(live?.pulseUs ?? null)} />
+      <Field label="Command" value={commandText(live?.commandDeg ?? null)} />
+      {drives ? (
+        <>
+          <Field label="Joint" value={`${drives.robot}/${drives.joint}`} />
+          <Field label="Angle" value={angle} />
+        </>
+      ) : null}
+    </>
   );
 }
 
@@ -233,6 +374,8 @@ function BoardBody({
   const playing = useWorld((s) => s.playing);
   const live = useWorld((s) => s.boards[id]);
   const pins = useWorld((s) => s.pins[id]);
+  const liveParts = useWorld((s) => s.parts);
+  const outlineParts = useWorld((s) => s.outline?.parts ?? EMPTY_PARTS);
   const consoleState = useBoardConsole();
   const sourceRel =
     path && info?.source ? relFromWorldFile(path, info.source) : undefined;
@@ -259,7 +402,12 @@ function BoardBody({
           onSend={(line) => sendBoardSerial(id, line)}
         />
       </div>
-      <PinTable pins={pins} />
+      <PinTable
+        pins={pins}
+        boardId={id}
+        parts={outlineParts}
+        live={liveParts}
+      />
       <div className="text-[11px] text-muted-foreground">Source</div>
       <div className="mt-1 flex h-40 flex-col overflow-hidden rounded-md border border-border">
         {sourceRel ? (
@@ -299,6 +447,10 @@ export function WorldInspector({
   const board =
     selection?.kind === "board"
       ? outline?.boards.find((item) => item.id === selection.board)
+      : undefined;
+  const part =
+    selection?.kind === "part"
+      ? outline?.parts.find((item) => item.id === selection.part)
       : undefined;
 
   return (
@@ -340,6 +492,8 @@ export function WorldInspector({
           info={board}
           pending={outline === null}
         />
+      ) : selection?.kind === "part" ? (
+        <PartBody id={selection.part} info={part} pending={outline === null} />
       ) : (
         <OutlineBody outline={outline} />
       )}

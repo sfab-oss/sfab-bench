@@ -104,7 +104,7 @@ export function useWorldRun(project: string, world: string) {
     const writeHud = (state: WorldState, now: number, simTime: boolean) => {
       const current = worldStore.getState();
       current.setRun(state.playing, simTime ? state.simTime : current.simTime);
-      current.setSignals(state.joints, pinsOf(state.boards));
+      current.setSignals(state.joints, pinsOf(state.boards), state.parts ?? {});
       lastHud = now;
     };
 
