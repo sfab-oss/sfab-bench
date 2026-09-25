@@ -2,14 +2,16 @@
  * `validateWorld` checks a `.world.json` document. It does no file IO.
  * The caller reports whether a relative path exists and, for each robot
  * URDF it has read, the joint names and mesh filenames from
- * `extractUrdfJointsAndMeshes`.
+ * `extractUrdfJointsAndMeshes`. Mesh filenames are resolved relative to
+ * that URDF and checked with `fileExists` too: a missing STL is
+ * `missing-file` before MuJoCo opens it.
  *
  * Two-outputs, pin-kind, and signal-pin use the full wire net. Voltage
  * and missing-ground still walk only edges whose ends share a kind, so
  * a signal wire does not feed a supply.
  */
 
-import type { UrdfInfo } from "./urdf";
+import { resolveUrdfMesh, type UrdfInfo } from "./urdf";
 import {
   type BoardId,
   type BoardModel,
@@ -81,7 +83,11 @@ export type WorldValidation = {
 };
 
 export type WorldValidateCtx = {
-  /** `relativePath` is the string written in the document. */
+  /**
+   * `relativePath` is relative to the world file. Mesh paths are not the
+   * filename from the URDF: they are joined onto the URDF's directory first
+   * (`resolveUrdfMesh`).
+   */
   fileExists: (relativePath: string) => boolean;
   /**
    * Joints and mesh filenames for a URDF the caller has already read.
@@ -1180,7 +1186,20 @@ function checkRobots(
     const counts = new Map<string, number>();
     for (const mesh of info.meshes) {
       const problem = meshMessage(mesh);
-      if (problem) errors.push(err("mesh-format", path, problem));
+      if (problem) {
+        errors.push(err("mesh-format", path, problem));
+      } else {
+        const resolved = resolveUrdfMesh(robot.urdf, mesh);
+        if (!resolved || !ctx.fileExists(resolved)) {
+          errors.push(
+            err(
+              "missing-file",
+              path,
+              `Mesh "${mesh}" does not exist. Hint: the path is relative to the URDF.`
+            )
+          );
+        }
+      }
       const base = basename(mesh).toLowerCase();
       counts.set(base, (counts.get(base) ?? 0) + 1);
     }

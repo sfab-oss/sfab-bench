@@ -124,6 +124,7 @@ expect(
 );
 
 const urdfInfo = extractUrdfJointsAndMeshes(urdfText);
+expect(urdfInfo.links.join(",") === "base,upper_arm", "link names");
 expect(urdfInfo.joints.join(",") === "shoulder", "shoulder joint");
 expect(
   urdfInfo.meshes.join(",") === "meshes/base.stl,meshes/upper_arm.stl",
@@ -131,10 +132,12 @@ expect(
 );
 
 const commented = extractUrdfJointsAndMeshes(
-  `<!-- <joint name="fake"></joint> <mesh filename="hidden.3mf"/> -->
+  `<!-- <link name="ghost"/> <joint name="fake"></joint> <mesh filename="hidden.3mf"/> -->
+   <link name="base"/>
    <joint name="shoulder" type="revolute"></joint>
    <mesh filename="meshes/base.stl"/>`
 );
+expect(commented.links.join(",") === "base", "commented link ignored");
 expect(commented.joints.join(",") === "shoulder", "commented joint ignored");
 expect(
   commented.meshes.join(",") === "meshes/base.stl",
@@ -530,6 +533,23 @@ const meshFormat = validateWorld(
 assertIssues(meshFormat, "3mf mesh", ["mesh-format"]);
 expect(meshFormat.errors[0]?.message.includes("cadgen stl build"), "mesh hint");
 
+const missingMesh = validateWorld(
+  hold,
+  ctxFor(
+    urdfWith(
+      urdfText.replace(
+        'filename="meshes/upper_arm.stl"',
+        'filename="meshes/missing.stl"'
+      )
+    )
+  )
+);
+assertIssues(missingMesh, "missing mesh", ["missing-file"]);
+expect(
+  missingMesh.errors[0]?.message.includes("meshes/missing.stl"),
+  "missing mesh names the file"
+);
+
 const packageMesh = validateWorld(
   hold,
   ctxFor(
@@ -586,7 +606,7 @@ const duplicateMesh = validateWorld(
     urdfWith(
       urdfText.replace(
         'filename="meshes/upper_arm.stl"',
-        'filename="copied/base.stl"'
+        'filename="meshes/base.stl"'
       )
     )
   )
