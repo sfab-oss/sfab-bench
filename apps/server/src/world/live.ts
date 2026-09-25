@@ -77,7 +77,9 @@ wss.on(
       closed = true;
       handle?.detach();
     });
-    void runWithPrincipal(principal, async () => {
+    // A rejected attach must not become an unhandled rejection: that would
+    // take down the API process.
+    runWithPrincipal(principal, async () => {
       const attached = await attachWorld(project, world, {
         sender: worldSender(principal),
         onEvent(event) {
@@ -114,6 +116,14 @@ wss.on(
           });
         } else handle?.step(parsed.n);
       });
+    }).catch((err: unknown) => {
+      console.error("[world] attach failed", err);
+      send(ws, {
+        type: "error",
+        errors: [],
+        message: "could not open this world",
+      });
+      ws.close();
     });
   }
 );
