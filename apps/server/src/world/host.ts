@@ -107,6 +107,15 @@ type Doc = {
       timer: ReturnType<typeof setTimeout>;
     }
   >;
+  /** `world_step` waits on the state its own step message produces. */
+  stepSeq: number;
+  stepWaiters: Map<number, StepWaiter>;
+};
+
+type StepWaiter = {
+  settled: boolean;
+  resolve: (result: WorldState | { error: string }) => void;
+  timer: ReturnType<typeof setTimeout>;
 };
 
 const docs = new Map<string, Doc>();
@@ -292,9 +301,27 @@ function failPending(doc: Doc, message: string) {
   doc.pending.clear();
 }
 
+function settleStep(
+  waiter: StepWaiter,
+  result: WorldState | { error: string }
+) {
+  if (waiter.settled) return;
+  waiter.settled = true;
+  clearTimeout(waiter.timer);
+  waiter.resolve(result);
+}
+
+function failStepWaiters(doc: Doc, message: string) {
+  for (const waiter of doc.stepWaiters.values()) {
+    settleStep(waiter, { error: message });
+  }
+  doc.stepWaiters.clear();
+}
+
 async function killWorker(doc: Doc): Promise<void> {
   const worker = doc.worker;
   failPending(doc, "world stopped");
+  failStepWaiters(doc, "world is not running");
   if (!worker) return;
   doc.worker = null;
   doc.stopping = true;
@@ -321,6 +348,7 @@ function markWorkerFailed(doc: Doc, worker: Worker, message: string) {
   if (doc.worker !== worker) return;
   doc.worker = null;
   if (doc.stopping) return;
+  failStepWaiters(doc, "world is not running");
   doc.errors = [];
   doc.errorMessage = message;
   doc.lastState = null;
@@ -345,6 +373,13 @@ function listen(doc: Doc, worker: Worker) {
       // A caught step fault stays until the run is playing again. The
       // paused state posted right after the fault must not clear it.
       if (message.state.playing) doc.errorMessage = undefined;
+      if (message.request !== undefined) {
+        const waiter = doc.stepWaiters.get(message.request);
+        if (waiter) {
+          doc.stepWaiters.delete(message.request);
+          settleStep(waiter, message.state);
+        }
+      }
       broadcast(doc, { type: "state", state: message.state });
       return;
     }
@@ -453,6 +488,7 @@ async function spawn(doc: Doc): Promise<void> {
   liveWorkers.add(worker);
   doc.worker = worker;
   doc.generation += 1;
+  failStepWaiters(doc, "world reloaded");
   resetSerial(doc);
   const generation = doc.generation;
   listen(doc, worker);
@@ -487,6 +523,7 @@ async function reload(doc: Doc): Promise<void> {
     return;
   }
   doc.generation += 1;
+  failStepWaiters(doc, "world reloaded");
   resetSerial(doc);
   const generation = doc.generation;
   const pending = waitForResult(worker, generation);
@@ -633,6 +670,8 @@ function ensure(project: string, worldRel: string): Doc | { error: string } {
       stopping: false,
       requestSeq: 0,
       pending: new Map(),
+      stepSeq: 0,
+      stepWaiters: new Map(),
     };
     doc.stamp = dependencyStamp(doc.project, doc.deps);
     docs.set(named.key, doc);
@@ -680,7 +719,6 @@ export async function attachWorld(
       let pauseBy: WorldSender | undefined;
       if (doc.lastState?.playing) {
         announce(doc, "pause", sub.sender);
-        doc.lastState = { ...doc.lastState, playing: false };
         pauseBy = sub.sender;
       }
       post(doc, {
@@ -1062,6 +1100,14 @@ export function worldDocumentOpen(project: string, worldRel: string): boolean {
   return docs.has(named.key);
 }
 
+/** Test-only. True while `world_step` is waiting on its own step reply. */
+export function worldStepInFlight(project: string, worldRel: string): boolean {
+  const named = docKey(project, worldRel);
+  if ("error" in named) return false;
+  const doc = docs.get(named.key);
+  return (doc?.stepWaiters.size ?? 0) > 0;
+}
+
 /** Reject a `world_step` span before any run starts. */
 export function rejectWorldStep(ms: number): { error: string } | null {
   if (!Number.isInteger(ms) || ms < 1 || ms > 10_000) {
@@ -1194,47 +1240,64 @@ export function pauseWorld(
   return commandWorld(project, worldRel, "pause", sender);
 }
 
+function waitForStep(
+  doc: Doc,
+  request: number
+): Promise<WorldState | { error: string }> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      const waiter = doc.stepWaiters.get(request);
+      if (!waiter) return;
+      doc.stepWaiters.delete(request);
+      settleStep(waiter, { error: "timed out waiting for the world" });
+    }, STEP_WAIT_MS);
+    doc.stepWaiters.set(request, {
+      settled: false,
+      resolve,
+      timer,
+    });
+  });
+}
+
 /**
- * Pause when the run is playing, then advance exactly `ms` of sim time.
- * Resolves on the state whose sim time is the paused time plus `ms`.
+ * One worker step. The reply is the state that command produced, not
+ * whatever snapshot is newest when the poll next runs.
  */
 export async function stepWorld(
   project: string,
   worldRel: string,
   ms: number,
   sender: WorldSender
-): Promise<{ ok: true } | { error: string }> {
+): Promise<{ state: WorldState } | { error: string }> {
   const bad = rejectWorldStep(ms);
   if (bad) return bad;
   const doc = runningDoc(project, worldRel);
   if ("error" in doc) return doc;
   hold(doc);
   try {
-    let origin = simMs(doc.lastState?.simTime ?? 0);
-    if (doc.lastState?.playing) {
-      const epoch = doc.stateEpoch;
-      announce(doc, "pause", sender);
-      post(doc, { type: "pause", generation: doc.generation, by: sender });
-      const paused = await waitForEpoch(
-        doc,
-        epoch,
-        (next) => !next.playing,
-        COMMAND_WAIT_MS
-      );
-      if ("error" in paused) return paused;
-      origin = simMs(paused.simTime);
+    const request = doc.stepSeq + 1;
+    doc.stepSeq = request;
+    const generation = doc.generation;
+    if (doc.lastState?.playing) announce(doc, "pause", sender);
+    const pending = waitForStep(doc, request);
+    if (doc.generation !== generation) {
+      failStepWaiters(doc, "world reloaded");
+      return { error: "world reloaded" };
     }
-    const target = origin + ms;
-    const epoch = doc.stateEpoch;
-    post(doc, { type: "step", n: ms, generation: doc.generation });
-    const landed = await waitForEpoch(
-      doc,
-      epoch,
-      (next) => !next.playing && simMs(next.simTime) === target,
-      STEP_WAIT_MS
-    );
+    post(doc, {
+      type: "step",
+      n: ms,
+      generation,
+      pauseBy: sender,
+      request,
+    });
+    if (!doc.worker) {
+      failStepWaiters(doc, "world is not running");
+      return { error: "world is not running" };
+    }
+    const landed = await pending;
     if ("error" in landed) return landed;
-    return { ok: true };
+    return { state: landed };
   } finally {
     release(doc);
   }

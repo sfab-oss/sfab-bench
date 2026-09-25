@@ -18,6 +18,7 @@ import {
   stopWorld,
   type WorldHandle,
   worldDocumentOpen,
+  worldStepInFlight,
   worldWorkerCount,
 } from "./world/host";
 import { worldTools } from "./world-tools";
@@ -135,6 +136,26 @@ writeFileSync(join(root, "unpowered.world.json"), JSON.stringify(unpowered));
 const events: WorldServerMessage[] = [];
 const held: WorldHandle[] = [];
 
+function waitUntil(
+  pred: () => boolean,
+  label: string,
+  ms = 8000
+): Promise<void> {
+  if (pred()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      clearInterval(poll);
+      reject(new Error(`timed out: ${label}`));
+    }, ms);
+    const poll = setInterval(() => {
+      if (!pred()) return;
+      clearInterval(poll);
+      clearTimeout(timer);
+      resolve();
+    }, 10);
+  });
+}
+
 function call(
   tool: { execute?: (input: never, options: never) => unknown },
   input: unknown
@@ -150,6 +171,22 @@ try {
     "world_status runs on the server"
   );
   expect(worldWorkerCount() === 0, "a worker was already up");
+  const closed = await call(worldTools.world_status, {
+    world: "arm.world.json",
+  });
+  expect(
+    errorOf(closed) === "no project open",
+    `closed ${JSON.stringify(closed)}`
+  );
+  const closedRead = await call(worldTools.read_recording, {
+    world: "arm.world.json",
+    tracks: ["part:servo.pulseUs"],
+  });
+  expect(
+    errorOf(closedRead) === "no project open",
+    `closed read ${JSON.stringify(closedRead)}`
+  );
+  expect(worldWorkerCount() === 0, "no project started a worker");
 
   await runViewerContext(
     {
@@ -181,6 +218,30 @@ try {
         world: "arm.world.json",
         ms: 1.5,
       });
+      const badTracks = [
+        "part:servo.temperature",
+        "widget:servo",
+        "joint:elbow",
+        "part:missing.pulseUs",
+        "supply:usb.watts",
+        "board:missing.pins",
+      ];
+      for (const track of badTracks) {
+        const bad = await call(worldTools.read_recording, {
+          world: "arm.world.json",
+          tracks: [track],
+        });
+        expect(
+          errorOf(bad) === `unknown track "${track}"`,
+          `track ${track}: ${JSON.stringify(bad)}`
+        );
+      }
+      expect(worldWorkerCount() === 0, "an unknown track started a worker");
+      expect(
+        !worldDocumentOpen(root, "arm.world.json"),
+        "an unknown track opened the arm"
+      );
+
       expect(errorOf(missing), `missing world ${JSON.stringify(missing)}`);
       expect(
         errorOf(escaped)?.includes("escapes"),
@@ -324,9 +385,10 @@ try {
       expect(
         isRecord(played) &&
           played.playing === true &&
-          played.by &&
-          isRecord(played.by) &&
-          played.by.kind === "agent",
+          isRecord(played.lastCommand) &&
+          played.lastCommand.command === "play" &&
+          isRecord(played.lastCommand.by) &&
+          played.lastCommand.by.kind === "agent",
         `play ${JSON.stringify(played)}`
       );
       const play = events
@@ -438,6 +500,62 @@ try {
             event.state.playing === false
         ),
         "subscriber missed the fresh run"
+      );
+
+      const desktop = held[0];
+      if (!desktop) throw new Error("no subscriber");
+      const overlapping = call(worldTools.world_step, {
+        world: "arm.world.json",
+        ms: 400,
+      });
+      await waitUntil(
+        () => worldStepInFlight(root, "arm.world.json"),
+        "agent step is in flight"
+      );
+      desktop.step(1000);
+      const raced = await overlapping;
+      expect(
+        isRecord(raced) &&
+          raced.playing === false &&
+          msOf(Number(raced.simTime)) === 400,
+        `overlapped step ${JSON.stringify(raced)}`
+      );
+      await waitUntil(
+        () =>
+          events.some(
+            (event) =>
+              event.type === "state" && msOf(event.state.simTime) === 1400
+          ),
+        "the other step landed",
+        20000
+      );
+
+      const interrupted = call(worldTools.world_step, {
+        world: "arm.world.json",
+        ms: 8000,
+      });
+      await waitUntil(
+        () => worldStepInFlight(root, "arm.world.json"),
+        "long step is in flight"
+      );
+      const interruptStarted = Date.now();
+      const restartDuring = call(worldTools.world_restart, {
+        world: "arm.world.json",
+      });
+      const interruptedResult = await interrupted;
+      const interruptWait = Date.now() - interruptStarted;
+      expect(
+        interruptWait < 2000,
+        `restart during step waited ${interruptWait} ms`
+      );
+      expect(
+        errorOf(interruptedResult)?.includes("reload"),
+        `interrupted step ${JSON.stringify(interruptedResult)}`
+      );
+      const restartedDuring = await restartDuring;
+      expect(
+        !errorOf(restartedDuring),
+        `restart during step ${JSON.stringify(restartedDuring)}`
       );
 
       const stallRestart = await call(worldTools.world_restart, {

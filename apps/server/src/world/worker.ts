@@ -78,7 +78,14 @@ export type ToWorker =
   | { type: "reload"; generation: number }
   | { type: "play"; generation: number; by?: WorldSender }
   | { type: "pause"; generation: number; by?: WorldSender }
-  | { type: "step"; n: number; generation: number; pauseBy?: WorldSender }
+  | {
+      type: "step";
+      n: number;
+      generation: number;
+      pauseBy?: WorldSender;
+      /** Echoed on the state this step produces, so the host can match it. */
+      request?: number;
+    }
   | { type: "setTarget"; partId: string; radians: number; generation: number }
   | { type: "reloadBoard"; board: string; generation: number }
   | {
@@ -99,7 +106,13 @@ export type ToWorker =
 
 export type FromWorker =
   | { type: "ready"; generation: number; counts: WorldModelCounts }
-  | { type: "state"; generation: number; state: WorldState }
+  | {
+      type: "state";
+      generation: number;
+      state: WorldState;
+      /** Set on the snapshot produced by a `step` that carried `request`. */
+      request?: number;
+    }
   | {
       type: "error";
       generation: number;
@@ -486,11 +499,16 @@ function flushBoards() {
   if (chunks.length > 0) post({ type: "serial", generation, chunks });
 }
 
-function postState() {
+function postState(request?: number) {
   flushBoards();
   const state = sample();
   if (!state) return;
-  post({ type: "state", generation, state });
+  post({
+    type: "state",
+    generation,
+    state,
+    ...(request !== undefined ? { request } : {}),
+  });
 }
 
 function noteFault(board: AvrBoard) {
@@ -1093,20 +1111,31 @@ function pause(by?: WorldSender) {
   postState();
 }
 
-function step(n: number, pauseBy?: WorldSender) {
+function step(n: number, pauseBy?: WorldSender, request?: number) {
   if (!sim) return;
-  if (!Number.isInteger(n) || n < 0 || n > MAX_STEP_N) {
-    fail(
-      [],
-      `step(${String(n)}) is not a whole number of steps from 0 to ${MAX_STEP_N}.`
-    );
-    return;
+  try {
+    if (!Number.isInteger(n) || n < 0 || n > MAX_STEP_N) {
+      fail(
+        [],
+        `step(${String(n)}) is not a whole number of steps from 0 to ${MAX_STEP_N}.`
+      );
+      if (request !== undefined) postState(request);
+      return;
+    }
+    // One turn: stop the clock, then advance exactly n milliseconds.
+    if (pauseBy) noteCommand("pause", pauseBy);
+    stopClock();
+    for (let i = 0; i < n; i++) advanceOne();
+    postState(request);
+  } catch (err: unknown) {
+    stopClock();
+    fail([], thrownMessage(err));
+    try {
+      postState(request);
+    } catch {
+      /* the error event is already posted */
+    }
   }
-  // A step is exact. Stop the wall clock first so the two do not add.
-  if (pauseBy) noteCommand("pause", pauseBy);
-  stopClock();
-  for (let i = 0; i < n; i++) advanceOne();
-  postState();
 }
 
 function setTarget(partId: string, radians: number) {
@@ -1219,7 +1248,8 @@ async function handle(message: ToWorker) {
   }
   if (message.type === "play") play(message.by);
   else if (message.type === "pause") pause(message.by);
-  else if (message.type === "step") step(message.n, message.pauseBy);
+  else if (message.type === "step")
+    step(message.n, message.pauseBy, message.request);
   else if (message.type === "setTarget")
     setTarget(message.partId, message.radians);
   else if (message.type === "reloadBoard") reloadBoard(message.board);

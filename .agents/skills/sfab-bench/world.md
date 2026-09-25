@@ -58,12 +58,15 @@ Bench never compiles. Build the `.hex` outside, then let Bench watch it:
 
 ```bash
 arduino-cli compile --fqbn arduino:avr:uno \
-  --output-dir firmware/hold firmware/hold/hold.ino
+  --output-dir /tmp/hold-build firmware/hold/hold.ino
+cp /tmp/hold-build/hold.ino.hex firmware/hold/hold.hex
 ```
 
-The board entry names that `.hex`. When the file changes, Bench restarts
-that board. Edit the `.ino` with your own file tools. The source view in
-Bench is read-only. There is no in-app compiler and no code editor.
+The CLI writes `<sketch>.ino.hex` into `--output-dir`. Copy that file
+onto the `.hex` path the board entry names (`firmware/hold/hold.hex` in
+the arm). When that file changes, Bench restarts the board. Edit the
+`.ino` with your own file tools. The source view in Bench is read-only.
+There is no in-app compiler and no code editor.
 
 `examples/arm/firmware/hold/hold.ino` writes 10°, then 90°, then 120°,
 each for one second, and prints the angle. The stall sketch commands 180°
@@ -105,10 +108,11 @@ when several robots share a folder.
 Currents follow the part's state, not the voltage. The Uno draws 50 mA.
 An SG90 draws 10 mA idle, 250 mA moving, 700 mA stalled. A stall is
 `|command − measured| > 5°` and `|velocity| < 5°/s`, held 50 ms. The USB
-supply is 5 V, 500 mA, droop 10 Ω. Above the limit,
-`V = 5 − 10 · (I − 0.5)`, clamped at 0. A stall draws 750 mA and the rail
-falls to 2.5 V. The Uno resets below 2.7 V: pins float, the servo goes
-idle, the voltage recovers, the board boots again, and the stall repeats.
+supply is 5 V, 0.5 A, droop 10 Ω. Above the limit,
+`V = 5 − 10 · (I − 0.5)` with I in amperes, clamped at 0. A stall draws
+0.75 A and the rail falls to 2.5 V. The Uno resets below 2.7 V: pins
+float, the servo goes idle, the voltage recovers, the board boots again,
+and the stall repeats.
 
 To explain one: `world_restart` `arm-stall.world.json`, `world_step` 2000,
 then `read_recording` from 0 to 2. Expect `resets` ≥ 1 on the board, a

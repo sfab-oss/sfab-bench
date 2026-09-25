@@ -39,6 +39,7 @@ import { servoSignalDrives } from "./world/wiring";
 const AGENT: WorldSender = { kind: "agent" };
 
 const SERIAL_CAP = 4_000;
+const LIST_CAP = 200;
 const DEFAULT_WINDOW_S = 5;
 const DEFAULT_MAX_FRAMES = 50;
 const MAX_FRAMES = 500;
@@ -90,6 +91,19 @@ function round(value: number, digits: number): number {
 
 function seconds(simTime: number): number {
   return round(simTime, 3);
+}
+
+function jointReadout(
+  qpos: number,
+  unit: "deg" | "m"
+): { deg: number } | { m: number } {
+  if (unit === "m") return { m: round(qpos, 4) };
+  return { deg: round((qpos * 180) / Math.PI, 3) };
+}
+
+function capTail<T>(items: T[]): { items: T[]; truncated: boolean } {
+  if (items.length <= LIST_CAP) return { items, truncated: false };
+  return { items: items.slice(items.length - LIST_CAP), truncated: true };
 }
 
 function drivenPins(
@@ -182,10 +196,11 @@ function validateCtx(root: string, world: string): WorldValidateCtx {
   };
 }
 
-function statusOf(loaded: Loaded) {
+function statusOf(loaded: Loaded, stateOverride?: WorldState) {
   const view = worldRunView(loaded.root, loaded.world);
   if ("error" in view) return view;
-  const { state, lastCommand } = view;
+  const state = stateOverride ?? view.state;
+  const { lastCommand } = view;
   const doc = loaded.doc;
   const feeds = powerFeeds(doc);
   const drives = servoSignalDrives(doc);
@@ -245,9 +260,7 @@ function statusOf(loaded: Loaded) {
   for (const [robot, names] of Object.entries(state.joints)) {
     for (const [joint, qpos] of Object.entries(names)) {
       const key = `${robot}/${joint}`;
-      if ((units.get(key) ?? "deg") === "m")
-        joints[key] = { m: round(qpos, 4) };
-      else joints[key] = { deg: round((qpos * 180) / Math.PI, 3) };
+      joints[key] = jointReadout(qpos, units.get(key) ?? "deg");
     }
   }
   const validation = validateWorld(doc, validateCtx(loaded.root, loaded.world));
@@ -299,13 +312,68 @@ function addField(
   field: string | undefined,
   known: Set<string>
 ) {
-  const prev = map.get(id);
-  if (!field || !known.has(field) || prev === "all") {
+  if (field && !known.has(field)) return;
+  if (!field) {
     map.set(id, "all");
     return;
   }
+  const prev = map.get(id);
+  if (prev === "all") return;
   if (prev) prev.add(field);
   else map.set(id, new Set([field]));
+}
+
+function trackKnown(
+  doc: WorldDocument,
+  jointKeys: Set<string>,
+  track: string
+): boolean {
+  if (track.startsWith("joint:")) {
+    const joint = /^joint:([^./]+(?:\/[^./]+)?)$/.exec(track);
+    const request = joint?.[1];
+    if (!request) return false;
+    if (jointKeys.has(request)) return true;
+    for (const key of jointKeys) {
+      const slash = key.lastIndexOf("/");
+      if (slash >= 0 && key.slice(slash + 1) === request) return true;
+    }
+    return false;
+  }
+  const part = /^part:([^./]+)(?:\.([A-Za-z0-9]+))?$/.exec(track);
+  if (track.startsWith("part:")) {
+    if (!part?.[1]) return false;
+    if (!doc.parts.some((item) => item.id === part[1])) return false;
+    return !part[2] || PART_FIELDS.has(part[2]);
+  }
+  const supply = /^supply:([^./]+)(?:\.([A-Za-z0-9]+))?$/.exec(track);
+  if (track.startsWith("supply:")) {
+    if (!supply?.[1]) return false;
+    if (!doc.supplies.some((item) => item.id === supply[1])) return false;
+    return !supply[2] || SUPPLY_FIELDS.has(supply[2]);
+  }
+  const board = /^board:([^./]+)(?:\.([A-Za-z0-9]+))?$/.exec(track);
+  if (track.startsWith("board:")) {
+    if (!board?.[1]) return false;
+    if (!doc.boards.some((item) => item.id === board[1])) return false;
+    return !board[2] || BOARD_FIELDS.has(board[2]);
+  }
+  return false;
+}
+
+function rejectTracks(
+  loaded: Loaded,
+  tracks: string[] | undefined
+): { error: string } | null {
+  if (!tracks || tracks.length === 0) return null;
+  const jointKeys = new Set(
+    jointUnits(loaded.root, loaded.world, loaded.doc).keys()
+  );
+  for (const track of tracks) {
+    if (!trackKnown(loaded.doc, jointKeys, track)) {
+      return { error: `unknown track "${track}"` };
+    }
+  }
+  return null;
 }
 
 function selectTracks(tracks: string[] | undefined, catalog: RecordingTracks) {
@@ -392,9 +460,7 @@ function trimFrame(
         continue;
       }
       const key = `${robot}/${joint}`;
-      if ((units.get(key) ?? "deg") === "m")
-        joints[key] = { m: round(qpos, 4) };
-      else joints[key] = { deg: round((qpos * 180) / Math.PI, 3) };
+      joints[key] = jointReadout(qpos, units.get(key) ?? "deg");
     }
   }
   if (Object.keys(joints).length > 0) out.joints = joints;
@@ -562,6 +628,7 @@ async function readWindow(
   if ("error" in read) return read;
   const units = jointUnits(loaded.root, loaded.world, loaded.doc);
   const serial = agentEvents(read.events);
+  const events = capTail(serial.events);
   return {
     id: read.id,
     from,
@@ -569,8 +636,8 @@ async function readWindow(
     frameMs: read.frameMs,
     frames: read.frames.map((frame) => trimFrame(frame, selected, units)),
     raw: read,
-    events: serial.events,
-    truncated: serial.truncated,
+    events: events.items,
+    truncated: serial.truncated || events.truncated,
   };
 }
 
@@ -622,11 +689,14 @@ function collapsePulses(
   return runs;
 }
 
-function commandAck(state: WorldState) {
+function commandAck(view: {
+  state: WorldState;
+  lastCommand: { command: "play" | "pause"; by: WorldSender } | null;
+}) {
   return {
-    playing: state.playing,
-    simTime: seconds(state.simTime),
-    by: AGENT,
+    playing: view.state.playing,
+    simTime: seconds(view.state.simTime),
+    lastCommand: view.lastCommand,
   };
 }
 
@@ -652,7 +722,7 @@ export const worldTools = {
       if ("error" in played) return played;
       const view = worldRunView(found.root, found.world);
       if ("error" in view) return view;
-      return commandAck(view.state);
+      return commandAck(view);
     },
   }),
   world_pause: tool({
@@ -666,12 +736,12 @@ export const worldTools = {
       if ("error" in paused) return paused;
       const view = worldRunView(found.root, found.world);
       if ("error" in view) return view;
-      return commandAck(view.state);
+      return commandAck(view);
     },
   }),
   world_step: tool({
     description:
-      "Pause the run if it is playing, then advance exactly ms of sim time (a whole number from 1 to 10000) and return world_status. world is the project-relative .world.json path from get_viewer. The sender is the agent. Waits until sim time is the previous time plus ms.",
+      "Pause the run if it is playing, then advance exactly ms of sim time (a whole number from 1 to 10000). world is the project-relative .world.json path from get_viewer. The sender is the agent. Returns world_status at the sim time that this step produced.",
     inputSchema: z.object({
       world: z.string(),
       ms: z.number(),
@@ -683,12 +753,12 @@ export const worldTools = {
       if ("error" in found) return found;
       const stepped = await stepWorld(found.root, found.world, ms, AGENT);
       if ("error" in stepped) return stepped;
-      return statusOf(found);
+      return statusOf(found, stepped.state);
     },
   }),
   read_recording: tool({
     description:
-      "Read a world's recording for an agent. world is the project-relative .world.json path from get_viewer. Tracks look like joint:shoulder, joint:arm/shoulder, part:servo.pulseUs, supply:usb.voltage, and board:uno.pins. Defaults to the last 5 seconds and 50 frames (max 500). Returns those tracks, plus resets, reloads, faults, and serial lines. Serial text is the last 4000 characters, with truncated set when the rest was dropped.",
+      "Read a world's recording for an agent. world is the project-relative .world.json path from get_viewer. Tracks look like joint:shoulder, joint:arm/shoulder, part:servo.pulseUs, supply:usb.voltage, and board:uno.pins. An unknown track is an error. Defaults to the last 5 seconds and 50 frames (max 500). Returns those tracks, plus resets, reloads, faults, and serial lines (at most 200). Serial text is the last 4000 characters. truncated is set when either cap drops data.",
     inputSchema: z.object({
       world: z.string(),
       from: z.number().optional(),
@@ -697,8 +767,12 @@ export const worldTools = {
       maxFrames: z.number().optional(),
     }),
     execute: async ({ world, from, to, tracks, maxFrames }) => {
-      const found = await openRun(world);
+      const found = await readWorld(world);
       if ("error" in found) return found;
+      const badTrack = rejectTracks(found, tracks);
+      if (badTrack) return badTrack;
+      const started = await ensureWorldRun(found.root, found.world);
+      if ("error" in started) return started;
       const read = await readWindow(found, { from, to, tracks, maxFrames });
       if ("error" in read) return read;
       return {
@@ -714,7 +788,7 @@ export const worldTools = {
   }),
   read_pulses: tool({
     description:
-      "Read one servo's pulse widths from the recording. world is the project-relative .world.json path from get_viewer. part is the part id. Defaults to the last 5 seconds. Collapses runs of equal width within 1 µs and returns each run's pulseUs, mapped commandDeg, and first and last sim time, plus the board and pin.",
+      "Read one servo's pulse widths from the recording. world is the project-relative .world.json path from get_viewer. part is the part id. Defaults to the last 5 seconds. Collapses runs of equal width within 1 µs and returns each run's pulseUs, mapped commandDeg, and first and last sim time, plus the board and pin. At most 200 runs; truncated is set when older runs were dropped.",
     inputSchema: z.object({
       world: z.string(),
       part: z.string(),
@@ -739,13 +813,15 @@ export const worldTools = {
       const drive = servoSignalDrives(found.doc).find(
         (item) => item.partId === part
       );
+      const pulses = capTail(collapsePulses(read.raw.frames, part));
       return {
         part,
         board: drive?.boardId ?? null,
         pin: drive?.pin ?? null,
         from: read.from,
         to: read.to,
-        pulses: collapsePulses(read.raw.frames, part),
+        pulses: pulses.items,
+        truncated: pulses.truncated,
       };
     },
   }),
