@@ -273,7 +273,17 @@ function reloadBoard(id: string) {
 function serialIn(id: string, text: string) {
   const board = boards.find((item) => item.id === id);
   if (!board?.running) return;
-  board.pushRx(text);
+  if (!board.pushRx(text)) {
+    rxSent.set(id, `${board.rxQueued}:${board.rxAccepted}`);
+    post({
+      type: "rx",
+      generation,
+      board: id,
+      queued: board.rxQueued,
+      accepted: board.rxAccepted,
+    });
+    return;
+  }
   rxSent.set(id, `${board.rxQueued}:${board.rxAccepted}`);
   post({
     type: "rx",

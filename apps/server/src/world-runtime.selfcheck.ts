@@ -14,6 +14,7 @@ import type { WorldServerMessage } from "@sfab-bench/contract";
 
 import { handleProjectFile } from "./cad-pkg";
 import { listProjectFiles } from "./projects";
+import { RX_BACKLOG } from "./world/board";
 import { projectReal, readerFor } from "./world/files";
 import {
   attachWorld,
@@ -993,6 +994,36 @@ try {
   console.log(
     `serial-send reached USART0 RX (hold.ino does not echo): accepted ${rx.accepted}, still queued ${rx.queued}`
   );
+  const chunk = "x".repeat(1000);
+  let fitted = 0;
+  let full: { error: string } | { ok: true } | undefined;
+  for (let i = 0; i < 8; i++) {
+    const attempt = serialHandle.sendSerial("uno", chunk, `cap-${i}`);
+    if ("error" in attempt) {
+      full = attempt;
+      break;
+    }
+    fitted += 1;
+  }
+  expect(full && "error" in full, "a send past the RX cap is rejected");
+  if (full && "error" in full) {
+    expect(full.error === "serial input is full", full.error);
+  }
+  expect(fitted * chunk.length <= RX_BACKLOG, "accepted sends fit in the cap");
+  await waitUntil(() => {
+    const queued = boardRx(armDir, "arm.world.json", "uno");
+    return (
+      !("error" in queued) &&
+      queued.queued === fitted * chunk.length &&
+      queued.queued <= RX_BACKLOG
+    );
+  }, "rx backlog stayed within the cap");
+  const backlog = boardRx(armDir, "arm.world.json", "uno");
+  if ("error" in backlog) throw new Error(backlog.error);
+  expect(backlog.queued <= RX_BACKLOG, `queued ${backlog.queued}`);
+  console.log(
+    `rx backlog capped at ${RX_BACKLOG}: queued ${backlog.queued} after ${fitted} sends`
+  );
   const beforeReject = serialEvents.length;
   const playingAtReject = [...serialEvents]
     .reverse()
@@ -1118,18 +1149,30 @@ try {
   const stallNext = stallPage.next;
   writeFileSync(holdHexPath, ":0000000001\n");
   await withTimeout(
-    waitUntil(
-      () =>
-        pairEvents.some(
-          (event) =>
-            event.type === "board-error" &&
-            event.board === "uno" &&
-            event.message.includes("checksum")
-        ) && !pairEvents.some((event) => event.type === "error"),
-      "bad hex faults uno"
-    ),
+    waitUntil(() => {
+      const state = [...pairEvents]
+        .reverse()
+        .find((event) => event.type === "state");
+      return (
+        state?.type === "state" &&
+        state.state.boards.uno?.running === false &&
+        (state.state.boards.uno?.fault ?? "").includes("checksum")
+      );
+    }, "bad hex faults uno"),
     10000,
     "bad hex faults uno"
+  );
+  const faultEvent = pairEvents.find(
+    (event) => event.type === "board-error" && event.board === "uno"
+  );
+  expect(faultEvent?.type === "board-error", "a board fault is a board-error");
+  if (faultEvent?.type === "board-error") {
+    expect(faultEvent.message.includes("checksum"), faultEvent.message);
+    expect(faultEvent.nonce === undefined, "a firmware fault has no nonce");
+  }
+  expect(
+    !pairEvents.some((event) => event.type === "error"),
+    "a board fault is not a world error"
   );
   const faulted = [...pairEvents]
     .reverse()

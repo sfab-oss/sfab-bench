@@ -11,6 +11,7 @@ import {
 } from "@sfab-bench/contract";
 
 import { subscribeRootWatch } from "../projects";
+import { RX_BACKLOG } from "./board";
 import {
   dependencyRels,
   dependencyStamp,
@@ -75,6 +76,8 @@ type Doc = {
   firmware: FirmwareWatch[];
   serial: Map<string, SerialRing>;
   rx: Map<string, { queued: number; accepted: number }>;
+  /** Bytes this host has handed to the worker since the board last booted. */
+  rxSent: Map<string, number>;
   stopping: boolean;
 };
 
@@ -222,6 +225,12 @@ function sendSerialTails(sub: Sub, doc: Doc) {
 function resetSerial(doc: Doc) {
   doc.serial = new Map();
   doc.rx = new Map();
+  doc.rxSent = new Map();
+}
+
+function clearRxBook(doc: Doc, board: string) {
+  doc.rx.delete(board);
+  doc.rxSent.delete(board);
 }
 
 function refreshDeps(doc: Doc) {
@@ -309,6 +318,7 @@ function listen(doc: Doc, worker: Worker) {
       return;
     }
     if (message.type === "boardReset") {
+      clearRxBook(doc, message.board);
       const ring = ringOf(doc, message.board);
       ring.clear(message.marker);
       const page = ring.read(ring.next - message.marker.length);
@@ -321,6 +331,7 @@ function listen(doc: Doc, worker: Worker) {
       return;
     }
     if (message.type === "boardFault") {
+      clearRxBook(doc, message.board);
       broadcast(doc, {
         type: "board-error",
         board: message.board,
@@ -557,6 +568,7 @@ function ensure(project: string, worldRel: string): Doc | { error: string } {
       firmware: firmwareWatch(named.project, named.world),
       serial: new Map(),
       rx: new Map(),
+      rxSent: new Map(),
       stopping: false,
     };
     doc.stamp = dependencyStamp(doc.project, doc.deps);
@@ -663,6 +675,12 @@ function deliverSerial(
     const why = info.fault ? `: ${info.fault}` : "";
     return reject(`board "${board}" is stopped${why}`);
   }
+  const sent = doc.rxSent.get(board) ?? 0;
+  const accepted = doc.rx.get(board)?.accepted ?? 0;
+  const queued = Math.max(0, sent - accepted);
+  const bytes = new TextEncoder().encode(text).length;
+  if (queued + bytes > RX_BACKLOG) return reject("serial input is full");
+  doc.rxSent.set(board, sent + bytes);
   post(doc, {
     type: "serialIn",
     board,

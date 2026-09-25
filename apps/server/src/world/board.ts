@@ -24,6 +24,9 @@ const SRAM_BYTES = 2048;
 /** Written into that board's ring when its `.hex` is loaded again. */
 export const FIRMWARE_RELOADED = "— firmware reloaded —\n";
 
+/** Pending USART0 RX bytes. A send that does not fit is refused whole. */
+export const RX_BACKLOG = 4 * 1024;
+
 /**
  * One ATmega328P. `stepMillis` runs CYCLES_PER_MS of instructions, then
  * stops. The last instruction may pass that budget; `overshoot` is how
@@ -107,10 +110,13 @@ export class AvrBoard {
     return text;
   }
 
-  pushRx(text: string) {
-    if (!this.running) return;
+  /** False when `text` does not fit. Nothing is queued in that case. */
+  pushRx(text: string): boolean {
+    if (!this.running) return false;
     const bytes = new TextEncoder().encode(text);
+    if (this.rx.length + bytes.length > RX_BACKLOG) return false;
     for (const byte of bytes) this.rx.push(byte);
+    return true;
   }
 
   stepMillis() {
