@@ -1,6 +1,13 @@
 import { parentPort } from "node:worker_threads";
 
-import type { WorldError, WorldState } from "@sfab-bench/contract";
+import {
+  arduinoPinBit,
+  partModel,
+  type WorldDocument,
+  type WorldError,
+  type WorldPartState,
+  type WorldState,
+} from "@sfab-bench/contract";
 
 import { AvrBoard, FIRMWARE_RELOADED } from "./board";
 import { projectReal, readerFor, readInside, type WorldBytes } from "./files";
@@ -10,6 +17,8 @@ import {
   compileWorld,
   type WorldModelCounts,
 } from "./model";
+import { blankTrack, type ServoTrack, trackServo } from "./servo";
+import { servoSignalDrives } from "./wiring";
 
 /**
  * One world, off the API thread. The host starts one of these per open
@@ -73,6 +82,19 @@ let sim: Sim | null = null;
 let files: WorldBytes | null = null;
 let specs: BoardSpec[] = [];
 let boards: AvrBoard[] = [];
+
+type LiveServo = {
+  partId: string;
+  boardId: string;
+  pinBit: number;
+  actuatorId: number;
+  jointName: string;
+  speedRadPerSec: number;
+  torqueNm: number;
+  track: ServoTrack;
+};
+
+let liveServos: LiveServo[] = [];
 const faulted = new Set<string>();
 const rxSent = new Map<string, string>();
 let playing = false;
@@ -154,7 +176,21 @@ function sample(): WorldState | null {
       ? { running: false, fault: board.fault, pins }
       : { running: board.running, pins };
   }
-  return { simTime: data.time, playing, poses, joints, boards: boardState };
+  const parts: Record<string, WorldPartState> = {};
+  for (const servo of liveServos) {
+    parts[servo.partId] = {
+      pulseUs: servo.track.pulseUs,
+      commandDeg: servo.track.commandDeg,
+    };
+  }
+  return {
+    simTime: data.time,
+    playing,
+    poses,
+    joints,
+    boards: boardState,
+    parts,
+  };
 }
 
 function flushBoards() {
@@ -242,6 +278,63 @@ function loadBoards(parsed: unknown) {
   for (const board of boards) noteFault(board);
 }
 
+function setActuatorTorque(id: number, torque: number) {
+  if (!sim) return;
+  const range = sim.model.actuator_forcerange as Float64Array;
+  const base = id * 2;
+  range[base] = -torque;
+  range[base + 1] = torque;
+}
+
+/**
+ * Wire each servo signal to its board pin and start it limp. Speed and
+ * torque are the part-model numbers at V = V_nom. W4b scales both.
+ */
+function bindServos(doc: WorldDocument) {
+  liveServos = [];
+  if (!sim) return;
+  for (const drive of servoSignalDrives(doc)) {
+    const bit = arduinoPinBit(drive.pin);
+    const actuatorId = sim.index.parts[drive.partId];
+    const part = doc.parts.find((item) => item.id === drive.partId);
+    const model = part ? partModel(part.model) : undefined;
+    const speed = model?.speedDegPerSec;
+    const torque = model?.torqueNm;
+    if (
+      bit === undefined ||
+      actuatorId === undefined ||
+      !part?.drives ||
+      speed === undefined ||
+      torque === undefined
+    ) {
+      continue;
+    }
+    const board = boards.find((item) => item.id === drive.boardId);
+    board?.watchEdge(bit);
+    // Limp until the first valid pulse, including before the first step.
+    setActuatorTorque(actuatorId, 0);
+    liveServos.push({
+      partId: drive.partId,
+      boardId: drive.boardId,
+      pinBit: bit,
+      actuatorId,
+      jointName: `${part.drives.robot}/${part.drives.joint}`,
+      speedRadPerSec: (speed * Math.PI) / 180,
+      torqueNm: torque,
+      track: blankTrack(),
+    });
+  }
+}
+
+function rearmServos(boardId: string, board: AvrBoard) {
+  for (const servo of liveServos) {
+    if (servo.boardId !== boardId) continue;
+    board.watchEdge(servo.pinBit);
+    servo.track = blankTrack();
+    setActuatorTorque(servo.actuatorId, 0);
+  }
+}
+
 function reloadBoard(id: string) {
   const spec = specs.find((item) => item.id === id);
   if (!spec) {
@@ -257,6 +350,7 @@ function reloadBoard(id: string) {
   const index = boards.findIndex((item) => item.id === id);
   if (index >= 0) boards[index] = next;
   else boards.push(next);
+  rearmServos(id, next);
   rxSent.delete(id);
   faulted.delete(id);
   if (next.running) {
@@ -296,6 +390,32 @@ function serialIn(id: string, text: string) {
   });
 }
 
+/** Apply this millisecond's pulses, then one MuJoCo step. */
+function applyServos() {
+  if (!sim) return;
+  const simTime = sim.data.time;
+  const pulses = new Map<string, { bit: number; us: number }[]>();
+  for (const board of boards) pulses.set(board.id, board.takePulses());
+  for (const servo of liveServos) {
+    const widths = (pulses.get(servo.boardId) ?? [])
+      .filter((pulse) => pulse.bit === servo.pinBit)
+      .map((pulse) => pulse.us);
+    const qpos = scalar(sim.data.jnt(servo.jointName).qpos as Float64Array);
+    const stepped = trackServo({
+      track: servo.track,
+      simTime,
+      pulsesUs: widths,
+      qpos,
+      speedRadPerSec: servo.speedRadPerSec,
+    });
+    servo.track = stepped.track;
+    setActuatorTorque(servo.actuatorId, stepped.limp ? 0 : servo.torqueNm);
+    if (!stepped.limp && stepped.ctrl !== null) {
+      sim.data.actuator(servo.partId).ctrl = stepped.ctrl;
+    }
+  }
+}
+
 /** One millisecond: every live board, then one MuJoCo step. */
 function advanceOne() {
   if (!sim) return;
@@ -312,6 +432,7 @@ function advanceOne() {
     }
     noteFault(board);
   }
+  applyServos();
   sim.mj.mj_step(sim.model, sim.data);
 }
 
@@ -319,6 +440,7 @@ function dispose() {
   playing = false;
   throwOnStep = false;
   boards = [];
+  liveServos = [];
   specs = [];
   files = null;
   faulted.clear();
@@ -396,6 +518,7 @@ async function build(): Promise<boolean> {
   files = bytesReader;
   playing = false;
   loadBoards(parsed);
+  bindServos(parsed as WorldDocument);
   post({ type: "ready", generation, counts: countsOf(compiled) });
   postState();
   return true;

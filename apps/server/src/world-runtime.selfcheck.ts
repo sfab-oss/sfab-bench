@@ -682,13 +682,14 @@ try {
       twoReady.counts.actuatorNames.includes("elbow"),
     `actuators ${twoReady.counts.actuatorNames.join(",")}`
   );
-  const jointOf = (robot: string, joint: string) => {
+  const latest = () => {
     const hit = [...twoMessages]
       .reverse()
       .find((message) => message.type === "state");
-    if (!hit || hit.type !== "state") return Number.NaN;
-    return hit.state.joints[robot]?.[joint] ?? Number.NaN;
+    return hit?.type === "state" ? hit.state : null;
   };
+  const jointOf = (robot: string, joint: string) =>
+    latest()?.joints[robot]?.[joint] ?? Number.NaN;
   twoWorker.postMessage({
     type: "setTarget",
     partId: "elbow",
@@ -714,15 +715,23 @@ try {
     20000,
     "crane stepped"
   );
+  // The arm servo follows hold.hex. The elbow is unwired, so only
+  // setTarget moves it. Each must stay on its own command.
   const hingeOnly = deg(jointOf("crane", "hinge"));
   const shoulderStill = deg(jointOf("arm", "shoulder"));
+  const commandAt2 = latest()?.parts?.servo?.commandDeg;
   expect(
     Math.abs(hingeOnly - 90) < 2,
     `crane hinge ${hingeOnly.toFixed(3)}° after its own target`
   );
+  expect(latest()?.parts?.elbow === undefined, "unwired elbow has no pulse");
   expect(
-    Math.abs(shoulderStill) < 2,
-    `arm shoulder ${shoulderStill.toFixed(3)}° moved with the crane`
+    commandAt2 !== undefined && commandAt2 !== null,
+    "wired arm servo has a command"
+  );
+  expect(
+    Math.abs(shoulderStill - (commandAt2 ?? Number.NaN)) < 2,
+    `arm shoulder ${shoulderStill.toFixed(3)}° vs its command ${commandAt2}`
   );
   twoWorker.postMessage({
     type: "setTarget",
@@ -753,16 +762,25 @@ try {
   );
   const shoulderMoved = deg(jointOf("arm", "shoulder"));
   const hingeHeld = deg(jointOf("crane", "hinge"));
-  expect(
-    Math.abs(shoulderMoved - 90) < 2,
-    `arm shoulder ${shoulderMoved.toFixed(3)}° after its own target`
-  );
+  const commandAt4 = latest()?.parts?.servo?.commandDeg;
   expect(
     Math.abs(hingeHeld - 90) < 2,
     `crane hinge ${hingeHeld.toFixed(3)}° moved with the arm`
   );
+  expect(
+    commandAt4 !== undefined && commandAt4 !== null,
+    "arm servo still has a command"
+  );
+  expect(
+    Math.abs(shoulderMoved - commandAt4) < 2,
+    `arm shoulder ${shoulderMoved.toFixed(3)}° vs its command ${commandAt4}`
+  );
+  expect(
+    Math.abs(commandAt4 - (commandAt2 ?? 0)) > 20,
+    `arm command changed on its own (${commandAt2} → ${commandAt4})`
+  );
   console.log(
-    `two robots: hinge ${hingeOnly.toFixed(3)}° shoulder ${shoulderStill.toFixed(3)}° then shoulder ${shoulderMoved.toFixed(3)}° hinge ${hingeHeld.toFixed(3)}°`
+    `two robots: hinge ${hingeOnly.toFixed(3)}° shoulder ${shoulderStill.toFixed(3)}° (command ${commandAt2}) then shoulder ${shoulderMoved.toFixed(3)}° (command ${commandAt4}) hinge ${hingeHeld.toFixed(3)}°`
   );
 } finally {
   const twoExit = new Promise<number>((resolve) => {

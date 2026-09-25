@@ -1,6 +1,7 @@
 import type {
   WorldBoardState,
   WorldError,
+  WorldPartState,
   WorldPinState,
   WorldSender,
   WorldState,
@@ -23,6 +24,7 @@ export type WorldConnection = "idle" | "connecting" | "live" | "reconnecting";
 export type WorldSelection =
   | { kind: "link"; robot: string; link: string }
   | { kind: "board"; board: string }
+  | { kind: "part"; part: string }
   | null;
 
 export type WorldSelectionAction =
@@ -32,6 +34,7 @@ export type WorldSelectionAction =
       type: "reload";
       links: readonly { robot: string; link: string }[];
       boards: readonly string[];
+      parts: readonly string[];
     };
 
 export function sameWorldSelection(
@@ -41,6 +44,7 @@ export function sameWorldSelection(
   if (a === b) return true;
   if (!a || !b || a.kind !== b.kind) return false;
   if (a.kind === "board" && b.kind === "board") return a.board === b.board;
+  if (a.kind === "part" && b.kind === "part") return a.part === b.part;
   return a.kind === "link" && b.kind === "link"
     ? a.robot === b.robot && a.link === b.link
     : false;
@@ -60,6 +64,9 @@ export function reduceWorldSelection(
   if (!selection) return null;
   if (selection.kind === "board") {
     return action.boards.includes(selection.board) ? selection : null;
+  }
+  if (selection.kind === "part") {
+    return action.parts.includes(selection.part) ? selection : null;
   }
   const kept = action.links.some(
     (item) => item.robot === selection.robot && item.link === selection.link
@@ -93,6 +100,8 @@ export type WorldHudState = {
   joints: Record<string, Record<string, number>>;
   /** Pin masks, copied at the HUD rate. */
   pins: Record<string, WorldPinState>;
+  /** Servo pulse and command, copied at the HUD rate. */
+  parts: Record<string, WorldPartState>;
   open: (path: string, opts?: { force?: boolean }) => void;
   close: () => void;
   select: (selection: WorldSelection) => void;
@@ -100,7 +109,8 @@ export type WorldHudState = {
   setOutline: (outline: WorldOutline) => void;
   setSignals: (
     joints: Record<string, Record<string, number>>,
-    pins: Record<string, WorldPinState>
+    pins: Record<string, WorldPinState>,
+    parts: Record<string, WorldPartState>
   ) => void;
   noteReload: () => void;
   setConnection: (connection: WorldConnection) => void;
@@ -150,6 +160,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
   outline: null,
   joints: {},
   pins: {},
+  parts: {},
 
   open: (next, opts) => {
     const current = get();
@@ -181,6 +192,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
       outline: sameDocument ? current.outline : null,
       joints: {},
       pins: {},
+      parts: {},
     });
   },
   close: () => {
@@ -202,6 +214,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
       outline: null,
       joints: {},
       pins: {},
+      parts: {},
     });
   },
   select: (selection) => {
@@ -220,15 +233,20 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
         type: "reload",
         links: items.links,
         boards: items.boards,
+        parts: items.parts,
       }),
     });
   },
-  setSignals: (joints, pins) => {
+  setSignals: (joints, pins, parts) => {
     const current = get();
-    if (sameJoints(current.joints, joints) && samePins(current.pins, pins)) {
+    if (
+      sameJoints(current.joints, joints) &&
+      samePins(current.pins, pins) &&
+      sameParts(current.parts, parts)
+    ) {
       return;
     }
-    set({ joints, pins });
+    set({ joints, pins, parts });
   },
   noteReload: () => set((s) => ({ revision: s.revision + 1 })),
   setConnection: (connection) => {
@@ -316,6 +334,27 @@ function sameJoints(
     if (names.length !== Object.keys(right).length) return false;
     for (const name of names) {
       if (left[name] !== right[name]) return false;
+    }
+  }
+  return true;
+}
+
+function sameParts(
+  a: Record<string, WorldPartState>,
+  b: Record<string, WorldPartState>
+): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  for (const id of keys) {
+    const left = a[id];
+    const right = b[id];
+    if (
+      !left ||
+      !right ||
+      left.pulseUs !== right.pulseUs ||
+      left.commandDeg !== right.commandDeg
+    ) {
+      return false;
     }
   }
   return true;

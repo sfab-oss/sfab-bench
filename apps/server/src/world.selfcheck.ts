@@ -171,6 +171,8 @@ expect(sg90.current?.stall === 0.7, "sg90 stall");
 expect(sg90.stall?.minAngleErrorDeg === 5, "stall angle");
 expect(sg90.stall?.maxVelocityDegPerSec === 5, "stall velocity");
 expect(sg90.stall?.holdMs === 50, "stall hold");
+expect(sg90.speedDegPerSec === 600, "sg90 speed");
+expect(sg90.torqueNm === 0.176, "sg90 torque");
 expect(sg90.voltageScale === "V/V_nom", "voltage scale");
 expect(partModels["led-pwm"].drive.kind === "analogWrite", "led-pwm drive");
 

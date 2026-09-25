@@ -23,6 +23,7 @@ export type ViewerSnapshot = {
   selection?:
     | { kind: "link"; robot: string; link: string }
     | { kind: "board"; board: string }
+    | { kind: "part"; part: string }
     | null;
 };
 

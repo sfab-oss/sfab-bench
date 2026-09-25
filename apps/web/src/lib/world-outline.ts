@@ -26,8 +26,23 @@ export type WorldOutlineBoard = {
   source?: string;
 };
 
+export type WorldOutlineWire = {
+  /** Pin on the part, for example `signal`. */
+  pin: string;
+  /** The other end, for example `uno.D9`. */
+  other: string;
+};
+
+export type WorldOutlinePart = {
+  id: string;
+  model: string;
+  drives: { robot: string; joint: string } | null;
+  wires: WorldOutlineWire[];
+};
+
 export type WorldOutline = {
   robots: { id: string; links: WorldOutlineLink[] }[];
+  parts: WorldOutlinePart[];
   boards: WorldOutlineBoard[];
 };
 
@@ -39,7 +54,55 @@ export type WorldOutlineInput = {
     firmware: string;
     source?: string;
   }[];
+  parts?: readonly {
+    id: string;
+    model: string;
+    drives?: { robot: string; joint: string };
+  }[];
+  wires?: readonly [string, string][];
 };
+
+const WIRE_PIN_ORDER = ["signal", "V+", "GND"];
+
+function endpoint(value: string): { id: string; pin: string } | null {
+  const dot = value.indexOf(".");
+  if (dot <= 0 || dot >= value.length - 1) return null;
+  return { id: value.slice(0, dot), pin: value.slice(dot + 1) };
+}
+
+function wiresFor(
+  partId: string,
+  wires: readonly [string, string][]
+): WorldOutlineWire[] {
+  const found: WorldOutlineWire[] = [];
+  for (const wire of wires) {
+    const left = endpoint(wire[0]);
+    const right = endpoint(wire[1]);
+    if (!left || !right) continue;
+    if (left.id === partId) found.push({ pin: left.pin, other: wire[1] });
+    else if (right.id === partId) {
+      found.push({ pin: right.pin, other: wire[0] });
+    }
+  }
+  return found.sort((a, b) => {
+    const ai = WIRE_PIN_ORDER.indexOf(a.pin);
+    const bi = WIRE_PIN_ORDER.indexOf(b.pin);
+    const ao = ai < 0 ? WIRE_PIN_ORDER.length : ai;
+    const bo = bi < 0 ? WIRE_PIN_ORDER.length : bi;
+    if (ao !== bo) return ao - bo;
+    return a.pin.localeCompare(b.pin);
+  });
+}
+
+/** `servo · sg90` */
+export function outlinePartLabel(part: { id: string; model: string }): string {
+  return `${part.id} · ${part.model}`;
+}
+
+/** `signal ← uno.D9` */
+export function formatPartWire(wire: WorldOutlineWire): string {
+  return `${wire.pin} ← ${wire.other}`;
+}
 
 function revoluteDegrees(type: string, radians: number | null): number | null {
   if (type !== "revolute" || radians === null || !Number.isFinite(radians)) {
@@ -58,11 +121,12 @@ function prismaticMillimetres(
   return metres * 1000;
 }
 
-/** Robots, the joint that moves each link, and boards. Pure. */
+/** Robots, the joint that moves each link, parts, and boards. Pure. */
 export function buildWorldOutline(
   world: WorldOutlineInput,
   urdfByRobot: Readonly<Record<string, UrdfInfo>>
 ): WorldOutline {
+  const wires = world.wires ?? [];
   return {
     robots: world.robots.map((robot) => {
       const info = urdfByRobot[robot.id];
@@ -89,6 +153,12 @@ export function buildWorldOutline(
         }),
       };
     }),
+    parts: (world.parts ?? []).map((part) => ({
+      id: part.id,
+      model: part.model,
+      drives: part.drives ?? null,
+      wires: wiresFor(part.id, wires),
+    })),
     boards: world.boards.map((board) => ({
       id: board.id,
       chip: board.chip,
@@ -101,6 +171,7 @@ export function buildWorldOutline(
 export function outlineItems(outline: WorldOutline): {
   links: { robot: string; link: string }[];
   boards: string[];
+  parts: string[];
 } {
   const links: { robot: string; link: string }[] = [];
   for (const robot of outline.robots) {
@@ -108,7 +179,11 @@ export function outlineItems(outline: WorldOutline): {
       links.push({ robot: robot.id, link: link.name });
     }
   }
-  return { links, boards: outline.boards.map((board) => board.id) };
+  return {
+    links,
+    boards: outline.boards.map((board) => board.id),
+    parts: outline.parts.map((part) => part.id),
+  };
 }
 
 /** Trimmed degrees for a joint limit. */

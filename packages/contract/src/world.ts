@@ -9,8 +9,8 @@
  * `[w, x, y, z]`. Identity is `[1, 0, 0, 0]`.
  *
  * Paths in the document are relative to the world file. Part behaviour
- * numbers (currents, voltage range, stall rule, brownout) live in the
- * catalog below, not as constants in the validator.
+ * numbers (currents, voltage range, stall rule, brownout, speed, torque)
+ * live in the catalog below, not as constants in the validator.
  */
 
 export const WORLD_VERSION = 1;
@@ -208,6 +208,16 @@ export type PartModel = {
     holdMs: number;
   };
   /**
+   * Degrees per second at `supply.nominal`. The joint setpoint slews
+   * toward the command at this rate. W4 uses V = V_nom.
+   */
+  speedDegPerSec?: number;
+  /**
+   * Newton-metres at `supply.nominal`. Actuator torque is clamped to
+   * ±this. W4 uses V = V_nom. `voltageScale` is how W4b drops both.
+   */
+  torqueNm?: number;
+  /**
    * When set, speed and torque scale by `V / V_nom`.
    * `V_nom` is `supply.nominal`.
    */
@@ -328,6 +338,9 @@ export const partModels: Record<PartModelId, PartModel> = {
       maxVelocityDegPerSec: 5,
       holdMs: 50,
     },
+    // 0.1 s per 60° at 5 V. 1.8 kgf·cm is 0.176 N·m.
+    speedDegPerSec: 600,
+    torqueNm: 0.176,
     voltageScale: "V/V_nom",
   },
   /**
