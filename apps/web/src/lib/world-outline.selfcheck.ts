@@ -3,6 +3,7 @@ import { extractUrdfJointsAndMeshes } from "@sfab-bench/contract";
 import {
   buildWorldOutline,
   formatDegrees,
+  formatJointReadout,
   formatLiveDegrees,
 } from "./world-outline";
 
@@ -106,7 +107,42 @@ expect(
   finger?.joint?.lowerDeg === null && finger?.joint?.upperDeg === null,
   "prismatic limits stay out of degrees"
 );
+const jaw = finger?.joint;
+if (!jaw) throw new Error("jaw joint missing");
+expect(
+  jaw.lowerMm !== null &&
+    jaw.upperMm !== null &&
+    Math.abs(jaw.lowerMm) < 1e-6 &&
+    Math.abs(jaw.upperMm - 20) < 1e-6,
+  `jaw limits are 0 mm to 20 mm, got ${jaw.lowerMm} ${jaw.upperMm}`
+);
 expect(finger?.meshes.join(",") === "finger.stl", "finger mesh");
 expect(formatLiveDegrees(Math.PI / 2) === "90.0", "a right angle is 90.0");
+
+const revolute = formatJointReadout(shoulder, Math.PI / 2);
+expect(revolute.label === "Angle", "a revolute joint is an angle");
+expect(revolute.value === "90.0°", `revolute value ${revolute.value}`);
+expect(revolute.limits === "0° to 150°", `revolute limits ${revolute.limits}`);
+
+const slide = formatJointReadout(jaw, 0.0125);
+expect(slide.label === "Position", "a prismatic joint is a position");
+expect(slide.value === "12.5 mm", `prismatic value ${slide.value}`);
+expect(slide.limits === "0 mm to 20 mm", `prismatic limits ${slide.limits}`);
+
+const continuous = formatJointReadout(
+  {
+    name: "spin",
+    type: "continuous",
+    axis: [0, 0, 1],
+    lowerDeg: null,
+    upperDeg: null,
+    lowerMm: null,
+    upperMm: null,
+  },
+  Math.PI
+);
+expect(continuous.label === "Angle", "a continuous joint is an angle");
+expect(continuous.value === "180.0°", `continuous value ${continuous.value}`);
+expect(continuous.limits === null, "a continuous joint has no degree limits");
 
 console.log("world-outline.selfcheck ok");

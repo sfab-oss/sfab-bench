@@ -19,8 +19,7 @@ import {
 } from "@/lib/shortcuts";
 import { relFromWorldFile } from "@/lib/world-assets";
 import {
-  formatDegrees,
-  formatLiveDegrees,
+  formatJointReadout,
   type WorldOutline,
   type WorldOutlineBoard,
   type WorldOutlineLink,
@@ -144,7 +143,7 @@ function LinkBody({
   pending: boolean;
 }) {
   const jointName = info?.joint?.name;
-  const radians = useWorld((s) =>
+  const qpos = useWorld((s) =>
     jointName ? s.joints[robot]?.[jointName] : undefined
   );
   const joint = info?.joint ?? null;
@@ -154,13 +153,7 @@ function LinkBody({
       <p className="text-[12px] text-muted-foreground">Reading the world…</p>
     );
   }
-  const limits =
-    joint &&
-    joint.type === "revolute" &&
-    joint.lowerDeg !== null &&
-    joint.upperDeg !== null
-      ? `${formatDegrees(joint.lowerDeg)}° to ${formatDegrees(joint.upperDeg)}°`
-      : null;
+  const readout = joint ? formatJointReadout(joint, qpos) : null;
   return (
     <>
       <Field label="Robot" value={robot} />
@@ -169,18 +162,15 @@ function LinkBody({
         label="Mesh"
         value={meshes.length > 0 ? meshes.join(", ") : "None"}
       />
-      {joint ? (
+      {joint && readout ? (
         <>
           <Field label="Joint" value={joint.name} />
           <Field label="Type" value={joint.type || "—"} />
           <Field label="Axis" value={joint.axis ? joint.axis.join(" ") : "—"} />
-          {limits ? <Field label="Limits" value={limits} /> : null}
-          <Field
-            label="Angle"
-            value={
-              radians === undefined ? "—" : `${formatLiveDegrees(radians)}°`
-            }
-          />
+          {readout.limits ? (
+            <Field label="Limits" value={readout.limits} />
+          ) : null}
+          <Field label={readout.label} value={readout.value} />
         </>
       ) : (
         <p className="text-[12px] text-muted-foreground">No parent joint.</p>

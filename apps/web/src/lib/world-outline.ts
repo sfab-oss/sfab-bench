@@ -7,6 +7,9 @@ export type WorldOutlineJoint = {
   /** Degrees. Set for a revolute joint that published a limit. */
   lowerDeg: number | null;
   upperDeg: number | null;
+  /** Millimetres. Set for a prismatic joint that published a limit. */
+  lowerMm: number | null;
+  upperMm: number | null;
 };
 
 export type WorldOutlineLink = {
@@ -45,6 +48,16 @@ function revoluteDegrees(type: string, radians: number | null): number | null {
   return (radians * 180) / Math.PI;
 }
 
+function prismaticMillimetres(
+  type: string,
+  metres: number | null
+): number | null {
+  if (type !== "prismatic" || metres === null || !Number.isFinite(metres)) {
+    return null;
+  }
+  return metres * 1000;
+}
+
 /** Robots, the joint that moves each link, and boards. Pure. */
 export function buildWorldOutline(
   world: WorldOutlineInput,
@@ -68,6 +81,8 @@ export function buildWorldOutline(
                   axis: joint.axis,
                   lowerDeg: revoluteDegrees(joint.type, joint.lower),
                   upperDeg: revoluteDegrees(joint.type, joint.upper),
+                  lowerMm: prismaticMillimetres(joint.type, joint.lower),
+                  upperMm: prismaticMillimetres(joint.type, joint.upper),
                 }
               : null,
           };
@@ -106,4 +121,44 @@ export function formatDegrees(degrees: number): string {
 export function formatLiveDegrees(radians: number): string {
   const degrees = (radians * 180) / Math.PI;
   return (Math.round(degrees * 10) / 10).toFixed(1);
+}
+
+/** One decimal. `metres` is a prismatic joint position. */
+export function formatLiveMillimetres(metres: number): string {
+  const mm = metres * 1000;
+  return (Math.round(mm * 10) / 10).toFixed(1);
+}
+
+export type JointReadout = {
+  label: "Angle" | "Position";
+  value: string;
+  limits: string | null;
+};
+
+/** Revolute and continuous joints are degrees. A prismatic joint is millimetres. */
+export function formatJointReadout(
+  joint: WorldOutlineJoint,
+  qpos: number | undefined
+): JointReadout {
+  if (joint.type === "prismatic") {
+    const limits =
+      joint.lowerMm !== null && joint.upperMm !== null
+        ? `${formatDegrees(joint.lowerMm)} mm to ${formatDegrees(joint.upperMm)} mm`
+        : null;
+    return {
+      label: "Position",
+      value: qpos === undefined ? "—" : `${formatLiveMillimetres(qpos)} mm`,
+      limits,
+    };
+  }
+  const angular = joint.type === "revolute" || joint.type === "continuous";
+  const limits =
+    angular && joint.lowerDeg !== null && joint.upperDeg !== null
+      ? `${formatDegrees(joint.lowerDeg)}° to ${formatDegrees(joint.upperDeg)}°`
+      : null;
+  return {
+    label: "Angle",
+    value: qpos === undefined ? "—" : `${formatLiveDegrees(qpos)}°`,
+    limits,
+  };
 }
