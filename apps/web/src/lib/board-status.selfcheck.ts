@@ -42,6 +42,21 @@ expect(
   scrubbedBoardStatus({ running: false, fault: "bad checksum" }) === "stopped",
   "a recorded fault stays stopped"
 );
+expect(
+  boardStatusLabel({ running: false, unpowered: true }, true) === "unpowered",
+  "a board no supply reaches says unpowered"
+);
+expect(
+  boardStatusLabel(
+    { running: false, fault: "bad checksum", unpowered: true },
+    false
+  ) === "unpowered",
+  "unpowered wins over a fault word"
+);
+expect(
+  scrubbedBoardStatus({ running: false, unpowered: true }) === "unpowered",
+  "a scrubbed unpowered board stays unpowered"
+);
 expect(scrubbedBoardStatus(undefined) === "", "no recorded board yet");
 
 console.log("board-status.selfcheck ok");

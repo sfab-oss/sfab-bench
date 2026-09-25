@@ -129,6 +129,11 @@ export type WorldBoardState = {
   running: boolean;
   /** Why this board is stopped. The rest of the run keeps going. */
   fault?: string;
+  /**
+   * No supply reaches a power input, so the CPU never boots. Absent when
+   * a supply does. The desktop status says "unpowered".
+   */
+  unpowered?: boolean;
   /** Absent only on a client that has not seen a state tick yet. */
   pins?: WorldPinState;
   /** Brownout reboots since this world was loaded. Absent on older clients. */

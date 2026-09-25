@@ -523,6 +523,7 @@ function BoardBody({
         running: recorded.running,
         brownout: recorded.brownout || recorded.brownoutAny,
         ...(pastFault ? { fault: pastFault } : {}),
+        ...(live?.unpowered ? { unpowered: true } : {}),
       }
     : live;
   const serialText =

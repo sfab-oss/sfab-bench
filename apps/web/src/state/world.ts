@@ -291,6 +291,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
           old !== undefined &&
           next.running === old.running &&
           next.fault === old.fault &&
+          next.unpowered === old.unpowered &&
           next.brownout === old.brownout &&
           next.resets === old.resets
         );
