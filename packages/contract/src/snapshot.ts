@@ -16,6 +16,14 @@ export type ViewerSnapshot = {
   playing?: boolean;
   /** Seconds. Present when the open document is a world. */
   simTime?: number;
+  /**
+   * This client's world selection (D-015). Present only when a world is
+   * open. Null when nothing in that world is selected.
+   */
+  selection?:
+    | { kind: "link"; robot: string; link: string }
+    | { kind: "board"; board: string }
+    | null;
 };
 
 export type CatalogEntry = {

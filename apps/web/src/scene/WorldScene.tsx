@@ -1,3 +1,4 @@
+import type { ThreeEvent } from "@react-three/fiber";
 import { useFrame } from "@react-three/fiber";
 import type {
   WorldPose,
@@ -14,6 +15,8 @@ import {
 } from "react";
 import * as THREE from "three";
 
+import { applyMeshHighlights, clearHighlights } from "@/cad/highlights";
+import { useXrSession } from "@/hooks/useXrSession";
 import {
   type LoadedVisual,
   type LoadedWorld,
@@ -27,7 +30,12 @@ import {
 } from "@/lib/world-pose";
 import { invalidateSceneNow } from "@/scene/invalidate";
 import { setWorldFitTarget } from "@/scene/world-fit";
-import { useWorld, worldLiveState, worldStore } from "@/state/world";
+import {
+  useWorld,
+  type WorldSelection,
+  worldLiveState,
+  worldStore,
+} from "@/state/world";
 import { useXrTheme } from "@/xr/ui/theme";
 
 const ROBOT_COLORS = [0xc4b8a5, 0x8fa3b0, 0xb7a0c4, 0xa3b59a, 0xc4a090];
@@ -204,6 +212,21 @@ function linkKey(robotId: string, link: string) {
   return `${robotId}/${link}`;
 }
 
+function selectionKey(selection: NonNullable<WorldSelection>): string {
+  return selection.kind === "link"
+    ? `link:${selection.robot}/${selection.link}`
+    : `board:${selection.board}`;
+}
+
+function linkMaterial(color: number): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0.12,
+    roughness: 0.62,
+    side: THREE.DoubleSide,
+  });
+}
+
 export function WorldScene({
   onFit,
 }: {
@@ -234,6 +257,7 @@ export function WorldScene({
         setLoaded(next);
         worldStore.getState().setAssetIssues(next.problems);
         worldStore.getState().setAssets("ready", true);
+        worldStore.getState().setOutline(next.outline);
         releaseMeshes(previous);
         invalidateSceneNow();
       })
@@ -272,34 +296,37 @@ export function WorldScene({
     return [...byRobot.entries()];
   }, [loaded]);
 
-  const materials = useMemo(
-    () =>
-      robots.map(
-        (_, index) =>
-          new THREE.MeshStandardMaterial({
-            color: ROBOT_COLORS[index % ROBOT_COLORS.length],
-            metalness: 0.12,
-            roughness: 0.62,
-            side: THREE.DoubleSide,
-          })
-      ),
-    [robots]
-  );
+  const linkMaterials = useMemo(() => {
+    const map = new Map<string, THREE.MeshStandardMaterial>();
+    robots.forEach(([robotId, links], index) => {
+      const color = ROBOT_COLORS[index % ROBOT_COLORS.length] ?? 0xc4b8a5;
+      for (const name of links.keys()) {
+        map.set(linkKey(robotId, name), linkMaterial(color));
+      }
+    });
+    return map;
+  }, [robots]);
+  const boardMaterials = useMemo(() => {
+    const map = new Map<string, THREE.MeshStandardMaterial>();
+    for (const board of loaded?.document.boards ?? []) {
+      map.set(
+        board.id,
+        new THREE.MeshStandardMaterial({
+          color: 0x6d8ea3,
+          metalness: 0.08,
+          roughness: 0.7,
+        })
+      );
+    }
+    return map;
+  }, [loaded]);
   useEffect(() => {
     return () => {
-      for (const material of materials) material.dispose();
+      clearHighlights();
+      for (const material of linkMaterials.values()) material.dispose();
+      for (const material of boardMaterials.values()) material.dispose();
     };
-  }, [materials]);
-
-  const boardMaterial = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: 0x6d8ea3,
-        metalness: 0.08,
-        roughness: 0.7,
-      }),
-    []
-  );
+  }, [linkMaterials, boardMaterials]);
   const primitiveMaterial = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
@@ -311,10 +338,81 @@ export function WorldScene({
   );
   useEffect(() => {
     return () => {
-      boardMaterial.dispose();
       primitiveMaterial.dispose();
     };
-  }, [boardMaterial, primitiveMaterial]);
+  }, [primitiveMaterial]);
+
+  const session = useXrSession();
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const hoveredRoot = useRef<THREE.Object3D | null>(null);
+  const pickRoots = useRef(new Map<string, THREE.Object3D>());
+  const paintRef = useRef<() => void>(() => {});
+  paintRef.current = () => {
+    if (sessionRef.current) {
+      clearHighlights();
+      return;
+    }
+    const selection = worldStore.getState().selection;
+    const selected = selection
+      ? (pickRoots.current.get(selectionKey(selection)) ?? null)
+      : null;
+    applyMeshHighlights(selected, hoveredRoot.current);
+  };
+
+  useEffect(() => {
+    if (session) hoveredRoot.current = null;
+    paintRef.current();
+    return worldStore.subscribe((state, prev) => {
+      if (state.selection === prev.selection) return;
+      paintRef.current();
+      invalidateSceneNow();
+    });
+  }, [loaded, session, linkMaterials, boardMaterials]);
+
+  const bindPick = (pick: NonNullable<WorldSelection>) => {
+    if (session) return {};
+    const hover = (event: ThreeEvent<PointerEvent>) => {
+      event.stopPropagation();
+      const root = pickRoots.current.get(selectionKey(pick)) ?? null;
+      if (hoveredRoot.current === root) return;
+      hoveredRoot.current = root;
+      paintRef.current();
+      invalidateSceneNow();
+    };
+    return {
+      onClick: (event: ThreeEvent<MouseEvent>) => {
+        event.stopPropagation();
+        if (event.delta > 2 || sessionRef.current) return;
+        worldStore.getState().select(pick);
+      },
+      onPointerMove: hover,
+      onPointerOut: () => {
+        const root = pickRoots.current.get(selectionKey(pick)) ?? null;
+        if (hoveredRoot.current !== root) return;
+        hoveredRoot.current = null;
+        paintRef.current();
+        invalidateSceneNow();
+      },
+    };
+  };
+
+  const clearPick = session
+    ? {}
+    : {
+        onClick: (event: ThreeEvent<MouseEvent>) => {
+          event.stopPropagation();
+          if (event.delta > 2) return;
+          worldStore.getState().select(null);
+        },
+        onPointerMove: (event: ThreeEvent<PointerEvent>) => {
+          event.stopPropagation();
+          if (!hoveredRoot.current) return;
+          hoveredRoot.current = null;
+          paintRef.current();
+          invalidateSceneNow();
+        },
+      };
 
   useFrame(() => {
     const state = worldLiveState();
@@ -346,67 +444,101 @@ export function WorldScene({
     <>
       {doc.environment.ground.plane ? <WorldGround /> : null}
       <group ref={contentRef} rotation-x={WORLD_TO_SCENE_X} name="world">
-        {robots.map(([robotId, links], index) => (
+        {robots.map(([robotId, links]) => (
           <group key={robotId} name={robotId}>
-            {[...links.entries()].map(([name, visuals]) => (
-              <group
-                key={name}
-                name={linkKey(robotId, name)}
-                ref={(node) => {
-                  const key = linkKey(robotId, name);
-                  if (node) linkGroups.current.set(key, node);
-                  else linkGroups.current.delete(key);
-                }}
-              >
-                {visuals.map((visual, visualIndex) => (
-                  <VisualOrigin
-                    key={`${visual.link}:${visualIndex}`}
-                    xyz={visual.xyz}
-                    rpy={visual.rpy}
-                  >
-                    {visual.mesh.kind === "stl" ? (
-                      <mesh
-                        geometry={visual.mesh.geometry}
-                        material={materials[index]}
-                        scale={visual.scale}
-                      />
-                    ) : (
-                      <ObjVisual
-                        object={visual.mesh.object}
-                        material={materials[index]!}
-                        scale={visual.scale}
-                      />
-                    )}
-                  </VisualOrigin>
-                ))}
-              </group>
-            ))}
+            {[...links.entries()].map(([name, visuals]) => {
+              const material = linkMaterials.get(linkKey(robotId, name));
+              if (!material) return null;
+              const pick = {
+                kind: "link" as const,
+                robot: robotId,
+                link: name,
+              };
+              return (
+                <group
+                  key={name}
+                  name={linkKey(robotId, name)}
+                  userData={{ worldPick: pick }}
+                  {...bindPick(pick)}
+                  ref={(node) => {
+                    const poseKey = linkKey(robotId, name);
+                    const key = selectionKey(pick);
+                    if (node) {
+                      linkGroups.current.set(poseKey, node);
+                      pickRoots.current.set(key, node);
+                    } else {
+                      linkGroups.current.delete(poseKey);
+                      pickRoots.current.delete(key);
+                    }
+                  }}
+                >
+                  {visuals.map((visual, visualIndex) => (
+                    <VisualOrigin
+                      key={`${visual.link}:${visualIndex}`}
+                      xyz={visual.xyz}
+                      rpy={visual.rpy}
+                    >
+                      {visual.mesh.kind === "stl" ? (
+                        <mesh
+                          geometry={visual.mesh.geometry}
+                          material={material}
+                          scale={visual.scale}
+                        />
+                      ) : (
+                        <ObjVisual
+                          object={visual.mesh.object}
+                          material={material}
+                          scale={visual.scale}
+                        />
+                      )}
+                    </VisualOrigin>
+                  ))}
+                </group>
+              );
+            })}
           </group>
         ))}
         {primitives.map((primitive) =>
           primitive.pose ? (
             <Body key={primitive.id} pose={primitive.pose}>
-              <PrimitiveMesh
-                primitive={primitive}
-                material={primitiveMaterial}
-              />
+              <group {...clearPick}>
+                <PrimitiveMesh
+                  primitive={primitive}
+                  material={primitiveMaterial}
+                />
+              </group>
             </Body>
           ) : null
         )}
-        {doc.boards.map((board) =>
-          board.pose && finiteVec(board.size, 3) ? (
+        {doc.boards.map((board) => {
+          const material = boardMaterials.get(board.id);
+          if (!board.pose || !finiteVec(board.size, 3) || !material) {
+            return null;
+          }
+          const pick = { kind: "board" as const, board: board.id };
+          return (
             <Body key={board.id} pose={board.pose}>
-              <mesh material={boardMaterial}>
-                <boxGeometry args={board.size as WorldVec3} />
-              </mesh>
-              <BoardLabel
-                text={board.id}
-                color={theme.text}
-                z={board.size[2] / 2 + 0.008}
-              />
+              <group
+                userData={{ worldPick: pick }}
+                {...bindPick(pick)}
+                ref={(node) => {
+                  const key = selectionKey(pick);
+                  if (node) pickRoots.current.set(key, node);
+                  else pickRoots.current.delete(key);
+                }}
+              >
+                <mesh material={material}>
+                  <boxGeometry args={board.size as WorldVec3} />
+                </mesh>
+                <BoardLabel
+                  text={board.id}
+                  color={theme.text}
+                  z={board.size[2] / 2 + 0.008}
+                />
+              </group>
             </Body>
-          ) : null
-        )}
+          );
+        })}
       </group>
     </>
   );

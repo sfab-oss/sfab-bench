@@ -1,5 +1,7 @@
 import {
+  extractUrdfJointsAndMeshes,
   resolveUrdfMesh,
+  type UrdfInfo,
   type WorldBoard,
   type WorldDocument,
   type WorldPrimitive,
@@ -12,6 +14,7 @@ import { projectFileUrl } from "@/cad/loadCadReview";
 import { apiFetch } from "@/lib/api";
 import { messageFromHttpBody } from "@/lib/load-copy";
 import { parseUrdfVisuals } from "@/lib/urdf-visual";
+import { buildWorldOutline, type WorldOutline } from "@/lib/world-outline";
 
 export type WorldMesh =
   | { kind: "stl"; geometry: THREE.BufferGeometry }
@@ -47,6 +50,7 @@ export type LoadedWorld = {
   /** One entry per acquire. Release each to drop the cache. */
   meshKeys: string[];
   problems: WorldAssetProblem[];
+  outline: WorldOutline;
 };
 
 type CacheEntry<T> = {
@@ -207,6 +211,7 @@ export async function loadWorldAssets(
   const visuals: LoadedVisual[] = [];
   const meshKeys: string[] = [];
   const problems: WorldAssetProblem[] = [];
+  const urdfByRobot: Record<string, UrdfInfo> = {};
 
   for (const robot of read.robots) {
     const urdfRel = relFromWorldFile(worldRel, robot.urdf);
@@ -228,6 +233,7 @@ export async function loadWorldAssets(
       });
       continue;
     }
+    urdfByRobot[robot.id] = extractUrdfJointsAndMeshes(xml);
     for (const visual of parseUrdfVisuals(xml)) {
       const meshRel = resolveUrdfMesh(urdfRel, visual.filename);
       if (!meshRel) {
@@ -258,5 +264,9 @@ export async function loadWorldAssets(
     }
   }
 
-  return { document, visuals, meshKeys, problems };
+  const outline = buildWorldOutline(
+    { robots: read.robots, boards: document.boards },
+    urdfByRobot
+  );
+  return { document, visuals, meshKeys, problems, outline };
 }

@@ -149,9 +149,10 @@ function sample(): WorldState | null {
   }
   const boardState: WorldState["boards"] = {};
   for (const board of boards) {
+    const pins = board.takePins();
     boardState[board.id] = board.fault
-      ? { running: false, fault: board.fault }
-      : { running: board.running };
+      ? { running: false, fault: board.fault, pins }
+      : { running: board.running, pins };
   }
   return { simTime: data.time, playing, poses, joints, boards: boardState };
 }

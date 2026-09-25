@@ -16,7 +16,82 @@ export type WorldLinkPose = {
   q: WorldQuat;
 };
 
-/** One board in the shared run. Pins are not on this snapshot. */
+/**
+ * Arduino pins in one number. Bit 0 is D0 … bit 13 is D13, bit 14 is A0 …
+ * bit 19 is A5. PORTB6–7 and PORTC6–7 are not part of the mask.
+ *
+ * Collected at the state tick: port listeners OR the bits that changed,
+ * and the tick reads DDR, PORT, and PIN. Nothing walks instructions.
+ */
+export type WorldPinState = {
+  /** 1 = output (DDR). */
+  ddr: number;
+  /** PORT when the pin is an output, PIN when it is an input. */
+  level: number;
+  /** 1 if that pin changed since the previous state tick. */
+  toggled: number;
+};
+
+/** D0–D13, then A0–A5. The pin table and the mask use this order. */
+export const ARDUINO_PINS: readonly string[] = [
+  "D0",
+  "D1",
+  "D2",
+  "D3",
+  "D4",
+  "D5",
+  "D6",
+  "D7",
+  "D8",
+  "D9",
+  "D10",
+  "D11",
+  "D12",
+  "D13",
+  "A0",
+  "A1",
+  "A2",
+  "A3",
+  "A4",
+  "A5",
+];
+
+/** Bit index in `WorldPinState`, or undefined when `pin` is not D0–D13 or A0–A5. */
+export function arduinoPinBit(pin: string): number | undefined {
+  const digital = /^D(\d+)$/.exec(pin);
+  if (digital) {
+    const n = Number(digital[1]);
+    if (n >= 0 && n <= 13) return n;
+    return undefined;
+  }
+  const analog = /^A(\d+)$/.exec(pin);
+  if (analog) {
+    const n = Number(analog[1]);
+    if (n >= 0 && n <= 5) return 14 + n;
+    return undefined;
+  }
+  return undefined;
+}
+
+export function maskHasPin(mask: number, pin: string): boolean {
+  const bit = arduinoPinBit(pin);
+  if (bit === undefined) return false;
+  return (mask & (1 << bit)) !== 0;
+}
+
+/**
+ * Pack PORTD, PORTB, and PORTC into the 20-bit Arduino mask.
+ * D0–D7 = PORTD0–7, D8–D13 = PORTB0–5, A0–A5 = PORTC0–5.
+ */
+export function arduinoPinMask(
+  portD: number,
+  portB: number,
+  portC: number
+): number {
+  return (portD & 0xff) | ((portB & 0x3f) << 8) | ((portC & 0x3f) << 14);
+}
+
+/** One board in the shared run. `pins` is the 20-bit snapshot for this tick. */
 export type WorldBoardState = {
   /**
    * The firmware image is loaded. While the run is paused the CPU does
@@ -25,6 +100,8 @@ export type WorldBoardState = {
   running: boolean;
   /** Why this board is stopped. The rest of the run keeps going. */
   fault?: string;
+  /** Absent only on a client that has not seen a state tick yet. */
+  pins?: WorldPinState;
 };
 
 export type WorldState = {

@@ -1,4 +1,5 @@
 import type {
+  WorldPinState,
   WorldSender,
   WorldServerMessage,
   WorldState,
@@ -56,6 +57,14 @@ function backoff(attempt: number): number {
   return Math.min(8_000, 400 * 2 ** attempt);
 }
 
+function pinsOf(boards: WorldState["boards"]): Record<string, WorldPinState> {
+  const pins: Record<string, WorldPinState> = {};
+  for (const [id, board] of Object.entries(boards)) {
+    if (board.pins) pins[id] = board.pins;
+  }
+  return pins;
+}
+
 /**
  * One socket for the open world. Poses stay in a ref. React hears
  * play state, a throttled sim time, the last remote command, and errors.
@@ -94,6 +103,7 @@ export function useWorldRun(project: string, world: string) {
       if (!playingChanged && !due) return;
       lastHud = now;
       current.setRun(state.playing, due ? state.simTime : current.simTime);
+      current.setSignals(state.joints, pinsOf(state.boards));
     };
 
     const showNotice = (text: string) => {
