@@ -3,6 +3,7 @@ import {
   formatSimTime,
   formatWorldIssues,
   isOwnCommandNonce,
+  visibleAssetIssues,
 } from "./world-issues";
 
 function expect(cond: boolean, label: string) {
@@ -55,6 +56,37 @@ expect(
 expect(
   commandNotice("play", { kind: "agent" }) === "Played by agent",
   "agent play"
+);
+
+const meshLine = {
+  text: "examples/arm/robot/meshes/foo.dae is not an STL or OBJ mesh",
+  mesh: "meshes/foo.dae",
+};
+const validator = [
+  {
+    message:
+      'Mesh "meshes/foo.dae" is not .stl or .obj. Hint: export STL with $cad (`cadgen stl build`).',
+  },
+];
+expect(
+  visibleAssetIssues([meshLine], validator).length === 0,
+  "validator mesh error hides the client line"
+);
+expect(
+  visibleAssetIssues([meshLine], []).length === 1,
+  "client mesh error stays when the server reports none"
+);
+expect(
+  visibleAssetIssues(
+    [{ text: "meshes/bar.stl missing", mesh: "meshes/bar.stl" }],
+    validator
+  ).length === 1,
+  "a different mesh is still shown"
+);
+expect(
+  visibleAssetIssues([{ text: "could not load the URDF" }], validator)
+    .length === 1,
+  "a non-mesh client error stays beside validator errors"
 );
 
 const sent = new Set(["tab-a"]);

@@ -317,7 +317,7 @@ export function ProjectSessionProvider({
     if (isWorldDocumentPath(next)) {
       const world = worldStore.getState();
       const failed =
-        Boolean(world.assetMessage) ||
+        world.assetIssues.length > 0 ||
         Boolean(world.runMessage) ||
         world.runErrors.length > 0;
       if (!reload && !shouldReloadOpenFile(next, world.path, failed)) return;

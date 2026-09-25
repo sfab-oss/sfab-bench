@@ -10,7 +10,7 @@ import {
   makeReview,
 } from "@/cad/review";
 import { apiFetch } from "@/lib/api";
-import { readOpenDocument, syncOpenDocument } from "@/lib/document-query";
+import { readOpenDocument } from "@/lib/document-query";
 import { messageFromHttpBody } from "@/lib/load-copy";
 
 function partColor(obj: THREE.Object3D): THREE.Color {
@@ -175,9 +175,4 @@ export function modelUrl(): string {
   if (typeof window === "undefined") return "";
   const doc = readOpenDocument(window.location.search);
   return doc.kind === "file" ? doc.path : "";
-}
-
-/** Keep ?file= in sync with the loaded artifact so refresh stays on it. */
-export function syncFileQuery(path: string) {
-  syncOpenDocument(path ? { kind: "file", path } : { kind: "none" }, "replace");
 }

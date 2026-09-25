@@ -1,5 +1,27 @@
 import type { WorldSender } from "@sfab-bench/contract";
 
+/** A client-side load problem. `mesh` is the URDF filename when a mesh failed. */
+export type AssetIssue = {
+  text: string;
+  mesh?: string;
+};
+
+/**
+ * Validator errors already name a bad mesh. Hide the client load line for
+ * that same path, and keep it when the server reported nothing.
+ */
+export function visibleAssetIssues(
+  issues: readonly AssetIssue[],
+  errors: readonly { message: string }[]
+): AssetIssue[] {
+  if (errors.length === 0) return [...issues];
+  return issues.filter((issue) => {
+    if (!issue.mesh) return true;
+    const mesh = issue.mesh;
+    return !errors.some((error) => error.message.includes(mesh));
+  });
+}
+
 /** One row of the canvas error overlay. Hint is split out of the validator message. */
 export type WorldIssueLine = {
   code: string;

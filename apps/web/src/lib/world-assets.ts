@@ -1,4 +1,9 @@
-import { resolveUrdfMesh, type WorldDocument } from "@sfab-bench/contract";
+import {
+  resolveUrdfMesh,
+  type WorldBoard,
+  type WorldDocument,
+  type WorldPrimitive,
+} from "@sfab-bench/contract";
 import * as THREE from "three";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
@@ -21,12 +26,27 @@ export type LoadedVisual = {
   mesh: WorldMesh;
 };
 
+/** What the scene draws. Supplies, parts, wires, and step props are not. */
+export type WorldSceneDocument = {
+  environment: {
+    ground: { plane: boolean };
+    primitives: WorldPrimitive[];
+  };
+  boards: WorldBoard[];
+};
+
+export type WorldAssetProblem = {
+  text: string;
+  /** URDF mesh filename, set when this is a mesh the client failed to load. */
+  mesh?: string;
+};
+
 export type LoadedWorld = {
-  document: WorldDocument;
+  document: WorldSceneDocument;
   visuals: LoadedVisual[];
   /** One entry per acquire. Release each to drop the cache. */
   meshKeys: string[];
-  problems: string[];
+  problems: WorldAssetProblem[];
 };
 
 type CacheEntry<T> = {
@@ -146,28 +166,26 @@ export function releaseMeshes(keys: readonly string[]) {
   for (const key of keys) releaseMesh(key);
 }
 
-function asDocument(value: unknown): WorldDocument | null {
+function asDocument(value: unknown): {
+  robots: WorldDocument["robots"];
+  scene: WorldSceneDocument;
+} | null {
   if (!value || typeof value !== "object") return null;
   const doc = value as Partial<WorldDocument>;
   if (doc.version !== 1 || !Array.isArray(doc.robots)) return null;
   const environment = doc.environment;
   if (!environment || typeof environment !== "object") return null;
   return {
-    version: 1,
     robots: doc.robots,
-    environment: {
-      ground: { plane: Boolean(environment.ground?.plane) },
-      primitives: Array.isArray(environment.primitives)
-        ? environment.primitives
-        : [],
-      stepProps: Array.isArray(environment.stepProps)
-        ? environment.stepProps
-        : [],
+    scene: {
+      environment: {
+        ground: { plane: Boolean(environment.ground?.plane) },
+        primitives: Array.isArray(environment.primitives)
+          ? environment.primitives
+          : [],
+      },
+      boards: Array.isArray(doc.boards) ? doc.boards : [],
     },
-    boards: Array.isArray(doc.boards) ? doc.boards : [],
-    supplies: Array.isArray(doc.supplies) ? doc.supplies : [],
-    parts: Array.isArray(doc.parts) ? doc.parts : [],
-    wires: Array.isArray(doc.wires) ? doc.wires : [],
   };
 }
 
@@ -182,36 +200,41 @@ export async function loadWorldAssets(
   } catch {
     throw new Error("World file is not JSON.");
   }
-  const document = asDocument(parsed);
-  if (!document) throw new Error("World file is not a version 1 document.");
+  const read = asDocument(parsed);
+  if (!read) throw new Error("World file is not a version 1 document.");
+  const document = read.scene;
 
   const visuals: LoadedVisual[] = [];
   const meshKeys: string[] = [];
-  const problems: string[] = [];
+  const problems: WorldAssetProblem[] = [];
 
-  for (const robot of document.robots) {
+  for (const robot of read.robots) {
     const urdfRel = relFromWorldFile(worldRel, robot.urdf);
     if (!urdfRel) {
-      problems.push(`${robot.id}: URDF path "${robot.urdf}" is not usable.`);
+      problems.push({
+        text: `${robot.id}: URDF path "${robot.urdf}" is not usable.`,
+      });
       continue;
     }
     let xml: string;
     try {
       xml = await (await readFile(urdfRel)).text();
     } catch (err: unknown) {
-      problems.push(
-        err instanceof Error
-          ? err.message
-          : `${robot.id}: could not load the URDF`
-      );
+      problems.push({
+        text:
+          err instanceof Error
+            ? err.message
+            : `${robot.id}: could not load the URDF`,
+      });
       continue;
     }
     for (const visual of parseUrdfVisuals(xml)) {
       const meshRel = resolveUrdfMesh(urdfRel, visual.filename);
       if (!meshRel) {
-        problems.push(
-          `${robot.id}/${visual.link}: mesh "${visual.filename}" is not a relative path.`
-        );
+        problems.push({
+          mesh: visual.filename,
+          text: `${robot.id}/${visual.link}: mesh "${visual.filename}" is not a relative path.`,
+        });
         continue;
       }
       try {
@@ -226,11 +249,11 @@ export async function loadWorldAssets(
           mesh,
         });
       } catch (err: unknown) {
-        problems.push(
+        const detail =
           err instanceof Error
             ? err.message
-            : `${robot.id}/${visual.link}: could not load ${meshRel}`
-        );
+            : `${robot.id}/${visual.link}: could not load ${meshRel}`;
+        problems.push({ mesh: visual.filename, text: detail });
       }
     }
   }

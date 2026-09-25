@@ -4,6 +4,7 @@ import { createStore } from "zustand/vanilla";
 
 import { readOpenDocument } from "@/lib/document-query";
 import { projectUrl } from "@/lib/project-query";
+import type { AssetIssue } from "@/lib/world-issues";
 
 /**
  * The open world document and the low-rate HUD. Poses live in
@@ -24,7 +25,7 @@ export type WorldHudState = {
   notice: string | null;
   runErrors: WorldError[];
   runMessage: string | null;
-  assetMessage: string | null;
+  assetIssues: AssetIssue[];
   /** True once a scene has been built. A later error keeps that scene. */
   sceneReady: boolean;
   assets: "idle" | "loading" | "ready" | "error";
@@ -36,7 +37,7 @@ export type WorldHudState = {
   setRunProblem: (errors: WorldError[], message?: string | null) => void;
   clearRunProblem: () => void;
   setNotice: (notice: string | null) => void;
-  setAssetMessage: (message: string | null) => void;
+  setAssetIssues: (issues: AssetIssue[]) => void;
   setAssets: (assets: WorldHudState["assets"], sceneReady?: boolean) => void;
 };
 
@@ -69,7 +70,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
   notice: null,
   runErrors: [],
   runMessage: null,
-  assetMessage: null,
+  assetIssues: [],
   sceneReady: false,
   assets: path ? "loading" : "idle",
 
@@ -92,7 +93,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
       notice: null,
       runErrors: [],
       runMessage: null,
-      assetMessage: null,
+      assetIssues: [],
       sceneReady: false,
       assets: "loading",
     });
@@ -108,7 +109,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
       notice: null,
       runErrors: [],
       runMessage: null,
-      assetMessage: null,
+      assetIssues: [],
       sceneReady: false,
       assets: "idle",
     });
@@ -143,8 +144,19 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
   setNotice: (notice) => {
     if (get().notice !== notice) set({ notice });
   },
-  setAssetMessage: (assetMessage) => {
-    if (get().assetMessage !== assetMessage) set({ assetMessage });
+  setAssetIssues: (assetIssues) => {
+    const current = get().assetIssues;
+    if (
+      current.length === assetIssues.length &&
+      current.every(
+        (issue, index) =>
+          issue.text === assetIssues[index]?.text &&
+          issue.mesh === assetIssues[index]?.mesh
+      )
+    ) {
+      return;
+    }
+    set({ assetIssues });
   },
   setAssets: (assets, sceneReady) =>
     set((s) => ({

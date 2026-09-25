@@ -6,6 +6,8 @@
  * is not the visual's. Paths are returned as written.
  */
 
+import { attr } from "@sfab-bench/contract";
+
 export type UrdfVec3 = [number, number, number];
 
 export type UrdfVisual = {
@@ -22,23 +24,6 @@ export type UrdfVisual = {
 
 const IDENTITY: UrdfVec3 = [0, 0, 0];
 const UNIT: UrdfVec3 = [1, 1, 1];
-
-function decodeXml(text: string): string {
-  return text
-    .replaceAll("&amp;", "&")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&apos;", "'")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">");
-}
-
-function attr(attrs: string, name: string): string | undefined {
-  const match = new RegExp(
-    `(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`
-  ).exec(attrs);
-  if (!match) return undefined;
-  return decodeXml(match[1] ?? match[2] ?? "");
-}
 
 function vec3(text: string | undefined, fallback: UrdfVec3): UrdfVec3 {
   if (!text) return fallback;

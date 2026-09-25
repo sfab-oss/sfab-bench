@@ -232,11 +232,7 @@ export function WorldScene({
         const previous = heldKeys.current;
         heldKeys.current = next.meshKeys;
         setLoaded(next);
-        worldStore
-          .getState()
-          .setAssetMessage(
-            next.problems.length > 0 ? next.problems.join("\n") : null
-          );
+        worldStore.getState().setAssetIssues(next.problems);
         worldStore.getState().setAssets("ready", true);
         releaseMeshes(previous);
         invalidateSceneNow();
@@ -245,7 +241,7 @@ export function WorldScene({
         if (cancelled) return;
         const message = err instanceof Error ? err.message : String(err);
         const ready = worldStore.getState().sceneReady;
-        worldStore.getState().setAssetMessage(message);
+        worldStore.getState().setAssetIssues([{ text: message }]);
         worldStore.getState().setAssets(ready ? "ready" : "error");
       });
     return () => {
@@ -344,8 +340,7 @@ export function WorldScene({
 
   if (!loaded) return null;
   const doc = loaded.document;
-  // STEP props are not loaded in milestone 1.
-  const primitives = doc.environment.primitives ?? [];
+  const primitives = doc.environment.primitives;
 
   return (
     <>
