@@ -14,7 +14,7 @@ export type UrdfVisual = {
   filename: string;
   /** `<origin xyz>`. Metres. Missing origin is the identity. */
   xyz: UrdfVec3;
-  /** `<origin rpy>` in radians: roll, pitch, yaw. Fixed-axis XYZ. */
+  /** `<origin rpy>` in radians: roll, pitch, yaw. Fixed axis R = Rz(yaw)·Ry(pitch)·Rx(roll). */
   rpy: UrdfVec3;
   /** `<mesh scale>`. Missing scale is 1 1 1. */
   scale: UrdfVec3;

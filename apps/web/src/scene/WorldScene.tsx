@@ -20,7 +20,11 @@ import {
   loadWorldAssets,
   releaseMeshes,
 } from "@/lib/world-assets";
-import { WORLD_TO_SCENE_X, worldQuatToThree } from "@/lib/world-pose";
+import {
+  urdfRpyQuaternion,
+  WORLD_TO_SCENE_X,
+  worldQuatToThree,
+} from "@/lib/world-pose";
 import { invalidateSceneNow } from "@/scene/invalidate";
 import { setWorldFitTarget } from "@/scene/world-fit";
 import { useWorld, worldLiveState, worldStore } from "@/state/world";
@@ -176,6 +180,23 @@ function PrimitiveMesh({
         ]}
       />
     </mesh>
+  );
+}
+
+function VisualOrigin({
+  xyz,
+  rpy,
+  children,
+}: {
+  xyz: [number, number, number];
+  rpy: [number, number, number];
+  children: ReactNode;
+}) {
+  const quaternion = useMemo(() => urdfRpyQuaternion(rpy), [rpy]);
+  return (
+    <group position={xyz} quaternion={quaternion}>
+      {children}
+    </group>
   );
 }
 
@@ -343,10 +364,10 @@ export function WorldScene({
                 }}
               >
                 {visuals.map((visual, visualIndex) => (
-                  <group
+                  <VisualOrigin
                     key={`${visual.link}:${visualIndex}`}
-                    position={visual.xyz}
-                    rotation={visual.rpy}
+                    xyz={visual.xyz}
+                    rpy={visual.rpy}
                   >
                     {visual.mesh.kind === "stl" ? (
                       <mesh
@@ -361,7 +382,7 @@ export function WorldScene({
                         scale={visual.scale}
                       />
                     )}
-                  </group>
+                  </VisualOrigin>
                 ))}
               </group>
             ))}

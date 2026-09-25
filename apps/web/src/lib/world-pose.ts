@@ -14,6 +14,18 @@ export function worldQuatToThree(q: WorldQuat): THREE.Quaternion {
   return new THREE.Quaternion(q[1], q[2], q[3], q[0]);
 }
 
+/**
+ * URDF fixed-axis rpy: `R = Rz(yaw) · Ry(pitch) · Rx(roll)`.
+ * That is three Euler order `ZYX`, not the default `XYZ`.
+ */
+export function urdfRpyQuaternion(
+  rpy: readonly [number, number, number]
+): THREE.Quaternion {
+  return new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(rpy[0], rpy[1], rpy[2], "ZYX")
+  );
+}
+
 /** A Z-up point written into the scene the way the world content group does. */
 export function worldPointInScene(p: WorldVec3): THREE.Vector3 {
   return new THREE.Vector3(p[0], p[1], p[2]).applyAxisAngle(
