@@ -1,6 +1,7 @@
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import {
+  SERIAL_TEXT_MAX,
   WORLD_NONCE_MAX,
   type WorldClientMessage,
   type WorldSender,
@@ -66,6 +67,28 @@ function parseClient(raw: string): WorldClientMessage | { error: string } {
     }
     return { type: "step", n };
   }
+  if (type === "serial-send") {
+    const board = (value as { board?: unknown }).board;
+    const text = (value as { text?: unknown }).text;
+    if (typeof board !== "string" || board.length < 1 || board.length > 64) {
+      return { error: "serial needs a board id" };
+    }
+    if (typeof text !== "string" || text.length > SERIAL_TEXT_MAX) {
+      return {
+        error: `serial text must be a string of at most ${SERIAL_TEXT_MAX} characters`,
+      };
+    }
+    const nonce = (value as { nonce?: unknown }).nonce;
+    if (nonce === undefined) return { type: "serial-send", board, text };
+    if (
+      typeof nonce !== "string" ||
+      nonce.length < 1 ||
+      nonce.length > WORLD_NONCE_MAX
+    ) {
+      return { error: "nonce must be a short string" };
+    }
+    return { type: "serial-send", board, text, nonce };
+  }
   return { error: "unknown world message" };
 }
 
@@ -123,7 +146,16 @@ wss.on(
         }
         if (parsed.type === "play") handle?.play(parsed.nonce);
         else if (parsed.type === "pause") handle?.pause(parsed.nonce);
-        else if (principal.kind !== "loopback") {
+        else if (parsed.type === "serial-send") {
+          const sent = handle?.sendSerial(
+            parsed.board,
+            parsed.text,
+            parsed.nonce
+          );
+          if (sent && "error" in sent) {
+            send(ws, { type: "error", errors: [], message: sent.error });
+          }
+        } else if (principal.kind !== "loopback") {
           send(ws, {
             type: "error",
             errors: [],

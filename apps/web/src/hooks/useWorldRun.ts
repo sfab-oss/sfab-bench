@@ -1,4 +1,8 @@
-import type { WorldServerMessage, WorldState } from "@sfab-bench/contract";
+import type {
+  WorldSender,
+  WorldServerMessage,
+  WorldState,
+} from "@sfab-bench/contract";
 import { useEffect } from "react";
 
 import { getDeviceToken } from "@/lib/api";
@@ -7,6 +11,11 @@ import { worldLiveSocketUrl } from "@/lib/world-live-url";
 import { worldCommandNonce } from "@/lib/world-nonce";
 import { worldSocketKey } from "@/lib/world-socket";
 import { invalidateSceneNow } from "@/scene/invalidate";
+import {
+  appendBoardSerial,
+  noteBoardSent,
+  resetBoardConsole,
+} from "@/state/board-console";
 import {
   setWorldLiveState,
   useWorld,
@@ -27,6 +36,16 @@ export function sendWorldCommand(type: "play" | "pause") {
   const nonce = worldCommandNonce();
   sentNonces.add(nonce);
   socket.send(JSON.stringify({ type, nonce }));
+}
+
+export function sendBoardSerial(board: string, text: string) {
+  if (!board || !text || socket?.readyState !== WebSocket.OPEN) return;
+  const nonce = worldCommandNonce();
+  socket.send(JSON.stringify({ type: "serial-send", board, text, nonce }));
+}
+
+function senderLabel(by: WorldSender): string {
+  return by.kind === "agent" ? "agent" : by.label || "someone";
 }
 
 function backoff(attempt: number): number {
@@ -52,6 +71,7 @@ export function useWorldRun(project: string, world: string) {
     let sawState = false;
     let attachCommand = false;
     const hud = worldStore.getState();
+    resetBoardConsole();
 
     const clearAttach = () => {
       if (attachTimer) clearTimeout(attachTimer);
@@ -64,6 +84,7 @@ export function useWorldRun(project: string, world: string) {
       invalidateSceneNow();
       const now = performance.now();
       const current = worldStore.getState();
+      current.setBoards(state.boards);
       const playingChanged = current.playing !== state.playing;
       const due = now - lastHud >= SIM_TIME_MS || current.connection !== "live";
       if (!playingChanged && !due) return;
@@ -115,10 +136,22 @@ export function useWorldRun(project: string, world: string) {
         return;
       }
       if (message.type === "reloaded") {
+        resetBoardConsole();
         worldStore.getState().noteReload();
         return;
       }
+      if (message.type === "serial") {
+        appendBoardSerial(message.board, message.text, message.next);
+        return;
+      }
+      if (message.type === "serial-sent") {
+        noteBoardSent(message.board, message.text, senderLabel(message.by));
+        return;
+      }
       if (message.type === "error") {
+        // One board's firmware fault leaves the run playing. The board
+        // snapshot on the next state carries the reason.
+        if (message.board) return;
         const live = worldLiveState();
         if (live) setWorldLiveState({ ...live, playing: false });
         worldStore.getState().setRunProblem(message.errors, message.message);

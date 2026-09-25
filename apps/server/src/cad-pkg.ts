@@ -210,12 +210,16 @@ function mimeFor(file: string) {
   return "application/octet-stream";
 }
 
-/** World JSON, URDF, and meshes. STL is `model/stl`. Other files stay unserved. */
+/**
+ * World JSON, URDF, meshes, and a board's read-only `.ino`.
+ * STL is `model/stl`. Firmware images and other files stay unserved.
+ */
 function worldAssetType(rel: string): string | null {
   if (/\.world\.json$/i.test(rel)) return "application/json";
   if (/\.urdf$/i.test(rel)) return "application/xml";
   if (/\.stl$/i.test(rel)) return "model/stl";
   if (/\.obj$/i.test(rel)) return "text/plain";
+  if (/\.ino$/i.test(rel)) return "text/plain; charset=utf-8";
   return null;
 }
 

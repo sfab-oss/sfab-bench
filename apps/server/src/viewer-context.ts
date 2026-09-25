@@ -17,6 +17,10 @@ export function runViewerContext<T>(store: ViewerStore, fn: () => Promise<T>) {
   return als.run(store, fn);
 }
 
+export function viewerProjectRoot(): string | null {
+  return als.getStore()?.root ?? null;
+}
+
 export function viewerFileUrl(path: string) {
   const root = als.getStore()?.root;
   if (!root) return { error: "no project open" };

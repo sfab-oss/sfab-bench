@@ -2,7 +2,9 @@ import { parentPort } from "node:worker_threads";
 
 import type { WorldError, WorldState } from "@sfab-bench/contract";
 
-import { projectReal, readerFor, readInside } from "./files";
+import { AvrBoard, FIRMWARE_RELOADED } from "./board";
+import { projectReal, readerFor, readInside, type WorldBytes } from "./files";
+import { parseIntelHex } from "./ihex";
 import {
   type CompiledWorld,
   compileWorld,
@@ -27,6 +29,8 @@ export type ToWorker =
   | { type: "pause"; generation: number }
   | { type: "step"; n: number; generation: number }
   | { type: "setTarget"; partId: string; radians: number; generation: number }
+  | { type: "reloadBoard"; board: string; generation: number }
+  | { type: "serialIn"; board: string; text: string; generation: number }
   | { type: "fault"; generation: number }
   | { type: "stop" };
 
@@ -38,6 +42,20 @@ export type FromWorker =
       generation: number;
       errors: WorldError[];
       message?: string;
+    }
+  | {
+      type: "serial";
+      generation: number;
+      chunks: { board: string; text: string }[];
+    }
+  | { type: "boardReset"; generation: number; board: string; marker: string }
+  | { type: "boardFault"; generation: number; board: string; message: string }
+  | {
+      type: "rx";
+      generation: number;
+      board: string;
+      queued: number;
+      accepted: number;
     };
 
 type Sim = CompiledWorld & {
@@ -45,10 +63,17 @@ type Sim = CompiledWorld & {
 };
 
 const port = parentPort;
+type BoardSpec = { id: string; chip: string; firmware: string };
+
 let generation = 0;
 let project = "";
 let worldRel = "";
 let sim: Sim | null = null;
+let files: WorldBytes | null = null;
+let specs: BoardSpec[] = [];
+let boards: AvrBoard[] = [];
+const faulted = new Set<string>();
+const rxSent = new Map<string, string>();
 let playing = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let lastWall = 0;
@@ -121,18 +146,171 @@ function sample(): WorldState | null {
     }
     joints[robotId] = robot;
   }
-  return { simTime: data.time, playing, poses, joints };
+  const boardState: WorldState["boards"] = {};
+  for (const board of boards) {
+    boardState[board.id] = board.fault
+      ? { running: false, fault: board.fault }
+      : { running: board.running };
+  }
+  return { simTime: data.time, playing, poses, joints, boards: boardState };
+}
+
+function flushBoards() {
+  const chunks: { board: string; text: string }[] = [];
+  for (const board of boards) {
+    const text = board.takeTx();
+    if (text) chunks.push({ board: board.id, text });
+    const stamp = `${board.rxQueued}:${board.rxAccepted}`;
+    if (rxSent.get(board.id) === stamp) continue;
+    rxSent.set(board.id, stamp);
+    post({
+      type: "rx",
+      generation,
+      board: board.id,
+      queued: board.rxQueued,
+      accepted: board.rxAccepted,
+    });
+  }
+  if (chunks.length > 0) post({ type: "serial", generation, chunks });
 }
 
 function postState() {
+  flushBoards();
   const state = sample();
   if (!state) return;
   post({ type: "state", generation, state });
 }
 
+function noteFault(board: AvrBoard) {
+  if (!board.fault || faulted.has(board.id)) return;
+  faulted.add(board.id);
+  post({
+    type: "boardFault",
+    generation,
+    board: board.id,
+    message: board.fault,
+  });
+}
+
+function boardSpecsOf(parsed: unknown): BoardSpec[] {
+  if (!parsed || typeof parsed !== "object") return [];
+  const list = (parsed as { boards?: unknown }).boards;
+  if (!Array.isArray(list)) return [];
+  const out: BoardSpec[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as { id?: unknown; chip?: unknown; firmware?: unknown };
+    if (
+      typeof row.id !== "string" ||
+      typeof row.chip !== "string" ||
+      typeof row.firmware !== "string"
+    ) {
+      continue;
+    }
+    out.push({ id: row.id, chip: row.chip, firmware: row.firmware });
+  }
+  return out;
+}
+
+function bootBoard(spec: BoardSpec): AvrBoard {
+  const board = new AvrBoard(spec.id);
+  if (spec.chip !== "atmega328p") {
+    board.stop(`unsupported chip "${spec.chip}"`);
+    return board;
+  }
+  const bytes = files?.read(spec.firmware);
+  if (!bytes) {
+    board.stop(`firmware "${spec.firmware}" does not exist`);
+    return board;
+  }
+  const parsed = parseIntelHex(new TextDecoder().decode(bytes));
+  if (!parsed.ok) {
+    board.stop(parsed.error);
+    return board;
+  }
+  board.load(parsed.bytes);
+  return board;
+}
+
+function loadBoards(parsed: unknown) {
+  specs = boardSpecsOf(parsed);
+  boards = specs.map((spec) => bootBoard(spec));
+  faulted.clear();
+  rxSent.clear();
+  for (const board of boards) noteFault(board);
+}
+
+function reloadBoard(id: string) {
+  const spec = specs.find((item) => item.id === id);
+  if (!spec) {
+    post({
+      type: "boardFault",
+      generation,
+      board: id,
+      message: `no board "${id}"`,
+    });
+    return;
+  }
+  const next = bootBoard(spec);
+  const index = boards.findIndex((item) => item.id === id);
+  if (index >= 0) boards[index] = next;
+  else boards.push(next);
+  rxSent.delete(id);
+  faulted.delete(id);
+  if (next.running) {
+    post({
+      type: "boardReset",
+      generation,
+      board: id,
+      marker: FIRMWARE_RELOADED,
+    });
+  } else {
+    noteFault(next);
+  }
+  postState();
+}
+
+function serialIn(id: string, text: string) {
+  const board = boards.find((item) => item.id === id);
+  if (!board?.running) return;
+  board.pushRx(text);
+  rxSent.set(id, `${board.rxQueued}:${board.rxAccepted}`);
+  post({
+    type: "rx",
+    generation,
+    board: id,
+    queued: board.rxQueued,
+    accepted: board.rxAccepted,
+  });
+}
+
+/** One millisecond: every live board, then one MuJoCo step. */
+function advanceOne() {
+  if (!sim) return;
+  if (throwOnStep) {
+    throwOnStep = false;
+    throw new Error("injected step fault");
+  }
+  for (const board of boards) {
+    if (!board.running) continue;
+    try {
+      board.stepMillis();
+    } catch (err: unknown) {
+      board.stop(thrownMessage(err));
+    }
+    noteFault(board);
+  }
+  sim.mj.mj_step(sim.model, sim.data);
+}
+
 function dispose() {
   playing = false;
   throwOnStep = false;
+  boards = [];
+  specs = [];
+  files = null;
+  faulted.clear();
+  rxSent.clear();
   if (timer) {
     clearTimeout(timer);
     timer = null;
@@ -194,7 +372,8 @@ async function build(): Promise<boolean> {
     ]);
     return false;
   }
-  const compiled = await compileWorld(parsed, readerFor(root, worldRel));
+  const bytesReader = readerFor(root, worldRel);
+  const compiled = await compileWorld(parsed, bytesReader);
   if (!compiled.ok) {
     fail(compiled.errors);
     return false;
@@ -202,7 +381,9 @@ async function build(): Promise<boolean> {
   const data = new compiled.mj.MjData(compiled.model);
   compiled.mj.mj_forward(compiled.model, data);
   sim = { ...compiled, data };
+  files = bytesReader;
   playing = false;
+  loadBoards(parsed);
   post({ type: "ready", generation, counts: countsOf(compiled) });
   postState();
   return true;
@@ -231,7 +412,7 @@ function onTick() {
       steps = MAX_STEPS_PER_TICK;
       stepDebt = 0;
     }
-    for (let i = 0; i < steps; i++) sim.mj.mj_step(sim.model, sim.data);
+    for (let i = 0; i < steps; i++) advanceOne();
     sinceState += elapsed;
     if (sinceState >= STATE_EVERY_MS) {
       sinceState = 0;
@@ -282,13 +463,7 @@ function step(n: number) {
   }
   // A step is exact. Stop the wall clock first so the two do not add.
   stopClock();
-  for (let i = 0; i < n; i++) {
-    if (throwOnStep) {
-      throwOnStep = false;
-      throw new Error("injected step fault");
-    }
-    sim.mj.mj_step(sim.model, sim.data);
-  }
+  for (let i = 0; i < n; i++) advanceOne();
   postState();
 }
 
@@ -333,6 +508,8 @@ async function handle(message: ToWorker) {
   else if (message.type === "step") step(message.n);
   else if (message.type === "setTarget")
     setTarget(message.partId, message.radians);
+  else if (message.type === "reloadBoard") reloadBoard(message.board);
+  else if (message.type === "serialIn") serialIn(message.board, message.text);
   else if (message.type === "fault") throwOnStep = true;
 }
 

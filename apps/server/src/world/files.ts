@@ -141,6 +141,44 @@ export function dependencyRels(rootReal: string, worldRel: string): string[] {
   return rels;
 }
 
+export type FirmwareWatch = {
+  id: string;
+  /** Project-relative `.hex` path. */
+  rel: string;
+  stamp: string;
+};
+
+/** Board firmware images. A change restarts that board and not the physics. */
+export function firmwareWatch(
+  rootReal: string,
+  worldRel: string
+): FirmwareWatch[] {
+  const worldAbs = resolveInside(rootReal, worldRel);
+  if (!worldAbs) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(worldAbs, "utf8")) as unknown;
+  } catch {
+    return [];
+  }
+  if (!parsed || typeof parsed !== "object") return [];
+  const boards = (parsed as { boards?: unknown }).boards;
+  if (!Array.isArray(boards)) return [];
+  const worldDir = parentRel(worldRel);
+  const out: FirmwareWatch[] = [];
+  for (const item of boards) {
+    if (!item || typeof item !== "object") continue;
+    const id = (item as { id?: unknown }).id;
+    const firmware = (item as { firmware?: unknown }).firmware;
+    if (typeof id !== "string" || typeof firmware !== "string") continue;
+    const rel = joinRel(worldDir, firmware);
+    if (!rel) continue;
+    const abs = resolveInside(rootReal, rel);
+    out.push({ id, rel, stamp: abs ? fileStamp(abs) : "missing" });
+  }
+  return out;
+}
+
 export function dependencyStamp(rootReal: string, rels: string[]): string {
   return rels
     .map((rel) => {

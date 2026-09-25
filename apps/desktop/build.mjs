@@ -64,7 +64,8 @@ await build({
 
 // The world thread is its own entry too. `world/host.ts` looks for this name
 // beside the server bundle. MuJoCo stays external so its wasm resolves from
-// the package, next to mujoco.js, in dev and in this build.
+// the package, next to mujoco.js. avr8js is external the same way: it is a
+// server dependency, so `runtimeDeps` keeps it out of the bundle.
 await build({
   ...common,
   entryPoints: ["../server/src/world/worker.ts"],

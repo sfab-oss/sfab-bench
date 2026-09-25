@@ -5,6 +5,7 @@ import { viewerSnapshot } from "@/cad/viewer-snapshot";
 import {
   findPendingGetViewer,
   GET_VIEWER_TOOL,
+  getViewerFillReady,
   latestShownArtifact,
   shownFromPart,
   viewerIsReady,
@@ -87,6 +88,11 @@ export function useLiveViewerTools(
     }
 
     const pending = findPendingGetViewer(messages);
+    // Wait until this turn's stream has released the folder lock. Filling
+    // as soon as the tool part arrives posts the continuation too early.
+    if (!getViewerFillReady({ pending: pending !== null, streaming })) {
+      return;
+    }
     if (!pending) return;
 
     const target = latestShownArtifact(messages);
