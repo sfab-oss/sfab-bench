@@ -149,7 +149,10 @@ expect(
   keptCompiler.includes('discardvisual="false"'),
   "discardvisual overridden"
 );
-expect(keptCompiler.includes('meshdir=""'), `meshdir overridden: ${keptCompiler}`);
+expect(
+  keptCompiler.includes('meshdir=""'),
+  `meshdir overridden: ${keptCompiler}`
+);
 const bareRoot = mkdtempSync(join(tmpdir(), "sfab-world-bare-"));
 cpSync(armDir, bareRoot, { recursive: true });
 writeFileSync(
@@ -399,12 +402,14 @@ try {
   }
   await waitUntil(
     () =>
-      eventsB.slice(beforeStep).some(
-        (event) =>
-          event.type === "state" &&
-          !event.state.playing &&
-          event.state.simTime > 0
-      ),
+      eventsB
+        .slice(beforeStep)
+        .some(
+          (event) =>
+            event.type === "state" &&
+            !event.state.playing &&
+            event.state.simTime > 0
+        ),
     "step settled paused"
   );
 
