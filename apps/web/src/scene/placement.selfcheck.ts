@@ -373,6 +373,9 @@ for (const yaw of [0, 0.7, -2.1]) {
     "STEP to world places again"
   );
   last = { session: sess, url: world };
+  // A forced reopen bumps loadId and a disk reload bumps revision.
+  // Neither belongs in spawnDocumentKey: this stays false, and a
+  // grabbed world does not snap back in front.
   placed(
     shouldPlaceAtGaze({ session: sess, url: world, last }),
     false,

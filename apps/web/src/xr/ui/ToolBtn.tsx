@@ -70,6 +70,7 @@ export function ToolBtn({
   backgroundColor,
   hoverColor,
   name,
+  disabled = false,
 }: {
   id: string;
   icon?: Icon;
@@ -84,11 +85,14 @@ export function ToolBtn({
   hoverColor?: string;
   /** Object3D name, so a controller ray can be aimed at this button. */
   name?: string;
+  /** No click, no haptic, no pressed style. The tooltip still shows. */
+  disabled?: boolean;
 }) {
   const theme = useXrTheme();
   const idle = backgroundColor ?? theme.muted;
   const hover = hoverColor ?? theme.hover;
   const feedback = useContext(FeedbackContext);
+  const fg = disabled ? theme.subtle : theme.text;
   const [tipShown, setTipShown] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearTip = () => {
@@ -108,17 +112,20 @@ export function ToolBtn({
       alignItems="center"
       justifyContent="center"
       borderRadius={round ? 9 : 6}
-      backgroundColor={active ? theme.active : idle}
-      hover={{ backgroundColor: hover }}
-      active={{ backgroundColor: theme.pressed }}
+      backgroundColor={disabled || !active ? idle : theme.active}
+      hover={disabled ? undefined : { backgroundColor: hover }}
+      active={disabled ? undefined : { backgroundColor: theme.pressed }}
       onClick={() => {
+        if (disabled) return;
         clearTip();
         feedback.click();
         onClick();
       }}
       onHoverChange={(hovered) => {
-        feedback.hover(id, hovered);
-        onHover?.(hovered);
+        if (!disabled) {
+          feedback.hover(id, hovered);
+          onHover?.(hovered);
+        }
         if (!tip) return;
         if (hovered) {
           timer.current = setTimeout(() => setTipShown(true), TIP_DELAY_MS);
@@ -128,13 +135,9 @@ export function ToolBtn({
       }}
     >
       {Icon ? (
-        <Icon
-          width={round ? 12 : 16}
-          height={round ? 12 : 16}
-          color={theme.text}
-        />
+        <Icon width={round ? 12 : 16} height={round ? 12 : 16} color={fg} />
       ) : (
-        <Text fontSize={14} color={theme.text}>
+        <Text fontSize={14} color={fg}>
           {label}
         </Text>
       )}

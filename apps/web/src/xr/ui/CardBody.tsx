@@ -17,7 +17,7 @@ import { sendWorldCommand } from "@/hooks/useWorldRun";
 import { catalogLabel } from "@/lib/viewer-snapshot";
 import {
   formatSimTime,
-  formatXrErrorLine,
+  formatXrIssueLine,
   visibleAssetIssues,
 } from "@/lib/world-issues";
 import { useScene } from "@/state/scene";
@@ -58,15 +58,11 @@ function WorldRunRow() {
       : connection === "connecting"
         ? "Connecting..."
         : null;
-  const validatorLine = formatXrErrorLine(runErrors, runMessage);
-  const assets = visibleAssetIssues(assetIssues, runErrors);
-  const firstAsset = assets[0];
-  const assetLine = firstAsset
-    ? assets.length === 1
-      ? firstAsset.text
-      : `${firstAsset.text} (+${assets.length - 1} more)`
-    : "";
-  const errorLine = validatorLine || assetLine;
+  const errorLine = formatXrIssueLine(
+    runErrors,
+    visibleAssetIssues(assetIssues, runErrors),
+    runMessage
+  );
   const tip = blocked
     ? "This world can't run"
     : status
@@ -90,10 +86,8 @@ function WorldRunRow() {
           tip={tip}
           grow={false}
           active={playing && live}
-          onClick={() => {
-            if (!live) return;
-            sendWorldCommand(playing ? "pause" : "play");
-          }}
+          disabled={!live}
+          onClick={() => sendWorldCommand(playing ? "pause" : "play")}
         />
         <Text fontSize={11} color={theme.subtle}>
           {status ?? formatSimTime(simTime)}

@@ -73,19 +73,35 @@ export function commandNotice(
 }
 
 /**
- * One headset line: `code: message`, then ` (+N more)` for the rest.
- * The desktop card keeps the path and the hint.
+ * One headset line. Validator rows come first (`code: message`), then the
+ * asset issues `visibleAssetIssues` kept. The count is both lists together.
+ * The desktop card keeps each path and hint.
  */
+export function formatXrIssueLine(
+  errors: readonly { code: string; path: string; message: string }[],
+  assets: readonly { text: string }[],
+  fallback?: string | null
+): string {
+  const heads: string[] = [];
+  for (const line of formatWorldIssues(errors, fallback)) {
+    heads.push(line.code ? `${line.code}: ${line.message}` : line.message);
+  }
+  for (const asset of assets) {
+    const text = asset.text.trim();
+    if (text) heads.push(text);
+  }
+  const first = heads[0];
+  if (!first) return "";
+  const rest = heads.length - 1;
+  return rest > 0 ? `${first} (+${rest} more)` : first;
+}
+
+/** Validator rows only. Asset issues go through `formatXrIssueLine`. */
 export function formatXrErrorLine(
   errors: readonly { code: string; path: string; message: string }[],
   fallback?: string | null
 ): string {
-  const lines = formatWorldIssues(errors, fallback);
-  const first = lines[0];
-  if (!first) return "";
-  const head = first.code ? `${first.code}: ${first.message}` : first.message;
-  const rest = lines.length - 1;
-  return rest > 0 ? `${head} (+${rest} more)` : head;
+  return formatXrIssueLine(errors, [], fallback);
 }
 
 /** True when this tab sent the nonce the server echoed. Agent commands have none. */

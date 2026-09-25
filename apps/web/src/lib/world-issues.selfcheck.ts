@@ -3,6 +3,7 @@ import {
   formatSimTime,
   formatWorldIssues,
   formatXrErrorLine,
+  formatXrIssueLine,
   isOwnCommandNonce,
   visibleAssetIssues,
 } from "./world-issues";
@@ -114,6 +115,23 @@ expect(
 );
 expect(formatXrErrorLine([], "  ") === "", "a blank fallback has no line");
 expect(formatXrErrorLine([]) === "", "no errors has no line");
+
+const mixedErrors = [
+  {
+    code: "schema",
+    path: "boards[0].size",
+    message: "Size needs three lengths.",
+  },
+];
+const mixedAssets = visibleAssetIssues(
+  [{ text: "could not load the URDF" }],
+  mixedErrors
+);
+expect(
+  formatXrIssueLine(mixedErrors, mixedAssets) ===
+    "schema: Size needs three lengths. (+1 more)",
+  "a validator error and a non-mesh asset issue count together"
+);
 
 const meshLine = {
   text: "examples/arm/robot/meshes/foo.dae is not an STL or OBJ mesh",
