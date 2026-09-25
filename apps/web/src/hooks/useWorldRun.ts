@@ -7,6 +7,7 @@ import type {
 import { useEffect } from "react";
 
 import { getDeviceToken } from "@/lib/api";
+import { decideHudSample } from "@/lib/world-hud";
 import { commandNotice, isOwnCommandNonce } from "@/lib/world-issues";
 import { worldLiveSocketUrl } from "@/lib/world-live-url";
 import { worldCommandNonce } from "@/lib/world-nonce";
@@ -83,6 +84,8 @@ export function useWorldRun(project: string, world: string) {
     let lastHud = 0;
     let sawState = false;
     let attachCommand = false;
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    let pendingHud: WorldState | null = null;
     const hud = worldStore.getState();
     resetBoardConsole();
 
@@ -92,18 +95,51 @@ export function useWorldRun(project: string, world: string) {
       attachCommand = false;
     };
 
+    const clearFlush = () => {
+      if (flushTimer) clearTimeout(flushTimer);
+      flushTimer = null;
+      pendingHud = null;
+    };
+
+    const writeHud = (state: WorldState, now: number, simTime: boolean) => {
+      const current = worldStore.getState();
+      current.setRun(state.playing, simTime ? state.simTime : current.simTime);
+      current.setSignals(state.joints, pinsOf(state.boards));
+      lastHud = now;
+    };
+
     const publish = (state: WorldState) => {
       setWorldLiveState(state);
       invalidateSceneNow();
       const now = performance.now();
       const current = worldStore.getState();
       current.setBoards(state.boards);
-      const playingChanged = current.playing !== state.playing;
-      const due = now - lastHud >= SIM_TIME_MS || current.connection !== "live";
-      if (!playingChanged && !due) return;
-      lastHud = now;
-      current.setRun(state.playing, due ? state.simTime : current.simTime);
-      current.setSignals(state.joints, pinsOf(state.boards));
+      const live = current.connection === "live";
+      const decision = decideHudSample({
+        now,
+        lastPublish: lastHud,
+        intervalMs: SIM_TIME_MS,
+        live,
+        playingChanged: live && current.playing !== state.playing,
+      });
+      if (decision.publishNow) {
+        const simTime = !live || now - lastHud >= SIM_TIME_MS;
+        clearFlush();
+        writeHud(state, now, simTime);
+        return;
+      }
+      // Hold the latest skipped sample and flush it once, at the end of
+      // the window opened by the previous write.
+      pendingHud = state;
+      if (flushTimer !== null || decision.flushAt === null) return;
+      const wait = Math.max(0, decision.flushAt - now);
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        const latest = pendingHud;
+        pendingHud = null;
+        if (closed || !latest) return;
+        writeHud(latest, performance.now(), true);
+      }, wait);
     };
 
     const showNotice = (text: string) => {
@@ -217,6 +253,7 @@ export function useWorldRun(project: string, world: string) {
       sentSerialNonces.clear();
       if (retry) clearTimeout(retry);
       if (noticeTimer) clearTimeout(noticeTimer);
+      clearFlush();
       clearAttach();
       // StrictMode mounts, cleans up, and mounts again. Closing here
       // leaves one socket for this key.
