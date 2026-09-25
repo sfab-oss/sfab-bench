@@ -723,16 +723,21 @@ export class RunRecorder {
       };
     }
     // Envelope flags survive a track filter. A pulse-only read still
-    // reports a joint that left its stop and a board in the SOA band.
+    // reports a joint that left its stop and the board row from this slot.
     for (let i = 0; i < this.boards.length; i++) {
       const spec = this.boards[i];
       if (!spec || boards[spec.id]) continue;
+      const at = channel(i, slot.slot);
       boards[spec.id] = {
-        pins: { ddr: 0, level: 0, toggled: 0 },
-        running: false,
-        brownout: false,
-        brownoutAny: false,
-        belowSoa: (slot.chunk.belowSoa[channel(i, slot.slot)] ?? 0) !== 0,
+        pins: {
+          ddr: slot.chunk.ddr[at] ?? 0,
+          level: slot.chunk.level[at] ?? 0,
+          toggled: slot.chunk.toggled[at] ?? 0,
+        },
+        running: (slot.chunk.running[at] ?? 0) !== 0,
+        brownout: (slot.chunk.brownout[at] ?? 0) !== 0,
+        brownoutAny: (slot.chunk.brownoutAny[at] ?? 0) !== 0,
+        belowSoa: (slot.chunk.belowSoa[at] ?? 0) !== 0,
       };
     }
     return {

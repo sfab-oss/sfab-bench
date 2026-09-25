@@ -430,30 +430,36 @@ try {
     (frame) => frame.parts.servo?.worst === "stall"
   );
   const sagged = demo2.read.frames.find(
-    (frame) => (frame.supplies.usb?.minVoltage ?? 5) < 2.7
+    (frame) => (frame.supplies.bench?.minVoltage ?? 5) < 2.675
   );
   const resets = demo2.read.events.filter((event) => event.kind === "reset");
+  const reboots = demo2.read.events.filter((event) => event.kind === "reboot");
   expect(stalled, "no recorded stall within 2 s");
   expect(sagged, "no recorded sag within 2 s");
   expect(resets.length >= 1, "no recorded reset within 2 s");
+  expect(
+    reboots.length === resets.length,
+    `reboots ${reboots.length} resets ${resets.length}`
+  );
   const marker = serialOf(demo2.read.events, "uno");
   const markerCount = marker.split(BROWNOUT_RESET).length - 1;
   expect(
-    markerCount === resets.length,
-    `resets ${resets.length} markers ${markerCount}`
+    markerCount === reboots.length,
+    `reboots ${reboots.length} markers ${markerCount}`
   );
-  const first = resets[0];
+  const firstReboot = reboots[0];
   const markerEvent = demo2.read.events.find(
     (event) => event.kind === "serial" && event.text.includes("brownout reset")
   );
   expect(
-    first && markerEvent && msOf(first.t) === msOf(markerEvent.t),
-    "the reset and its serial line differ"
+    firstReboot && markerEvent && msOf(firstReboot.t) === msOf(markerEvent.t),
+    "the reboot and its serial line differ"
   );
+  const firstReset = resets[0];
   console.log(
     `demo 2 recording: stall ${stalled?.t.toFixed(3)} s, ` +
-      `min ${sagged?.supplies.usb?.minVoltage.toFixed(3)} V at ${sagged?.t.toFixed(3)} s, ` +
-      `reset ${first?.t.toFixed(3)} s (${resets.length})`
+      `min ${sagged?.supplies.bench?.minVoltage.toFixed(3)} V at ${sagged?.t.toFixed(3)} s, ` +
+      `reset ${firstReset?.t.toFixed(3)} s, reboot ${firstReboot?.t.toFixed(3)} s (${resets.length})`
   );
 } finally {
   demo2.attached.detach();
@@ -653,7 +659,13 @@ try {
   ];
   world.supplies = [
     { ...supply, id: "usb-hold" },
-    { ...supply, id: "usb-stall" },
+    {
+      ...supply,
+      id: "usb-stall",
+      voltage: 5,
+      currentLimit: 0.3,
+      rSeries: 0.05,
+    },
   ];
   world.wires = [
     ["usb-hold.5V", "hold.5V"],
@@ -691,7 +703,7 @@ try {
       expect(voltage >= 4.5, `hold rail ${voltage}`);
     }
     const stallSag = split.read.frames.some(
-      (frame) => (frame.supplies["usb-stall"]?.minVoltage ?? 5) < 2.7
+      (frame) => (frame.supplies["usb-stall"]?.minVoltage ?? 5) < 2.675
     );
     expect(stallSag, "the stall supply never sagged");
     const resets = split.read.events.filter((event) => event.kind === "reset");

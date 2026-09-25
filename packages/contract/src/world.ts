@@ -9,8 +9,8 @@
  * `[w, x, y, z]`. Identity is `[1, 0, 0, 0]`.
  *
  * Paths in the document are relative to the world file. Part behaviour
- * numbers (currents, voltage range, stall rule, brownout, speed, torque)
- * live in the catalog below, not as constants in the validator.
+ * numbers (motor law, voltage range, brownout, torque clamp) live in the
+ * catalog below, not as constants in the validator.
  */
 
 export const WORLD_VERSION = 1;
@@ -106,15 +106,16 @@ export type WorldBoard = {
 
 export type WorldSupply = {
   id: string;
-  /** Volts. Nominal voltage, before droop. */
+  /** Volts. Open-circuit voltage. */
   voltage: number;
-  /** Amperes. Voltage stays nominal up to this draw. */
-  currentLimit: number;
   /**
-   * Ohms. Above the current limit,
-   * `V = voltage − rDroop · (I − currentLimit)`, clamped at 0.
+   * Amperes. While the draw is at or under this, the rail is
+   * `voltage − rSeries · I`. Above it, the rail is the voltage where
+   * the draw equals this limit.
    */
-  rDroop: number;
+  currentLimit: number;
+  /** Ohms. Series resistance of the source. */
+  rSeries: number;
 };
 
 /** A servo's target in the robot. `joint` is a URDF joint name. */
@@ -159,8 +160,18 @@ export type WorldPin = {
 };
 
 export type ChipModel = {
-  /** Volts. The board resets below this. */
+  /**
+   * Volts. Nominal BOD level. The out-of-SOA warning starts above this.
+   * The reset comparator uses `brownoutAssertVoltage` and
+   * `brownoutReleaseVoltage`.
+   */
   brownoutVoltage: number;
+  /** Volts. Reset asserts when the rail falls below this. */
+  brownoutAssertVoltage: number;
+  /** Volts. The reset delay starts when the rail rises above this. */
+  brownoutReleaseVoltage: number;
+  /** Milliseconds of sim time in reset after release, before the first instruction. */
+  resetHoldMs: number;
   /** AVR extended fuse that selects `brownoutVoltage`. */
   extendedFuse: string;
 };
@@ -192,45 +203,49 @@ export type BoardModel = {
 
 export type PartDriveKind = "servo" | "analogWrite";
 
+/**
+ * Output-side DC motor, gearbox included.
+ * `I = (V_drive − k·ω) / resistance`, `τ = efficiency·k·I`,
+ * `V_drive = V_rail · clamp(error / eSat, −1, 1)`.
+ */
+export type ServoMotor = {
+  /** V·s/rad. */
+  k: number;
+  /** Ohms. */
+  resistance: number;
+  /** Gearbox efficiency. */
+  efficiency: number;
+  /** Radians of angle error that saturates the drive. */
+  eSat: number;
+  /** Amperes drawn by the electronics, added to `|I_motor|`. */
+  quiescent: number;
+  /** kg·m² added to the driven joint. */
+  armature: number;
+  /** N·m Coulomb friction on the driven joint. */
+  frictionloss: number;
+};
+
 export type PartModel = {
   pins: Record<string, WorldPin>;
   drive: { kind: PartDriveKind; pin: string };
   /** Volts. Absent when the part has no supply pin. */
   supply?: { nominal: number; min: number; max: number };
-  /** Amperes by motion state, independent of voltage. */
-  current?: { idle: number; moving: number; stall: number };
-  stall?: {
-    /** Degrees. `|commanded − measured|` must exceed this. */
-    minAngleErrorDeg: number;
-    /** Degrees per second. `|joint velocity|` must be below this. */
-    maxVelocityDegPerSec: number;
-    /** Milliseconds of sim time both conditions must hold. */
-    holdMs: number;
-  };
   /**
-   * Degrees per second at `supply.nominal`. The joint setpoint slews
-   * toward the command at this rate. W4 uses V = V_nom.
-   */
-  speedDegPerSec?: number;
-  /**
-   * Newton-metres at `supply.nominal`. Actuator torque is clamped to
-   * ±this. W4 uses V = V_nom. `voltageScale` is how W4b drops both.
+   * Newton-metres. The actuator torque is clamped to ±this. The motor
+   * law produces the torque inside the clamp.
    */
   torqueNm?: number;
-  /**
-   * When set, speed and torque scale by `V / V_nom`.
-   * `V_nom` is `supply.nominal`.
-   */
-  voltageScale?: "V/V_nom";
+  /** Present for a servo. The joint's armature and friction come from here. */
+  motor?: ServoMotor;
 };
 
 export type SupplyPreset = {
-  /** Volts. */
+  /** Volts. A bench preset's voltage is the user's, not this number. */
   voltage: number;
-  /** Amperes. */
+  /** Amperes. A bench preset's limit is the user's, not this number. */
   currentLimit: number;
-  /** Ohms. */
-  rDroop: number;
+  /** Ohms. Series resistance. Fixed for the preset. */
+  rSeries: number;
   positivePin: string;
   groundPin: string;
   pins: Record<string, WorldPin>;
@@ -273,20 +288,23 @@ export type BoardId = (typeof BOARD_IDS)[number];
 export const PART_MODEL_IDS = ["sg90", "led-pwm"] as const;
 export type PartModelId = (typeof PART_MODEL_IDS)[number];
 
-export const SUPPLY_PRESET_IDS = ["usb"] as const;
+export const SUPPLY_PRESET_IDS = ["usb", "bench"] as const;
 export type SupplyPresetId = (typeof SUPPLY_PRESET_IDS)[number];
 
 /**
  * Terminal names every milestone-1 supply instance exposes. The instance
- * still carries its own voltage, current limit, and droop; this preset
- * is the canonical USB supply those numbers are copied from, and the
- * only pin layout. A later preset can add a field without renaming these.
+ * still carries its own voltage, current limit, and series resistance.
+ * `usb` is the canonical "500 mA" port. `bench` fixes only `rSeries`;
+ * the world file sets that supply's voltage and current limit.
  */
 export const MILESTONE_SUPPLY_PRESET: SupplyPresetId = "usb";
 
 export const chipModels: Record<ChipId, ChipModel> = {
   atmega328p: {
     brownoutVoltage: 2.7,
+    brownoutAssertVoltage: 2.675,
+    brownoutReleaseVoltage: 2.725,
+    resetHoldMs: 66,
     extendedFuse: "0xFD",
   },
 };
@@ -332,16 +350,18 @@ export const partModels: Record<PartModelId, PartModel> = {
     },
     drive: { kind: "servo", pin: "signal" },
     supply: { nominal: 5, min: 4.8, max: 6 },
-    current: { idle: 0.01, moving: 0.25, stall: 0.7 },
-    stall: {
-      minAngleErrorDeg: 5,
-      maxVelocityDegPerSec: 5,
-      holdMs: 50,
-    },
-    // 0.1 s per 60° at 5 V. 1.8 kgf·cm is 0.176 N·m.
-    speedDegPerSec: 600,
+    // 1.8 kgf·cm. The motor law is clamped to this.
     torqueNm: 0.176,
-    voltageScale: "V/V_nom",
+    /** E_sat, frictionloss, and armature fitted on the fixture arm, 1 ms step. */
+    motor: {
+      k: 0.458,
+      resistance: 7.1,
+      efficiency: 0.57,
+      eSat: 0.28,
+      quiescent: 0.01,
+      armature: 0.00005,
+      frictionloss: 0.004,
+    },
   },
   /**
    * Not a milestone-1 actuator. Nothing else is driven by `analogWrite`
@@ -358,17 +378,32 @@ export const partModels: Record<PartModelId, PartModel> = {
   },
 };
 
+const SUPPLY_PINS: Record<string, WorldPin> = {
+  "5V": POWER(true),
+  GND: GROUND,
+};
+
 export const supplyPresets: Record<SupplyPresetId, SupplyPreset> = {
+  /** "500 mA" USB port: stiff source, 0.9 A typical limit. */
   usb: {
     voltage: 5,
-    currentLimit: 0.5,
-    rDroop: 10,
+    currentLimit: 0.9,
+    rSeries: 0.5,
     positivePin: "5V",
     groundPin: "GND",
-    pins: {
-      "5V": POWER(true),
-      GND: GROUND,
-    },
+    pins: SUPPLY_PINS,
+  },
+  /**
+   * Bench supply in CV/CC. `rSeries` is the preset. The world file sets
+   * `voltage` and `currentLimit`; the numbers here are not copied.
+   */
+  bench: {
+    voltage: 5,
+    currentLimit: 1,
+    rSeries: 0.05,
+    positivePin: "5V",
+    groundPin: "GND",
+    pins: SUPPLY_PINS,
   },
 };
 

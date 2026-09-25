@@ -356,7 +356,7 @@ function parseNonNegative(
       err(
         "schema",
         path,
-        `${label} must be a non-negative number of ${unit}. Hint: voltages are volts, current limit is amperes, rDroop is ohms.`
+        `${label} must be a non-negative number of ${unit}. Hint: voltages are volts, current limit is amperes, rSeries is ohms.`
       )
     );
     return undefined;
@@ -752,12 +752,23 @@ function parseSupply(
       err(
         "schema",
         path,
-        "A supply must be an object. Hint: id, voltage (V), currentLimit (A), and rDroop (ohm)."
+        "A supply must be an object. Hint: id, voltage (V), currentLimit (A), and rSeries (ohm)."
       )
     );
     return undefined;
   }
-  checkKeys(path, value, ["id", "voltage", "currentLimit", "rDroop"], errors);
+  if (Object.hasOwn(value, "rDroop")) {
+    errors.push(
+      err(
+        "schema",
+        `${path}.rDroop`,
+        "rDroop was removed. Hint: use rSeries (ohms). V = voltage − rSeries·I while the draw is at or under currentLimit; above the limit the rail is the voltage where the draw equals currentLimit."
+      )
+    );
+  }
+  const fields = { ...value };
+  delete fields.rDroop;
+  checkKeys(path, fields, ["id", "voltage", "currentLimit", "rSeries"], errors);
   const id = parseId(value.id, `${path}.id`, errors);
   const voltage = parseNonNegative(
     value.voltage,
@@ -773,10 +784,10 @@ function parseSupply(
     "amperes",
     errors
   );
-  const rDroop = parseNonNegative(
-    value.rDroop,
-    `${path}.rDroop`,
-    "rDroop",
+  const rSeries = parseNonNegative(
+    value.rSeries,
+    `${path}.rSeries`,
+    "rSeries",
     "ohms",
     errors
   );
@@ -784,11 +795,12 @@ function parseSupply(
     !id ||
     voltage === undefined ||
     currentLimit === undefined ||
-    rDroop === undefined
+    rSeries === undefined ||
+    Object.hasOwn(value, "rDroop")
   ) {
     return undefined;
   }
-  return { id, voltage, currentLimit, rDroop };
+  return { id, voltage, currentLimit, rSeries };
 }
 
 function parseSupplies(
@@ -800,7 +812,7 @@ function parseSupplies(
       err(
         "schema",
         "supplies",
-        "supplies must be an array. Hint: each entry is a voltage, a current limit, and rDroop."
+        "supplies must be an array. Hint: each entry is a voltage, a current limit, and rSeries."
       )
     );
     return undefined;

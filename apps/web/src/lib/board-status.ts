@@ -16,10 +16,10 @@ type BoardStatusInput = {
 export function boardStatusLabel(
   board: BoardStatusInput | undefined,
   playing: boolean
-): "" | "paused" | "running" | "stopped" | "brownout" | "unpowered" {
+): "" | "paused" | "running" | "stopped" | "in reset" | "unpowered" {
   if (!board) return "";
   if (board.unpowered) return "unpowered";
-  if (board.brownout) return "brownout";
+  if (board.brownout) return "in reset";
   if (!board.running || board.fault) return "stopped";
   return playing ? "running" : "paused";
 }
@@ -30,10 +30,10 @@ export function boardStatusLabel(
  */
 export function scrubbedBoardStatus(
   board: BoardStatusInput | undefined
-): "" | "running" | "stopped" | "brownout" | "unpowered" {
+): "" | "running" | "stopped" | "in reset" | "unpowered" {
   if (!board) return "";
   if (board.unpowered) return "unpowered";
-  if (board.brownout) return "brownout";
+  if (board.brownout) return "in reset";
   if (!board.running || board.fault) return "stopped";
   return "running";
 }

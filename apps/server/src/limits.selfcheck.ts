@@ -5,8 +5,8 @@ import {
 } from "@sfab-bench/contract";
 
 /**
- * Hinge and ball overshoot is degrees. A slide stays in metres and
- * warns above 1 mm. The inputs are the joint coordinate.
+ * A hinge overshoots in degrees. A slide stays in metres and warns
+ * above 1 mm. The inputs are the joint coordinate.
  */
 
 function expect(cond: unknown, label: string): asserts cond {
@@ -31,14 +31,6 @@ expect(
   jointLimitWarning("arm/elbow", hingeOver, "hinge") ===
     "arm/elbow is 2.00° past its limit",
   `hinge text ${jointLimitWarning("arm/elbow", hingeOver, "hinge")}`
-);
-
-const ball = pastLimitAmount(1 + deg(2), 0, 1, "ball");
-expect(Math.abs(ball - hingeOver) < 1e-9, "ball did not convert to degrees");
-expect(
-  jointLimitWarning("arm/wrist", ball, "ball") ===
-    "arm/wrist is 2.00° past its limit",
-  "ball warning was not degrees"
 );
 
 const slideExact = pastLimitAmount(1.001, 0, 1, "slide");
