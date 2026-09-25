@@ -155,6 +155,9 @@ export class AvrBoard {
    */
   reboot(): boolean {
     if (!this.image) return false;
+    // The previous run's wire levels are not the new CPU's. Nets are
+    // resolved again by the caller once this image is mounted.
+    this.driven.fill(0);
     this.tx += BROWNOUT_RESET;
     this.mount(this.image, true);
     return this.running;

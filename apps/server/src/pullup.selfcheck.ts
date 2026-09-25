@@ -235,4 +235,52 @@ expect(
 );
 console.log("pull-up: cross-board D3 output wins HIGH LOW HIGH");
 
+const lowSource = `
+ldi r16, 0x00
+out 0x0b, r16
+ldi r16, 0x08
+out 0x0a, r16
+loop:
+rjmp loop
+`;
+const resetDriver = loadProgram("uno", lowSource);
+const resetPeer = loadProgram("other", peerSource);
+const resetDoc = {
+  boards: [
+    { id: "uno", board: "uno" },
+    { id: "other", board: "uno" },
+  ],
+  wires: [["uno.D3", "other.D2"]],
+} as WorldDocument;
+const resetNets = gpioInputNets(resetDoc);
+bindNets([resetDriver, resetPeer], resetDoc, () => {});
+resetPeer.stepMillis();
+resetDriver.stepMillis();
+const drivenLow = resetPeer.peekPins();
+expect(
+  !maskHasPin(drivenLow.ddr, "D2") && !maskHasPin(drivenLow.level, "D2"),
+  "peer did not follow the driver low"
+);
+resetDriver.holdInReset();
+applyGpioDrives(resetNets, [resetDriver, resetPeer]);
+const releasedByReset = resetPeer.peekPins();
+expect(
+  !maskHasPin(releasedByReset.ddr, "D2") &&
+    maskHasPin(releasedByReset.level, "D2"),
+  "peer did not return to its pull-up while the driver is in reset"
+);
+console.log("pull-up: reset driver releases the peer");
+
+const sticky = loadProgram("uno", peerSource);
+sticky.setDriven(2, true);
+sticky.stepMillis();
+expect(maskHasPin(sticky.peekPins().level, "D2"), "external high missing");
+expect(sticky.reboot(), "reboot failed");
+const cleared = sticky.peekPins();
+expect(
+  !maskHasPin(cleared.ddr, "D2") && !maskHasPin(cleared.level, "D2"),
+  "reboot kept a stale driven high before the first instruction"
+);
+console.log("pull-up: reboot clears driven");
+
 console.log("pullup.selfcheck ok");

@@ -942,7 +942,10 @@ function reloadBoard(id: string) {
   const power = boardPower.get(id);
   if (power?.supplyId && !next.fault) {
     const voltage = supplyOf(power.supplyId);
-    if (voltage < power.brownoutVoltage) next.holdInReset();
+    if (voltage < power.brownoutVoltage) {
+      next.holdInReset();
+      applyInputNets();
+    }
   }
   rxSent.delete(id);
   faulted.delete(id);
@@ -1110,11 +1113,15 @@ function advanceOne() {
     if (!power?.supplyId || board.fault) continue;
     const voltage = supplyOf(power.supplyId);
     if (voltage < power.brownoutVoltage) {
-      if (!board.brownout) board.holdInReset();
+      if (!board.brownout) {
+        board.holdInReset();
+        applyInputNets();
+      }
       continue;
     }
     if (board.brownout) {
       if (!board.reboot()) continue;
+      applyInputNets();
       const regs = board.peekRegs();
       const pins = board.peekPins();
       power.resets += 1;
