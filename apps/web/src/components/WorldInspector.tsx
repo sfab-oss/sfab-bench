@@ -82,7 +82,7 @@ function transcriptText(entries: readonly BoardConsoleEntry[]): string {
 function SoaLine({ text }: { text: string }) {
   if (!text) return null;
   return (
-    <p className="mb-1.5 truncate font-mono text-[12px]" title={text}>
+    <p className="mb-1.5 break-words font-mono text-[12px] text-amber-800 dark:text-amber-400">
       {text}
     </p>
   );
