@@ -35,18 +35,7 @@ export function catalogLabel(path: string): string {
   return name.replace(/\.(step|stp|glb|gltf)$/i, "");
 }
 
-/** Immediate parent folder of the file, relative to the project. */
-export function catalogFolder(path: string): string | null {
-  const parts = path.replace(/\\/g, "/").split("/").filter(Boolean);
-  if (parts.length < 2) return null;
-  return parts[parts.length - 2]!;
-}
-
-export function catalogKindLabel(kind: CatalogEntry["kind"]): string {
-  return kind === "glb" ? "GLB" : "STEP";
-}
-
-export function flattenCatalog(files: CatalogEntry[]): CatalogEntry[] {
+function flattenCatalog(files: CatalogEntry[]): CatalogEntry[] {
   return [...files].sort((a, b) =>
     catalogLabel(a.path).localeCompare(catalogLabel(b.path), undefined, {
       sensitivity: "base",
