@@ -27,6 +27,7 @@ export type ToWorker =
   | { type: "pause"; generation: number }
   | { type: "step"; n: number; generation: number }
   | { type: "setTarget"; partId: string; radians: number; generation: number }
+  | { type: "fault"; generation: number }
   | { type: "stop" };
 
 export type FromWorker =
@@ -55,6 +56,12 @@ let stepDebt = 0;
 let sinceState = 0;
 const queue: ToWorker[] = [];
 let pumping = false;
+/** Test-only. The next `step` throws once, inside the sim loop. */
+let throwOnStep = false;
+
+function thrownMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 function post(message: FromWorker) {
   port?.postMessage(message);
@@ -133,6 +140,7 @@ function postState() {
 
 function dispose() {
   playing = false;
+  throwOnStep = false;
   if (timer) {
     clearTimeout(timer);
     timer = null;
@@ -220,23 +228,34 @@ function stopClock() {
 function onTick() {
   timer = null;
   if (!playing || !sim) return;
-  const now = performance.now();
-  const elapsed = now - lastWall;
-  lastWall = now;
-  stepDebt += elapsed;
-  let steps = Math.floor(stepDebt);
-  stepDebt -= steps;
-  if (steps > MAX_STEPS_PER_TICK) {
-    steps = MAX_STEPS_PER_TICK;
-    stepDebt = 0;
+  try {
+    const now = performance.now();
+    const elapsed = now - lastWall;
+    lastWall = now;
+    stepDebt += elapsed;
+    let steps = Math.floor(stepDebt);
+    stepDebt -= steps;
+    if (steps > MAX_STEPS_PER_TICK) {
+      steps = MAX_STEPS_PER_TICK;
+      stepDebt = 0;
+    }
+    for (let i = 0; i < steps; i++) sim.mj.mj_step(sim.model, sim.data);
+    sinceState += elapsed;
+    if (sinceState >= STATE_EVERY_MS) {
+      sinceState = 0;
+      postState();
+    }
+    if (playing) arm();
+  } catch (err: unknown) {
+    // A MuJoCo throw must not escape the timer: that kills the API process.
+    stopClock();
+    fail([], thrownMessage(err));
+    try {
+      postState();
+    } catch {
+      /* the error event is the one the host needs */
+    }
   }
-  for (let i = 0; i < steps; i++) sim.mj.mj_step(sim.model, sim.data);
-  sinceState += elapsed;
-  if (sinceState >= STATE_EVERY_MS) {
-    sinceState = 0;
-    postState();
-  }
-  if (playing) arm();
 }
 
 function arm() {
@@ -269,7 +288,15 @@ function step(n: number) {
     );
     return;
   }
-  for (let i = 0; i < n; i++) sim.mj.mj_step(sim.model, sim.data);
+  // A step is exact. Stop the wall clock first so the two do not add.
+  stopClock();
+  for (let i = 0; i < n; i++) {
+    if (throwOnStep) {
+      throwOnStep = false;
+      throw new Error("injected step fault");
+    }
+    sim.mj.mj_step(sim.model, sim.data);
+  }
   postState();
 }
 
@@ -314,6 +341,7 @@ async function handle(message: ToWorker) {
   else if (message.type === "step") step(message.n);
   else if (message.type === "setTarget")
     setTarget(message.partId, message.radians);
+  else if (message.type === "fault") throwOnStep = true;
 }
 
 async function pump() {
@@ -324,6 +352,14 @@ async function pump() {
       const message = queue.shift();
       if (!message) break;
       await handle(message);
+    }
+  } catch (err: unknown) {
+    stopClock();
+    fail([], thrownMessage(err));
+    try {
+      postState();
+    } catch {
+      /* already reported */
     }
   } finally {
     pumping = false;

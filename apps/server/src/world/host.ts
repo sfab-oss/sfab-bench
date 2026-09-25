@@ -161,6 +161,22 @@ async function killWorker(doc: Doc): Promise<void> {
   doc.stopping = false;
 }
 
+/**
+ * The thread is gone. Drop it from the live set and remember the failure
+ * so the next attach, or a file change, can build again. Idempotent:
+ * `error` and `exit` both call this, and the second one finds no worker.
+ */
+function markWorkerFailed(doc: Doc, worker: Worker, message: string) {
+  liveWorkers.delete(worker);
+  if (doc.worker !== worker) return;
+  doc.worker = null;
+  if (doc.stopping) return;
+  doc.errors = [];
+  doc.errorMessage = message;
+  doc.lastState = null;
+  broadcast(doc, { type: "error", errors: [], message });
+}
+
 function listen(doc: Doc, worker: Worker) {
   worker.on("message", (message: FromWorker) => {
     if (message.generation !== doc.generation) return;
@@ -184,16 +200,14 @@ function listen(doc: Doc, worker: Worker) {
       });
     }
   });
+  // An unhandled worker exception emits `error`. With no listener, Node 24
+  // takes down the parent. Never rethrow.
+  worker.on("error", (err: Error) => {
+    console.error("[world]", err);
+    markWorkerFailed(doc, worker, err.message);
+  });
   worker.on("exit", () => {
-    liveWorkers.delete(worker);
-    if (doc.worker !== worker) return;
-    doc.worker = null;
-    if (doc.stopping) return;
-    const message = "world worker exited";
-    doc.errors = [];
-    doc.errorMessage = message;
-    doc.lastState = null;
-    broadcast(doc, { type: "error", errors: [], message });
+    markWorkerFailed(doc, worker, "world worker exited");
   });
 }
 
@@ -242,6 +256,8 @@ async function spawn(doc: Doc): Promise<void> {
   try {
     await pending;
   } catch (err: unknown) {
+    // `error`/`exit` already told subscribers. Don't broadcast a second time.
+    if (!doc.worker && doc.errorMessage) return;
     await killWorker(doc);
     const message = err instanceof Error ? err.message : String(err);
     doc.errors = [];
@@ -266,6 +282,7 @@ async function reload(doc: Doc): Promise<void> {
   try {
     await pending;
   } catch (err: unknown) {
+    if (!doc.worker && doc.errorMessage) return;
     await killWorker(doc);
     const message = err instanceof Error ? err.message : String(err);
     doc.errors = [];
@@ -377,7 +394,9 @@ export async function attachWorld(
   const sub: Sub = { ...subscription, delivered: false, detached: false };
   doc.subs.add(sub);
   tie(doc);
-  if (!doc.ready) await startLoad(doc, "attach");
+  // A failed thread leaves `ready` set and the worker cleared. Attach again
+  // to rebuild; a file change does the same through the watcher.
+  if (!doc.ready || !doc.worker) await startLoad(doc, "attach");
   if (!sub.detached && !sub.delivered) sendSnapshot(sub, doc);
 
   const handle: WorldHandle = {
@@ -406,6 +425,18 @@ export async function attachWorld(
     },
   };
   return handle;
+}
+
+/** Test-only. The next `step` on this document throws inside the worker. */
+export function faultWorld(project: string, worldRel: string): void {
+  const named = docKey(project, worldRel);
+  if ("error" in named) return;
+  const doc = docs.get(named.key);
+  if (!doc?.worker) return;
+  doc.worker.postMessage({
+    type: "fault",
+    generation: doc.generation,
+  } satisfies ToWorker);
 }
 
 export async function stopWorld(

@@ -17,6 +17,7 @@ import { listProjectFiles } from "./projects";
 import { projectReal, readerFor } from "./world/files";
 import {
   attachWorld,
+  faultWorld,
   stopWorld,
   type WorldHandle,
   worldWorkerCount,
@@ -400,6 +401,47 @@ try {
 } finally {
   rmSync(bad, { recursive: true, force: true });
 }
+
+const faultRoot = mkdtempSync(join(tmpdir(), "sfab-world-fault-"));
+cpSync(armDir, faultRoot, { recursive: true });
+const faultEvents: WorldServerMessage[] = [];
+let faultHandle: WorldHandle | null = null;
+try {
+  const attached = await withTimeout(
+    attachWorld(faultRoot, "arm.world.json", {
+      sender: { kind: "loopback", label: "Mac" },
+      onEvent(event) {
+        faultEvents.push(event);
+      },
+    }),
+    20000,
+    "attach fault world"
+  );
+  if ("error" in attached) throw new Error(String(attached.error));
+  faultHandle = attached;
+  expect(worldWorkerCount() === 1, "fault world has one worker");
+  faultWorld(faultRoot, "arm.world.json");
+  faultHandle.step(1);
+  await waitUntil(
+    () => faultEvents.some((event) => event.type === "error"),
+    "step fault reaches the subscriber"
+  );
+  const fault = faultEvents.find((event) => event.type === "error");
+  expect(fault?.type === "error", "subscriber got an error");
+  if (fault?.type === "error") {
+    expect(
+      fault.message?.includes("injected step fault"),
+      `fault message ${fault.message ?? ""}`
+    );
+  }
+  expect(worldWorkerCount() === 1, "a caught step fault leaves the thread up");
+  expect(process.exitCode == null, "the host process is still running");
+} finally {
+  faultHandle?.detach();
+  await stopWorld(faultRoot, "arm.world.json");
+  rmSync(faultRoot, { recursive: true, force: true });
+}
+expect(worldWorkerCount() === 0, "fault world did not leak a worker");
 
 const catalog = listProjectFiles(armDir);
 expect(
