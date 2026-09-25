@@ -543,6 +543,11 @@ function BoardBody({
   const serialText =
     scrub.playhead !== null ? serialUntil(markers, id, scrub.playhead) : null;
   const outlineParts = useWorld((s) => s.outline?.parts ?? EMPTY_PARTS);
+  const supplyId = useWorld(
+    (s) =>
+      s.outline?.supplies.find((supply) => supply.boards.includes(id))?.id ??
+      null
+  );
   const consoleState = useBoardConsole();
   const sourceRel =
     path && info?.source ? relFromWorldFile(path, info.source) : undefined;
@@ -576,7 +581,11 @@ function BoardBody({
       <SoaLine
         text={
           recorded
-            ? recordedSoaLine(recorded.belowSoa, scrub.frame?.supplies)
+            ? recordedSoaLine(
+                recorded.belowSoa,
+                scrub.frame?.supplies,
+                supplyId
+              )
             : boardWarningLine(live?.warnings)
         }
       />

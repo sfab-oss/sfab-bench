@@ -46,16 +46,19 @@ export function boardWarningLine(
 }
 
 /**
- * The same line for a scrubbed frame. `belowSoa` is the window flag;
- * the voltage is the lowest in-band sample that frame kept.
+ * The same line for a scrubbed frame. `belowSoa` is the window flag.
+ * `supplyId` is this board's feed from `powerFeeds`; another rail in
+ * the band is not this board's voltage.
  */
 export function recordedSoaLine(
   belowSoa: boolean | undefined,
-  supplies: Record<string, { voltage: number; minVoltage: number }> | undefined
+  supplies: Record<string, { voltage: number; minVoltage: number }> | undefined,
+  supplyId: string | null | undefined
 ): string {
   if (!belowSoa) return "";
   const brownout = chipModels.atmega328p.brownoutVoltage;
-  for (const row of Object.values(supplies ?? {})) {
+  const row = supplyId ? supplies?.[supplyId] : undefined;
+  if (row) {
     const voltage =
       row.minVoltage > brownout && row.minVoltage < ATMEGA328P_16MHZ_MIN_V
         ? row.minVoltage
