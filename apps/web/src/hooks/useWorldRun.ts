@@ -4,8 +4,14 @@ import { useEffect } from "react";
 import { getDeviceToken } from "@/lib/api";
 import { commandNotice, isOwnCommandNonce } from "@/lib/world-issues";
 import { worldLiveSocketUrl } from "@/lib/world-live-url";
+import { worldSocketKey } from "@/lib/world-socket";
 import { invalidateSceneNow } from "@/scene/invalidate";
-import { setWorldLiveState, worldLiveState, worldStore } from "@/state/world";
+import {
+  setWorldLiveState,
+  useWorld,
+  worldLiveState,
+  worldStore,
+} from "@/state/world";
 
 const SIM_TIME_MS = 200;
 const ATTACH_COMMAND_MS = 300;
@@ -31,6 +37,9 @@ function backoff(attempt: number): number {
  * play state, a throttled sim time, the last remote command, and errors.
  */
 export function useWorldRun(project: string, world: string) {
+  const loadId = useWorld((s) => s.loadId);
+  // revision is intentionally absent: a reload refetches meshes only.
+  const socketKey = worldSocketKey({ project, world, loadId });
   useEffect(() => {
     if (!project || !world) return;
     let closed = false;
@@ -157,8 +166,10 @@ export function useWorldRun(project: string, world: string) {
       if (retry) clearTimeout(retry);
       if (noticeTimer) clearTimeout(noticeTimer);
       clearAttach();
+      // StrictMode mounts, cleans up, and mounts again. Closing here
+      // leaves one socket for this key.
       socket?.close();
       socket = null;
     };
-  }, [project, world]);
+  }, [socketKey]);
 }

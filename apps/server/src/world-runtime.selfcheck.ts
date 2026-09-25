@@ -465,7 +465,6 @@ try {
     "attach bad world"
   );
   expect(!("error" in attached), "bad world still attaches");
-  if (!("error" in attached)) attached.detach();
   const failure = errors.find((event) => event.type === "error");
   expect(failure?.type === "error", "bad world reports an error");
   if (failure?.type === "error") {
@@ -478,6 +477,31 @@ try {
     worldWorkerCount() === 0,
     `invalid world left a worker (${worldWorkerCount()})`
   );
+  const again: WorldServerMessage[] = [];
+  const reattached = await withTimeout(
+    attachWorld(bad, "arm.world.json", {
+      sender: { kind: "paired", label: "Retry" },
+      onEvent(event) {
+        again.push(event);
+      },
+    }),
+    20000,
+    "re-attach bad world"
+  );
+  expect(!("error" in reattached), "a failed world accepts another attach");
+  const againFailure = again.find((event) => event.type === "error");
+  expect(
+    againFailure?.type === "error",
+    "re-attach receives the validation error"
+  );
+  if (againFailure?.type === "error") {
+    expect(
+      againFailure.errors.some((issue) => issue.code === "mesh-format"),
+      `re-attach codes ${againFailure.errors.map((issue) => issue.code).join(",")}`
+    );
+  }
+  if (!("error" in attached)) attached.detach();
+  if (!("error" in reattached)) reattached.detach();
   await stopWorld(bad, "arm.world.json");
   expect(worldWorkerCount() === 0, "stop leaves no worker");
 } finally {
