@@ -114,7 +114,7 @@ export function outlineItems(outline: WorldOutline): {
 /** Trimmed degrees for a joint limit. */
 export function formatDegrees(degrees: number): string {
   const rounded = Math.round(degrees * 1000) / 1000;
-  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+  return String(rounded);
 }
 
 /** One decimal, so a live joint angle can move without jumping format. */
