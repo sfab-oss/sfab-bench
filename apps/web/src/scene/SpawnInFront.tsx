@@ -6,6 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import { useScene } from "@/state/scene";
 import { useViewer } from "@/state/viewer";
+import { useWorld } from "@/state/world";
 
 const pos = new THREE.Vector3();
 const quat = new THREE.Quaternion();
@@ -73,6 +74,14 @@ export function placeAtGaze(
 
 export type CadSpawnKey = { session: unknown; url: string };
 
+/**
+ * The open document, used as the spawn key. A world and a STEP are exclusive.
+ * When a hand-edited state names both, the world is the document.
+ */
+export function spawnDocumentKey(worldPath: string, fileUrl: string): string {
+  return worldPath || fileUrl;
+}
+
 /** First spawn / file switch / new session. Same-path reload in this session is false. */
 export function shouldPlaceAtGaze(input: {
   session: unknown;
@@ -102,6 +111,12 @@ export function SpawnInFront() {
       review: s.review,
     }))
   );
+  const worldPath = useWorld((s) => s.path);
+  const doc = spawnDocumentKey(worldPath, url);
+  // A STEP waits until its review is in the group. A world uses the same
+  // group at 1:1 as soon as it is the open document; its Z-up turn stays
+  // on the content inside that group.
+  const spawnReady = worldPath.length > 0 || Boolean(review);
   const { placed, setRecenter, setModelScale } = useScene(
     useShallow((s) => ({
       placed: s.placed,
@@ -113,11 +128,11 @@ export function SpawnInFront() {
   const pending = useRef(false);
 
   useEffect(() => {
-    last.current = forgetCadSpawnKey(last.current, session, url);
+    last.current = forgetCadSpawnKey(last.current, session, doc);
     pending.current =
-      shouldPlaceAtGaze({ session, url, last: last.current }) &&
-      Boolean(review && placed);
-  }, [session, url, review, placed]);
+      shouldPlaceAtGaze({ session, url: doc, last: last.current }) &&
+      Boolean(spawnReady && placed);
+  }, [session, doc, spawnReady, placed]);
 
   // "Recenter" on the card: same placement as the first spawn, at 1:1.
   useEffect(() => {
@@ -137,7 +152,7 @@ export function SpawnInFront() {
   }, [session, placed, camera, setRecenter, setModelScale]);
 
   useFrame(() => {
-    if (!pending.current || !session || !url || !review || !placed) return;
+    if (!pending.current || !session || !doc || !spawnReady || !placed) return;
     camera.getWorldPosition(pos);
     if (pos.lengthSq() < 0.01) return;
     pending.current = false;
@@ -147,7 +162,7 @@ export function SpawnInFront() {
       face: true,
     });
     setModelScale(1);
-    last.current = { session, url };
+    last.current = { session, url: doc };
   });
 
   return null;

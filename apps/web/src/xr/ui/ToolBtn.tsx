@@ -69,6 +69,7 @@ export function ToolBtn({
   onHover,
   backgroundColor,
   hoverColor,
+  name,
 }: {
   id: string;
   icon?: Icon;
@@ -81,6 +82,8 @@ export function ToolBtn({
   onHover?: (hovered: boolean) => void;
   backgroundColor?: string;
   hoverColor?: string;
+  /** Object3D name, so a controller ray can be aimed at this button. */
+  name?: string;
 }) {
   const theme = useXrTheme();
   const idle = backgroundColor ?? theme.muted;
@@ -95,6 +98,9 @@ export function ToolBtn({
   };
   return (
     <Container
+      ref={(node) => {
+        if (node && name) node.name = name;
+      }}
       flexGrow={grow ? 1 : 0}
       flexShrink={0}
       width={grow ? undefined : round ? 18 : 32}

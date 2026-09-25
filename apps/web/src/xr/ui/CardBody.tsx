@@ -4,6 +4,8 @@ import {
   LayoutGrid,
   LocateFixed,
   Minus,
+  Pause,
+  Play,
   Plus,
   Settings,
 } from "@react-three/uikit-lucide";
@@ -11,13 +13,110 @@ import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { treeTops } from "@/cad/tree";
+import { sendWorldCommand } from "@/hooks/useWorldRun";
+import { catalogLabel } from "@/lib/viewer-snapshot";
+import {
+  formatSimTime,
+  formatXrErrorLine,
+  visibleAssetIssues,
+} from "@/lib/world-issues";
 import { useScene } from "@/state/scene";
 import { useViewer } from "@/state/viewer";
+import { useWorld } from "@/state/world";
 import { useXrUi } from "@/state/xr";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
 import { TreeRow } from "@/xr/ui/TreeRow";
 import { useXrTheme } from "@/xr/ui/theme";
 import { asciiSafe } from "@/xr/ui/UikitMarkdown";
+
+function WorldRunRow() {
+  const theme = useXrTheme();
+  const {
+    playing,
+    simTime,
+    connection,
+    notice,
+    runErrors,
+    runMessage,
+    assetIssues,
+  } = useWorld(
+    useShallow((s) => ({
+      playing: s.playing,
+      simTime: s.simTime,
+      connection: s.connection,
+      notice: s.notice,
+      runErrors: s.runErrors,
+      runMessage: s.runMessage,
+      assetIssues: s.assetIssues,
+    }))
+  );
+  const blocked = runErrors.length > 0;
+  const live = connection === "live" && !blocked;
+  const status =
+    connection === "reconnecting"
+      ? "Reconnecting..."
+      : connection === "connecting"
+        ? "Connecting..."
+        : null;
+  const validatorLine = formatXrErrorLine(runErrors, runMessage);
+  const assets = visibleAssetIssues(assetIssues, runErrors);
+  const firstAsset = assets[0];
+  const assetLine = firstAsset
+    ? assets.length === 1
+      ? firstAsset.text
+      : `${firstAsset.text} (+${assets.length - 1} more)`
+    : "";
+  const errorLine = validatorLine || assetLine;
+  const tip = blocked
+    ? "This world can't run"
+    : status
+      ? status
+      : playing
+        ? "Pause"
+        : "Play";
+  return (
+    <Container flexDirection="column" flexShrink={0} gap={4} width="100%">
+      <Container
+        flexDirection="row"
+        flexShrink={0}
+        alignItems="center"
+        gap={6}
+        width="100%"
+      >
+        <ToolBtn
+          id="world-play"
+          name="xr-world-play"
+          icon={playing ? Pause : Play}
+          tip={tip}
+          grow={false}
+          active={playing && live}
+          onClick={() => {
+            if (!live) return;
+            sendWorldCommand(playing ? "pause" : "play");
+          }}
+        />
+        <Text fontSize={11} color={theme.subtle}>
+          {status ?? formatSimTime(simTime)}
+        </Text>
+      </Container>
+      {notice ? (
+        <Text fontSize={11} color={theme.text} width="100%">
+          {asciiSafe(notice)}
+        </Text>
+      ) : null}
+      {errorLine ? (
+        <Text
+          fontSize={11}
+          color={theme.danger}
+          width="100%"
+          wordBreak="break-word"
+        >
+          {asciiSafe(errorLine)}
+        </Text>
+      ) : null}
+    </Container>
+  );
+}
 
 export function CardBody({
   width = 204,
@@ -38,6 +137,8 @@ export function CardBody({
       showAll: s.showAll,
     }))
   );
+  const worldPath = useWorld((s) => s.path);
+  const heading = worldPath ? catalogLabel(worldPath) : url ? title : "No file";
   const { page, setPage } = useXrUi(
     useShallow((s) => ({
       page: s.page,
@@ -97,7 +198,7 @@ export function CardBody({
         />
       </Container>
       <Text fontSize={12} color={theme.subtle} width="100%">
-        {url ? asciiSafe(title) : "No file"}
+        {asciiSafe(heading)}
       </Text>
       <Container
         width="100%"
@@ -114,12 +215,13 @@ export function CardBody({
       >
         {tops.length > 0 ? (
           tops.map((obj) => <TreeRow key={obj.uuid} obj={obj} />)
-        ) : (
+        ) : worldPath ? null : (
           <Text fontSize={12} color={theme.subtle} width="100%">
             Open a file. Run a model under cad/src to see it here.
           </Text>
         )}
       </Container>
+      {worldPath ? <WorldRunRow /> : null}
       <Container
         width="100%"
         height={1}

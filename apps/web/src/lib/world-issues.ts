@@ -72,6 +72,22 @@ export function commandNotice(
   return command === "play" ? `Played by ${who}` : `Paused by ${who}`;
 }
 
+/**
+ * One headset line: `code: message`, then ` (+N more)` for the rest.
+ * The desktop card keeps the path and the hint.
+ */
+export function formatXrErrorLine(
+  errors: readonly { code: string; path: string; message: string }[],
+  fallback?: string | null
+): string {
+  const lines = formatWorldIssues(errors, fallback);
+  const first = lines[0];
+  if (!first) return "";
+  const head = first.code ? `${first.code}: ${first.message}` : first.message;
+  const rest = lines.length - 1;
+  return rest > 0 ? `${head} (+${rest} more)` : head;
+}
+
 /** True when this tab sent the nonce the server echoed. Agent commands have none. */
 export function isOwnCommandNonce(
   nonce: string | undefined,
