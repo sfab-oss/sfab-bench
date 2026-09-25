@@ -12,6 +12,7 @@ const reload = {
   links,
   boards: ["uno"] as readonly string[],
   parts: ["servo"] as readonly string[],
+  supplies: ["usb"] as readonly string[],
 };
 
 let selection = reduceWorldSelection(null, {
@@ -42,6 +43,7 @@ const droppedBoard = reduceWorldSelection(selection, {
   links,
   boards: [],
   parts: ["servo"],
+  supplies: ["usb"],
 });
 expect(droppedBoard === null, "a reload that removes the board clears it");
 
@@ -59,6 +61,7 @@ const droppedLink = reduceWorldSelection(pickedLink, {
   links: [{ robot: "arm", link: "base" }],
   boards: ["uno"],
   parts: ["servo"],
+  supplies: ["usb"],
 });
 expect(droppedLink === null, "a reload that removes the link clears it");
 expect(
@@ -95,6 +98,7 @@ const droppedPart = reduceWorldSelection(pickedPart, {
   links,
   boards: ["uno"],
   parts: [],
+  supplies: ["usb"],
 });
 expect(droppedPart === null, "a reload that removes the part clears it");
 expect(
@@ -122,6 +126,16 @@ worldStore.getState().setOutline({
   ],
   parts: [{ id: "servo", model: "sg90", drives: null, wires: [] }],
   boards: [{ id: "uno", chip: "atmega328p", firmware: "hold.hex" }],
+  supplies: [
+    {
+      id: "usb",
+      voltage: 5,
+      currentLimit: 0.5,
+      rDroop: 10,
+      boards: ["uno"],
+      parts: ["servo"],
+    },
+  ],
 });
 expect(
   worldStore.getState().selection?.kind === "board",
@@ -136,6 +150,7 @@ worldStore.getState().setOutline({
   ],
   parts: [],
   boards: [],
+  supplies: [],
 });
 expect(
   worldStore.getState().selection === null,
@@ -151,6 +166,7 @@ worldStore.getState().setOutline({
   ],
   parts: [{ id: "servo", model: "sg90", drives: null, wires: [] }],
   boards: [],
+  supplies: [],
 });
 expect(
   worldStore.getState().selection?.kind === "part",
@@ -160,10 +176,42 @@ worldStore.getState().setOutline({
   robots: [],
   parts: [],
   boards: [],
+  supplies: [],
 });
 expect(
   worldStore.getState().selection === null,
   "the store clears a part the reloaded outline dropped"
+);
+const supply = { kind: "supply" as const, supply: "usb" };
+worldStore.getState().select(supply);
+worldStore.getState().setOutline({
+  robots: [],
+  parts: [],
+  boards: [],
+  supplies: [
+    {
+      id: "usb",
+      voltage: 5,
+      currentLimit: 0.5,
+      rDroop: 10,
+      boards: [],
+      parts: [],
+    },
+  ],
+});
+expect(
+  worldStore.getState().selection?.kind === "supply",
+  "the store keeps a supply the reloaded outline still has"
+);
+worldStore.getState().setOutline({
+  robots: [],
+  parts: [],
+  boards: [],
+  supplies: [],
+});
+expect(
+  worldStore.getState().selection === null,
+  "the store clears a supply the reloaded outline dropped"
 );
 worldStore.getState().close();
 

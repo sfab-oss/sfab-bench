@@ -186,7 +186,7 @@ try {
     cpSync(armDir, pairRoot, { recursive: true });
     const doc = JSON.parse(
       readFileSync(join(pairRoot, "arm.world.json"), "utf8")
-    ) as { boards: Record<string, unknown>[] };
+    ) as { boards: Record<string, unknown>[]; wires: [string, string][] };
     doc.boards.push({
       id: "stall",
       chip: "atmega328p",
@@ -199,6 +199,10 @@ try {
       },
       size: [0.0686, 0.0534, 0.012],
     });
+    // An unwired board does not run. This CPU is here for its pins, so
+    // it takes the USB rail. Two boards plus the hold servo stay under
+    // the 500 mA limit, and the rail does not sag.
+    doc.wires.push(["usb.5V", "stall.5V"], ["usb.GND", "stall.GND"]);
     writeFileSync(join(pairRoot, "two.world.json"), JSON.stringify(doc));
     // 55 ms lands inside the stall firmware's longer servo pulse and after
     // the hold firmware's pulse has ended, so D9's level differs.

@@ -68,6 +68,13 @@ expect(
   partSnap.selection?.kind === "part" && partSnap.selection.part === "servo",
   "get_viewer names the selected part"
 );
+worldStore.getState().select({ kind: "supply", supply: "usb" });
+const supplySnap = viewerSnapshot();
+expect(
+  supplySnap.selection?.kind === "supply" &&
+    supplySnap.selection.supply === "usb",
+  "get_viewer names the selected supply"
+);
 
 worldStore.getState().close();
 setWorldLiveState(null);

@@ -5,6 +5,7 @@ import type {
   WorldPinState,
   WorldSender,
   WorldState,
+  WorldSupplyState,
 } from "@sfab-bench/contract";
 import { useStore as useZustandStore } from "zustand";
 import { createStore } from "zustand/vanilla";
@@ -25,6 +26,7 @@ export type WorldSelection =
   | { kind: "link"; robot: string; link: string }
   | { kind: "board"; board: string }
   | { kind: "part"; part: string }
+  | { kind: "supply"; supply: string }
   | null;
 
 export type WorldSelectionAction =
@@ -35,6 +37,7 @@ export type WorldSelectionAction =
       links: readonly { robot: string; link: string }[];
       boards: readonly string[];
       parts: readonly string[];
+      supplies: readonly string[];
     };
 
 export function sameWorldSelection(
@@ -45,6 +48,7 @@ export function sameWorldSelection(
   if (!a || !b || a.kind !== b.kind) return false;
   if (a.kind === "board" && b.kind === "board") return a.board === b.board;
   if (a.kind === "part" && b.kind === "part") return a.part === b.part;
+  if (a.kind === "supply" && b.kind === "supply") return a.supply === b.supply;
   return a.kind === "link" && b.kind === "link"
     ? a.robot === b.robot && a.link === b.link
     : false;
@@ -67,6 +71,9 @@ export function reduceWorldSelection(
   }
   if (selection.kind === "part") {
     return action.parts.includes(selection.part) ? selection : null;
+  }
+  if (selection.kind === "supply") {
+    return action.supplies.includes(selection.supply) ? selection : null;
   }
   const kept = action.links.some(
     (item) => item.robot === selection.robot && item.link === selection.link
@@ -102,6 +109,8 @@ export type WorldHudState = {
   pins: Record<string, WorldPinState>;
   /** Servo pulse and command, copied at the HUD rate. */
   parts: Record<string, WorldPartState>;
+  /** Supply voltage and current, copied with each state. */
+  supplies: Record<string, WorldSupplyState>;
   open: (path: string, opts?: { force?: boolean }) => void;
   close: () => void;
   select: (selection: WorldSelection) => void;
@@ -116,6 +125,7 @@ export type WorldHudState = {
   setConnection: (connection: WorldConnection) => void;
   setRun: (playing: boolean, simTime: number) => void;
   setBoards: (boards: Record<string, WorldBoardState>) => void;
+  setSupplies: (supplies: Record<string, WorldSupplyState>) => void;
   setRunProblem: (errors: WorldError[], message?: string | null) => void;
   clearRunProblem: () => void;
   setNotice: (notice: string | null) => void;
@@ -161,6 +171,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
   joints: {},
   pins: {},
   parts: {},
+  supplies: {},
 
   open: (next, opts) => {
     const current = get();
@@ -193,6 +204,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
       joints: {},
       pins: {},
       parts: {},
+      supplies: {},
     });
   },
   close: () => {
@@ -215,6 +227,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
       joints: {},
       pins: {},
       parts: {},
+      supplies: {},
     });
   },
   select: (selection) => {
@@ -234,6 +247,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
         links: items.links,
         boards: items.boards,
         parts: items.parts,
+        supplies: items.supplies,
       }),
     });
   },
@@ -276,13 +290,19 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
           next !== undefined &&
           old !== undefined &&
           next.running === old.running &&
-          next.fault === old.fault
+          next.fault === old.fault &&
+          next.brownout === old.brownout &&
+          next.resets === old.resets
         );
       })
     ) {
       return;
     }
     set({ boards });
+  },
+  setSupplies: (supplies) => {
+    if (sameSupplies(get().supplies, supplies)) return;
+    set({ supplies });
   },
   setRunProblem: (errors, message) =>
     set({
@@ -352,7 +372,30 @@ function sameParts(
       !left ||
       !right ||
       left.pulseUs !== right.pulseUs ||
-      left.commandDeg !== right.commandDeg
+      left.commandDeg !== right.commandDeg ||
+      left.state !== right.state ||
+      left.current !== right.current
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function sameSupplies(
+  a: Record<string, WorldSupplyState>,
+  b: Record<string, WorldSupplyState>
+): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  for (const id of keys) {
+    const left = a[id];
+    const right = b[id];
+    if (
+      !left ||
+      !right ||
+      left.voltage !== right.voltage ||
+      left.current !== right.current
     ) {
       return false;
     }

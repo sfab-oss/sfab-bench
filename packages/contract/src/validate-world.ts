@@ -57,6 +57,7 @@ export const WORLD_ERROR_CODES = [
 
 export const WORLD_WARNING_CODES = [
   "servo-pwm-conflict",
+  "servo-signal-direct",
   "duplicate-mesh-basename",
 ] as const;
 
@@ -1437,6 +1438,46 @@ function checkNets(doc: WorldDocument, errors: WorldError[]) {
   }
 }
 
+function servoSignalWiredTo(doc: WorldDocument, endpoint: string): boolean {
+  return doc.wires.some((wire) => wire[0] === endpoint || wire[1] === endpoint);
+}
+
+/**
+ * `checkNets` follows a signal through hops. The runtime only drives a
+ * direct pair, so a hop that still reaches a GPIO is a warning.
+ */
+function checkDirectServoSignal(doc: WorldDocument, warnings: WorldWarning[]) {
+  for (let i = 0; i < doc.parts.length; i++) {
+    const part = doc.parts[i];
+    if (!part) continue;
+    const model = partModel(part.model);
+    if (model?.drive.kind !== "servo") continue;
+    const pin = model.drive.pin;
+    const endpoint = `${part.id}.${pin}`;
+    if (!servoSignalWiredTo(doc, endpoint)) continue;
+    let direct = false;
+    for (const wire of doc.wires) {
+      const other =
+        wire[0] === endpoint ? wire[1] : wire[1] === endpoint ? wire[0] : null;
+      if (!other) continue;
+      const resolved = resolveEndpoint(doc, other);
+      if ("fail" in resolved) continue;
+      if (resolved.owner === "board" && resolved.spec.digital) {
+        direct = true;
+        break;
+      }
+    }
+    if (direct) continue;
+    warnings.push(
+      warn(
+        "servo-signal-direct",
+        `parts[${i}]`,
+        `servo ${part.id}: signal must be wired directly to a board pin. Hint: wire ${part.id}.${pin} straight to a board GPIO. A hop through another part does not drive the servo.`
+      )
+    );
+  }
+}
+
 function servoSignalWired(doc: WorldDocument): boolean {
   return doc.parts.some((part) => {
     const model = partModel(part.model);
@@ -1689,6 +1730,7 @@ export function validateWorld(
   checkRobots(parsed, ctx, errors, warnings);
   checkWires(parsed, errors);
   checkNets(parsed, errors);
+  checkDirectServoSignal(parsed, warnings);
   checkDrivePins(parsed, errors, warnings);
   checkPower(parsed, errors);
   return { ok: errors.length === 0, errors, warnings };

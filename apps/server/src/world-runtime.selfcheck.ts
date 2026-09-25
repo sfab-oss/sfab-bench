@@ -1094,6 +1094,7 @@ const pairDoc = JSON.parse(
   readFileSync(join(pairRoot, "arm.world.json"), "utf8")
 ) as {
   boards: Record<string, unknown>[];
+  wires: [string, string][];
 };
 pairDoc.boards.push({
   id: "stall",
@@ -1107,6 +1108,10 @@ pairDoc.boards.push({
   },
   size: [0.0686, 0.0534, 0.012],
 });
+// An unwired board does not run. The stall CPU is here for its own
+// serial ring, so it takes the same USB rail. Two boards plus the hold
+// servo stay under 500 mA, and neither board browns out.
+pairDoc.wires.push(["usb.5V", "stall.5V"], ["usb.GND", "stall.GND"]);
 writeFileSync(join(pairRoot, "two.world.json"), JSON.stringify(pairDoc));
 const holdHexPath = join(pairRoot, "firmware/hold/hold.hex");
 const goodHex = readFileSync(holdHexPath);

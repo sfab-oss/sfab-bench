@@ -1,4 +1,11 @@
-import type { UrdfInfo } from "@sfab-bench/contract";
+import {
+  boardModel,
+  MILESTONE_SUPPLY_PRESET,
+  partModel,
+  supplyPresets,
+  type UrdfInfo,
+  type WorldPin,
+} from "@sfab-bench/contract";
 
 export type WorldOutlineJoint = {
   name: string;
@@ -40,10 +47,23 @@ export type WorldOutlinePart = {
   wires: WorldOutlineWire[];
 };
 
+export type WorldOutlineSupply = {
+  id: string;
+  /** Nominal volts, before droop. */
+  voltage: number;
+  currentLimit: number;
+  rDroop: number;
+  /** Boards whose power input this supply reaches. */
+  boards: string[];
+  /** Parts whose supply pin this supply reaches. */
+  parts: string[];
+};
+
 export type WorldOutline = {
   robots: { id: string; links: WorldOutlineLink[] }[];
   parts: WorldOutlinePart[];
   boards: WorldOutlineBoard[];
+  supplies: WorldOutlineSupply[];
 };
 
 export type WorldOutlineInput = {
@@ -51,6 +71,8 @@ export type WorldOutlineInput = {
   boards: readonly {
     id: string;
     chip: string;
+    /** Board model id, for example `uno`. Feeds need it to find the power pin. */
+    board?: string;
     firmware: string;
     source?: string;
   }[];
@@ -60,6 +82,12 @@ export type WorldOutlineInput = {
     drives?: { robot: string; joint: string };
   }[];
   wires?: readonly [string, string][];
+  supplies?: readonly {
+    id: string;
+    voltage: number;
+    currentLimit: number;
+    rDroop: number;
+  }[];
 };
 
 const WIRE_PIN_ORDER = ["signal", "V+", "GND"];
@@ -121,7 +149,127 @@ function prismaticMillimetres(
   return metres * 1000;
 }
 
-/** Robots, the joint that moves each link, parts, and boards. Pure. */
+type OutlineOwner = {
+  id: string;
+  kind: "board" | "part" | "supply";
+  board?: string;
+  model?: string;
+};
+
+function ownerOf(world: WorldOutlineInput, id: string): OutlineOwner | null {
+  if (world.boards.some((board) => board.id === id)) {
+    const board = world.boards.find((item) => item.id === id);
+    return {
+      id,
+      kind: "board",
+      ...(board?.board ? { board: board.board } : {}),
+    };
+  }
+  const part = world.parts?.find((item) => item.id === id);
+  if (part) return { id, kind: "part", model: part.model };
+  if (world.supplies?.some((supply) => supply.id === id)) {
+    return { id, kind: "supply" };
+  }
+  return null;
+}
+
+function outlinePin(owner: OutlineOwner, pin: string): WorldPin | null {
+  if (owner.kind === "board" && owner.board) {
+    return boardModel(owner.board)?.pins[pin] ?? null;
+  }
+  if (owner.kind === "part" && owner.model) {
+    return partModel(owner.model)?.pins[pin] ?? null;
+  }
+  if (owner.kind === "supply") {
+    return supplyPresets[MILESTONE_SUPPLY_PRESET].pins[pin] ?? null;
+  }
+  return null;
+}
+
+/**
+ * Same walk as the runtime: direct power-pin pairs, through a board's
+ * power pin, and no net names. A supply feeds a device when its positive
+ * pin is reachable from that device's supply pin.
+ */
+function supplyFeeds(world: WorldOutlineInput): WorldOutlineSupply[] {
+  const wires = world.wires ?? [];
+  const adjacent = new Map<string, string[]>();
+  const link = (from: string, to: string) => {
+    const list = adjacent.get(from);
+    if (list) list.push(to);
+    else adjacent.set(from, [to]);
+  };
+  for (const wire of wires) {
+    const left = endpoint(wire[0]);
+    const right = endpoint(wire[1]);
+    if (!left || !right) continue;
+    const leftOwner = ownerOf(world, left.id);
+    const rightOwner = ownerOf(world, right.id);
+    if (!leftOwner || !rightOwner) continue;
+    if (
+      outlinePin(leftOwner, left.pin)?.kind !== "power" ||
+      outlinePin(rightOwner, right.pin)?.kind !== "power"
+    ) {
+      continue;
+    }
+    link(wire[0], wire[1]);
+    link(wire[1], wire[0]);
+  }
+  const reachable = (start: string): Set<string> => {
+    const seen = new Set<string>();
+    const stack = [start];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (current === undefined || seen.has(current)) continue;
+      seen.add(current);
+      for (const next of adjacent.get(current) ?? []) {
+        if (!seen.has(next)) stack.push(next);
+      }
+    }
+    return seen;
+  };
+  const positive = supplyPresets[MILESTONE_SUPPLY_PRESET].positivePin;
+  const fedBy = (starts: string[]): string | null => {
+    for (const supply of world.supplies ?? []) {
+      for (const start of starts) {
+        if (reachable(start).has(`${supply.id}.${positive}`)) return supply.id;
+      }
+    }
+    return null;
+  };
+  const boards: Record<string, string[]> = {};
+  const parts: Record<string, string[]> = {};
+  for (const supply of world.supplies ?? []) {
+    boards[supply.id] = [];
+    parts[supply.id] = [];
+  }
+  for (const board of world.boards) {
+    const model = board.board ? boardModel(board.board) : undefined;
+    const starts = (model?.powerInputs ?? []).map(
+      (pin) => `${board.id}.${pin}`
+    );
+    const feed = fedBy(starts);
+    if (feed) boards[feed]?.push(board.id);
+  }
+  for (const part of world.parts ?? []) {
+    const model = partModel(part.model);
+    const starts = Object.entries(model?.pins ?? {})
+      .filter(([, pin]) => pin.kind === "power")
+      .map(([pin]) => `${part.id}.${pin}`);
+    const feed = fedBy(starts);
+    if (feed) parts[feed]?.push(part.id);
+  }
+  return (world.supplies ?? []).map((supply) => ({
+    id: supply.id,
+    voltage: supply.voltage,
+    currentLimit: supply.currentLimit,
+    rDroop: supply.rDroop,
+    boards: boards[supply.id] ?? [],
+    parts: parts[supply.id] ?? [],
+  }));
+}
+
+/** Robots, the joint that moves each link, parts, boards, and supplies. Pure. */
 export function buildWorldOutline(
   world: WorldOutlineInput,
   urdfByRobot: Readonly<Record<string, UrdfInfo>>
@@ -165,6 +313,7 @@ export function buildWorldOutline(
       firmware: board.firmware,
       ...(board.source ? { source: board.source } : {}),
     })),
+    supplies: supplyFeeds(world),
   };
 }
 
@@ -172,6 +321,7 @@ export function outlineItems(outline: WorldOutline): {
   links: { robot: string; link: string }[];
   boards: string[];
   parts: string[];
+  supplies: string[];
 } {
   const links: { robot: string; link: string }[] = [];
   for (const robot of outline.robots) {
@@ -183,6 +333,7 @@ export function outlineItems(outline: WorldOutline): {
     links,
     boards: outline.boards.map((board) => board.id),
     parts: outline.parts.map((part) => part.id),
+    supplies: outline.supplies.map((supply) => supply.id),
   };
 }
 

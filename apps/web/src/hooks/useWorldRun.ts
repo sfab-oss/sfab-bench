@@ -114,6 +114,7 @@ export function useWorldRun(project: string, world: string) {
       const now = performance.now();
       const current = worldStore.getState();
       current.setBoards(state.boards);
+      current.setSupplies(state.supplies ?? {});
       const live = current.connection === "live";
       const decision = decideHudSample({
         now,

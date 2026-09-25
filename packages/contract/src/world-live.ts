@@ -91,15 +91,32 @@ export function arduinoPinMask(
   return (portD & 0xff) | ((portB & 0x3f) << 8) | ((portC & 0x3f) << 14);
 }
 
+/** Servo electrical state. Current follows this, not the supply voltage. */
+export type WorldPartMotion = "idle" | "moving" | "stall";
+
 /**
  * One part in the shared run, at the state rate. `null` is no signal:
  * the pulse was missing, out of range, or older than the gap.
+ * `state` and `current` are optional so a client from before the power
+ * budget still reads the pulse.
  */
 export type WorldPartState = {
   /** Last complete pulse width, in microseconds. */
   pulseUs: number | null;
   /** Command angle in degrees, from the servo map. */
   commandDeg: number | null;
+  /** Idle, moving, or stall. Absent on an older client. */
+  state?: WorldPartMotion;
+  /** Amperes. Follows `state`. An unwired supply pin is 0. */
+  current?: number;
+};
+
+/** One supply in the shared run. Optional on `WorldState` for older clients. */
+export type WorldSupplyState = {
+  /** Volts after droop, never negative. */
+  voltage: number;
+  /** Amperes drawn from this supply, from the previous step's part states. */
+  current: number;
 };
 
 /** One board in the shared run. `pins` is the 20-bit snapshot for this tick. */
@@ -113,6 +130,10 @@ export type WorldBoardState = {
   fault?: string;
   /** Absent only on a client that has not seen a state tick yet. */
   pins?: WorldPinState;
+  /** Brownout reboots since this world was loaded. Absent on older clients. */
+  resets?: number;
+  /** True while the supply is under the chip's brownout voltage. */
+  brownout?: boolean;
 };
 
 export type WorldState = {
@@ -130,6 +151,11 @@ export type WorldState = {
    * field still reads the rest of the state.
    */
   parts?: Record<string, WorldPartState>;
+  /**
+   * supply id → voltage and current. Optional so an older client ignores
+   * the power budget. Voltage is from the previous step's currents.
+   */
+  supplies?: Record<string, WorldSupplyState>;
 };
 
 /**

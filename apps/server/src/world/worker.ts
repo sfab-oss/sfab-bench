@@ -2,11 +2,15 @@ import { parentPort } from "node:worker_threads";
 
 import {
   arduinoPinBit,
+  boardModel,
+  chipModel,
   partModel,
   type WorldDocument,
   type WorldError,
+  type WorldPartMotion,
   type WorldPartState,
   type WorldState,
+  type WorldSupplyState,
 } from "@sfab-bench/contract";
 
 import { AvrBoard, FIRMWARE_RELOADED } from "./board";
@@ -17,8 +21,9 @@ import {
   compileWorld,
   type WorldModelCounts,
 } from "./model";
+import { scaleWithVoltage, stepPartMotion, supplyVoltage } from "./power";
 import { blankTrack, type ServoTrack, trackServo } from "./servo";
-import { servoSignalDrives } from "./wiring";
+import { powerFeeds, servoSignalDrives } from "./wiring";
 
 /**
  * One world, off the API thread. The host starts one of these per open
@@ -59,6 +64,7 @@ export type FromWorker =
       chunks: { board: string; text: string }[];
     }
   | { type: "boardReset"; generation: number; board: string; marker: string }
+  | { type: "brownoutBoot"; generation: number; board: string }
   | { type: "boardFault"; generation: number; board: string; message: string }
   | {
       type: "rx";
@@ -83,18 +89,62 @@ let files: WorldBytes | null = null;
 let specs: BoardSpec[] = [];
 let boards: AvrBoard[] = [];
 
-type LiveServo = {
-  partId: string;
+type ServoDrive = {
   boardId: string;
   pinBit: number;
   actuatorId: number;
   jointName: string;
   speedRadPerSec: number;
   torqueNm: number;
+  /** Part-model `supply.nominal`. Speed and torque scale by V / this. */
+  nominalVoltage: number;
+  scale: boolean;
   track: ServoTrack;
+  /** Setpoint has not reached the command after the latest track step. */
+  slewing: boolean;
 };
 
-let liveServos: LiveServo[] = [];
+type Load = {
+  partId: string;
+  supplyId: string | null;
+  idleCurrent: number;
+  movingCurrent: number;
+  stallCurrent: number;
+  stall: {
+    minAngleErrorDeg: number;
+    maxVelocityDegPerSec: number;
+    holdMs: number;
+  } | null;
+  state: WorldPartMotion;
+  holdMs: number;
+  /** Amperes classified last step. The next voltage uses this. */
+  current: number;
+  drive: ServoDrive | null;
+};
+
+type BoardPower = {
+  supplyId: string | null;
+  /** Catalog amperes while a supply is connected, including during brownout. */
+  draw: number;
+  brownoutVoltage: number;
+  resets: number;
+};
+
+type SupplySpec = {
+  id: string;
+  voltage: number;
+  currentLimit: number;
+  rDroop: number;
+};
+
+let loads: Load[] = [];
+let boardPower = new Map<string, BoardPower>();
+let supplySpecs: SupplySpec[] = [];
+/**
+ * Voltage and current used for the step in progress. Filled from the
+ * previous step's part states before the CPUs and the joint move.
+ */
+let supplyLive: Record<string, WorldSupplyState> = {};
 const faulted = new Set<string>();
 const rxSent = new Map<string, string>();
 let playing = false;
@@ -172,15 +222,25 @@ function sample(): WorldState | null {
   const boardState: WorldState["boards"] = {};
   for (const board of boards) {
     const pins = board.takePins();
-    boardState[board.id] = board.fault
-      ? { running: false, fault: board.fault, pins }
-      : { running: board.running, pins };
+    const power = boardPower.get(board.id);
+    boardState[board.id] = {
+      ...(board.fault
+        ? { running: false as const, fault: board.fault, pins }
+        : { running: board.running, pins }),
+      resets: power?.resets ?? 0,
+      brownout: board.brownout,
+    };
   }
   const parts: Record<string, WorldPartState> = {};
-  for (const servo of liveServos) {
-    parts[servo.partId] = {
-      pulseUs: servo.track.pulseUs,
-      commandDeg: servo.track.commandDeg,
+  for (const load of loads) {
+    // Only a driven servo is on the wire. An unwired part still draws
+    // through `loads` when its V+ has a supply, and stays out of `parts`.
+    if (!load.drive) continue;
+    parts[load.partId] = {
+      pulseUs: load.drive?.track.pulseUs ?? null,
+      commandDeg: load.drive?.track.commandDeg ?? null,
+      state: load.state,
+      current: load.current,
     };
   }
   return {
@@ -190,6 +250,7 @@ function sample(): WorldState | null {
     joints,
     boards: boardState,
     parts,
+    supplies: supplyLive,
   };
 }
 
@@ -252,6 +313,8 @@ function boardSpecsOf(parsed: unknown): BoardSpec[] {
 
 function bootBoard(spec: BoardSpec): AvrBoard {
   const board = new AvrBoard(spec.id);
+  // No supply: the CPU never starts. A later step does not boot it either.
+  if (!boardPower.get(spec.id)?.supplyId) return board;
   if (spec.chip !== "atmega328p") {
     board.stop(`unsupported chip "${spec.chip}"`);
     return board;
@@ -286,53 +349,138 @@ function setActuatorTorque(id: number, torque: number) {
   range[base + 1] = torque;
 }
 
+function restingCurrent(load: Load): number {
+  return load.supplyId ? load.idleCurrent : 0;
+}
+
 /**
- * Wire each servo signal to its board pin and start it limp. Speed and
- * torque are the part-model numbers at V = V_nom. W4b scales both.
+ * Wire supplies, then each servo signal. An unwired V+ draws nothing.
+ * Speed and torque start at the part-model numbers; each step scales
+ * them by the supply voltage at V+.
  */
-function bindServos(doc: WorldDocument) {
-  liveServos = [];
-  if (!sim) return;
-  for (const drive of servoSignalDrives(doc)) {
-    const bit = arduinoPinBit(drive.pin);
-    const actuatorId = sim.index.parts[drive.partId];
-    const part = doc.parts.find((item) => item.id === drive.partId);
-    const model = part ? partModel(part.model) : undefined;
-    const speed = model?.speedDegPerSec;
-    const torque = model?.torqueNm;
-    if (
-      bit === undefined ||
-      actuatorId === undefined ||
-      !part?.drives ||
-      speed === undefined ||
-      torque === undefined
-    ) {
-      continue;
-    }
-    const board = boards.find((item) => item.id === drive.boardId);
-    board?.watchEdge(bit);
-    // Limp until the first valid pulse, including before the first step.
-    setActuatorTorque(actuatorId, 0);
-    liveServos.push({
-      partId: drive.partId,
-      boardId: drive.boardId,
-      pinBit: bit,
-      actuatorId,
-      jointName: `${part.drives.robot}/${part.drives.joint}`,
-      speedRadPerSec: (speed * Math.PI) / 180,
-      torqueNm: torque,
-      track: blankTrack(),
+function bindPower(doc: WorldDocument) {
+  loads = [];
+  const feeds = powerFeeds(doc);
+  supplySpecs = (Array.isArray(doc.supplies) ? doc.supplies : []).map(
+    (supply) => ({
+      id: supply.id,
+      voltage: supply.voltage,
+      currentLimit: supply.currentLimit,
+      rDroop: supply.rDroop,
+    })
+  );
+  boardPower = new Map();
+  for (const spec of specs) {
+    const model = boardModel(
+      doc.boards.find((item) => item.id === spec.id)?.board ?? ""
+    );
+    const chip = chipModel(spec.chip);
+    const supplyId = feeds.boards[spec.id] ?? null;
+    boardPower.set(spec.id, {
+      supplyId,
+      draw: supplyId ? (model?.current ?? 0) : 0,
+      brownoutVoltage: chip?.brownoutVoltage ?? Number.POSITIVE_INFINITY,
+      resets: 0,
     });
   }
+  if (!sim) return;
+  const drives = servoSignalDrives(doc);
+  for (const part of doc.parts) {
+    const model = partModel(part.model);
+    if (!model?.current) continue;
+    const supplyId = feeds.parts[part.id] ?? null;
+    const signal = drives.find((item) => item.partId === part.id);
+    let drive: ServoDrive | null = null;
+    if (signal && part.drives && sim) {
+      const bit = arduinoPinBit(signal.pin);
+      const actuatorId = sim.index.parts[part.id];
+      const speed = model.speedDegPerSec;
+      const torque = model.torqueNm;
+      if (
+        bit !== undefined &&
+        actuatorId !== undefined &&
+        speed !== undefined &&
+        torque !== undefined
+      ) {
+        const board = boards.find((item) => item.id === signal.boardId);
+        board?.watchEdge(bit);
+        setActuatorTorque(actuatorId, 0);
+        drive = {
+          boardId: signal.boardId,
+          pinBit: bit,
+          actuatorId,
+          jointName: `${part.drives.robot}/${part.drives.joint}`,
+          speedRadPerSec: (speed * Math.PI) / 180,
+          torqueNm: torque,
+          nominalVoltage: model.supply?.nominal ?? 0,
+          scale: model.voltageScale === "V/V_nom",
+          track: blankTrack(),
+          slewing: false,
+        };
+      }
+    }
+    const load: Load = {
+      partId: part.id,
+      supplyId,
+      idleCurrent: model.current.idle,
+      movingCurrent: model.current.moving,
+      stallCurrent: model.current.stall,
+      stall: model.stall ?? null,
+      state: "idle",
+      holdMs: 0,
+      current: 0,
+      drive,
+    };
+    load.current = restingCurrent(load);
+    loads.push(load);
+  }
+  applySupplyVoltages();
 }
 
 function rearmServos(boardId: string, board: AvrBoard) {
-  for (const servo of liveServos) {
-    if (servo.boardId !== boardId) continue;
-    board.watchEdge(servo.pinBit);
-    servo.track = blankTrack();
-    setActuatorTorque(servo.actuatorId, 0);
+  for (const load of loads) {
+    const drive = load.drive;
+    if (!drive || drive.boardId !== boardId) continue;
+    board.watchEdge(drive.pinBit);
+    drive.track = blankTrack();
+    drive.slewing = false;
+    load.holdMs = 0;
+    load.state = "idle";
+    load.current = restingCurrent(load);
+    setActuatorTorque(drive.actuatorId, 0);
   }
+}
+
+/**
+ * Rail voltage for this step, from the currents `classifyLoads` stored
+ * last step (and from each powered board's catalog draw). Part state is
+ * not recomputed here, so a stall cannot sag the rail it is still using.
+ */
+function applySupplyVoltages() {
+  const draw = new Map<string, number>();
+  for (const supply of supplySpecs) draw.set(supply.id, 0);
+  for (const power of boardPower.values()) {
+    if (!power.supplyId) continue;
+    draw.set(power.supplyId, (draw.get(power.supplyId) ?? 0) + power.draw);
+  }
+  for (const load of loads) {
+    if (!load.supplyId) continue;
+    draw.set(load.supplyId, (draw.get(load.supplyId) ?? 0) + load.current);
+  }
+  const next: Record<string, WorldSupplyState> = {};
+  for (const supply of supplySpecs) {
+    const current = draw.get(supply.id) ?? 0;
+    next[supply.id] = {
+      current,
+      voltage: supplyVoltage(
+        supply.voltage,
+        supply.currentLimit,
+        supply.rDroop,
+        current
+      ),
+    };
+  }
+  supplyLive = next;
 }
 
 function reloadBoard(id: string) {
@@ -390,40 +538,122 @@ function serialIn(id: string, text: string) {
   });
 }
 
-/** Apply this millisecond's pulses, then one MuJoCo step. */
+function supplyOf(id: string | null): number {
+  if (!id) return 0;
+  return supplyLive[id]?.voltage ?? 0;
+}
+
+/** Apply this millisecond's pulses. Torque and slew use this step's voltage. */
 function applyServos() {
   if (!sim) return;
   const simTime = sim.data.time;
   const pulses = new Map<string, { bit: number; us: number }[]>();
   for (const board of boards) pulses.set(board.id, board.takePulses());
-  for (const servo of liveServos) {
-    const widths = (pulses.get(servo.boardId) ?? [])
-      .filter((pulse) => pulse.bit === servo.pinBit)
-      .map((pulse) => pulse.us);
-    const qpos = scalar(sim.data.jnt(servo.jointName).qpos as Float64Array);
+  for (const load of loads) {
+    const drive = load.drive;
+    if (!drive) continue;
+    const cpu = boards.find((item) => item.id === drive.boardId);
+    const driven = Boolean(cpu?.running && !cpu.brownout);
+    const widths = driven
+      ? (pulses.get(drive.boardId) ?? [])
+          .filter((pulse) => pulse.bit === drive.pinBit)
+          .map((pulse) => pulse.us)
+      : [];
+    const voltage = supplyOf(load.supplyId);
+    const factor =
+      load.supplyId === null
+        ? 0
+        : drive.scale
+          ? scaleWithVoltage(1, voltage, drive.nominalVoltage)
+          : 1;
+    const qpos = scalar(sim.data.jnt(drive.jointName).qpos as Float64Array);
     const stepped = trackServo({
-      track: servo.track,
+      track: drive.track,
       simTime,
       pulsesUs: widths,
       qpos,
-      speedRadPerSec: servo.speedRadPerSec,
+      speedRadPerSec: drive.speedRadPerSec * factor,
+      driven,
     });
-    servo.track = stepped.track;
-    setActuatorTorque(servo.actuatorId, stepped.limp ? 0 : servo.torqueNm);
+    drive.track = stepped.track;
+    const target =
+      stepped.track.commandDeg === null
+        ? null
+        : (stepped.track.commandDeg * Math.PI) / 180;
+    drive.slewing =
+      !stepped.limp &&
+      target !== null &&
+      stepped.track.setpoint !== null &&
+      Math.abs(stepped.track.setpoint - target) > 1e-9;
+    const torque = stepped.limp ? 0 : drive.torqueNm * factor;
+    setActuatorTorque(drive.actuatorId, torque);
     if (!stepped.limp && stepped.ctrl !== null) {
-      sim.data.actuator(servo.partId).ctrl = stepped.ctrl;
+      sim.data.actuator(load.partId).ctrl = stepped.ctrl;
     }
   }
 }
 
-/** One millisecond: every live board, then one MuJoCo step. */
+/** Joint after `mj_step` decides idle, moving, or stall for the next rail. */
+function classifyLoads() {
+  if (!sim) return;
+  for (const load of loads) {
+    const drive = load.drive;
+    if (!load.supplyId || !drive || !load.stall) {
+      load.state = "idle";
+      load.holdMs = 0;
+      load.current = restingCurrent(load);
+      continue;
+    }
+    const qpos = scalar(sim.data.jnt(drive.jointName).qpos as Float64Array);
+    const qvel = scalar(sim.data.jnt(drive.jointName).qvel as Float64Array);
+    const stepped = stepPartMotion({
+      holdMs: load.holdMs,
+      limp: drive.track.commandDeg === null,
+      slewing: drive.slewing,
+      commandDeg: drive.track.commandDeg,
+      measuredDeg: (qpos * 180) / Math.PI,
+      velocityDegPerSec: (qvel * 180) / Math.PI,
+      stall: load.stall,
+      current: {
+        idle: load.idleCurrent,
+        moving: load.movingCurrent,
+        stall: load.stallCurrent,
+      },
+      dtMs: 1,
+    });
+    load.state = stepped.state;
+    load.holdMs = stepped.holdMs;
+    load.current = stepped.current;
+  }
+}
+
+/**
+ * One millisecond. The rail is the previous step's currents. A board
+ * under its brownout voltage does not execute, and its pins float, so
+ * the servo goes limp. MuJoCo still steps. Voltage back at the brownout
+ * threshold boots the same image from address 0.
+ */
 function advanceOne() {
   if (!sim) return;
   if (throwOnStep) {
     throwOnStep = false;
     throw new Error("injected step fault");
   }
+  applySupplyVoltages();
   for (const board of boards) {
+    const power = boardPower.get(board.id);
+    if (!power?.supplyId || board.fault) continue;
+    const voltage = supplyOf(power.supplyId);
+    if (voltage < power.brownoutVoltage) {
+      if (!board.brownout) board.holdInReset();
+      continue;
+    }
+    if (board.brownout) {
+      if (!board.reboot()) continue;
+      power.resets += 1;
+      post({ type: "brownoutBoot", generation, board: board.id });
+      rearmServos(board.id, board);
+    }
     if (!board.running) continue;
     try {
       board.stepMillis();
@@ -434,13 +664,17 @@ function advanceOne() {
   }
   applyServos();
   sim.mj.mj_step(sim.model, sim.data);
+  classifyLoads();
 }
 
 function dispose() {
   playing = false;
   throwOnStep = false;
   boards = [];
-  liveServos = [];
+  loads = [];
+  boardPower = new Map();
+  supplySpecs = [];
+  supplyLive = {};
   specs = [];
   files = null;
   faulted.clear();
@@ -517,8 +751,25 @@ async function build(): Promise<boolean> {
   sim = { ...compiled, data };
   files = bytesReader;
   playing = false;
+  // Feeds are known before boot: an unwired board does not run.
+  boardPower = new Map();
+  const feeds = powerFeeds(parsed as WorldDocument);
+  for (const spec of boardSpecsOf(parsed)) {
+    const row = (parsed as WorldDocument).boards.find(
+      (item) => item.id === spec.id
+    );
+    const model = row ? boardModel(row.board) : undefined;
+    const chip = chipModel(spec.chip);
+    const supplyId = feeds.boards[spec.id] ?? null;
+    boardPower.set(spec.id, {
+      supplyId,
+      draw: supplyId ? (model?.current ?? 0) : 0,
+      brownoutVoltage: chip?.brownoutVoltage ?? Number.POSITIVE_INFINITY,
+      resets: 0,
+    });
+  }
   loadBoards(parsed);
-  bindServos(parsed as WorldDocument);
+  bindPower(parsed as WorldDocument);
   post({ type: "ready", generation, counts: countsOf(compiled) });
   postState();
   return true;

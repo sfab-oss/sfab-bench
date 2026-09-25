@@ -24,6 +24,7 @@ export type ViewerSnapshot = {
     | { kind: "link"; robot: string; link: string }
     | { kind: "board"; board: string }
     | { kind: "part"; part: string }
+    | { kind: "supply"; supply: string }
     | null;
 };
 

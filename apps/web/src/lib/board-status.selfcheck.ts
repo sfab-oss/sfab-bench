@@ -22,5 +22,13 @@ expect(
   boardStatusLabel({ running: false }, true) === "stopped",
   "a stopped board stays stopped while the world plays"
 );
+expect(
+  boardStatusLabel({ running: false, brownout: true }, true) === "brownout",
+  "a board held in reset says brownout"
+);
+expect(
+  boardStatusLabel({ running: true, brownout: false }, false) === "paused",
+  "a board that is not in brownout stays paused"
+);
 
 console.log("board-status.selfcheck ok");

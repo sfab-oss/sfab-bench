@@ -217,7 +217,8 @@ function selectionKey(selection: NonNullable<WorldSelection>): string {
     return `link:${selection.robot}/${selection.link}`;
   }
   if (selection.kind === "board") return `board:${selection.board}`;
-  return `part:${selection.part}`;
+  if (selection.kind === "part") return `part:${selection.part}`;
+  return `supply:${selection.supply}`;
 }
 
 function linkMaterial(color: number): THREE.MeshStandardMaterial {

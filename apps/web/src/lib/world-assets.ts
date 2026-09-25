@@ -174,6 +174,7 @@ function asDocument(value: unknown): {
   robots: WorldDocument["robots"];
   parts: NonNullable<WorldDocument["parts"]>;
   wires: NonNullable<WorldDocument["wires"]>;
+  supplies: NonNullable<WorldDocument["supplies"]>;
   scene: WorldSceneDocument;
 } | null {
   if (!value || typeof value !== "object") return null;
@@ -185,6 +186,7 @@ function asDocument(value: unknown): {
     robots: doc.robots,
     parts: Array.isArray(doc.parts) ? doc.parts : [],
     wires: Array.isArray(doc.wires) ? doc.wires : [],
+    supplies: Array.isArray(doc.supplies) ? doc.supplies : [],
     scene: {
       environment: {
         ground: { plane: Boolean(environment.ground?.plane) },
@@ -274,6 +276,7 @@ export async function loadWorldAssets(
       boards: document.boards,
       parts: read.parts,
       wires: read.wires,
+      supplies: read.supplies,
     },
     urdfByRobot
   );
