@@ -5,10 +5,17 @@ import {
   boardModel,
   chipModel,
   partModel,
+  RECORD_FRAME_MS,
+  type RecordedFrame,
+  type RecordingInfo,
+  type RecordingRead,
+  type TimelineMarker,
+  type TimelineTrack,
   type WorldDocument,
   type WorldError,
   type WorldPartMotion,
   type WorldPartState,
+  type WorldSender,
   type WorldState,
   type WorldSupplyState,
 } from "@sfab-bench/contract";
@@ -22,6 +29,7 @@ import {
   type WorldModelCounts,
 } from "./model";
 import { scaleWithVoltage, stepPartMotion, supplyVoltage } from "./power";
+import { motionRank, RunRecorder, timelineFromRead } from "./record";
 import { blankTrack, type ServoTrack, trackServo } from "./servo";
 import { type PowerFeeds, powerFeeds, servoSignalDrives } from "./wiring";
 
@@ -37,16 +45,56 @@ const MAX_STEPS_PER_TICK = 100;
 // Lockstep AVR runs about 4x real time, so one step call stays in seconds.
 const MAX_STEP_N = 60_000;
 
+export type RecordQuery =
+  | { op: "info" }
+  | {
+      op: "read";
+      from: number;
+      to: number;
+      tracks?: string[];
+      maxFrames?: number;
+    }
+  | { op: "frame"; t: number }
+  | { op: "timeline"; from: number; to: number; maxPoints: number }
+  | { op: "config"; boundMs?: number; enabled?: boolean };
+
+export type RecordBody =
+  | { op: "info"; info: RecordingInfo }
+  | { op: "read"; read: RecordingRead }
+  | { op: "frame"; id: string; frame: RecordedFrame | null }
+  | {
+      op: "timeline";
+      id: string;
+      from: number;
+      to: number;
+      tracks: TimelineTrack[];
+      markers: TimelineMarker[];
+    }
+  | { op: "ack" }
+  | { op: "error"; message: string };
+
 export type ToWorker =
   | { type: "load"; project: string; world: string; generation: number }
   | { type: "reload"; generation: number }
-  | { type: "play"; generation: number }
-  | { type: "pause"; generation: number }
-  | { type: "step"; n: number; generation: number }
+  | { type: "play"; generation: number; by?: WorldSender }
+  | { type: "pause"; generation: number; by?: WorldSender }
+  | { type: "step"; n: number; generation: number; pauseBy?: WorldSender }
   | { type: "setTarget"; partId: string; radians: number; generation: number }
   | { type: "reloadBoard"; board: string; generation: number }
-  | { type: "serialIn"; board: string; text: string; generation: number }
+  | {
+      type: "serialIn";
+      board: string;
+      text: string;
+      generation: number;
+      by?: WorldSender;
+    }
   | { type: "fault"; generation: number }
+  | {
+      type: "record";
+      generation: number;
+      request: number;
+      query: RecordQuery;
+    }
   | { type: "stop" };
 
 export type FromWorker =
@@ -72,6 +120,12 @@ export type FromWorker =
       board: string;
       queued: number;
       accepted: number;
+    }
+  | {
+      type: "record";
+      generation: number;
+      request: number;
+      body: RecordBody;
     };
 
 type Sim = CompiledWorld & {
@@ -161,6 +215,21 @@ const queue: ToWorker[] = [];
 let pumping = false;
 /** Test-only. The next `step` throws once, inside the sim loop. */
 let throwOnStep = false;
+
+let recorder: RunRecorder | null = null;
+let recordingSeq = 0;
+const txSeen = new Map<string, number>();
+const pendingNotes: { kind: "reset" | "reboot"; board: string }[] = [];
+
+type RecLayout = {
+  joints: { robot: string; joint: string; mj: string }[];
+  bodies: { robot: string; link: string; mj: string }[];
+  parts: Load[];
+  supplies: SupplySpec[];
+  boards: string[];
+};
+
+let layout: RecLayout | null = null;
 
 function thrownMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -256,7 +325,144 @@ function sample(): WorldState | null {
     boards: boardState,
     parts,
     supplies: supplyLive,
+    ...(recorder ? { recording: recorder.summary(data.time) } : {}),
   };
+}
+
+function simMs(): number {
+  if (!sim) return 0;
+  return Math.round(sim.data.time * 1000);
+}
+
+function noteCommand(kind: "play" | "pause", by?: WorldSender) {
+  if (!by || !recorder) return;
+  recorder.noteEvent({ timeMs: simMs(), kind, by });
+}
+
+function fillRecorder(full: boolean) {
+  const rec = recorder;
+  const lay = layout;
+  if (!rec || !lay || !sim) return;
+  if (full) {
+    for (let i = 0; i < lay.joints.length; i++) {
+      const spec = lay.joints[i];
+      if (!spec) continue;
+      rec.joint[i] = scalar(sim.data.jnt(spec.mj).qpos as Float64Array);
+    }
+    let pose = 0;
+    for (const spec of lay.bodies) {
+      const body = sim.data.body(spec.mj);
+      const p = body.xpos as Float64Array;
+      const q = body.xquat as Float64Array;
+      rec.pose[pose] = p[0] ?? 0;
+      rec.pose[pose + 1] = p[1] ?? 0;
+      rec.pose[pose + 2] = p[2] ?? 0;
+      rec.pose[pose + 3] = q[0] ?? 1;
+      rec.pose[pose + 4] = q[1] ?? 0;
+      rec.pose[pose + 5] = q[2] ?? 0;
+      rec.pose[pose + 6] = q[3] ?? 0;
+      pose += 7;
+    }
+    for (let i = 0; i < lay.parts.length; i++) {
+      const drive = lay.parts[i]?.drive;
+      rec.pulse[i] = drive?.track.pulseUs ?? Number.NaN;
+      rec.command[i] = drive?.track.commandDeg ?? Number.NaN;
+    }
+    for (let i = 0; i < lay.boards.length; i++) {
+      const id = lay.boards[i];
+      const board = boards.find((item) => item.id === id);
+      const pins = board?.peekPins() ?? { ddr: 0, level: 0, toggled: 0 };
+      rec.ddr[i] = pins.ddr;
+      rec.level[i] = pins.level;
+      rec.toggled[i] = pins.toggled;
+      rec.running[i] = board?.running ? 1 : 0;
+    }
+  }
+  for (let i = 0; i < lay.parts.length; i++) {
+    const load = lay.parts[i];
+    if (!load) continue;
+    rec.state[i] = motionRank(load.state);
+    rec.partCurrent[i] = load.current;
+  }
+  for (let i = 0; i < lay.supplies.length; i++) {
+    const spec = lay.supplies[i];
+    const live = spec ? supplyLive[spec.id] : undefined;
+    rec.voltage[i] = live?.voltage ?? 0;
+    rec.supplyCurrent[i] = live?.current ?? 0;
+  }
+  for (let i = 0; i < lay.boards.length; i++) {
+    const id = lay.boards[i];
+    const board = boards.find((item) => item.id === id);
+    rec.brownout[i] = board?.brownout ? 1 : 0;
+  }
+}
+
+function openRecorder() {
+  recorder = null;
+  layout = null;
+  txSeen.clear();
+  pendingNotes.length = 0;
+  if (!sim) return;
+  const joints: RecLayout["joints"] = [];
+  for (const [robot, names] of Object.entries(sim.index.jointNamesByRobot)) {
+    for (const [joint, mj] of Object.entries(names)) {
+      joints.push({ robot, joint, mj });
+    }
+  }
+  const bodies: RecLayout["bodies"] = [];
+  for (const [robot, names] of Object.entries(sim.index.linkNames)) {
+    for (const [link, mj] of Object.entries(names)) {
+      bodies.push({ robot, link, mj });
+    }
+  }
+  const parts = loads.filter((load) => load.drive);
+  const boardIds = boards.map((board) => board.id);
+  layout = { joints, bodies, parts, supplies: supplySpecs, boards: boardIds };
+  recordingSeq += 1;
+  recorder = new RunRecorder({
+    id: `r${recordingSeq}`,
+    joints: joints.map(({ robot, joint }) => ({ robot, joint })),
+    bodies: bodies.map(({ robot, link }) => ({ robot, link })),
+    parts: parts.map((load) => load.partId),
+    supplies: supplySpecs.map((supply) => supply.id),
+    boards: boardIds,
+  });
+  fillRecorder(true);
+  recorder.commit(simMs());
+  for (const board of boards) {
+    if (!board.fault) continue;
+    recorder.noteEvent({
+      timeMs: simMs(),
+      kind: "fault",
+      board: board.id,
+      message: board.fault,
+    });
+  }
+}
+
+function recordStep() {
+  const rec = recorder;
+  if (!rec?.enabled || !sim) {
+    pendingNotes.length = 0;
+    return;
+  }
+  const ms = simMs();
+  fillRecorder(ms % RECORD_FRAME_MS === 0);
+  for (const board of boards) {
+    const text = board.peekTx();
+    let seen = txSeen.get(board.id) ?? 0;
+    if (text.length < seen) seen = 0;
+    if (text.length > seen) {
+      rec.noteSerial(board.id, text.slice(seen), ms);
+      seen = text.length;
+    }
+    txSeen.set(board.id, seen);
+  }
+  for (const note of pendingNotes) {
+    rec.noteEvent({ timeMs: ms, kind: note.kind, board: note.board });
+  }
+  pendingNotes.length = 0;
+  rec.commit(ms);
 }
 
 function flushBoards() {
@@ -291,6 +497,12 @@ function noteFault(board: AvrBoard) {
   post({
     type: "boardFault",
     generation,
+    board: board.id,
+    message: board.fault,
+  });
+  recorder?.noteEvent({
+    timeMs: simMs(),
+    kind: "fault",
     board: board.id,
     message: board.fault,
   });
@@ -528,6 +740,10 @@ function reloadBoard(id: string) {
   rxSent.delete(id);
   faulted.delete(id);
   if (next.running) {
+    const ms = simMs();
+    recorder?.noteEvent({ timeMs: ms, kind: "reload", board: id });
+    recorder?.noteSerial(id, FIRMWARE_RELOADED, ms);
+    txSeen.set(id, 0);
     post({
       type: "boardReset",
       generation,
@@ -540,7 +756,7 @@ function reloadBoard(id: string) {
   postState();
 }
 
-function serialIn(id: string, text: string) {
+function serialIn(id: string, text: string, by?: WorldSender) {
   const board = boards.find((item) => item.id === id);
   if (!board?.running) return;
   if (!board.pushRx(text)) {
@@ -553,6 +769,15 @@ function serialIn(id: string, text: string) {
       accepted: board.rxAccepted,
     });
     return;
+  }
+  if (by) {
+    recorder?.noteEvent({
+      timeMs: simMs(),
+      kind: "serial-send",
+      board: id,
+      text,
+      by,
+    });
   }
   rxSent.set(id, `${board.rxQueued}:${board.rxAccepted}`);
   post({
@@ -681,6 +906,8 @@ function advanceOne() {
     if (board.brownout) {
       if (!board.reboot()) continue;
       power.resets += 1;
+      pendingNotes.push({ kind: "reset", board: board.id });
+      pendingNotes.push({ kind: "reboot", board: board.id });
       post({ type: "brownoutBoot", generation, board: board.id });
       rearmServos(board.id, board);
     }
@@ -695,11 +922,16 @@ function advanceOne() {
   applyServos();
   sim.mj.mj_step(sim.model, sim.data);
   classifyLoads();
+  recordStep();
 }
 
 function dispose() {
   playing = false;
   throwOnStep = false;
+  recorder = null;
+  layout = null;
+  txSeen.clear();
+  pendingNotes.length = 0;
   boards = [];
   loads = [];
   boardPower = new Map();
@@ -788,6 +1020,7 @@ async function build(): Promise<boolean> {
   fillBoardPower(parsed as WorldDocument);
   loadBoards(parsed);
   bindPower(parsed as WorldDocument);
+  openRecorder();
   post({ type: "ready", generation, counts: countsOf(compiled) });
   postState();
   return true;
@@ -840,8 +1073,9 @@ function arm() {
   timer = setTimeout(onTick, TICK_MS);
 }
 
-function play() {
+function play(by?: WorldSender) {
   if (!sim) return;
+  noteCommand("play", by);
   playing = true;
   lastWall = performance.now();
   stepDebt = 0;
@@ -850,13 +1084,14 @@ function play() {
   postState();
 }
 
-function pause() {
+function pause(by?: WorldSender) {
   if (!sim) return;
+  noteCommand("pause", by);
   stopClock();
   postState();
 }
 
-function step(n: number) {
+function step(n: number, pauseBy?: WorldSender) {
   if (!sim) return;
   if (!Number.isInteger(n) || n < 0 || n > MAX_STEP_N) {
     fail(
@@ -866,6 +1101,7 @@ function step(n: number) {
     return;
   }
   // A step is exact. Stop the wall clock first so the two do not add.
+  if (pauseBy) noteCommand("pause", pauseBy);
   stopClock();
   for (let i = 0; i < n; i++) advanceOne();
   postState();
@@ -885,10 +1121,82 @@ function setTarget(partId: string, radians: number) {
   sim.data.actuator(partId).ctrl = radians;
 }
 
+function answerRecord(message: Extract<ToWorker, { type: "record" }>) {
+  const reply = (body: RecordBody) => {
+    post({
+      type: "record",
+      generation,
+      request: message.request,
+      body,
+    });
+  };
+  if (message.generation !== generation || !recorder || !sim) {
+    reply({
+      op: "error",
+      message:
+        message.generation !== generation
+          ? "world reloaded"
+          : "world is not running",
+    });
+    return;
+  }
+  const query = message.query;
+  if (query.op === "config") {
+    if (query.boundMs !== undefined) recorder.setBoundMs(query.boundMs);
+    if (query.enabled !== undefined) recorder.enabled = query.enabled;
+    reply({ op: "ack" });
+    return;
+  }
+  if (query.op === "info") {
+    reply({ op: "info", info: recorder.info(sim.data.time) });
+    return;
+  }
+  if (query.op === "frame") {
+    reply({ op: "frame", id: recorder.id, frame: recorder.frameAt(query.t) });
+    return;
+  }
+  if (query.op === "timeline") {
+    const info = recorder.info(sim.data.time);
+    const read = recorder.read({
+      from: query.from,
+      to: query.to,
+      tracks: [
+        ...info.tracks.joints,
+        ...info.tracks.supplies,
+        ...info.tracks.parts,
+      ],
+      maxFrames: query.maxPoints,
+    });
+    const built = timelineFromRead(read);
+    reply({
+      op: "timeline",
+      id: info.id,
+      from: query.from,
+      to: query.to,
+      tracks: built.tracks,
+      markers: built.markers,
+    });
+    return;
+  }
+  reply({
+    op: "read",
+    read: recorder.read({
+      from: query.from,
+      to: query.to,
+      ...(query.tracks ? { tracks: query.tracks } : {}),
+      ...(query.maxFrames !== undefined ? { maxFrames: query.maxFrames } : {}),
+    }),
+  });
+}
+
 async function handle(message: ToWorker) {
   if (message.type === "stop") {
     stopClock();
     dispose();
+    return;
+  }
+  if (message.type === "record") {
+    answerRecord(message);
     return;
   }
   if (message.generation !== generation && message.type !== "load") {
@@ -907,14 +1215,15 @@ async function handle(message: ToWorker) {
     await build();
     return;
   }
-  if (message.type === "play") play();
-  else if (message.type === "pause") pause();
-  else if (message.type === "step") step(message.n);
+  if (message.type === "play") play(message.by);
+  else if (message.type === "pause") pause(message.by);
+  else if (message.type === "step") step(message.n, message.pauseBy);
   else if (message.type === "setTarget")
     setTarget(message.partId, message.radians);
   else if (message.type === "reloadBoard") reloadBoard(message.board);
-  else if (message.type === "serialIn") serialIn(message.board, message.text);
-  else if (message.type === "fault") throwOnStep = true;
+  else if (message.type === "serialIn") {
+    serialIn(message.board, message.text, message.by);
+  } else if (message.type === "fault") throwOnStep = true;
 }
 
 async function pump() {

@@ -19,7 +19,8 @@ export type ShortcutId =
   | "composer-newline"
   | "composer-mention"
   | "escape"
-  | "ask-user-choose";
+  | "ask-user-choose"
+  | "timeline-live";
 
 export type Shortcut = {
   id: ShortcutId;
@@ -80,6 +81,13 @@ export const SHORTCUTS: readonly Shortcut[] = [
     keys: ["Esc"],
     label: "Cancel voice, close mention, or close a dialog",
     scope: "global",
+  },
+  {
+    id: "timeline-live",
+    keys: ["End"],
+    label: "Return the timeline to live",
+    scope: "global",
+    ignoreEditable: true,
   },
 ];
 
@@ -208,6 +216,7 @@ export function matchesShortcut(
 const EVENT_KEY_ALIASES: Record<string, readonly string[]> = {
   Esc: ["Escape"],
   Escape: ["Escape"],
+  End: ["End"],
   "↑": ["ArrowUp"],
   ArrowUp: ["ArrowUp"],
   Enter: ["Enter"],

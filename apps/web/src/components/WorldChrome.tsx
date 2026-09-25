@@ -9,6 +9,7 @@ import {
   visibleAssetIssues,
 } from "@/lib/world-issues";
 import { useWorld } from "@/state/world";
+import { useWorldTimeline } from "@/state/world-timeline";
 
 export function WorldControls({
   top,
@@ -28,7 +29,9 @@ export function WorldControls({
       blocked: s.runErrors.length > 0,
     }))
   );
+  const playhead = useWorldTimeline().playhead;
   const live = connection === "live" && !blocked;
+  const shownTime = playhead ?? simTime;
   const status =
     connection === "reconnecting"
       ? "Reconnecting…"
@@ -65,7 +68,7 @@ export function WorldControls({
           {playing ? <Pause /> : <Play />}
         </Button>
         <span className="px-1.5 text-xs tabular-nums text-muted-foreground">
-          {formatSimTime(simTime)}
+          {formatSimTime(shownTime)}
         </span>
         {status ? (
           <span className="pr-1.5 text-xs text-muted-foreground">{status}</span>

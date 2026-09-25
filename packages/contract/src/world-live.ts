@@ -1,6 +1,7 @@
 /**
  * The shared world run (ADR 0009, D-015). One document, one sim.
- * Camera and scrub stay on the client; these messages do not carry them.
+ * Camera and scrub stay on the client. `timeline` and `seek` are answered
+ * to the sender only and do not change the run.
  *
  * Poses are the body frame in the world: metres, Z-up, quaternion scalar
  * first `[w, x, y, z]`. Joint values are radians.
@@ -156,6 +157,11 @@ export type WorldState = {
    * the power budget. Voltage is from the previous step's currents.
    */
   supplies?: Record<string, WorldSupplyState>;
+  /**
+   * The recording this run is writing. Absent on a client from before
+   * timelines. `from` > 0 means the front of the recording was dropped.
+   */
+  recording?: RecordingSummary;
 };
 
 /**
@@ -178,7 +184,11 @@ export type WorldClientMessage =
   | { type: "play"; nonce?: string }
   | { type: "pause"; nonce?: string }
   | { type: "step"; n: number }
-  | { type: "serial-send"; board: string; text: string; nonce?: string };
+  | { type: "serial-send"; board: string; text: string; nonce?: string }
+  /** Overview series for this client's strip. Does not move the run. */
+  | { type: "timeline"; from: number; to: number; maxPoints: number }
+  /** This client wants the recorded frame at `t`. Does not move the run. */
+  | { type: "seek"; t: number; nonce: string };
 
 export type WorldServerMessage =
   | { type: "state"; state: WorldState }
@@ -206,4 +216,173 @@ export type WorldServerMessage =
       text: string;
       by: WorldSender;
       nonce?: string;
+    }
+  /**
+   * Overview for the client that asked. Pin masks are never interpolated:
+   * a point is a real frame, and its extremes cover the frames it stands in for.
+   */
+  | {
+      type: "timeline-data";
+      recording: string;
+      from: number;
+      to: number;
+      tracks: TimelineTrack[];
+      markers: TimelineMarker[];
+    }
+  /** The recorded frame for the client that sought. `frame` is null when `t` is gone. */
+  | {
+      type: "frame";
+      recording: string;
+      t: number;
+      frame: RecordedFrame | null;
+      nonce: string;
     };
+
+/** One frame every 10 ms of sim time. The name is the unit. */
+export const RECORD_FRAME_MS = 10;
+
+/** How much sim time a recording keeps. Older frames and events drop. */
+export const RECORD_BOUND_MS = 10 * 60 * 1000;
+
+/** Live extent of the recording, riding on `state`. Times are seconds. */
+export type RecordingSummary = {
+  id: string;
+  /** Seconds. Greater than 0 after the front has been dropped. */
+  from: number;
+  /** Seconds. The live edge, which may sit between frames. */
+  to: number;
+};
+
+/** Track ids the host reports. Prefixed so one list can name every channel. */
+export type RecordingTracks = {
+  joints: string[];
+  bodies: string[];
+  parts: string[];
+  supplies: string[];
+  boards: string[];
+};
+
+export type RecordingInfo = RecordingSummary & {
+  frameMs: number;
+  tracks: RecordingTracks;
+};
+
+export function jointTrackId(robot: string, joint: string): string {
+  return `joint:${robot}/${joint}`;
+}
+
+export function bodyTrackId(robot: string, link: string): string {
+  return `body:${robot}/${link}`;
+}
+
+export function partTrackId(id: string): string {
+  return `part:${id}`;
+}
+
+export function supplyTrackId(id: string): string {
+  return `supply:${id}`;
+}
+
+export function boardTrackId(id: string): string {
+  return `board:${id}`;
+}
+
+/**
+ * One recorded instant. Joints are radians, like `WorldState`.
+ * `minVoltage`, `maxCurrent`, `worst`, and `brownoutAny` cover the
+ * window (t − frame, t], so a 1 ms dip is not lost between frames.
+ */
+export type RecordedFrame = {
+  /** Seconds of sim time. */
+  t: number;
+  joints: Record<string, Record<string, number>>;
+  poses: Record<string, Record<string, WorldLinkPose>>;
+  parts: Record<
+    string,
+    {
+      pulseUs: number | null;
+      commandDeg: number | null;
+      /** Value at t. */
+      state: WorldPartMotion;
+      /** Worst in the window. Stall outranks moving, which outranks idle. */
+      worst: WorldPartMotion;
+      current: number;
+      maxCurrent: number;
+    }
+  >;
+  supplies: Record<
+    string,
+    {
+      voltage: number;
+      minVoltage: number;
+      current: number;
+      maxCurrent: number;
+    }
+  >;
+  boards: Record<
+    string,
+    {
+      pins: WorldPinState;
+      running: boolean;
+      /** In brownout at t. */
+      brownout: boolean;
+      /** In brownout at any step of the window. */
+      brownoutAny: boolean;
+    }
+  >;
+};
+
+export type RecordingEvent =
+  | {
+      t: number;
+      kind: "serial";
+      board: string;
+      text: string;
+      /** Byte offsets in that board's stream, half-open [from, to). */
+      from: number;
+      to: number;
+    }
+  | {
+      t: number;
+      kind: "serial-send";
+      board: string;
+      text: string;
+      by: WorldSender;
+    }
+  | { t: number; kind: "fault"; board: string; message: string }
+  | { t: number; kind: "reset"; board: string }
+  | { t: number; kind: "reboot"; board: string }
+  | { t: number; kind: "reload"; board: string }
+  | { t: number; kind: "play"; by: WorldSender }
+  | { t: number; kind: "pause"; by: WorldSender };
+
+export type RecordingRead = {
+  id: string;
+  from: number;
+  to: number;
+  frameMs: number;
+  frames: RecordedFrame[];
+  events: RecordingEvent[];
+};
+
+/** One numeric series for the strip. `t` and `v` are the same length. */
+export type TimelineTrack = {
+  id: string;
+  /** `deg` for a joint or a servo command, `V` for a supply. */
+  unit: "deg" | "V";
+  t: number[];
+  /** Picked frame: joint degrees, supply volts, or the command in degrees. */
+  v: (number | null)[];
+  /** Window minimum, when the series has one (supply voltage). */
+  lo?: number[];
+  /** Window maximum, when the series has one. */
+  hi?: number[];
+};
+
+/** Resets, reloads, faults, and serial lines. Times are seconds. */
+export type TimelineMarker = {
+  t: number;
+  kind: "reset" | "reload" | "fault" | "serial";
+  board?: string;
+  text?: string;
+};

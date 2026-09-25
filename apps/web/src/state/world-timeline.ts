@@ -1,0 +1,185 @@
+import type {
+  RecordedFrame,
+  RecordingSummary,
+  TimelineMarker,
+  TimelineTrack,
+  WorldClientMessage,
+  WorldServerMessage,
+} from "@sfab-bench/contract";
+import { useSyncExternalStore } from "react";
+import { seekTimeFor } from "@/lib/timeline";
+import { worldCommandNonce } from "@/lib/world-nonce";
+import { invalidateSceneNow } from "@/scene/invalidate";
+
+/**
+ * This client's scrub. The shared run keeps playing; only this tab's
+ * view, inspector, and console follow the playhead (D-015).
+ */
+
+export type TimelineData = {
+  recording: string;
+  from: number;
+  to: number;
+  tracks: TimelineTrack[];
+  markers: TimelineMarker[];
+};
+
+export type TimelineSnapshot = {
+  recording: RecordingSummary | null;
+  data: TimelineData | null;
+  /** Null while this client follows the live edge. */
+  playhead: number | null;
+  frame: RecordedFrame | null;
+};
+
+const listeners = new Set<() => void>();
+
+let recording: RecordingSummary | null = null;
+let data: TimelineData | null = null;
+let playhead: number | null = null;
+let frame: RecordedFrame | null = null;
+let snapshot: TimelineSnapshot = {
+  recording: null,
+  data: null,
+  playhead: null,
+  frame: null,
+};
+let shownTo = -1;
+let send: ((message: WorldClientMessage) => void) | null = null;
+let inflight: string | null = null;
+let queued: number | null = null;
+let timelineTimer: ReturnType<typeof setTimeout> | null = null;
+
+function emit() {
+  snapshot = { recording, data, playhead, frame };
+  for (const listener of listeners) listener();
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function getSnapshot(): TimelineSnapshot {
+  return snapshot;
+}
+
+export function useWorldTimeline(): TimelineSnapshot {
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+export function worldViewPoses(): RecordedFrame["poses"] | null {
+  if (playhead === null || !frame) return null;
+  return frame.poses;
+}
+
+export function bindWorldSocket(
+  next: ((message: WorldClientMessage) => void) | null
+) {
+  send = next;
+  if (!next) goLive();
+}
+
+export function noteLiveRecording(summary: RecordingSummary | undefined) {
+  if (!summary) return;
+  const prev = recording;
+  const idChanged = !prev || prev.id !== summary.id;
+  recording = summary;
+  if (idChanged) {
+    data = null;
+    playhead = null;
+    frame = null;
+    inflight = null;
+    queued = null;
+    shownTo = summary.to;
+    emit();
+    invalidateSceneNow();
+    scheduleTimeline(0);
+    return;
+  }
+  const edge =
+    summary.from !== prev.from || Math.abs(summary.to - shownTo) >= 0.2;
+  if (!edge) return;
+  shownTo = summary.to;
+  emit();
+  scheduleTimeline(200);
+}
+
+export function takeTimeline(
+  message: Extract<WorldServerMessage, { type: "timeline-data" }>
+) {
+  if (recording && message.recording !== recording.id) return;
+  data = {
+    recording: message.recording,
+    from: message.from,
+    to: message.to,
+    tracks: message.tracks,
+    markers: message.markers,
+  };
+  emit();
+}
+
+export function takeFrame(
+  message: Extract<WorldServerMessage, { type: "frame" }>
+) {
+  if (inflight !== message.nonce) return;
+  inflight = null;
+  if (
+    playhead !== null &&
+    message.frame &&
+    (!recording || recording.id === message.recording)
+  ) {
+    frame = message.frame;
+    emit();
+    invalidateSceneNow();
+  }
+  if (queued !== null && playhead !== null) {
+    const next = queued;
+    queued = null;
+    sendSeek(next);
+  }
+}
+
+export function scrubTo(t: number) {
+  if (!recording) return;
+  const next = Math.min(recording.to, Math.max(recording.from, t));
+  playhead = next;
+  emit();
+  if (!data) scheduleTimeline(0);
+  sendSeek(seekTimeFor(next, recording.from, recording.to));
+}
+
+export function goLive() {
+  inflight = null;
+  queued = null;
+  if (playhead === null && frame === null) return;
+  playhead = null;
+  frame = null;
+  emit();
+  invalidateSceneNow();
+}
+
+function sendSeek(t: number) {
+  if (!send || playhead === null) return;
+  if (inflight) {
+    queued = t;
+    return;
+  }
+  const nonce = worldCommandNonce();
+  inflight = nonce;
+  send({ type: "seek", t, nonce });
+}
+
+function scheduleTimeline(delay: number) {
+  if (timelineTimer) clearTimeout(timelineTimer);
+  timelineTimer = setTimeout(() => {
+    timelineTimer = null;
+    if (!recording || !send) return;
+    send({
+      type: "timeline",
+      from: recording.from,
+      to: recording.to,
+      maxPoints: 480,
+    });
+  }, delay);
+}

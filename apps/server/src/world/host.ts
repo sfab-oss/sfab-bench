@@ -3,6 +3,9 @@ import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 
 import {
+  type RecordedFrame,
+  type RecordingInfo,
+  type RecordingRead,
   SERIAL_TEXT_MAX,
   type WorldError,
   type WorldSender,
@@ -20,7 +23,7 @@ import {
   projectReal,
 } from "./files";
 import { type SerialPage, SerialRing } from "./serial-ring";
-import type { FromWorker, ToWorker } from "./worker";
+import type { FromWorker, RecordBody, RecordQuery, ToWorker } from "./worker";
 
 /**
  * One running world per document. Subscribers share play state, sim time,
@@ -46,6 +49,20 @@ export type WorldHandle = {
     text: string,
     nonce?: string
   ) => { ok: true } | { error: string };
+  /** This subscriber only. Does not broadcast and does not move the run. */
+  seek: (
+    t: number,
+    nonce: string
+  ) => Promise<
+    Extract<WorldServerMessage, { type: "frame" }> | { error: string }
+  >;
+  timeline: (query: {
+    from: number;
+    to: number;
+    maxPoints: number;
+  }) => Promise<
+    Extract<WorldServerMessage, { type: "timeline-data" }> | { error: string }
+  >;
   detach: () => void;
 };
 
@@ -79,6 +96,14 @@ type Doc = {
   /** Bytes this host has handed to the worker since the board last booted. */
   rxSent: Map<string, number>;
   stopping: boolean;
+  requestSeq: number;
+  pending: Map<
+    number,
+    {
+      resolve: (body: RecordBody) => void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  >;
 };
 
 const docs = new Map<string, Doc>();
@@ -256,8 +281,17 @@ function armIdle(doc: Doc) {
   doc.idle.unref();
 }
 
+function failPending(doc: Doc, message: string) {
+  for (const waiter of doc.pending.values()) {
+    clearTimeout(waiter.timer);
+    waiter.resolve({ op: "error", message });
+  }
+  doc.pending.clear();
+}
+
 async function killWorker(doc: Doc): Promise<void> {
   const worker = doc.worker;
+  failPending(doc, "world stopped");
   if (!worker) return;
   doc.worker = null;
   doc.stopping = true;
@@ -293,6 +327,14 @@ function markWorkerFailed(doc: Doc, worker: Worker, message: string) {
 function listen(doc: Doc, worker: Worker) {
   worker.on("message", (message: FromWorker) => {
     if (message.generation !== doc.generation) return;
+    if (message.type === "record") {
+      const waiter = doc.pending.get(message.request);
+      if (!waiter || message.generation !== doc.generation) return;
+      clearTimeout(waiter.timer);
+      doc.pending.delete(message.request);
+      waiter.resolve(message.body);
+      return;
+    }
     if (message.type === "state") {
       doc.lastState = message.state;
       doc.errors = null;
@@ -575,6 +617,8 @@ function ensure(project: string, worldRel: string): Doc | { error: string } {
       rx: new Map(),
       rxSent: new Map(),
       stopping: false,
+      requestSeq: 0,
+      pending: new Map(),
     };
     doc.stamp = dependencyStamp(doc.project, doc.deps);
     docs.set(named.key, doc);
@@ -608,26 +652,39 @@ export async function attachWorld(
       if (sub.detached || !doc.worker) return;
       if (doc.errors && doc.errors.length > 0) return;
       announce(doc, "play", sub.sender, nonce);
-      post(doc, { type: "play", generation: doc.generation });
+      post(doc, { type: "play", generation: doc.generation, by: sub.sender });
     },
     pause(nonce?: string) {
       if (sub.detached || !doc.worker) return;
       if (doc.errors && doc.errors.length > 0) return;
       announce(doc, "pause", sub.sender, nonce);
-      post(doc, { type: "pause", generation: doc.generation });
+      post(doc, { type: "pause", generation: doc.generation, by: sub.sender });
     },
     step(n: number) {
       if (sub.detached || !doc.worker) return;
       if (doc.errors && doc.errors.length > 0) return;
+      let pauseBy: WorldSender | undefined;
       if (doc.lastState?.playing) {
         announce(doc, "pause", sub.sender);
         doc.lastState = { ...doc.lastState, playing: false };
+        pauseBy = sub.sender;
       }
-      post(doc, { type: "step", n, generation: doc.generation });
+      post(doc, {
+        type: "step",
+        n,
+        generation: doc.generation,
+        ...(pauseBy ? { pauseBy } : {}),
+      });
     },
     sendSerial(board: string, text: string, nonce?: string) {
       if (sub.detached) return { error: "world is not running" };
       return deliverSerial(doc, sub.sender, board, text, nonce);
+    },
+    seek(t: number, nonce: string) {
+      return seekDoc(doc, t, nonce);
+    },
+    timeline(query) {
+      return timelineDoc(doc, query);
     },
     detach() {
       if (sub.detached) return;
@@ -691,6 +748,7 @@ function deliverSerial(
     board,
     text,
     generation: doc.generation,
+    by: sender,
   });
   broadcast(doc, {
     type: "serial-sent",
@@ -769,6 +827,169 @@ export function boardRx(
   if (!doc?.lastState) return { error: "world is not running" };
   if (!doc.lastState.boards[board]) return { error: `no board "${board}"` };
   return doc.rx.get(board) ?? { queued: 0, accepted: 0 };
+}
+
+function ask(doc: Doc, query: RecordQuery): Promise<RecordBody> {
+  const worker = doc.worker;
+  if (!worker || !doc.lastState || (doc.errors && doc.errors.length > 0)) {
+    return Promise.resolve({
+      op: "error",
+      message: doc.errorMessage ?? "world is not running",
+    });
+  }
+  const request = doc.requestSeq + 1;
+  doc.requestSeq = request;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      doc.pending.delete(request);
+      resolve({ op: "error", message: "recording did not answer" });
+    }, START_MS);
+    doc.pending.set(request, { resolve, timer });
+    try {
+      worker.postMessage({
+        type: "record",
+        generation: doc.generation,
+        request,
+        query,
+      } satisfies ToWorker);
+    } catch (err: unknown) {
+      clearTimeout(timer);
+      doc.pending.delete(request);
+      const message = err instanceof Error ? err.message : "recording failed";
+      resolve({ op: "error", message });
+    }
+  });
+}
+
+function runningDoc(
+  project: string,
+  worldRel: string
+): Doc | { error: string } {
+  const named = docKey(project, worldRel);
+  if ("error" in named) return named;
+  const doc = docs.get(named.key);
+  if (!doc?.worker || !doc.lastState) return { error: "world is not running" };
+  if (doc.errors && doc.errors.length > 0) {
+    return { error: doc.errorMessage ?? "world failed to load" };
+  }
+  return doc;
+}
+
+async function seekDoc(
+  doc: Doc,
+  t: number,
+  nonce: string
+): Promise<Extract<WorldServerMessage, { type: "frame" }> | { error: string }> {
+  const body = await ask(doc, { op: "frame", t });
+  if (body.op === "error") return { error: body.message };
+  if (body.op !== "frame") return { error: "recording did not answer" };
+  return {
+    type: "frame",
+    recording: body.id,
+    t: body.frame?.t ?? t,
+    frame: body.frame,
+    nonce,
+  };
+}
+
+async function timelineDoc(
+  doc: Doc,
+  query: { from: number; to: number; maxPoints: number }
+): Promise<
+  Extract<WorldServerMessage, { type: "timeline-data" }> | { error: string }
+> {
+  const maxPoints = Math.max(1, Math.min(4000, Math.floor(query.maxPoints)));
+  const body = await ask(doc, {
+    op: "timeline",
+    from: query.from,
+    to: query.to,
+    maxPoints,
+  });
+  if (body.op === "error") return { error: body.message };
+  if (body.op !== "timeline") return { error: "recording did not answer" };
+  return {
+    type: "timeline-data",
+    recording: body.id,
+    from: body.from,
+    to: body.to,
+    tracks: body.tracks,
+    markers: body.markers,
+  };
+}
+
+/** What this document is recording. W6 reads this; the socket does too. */
+export async function recordingInfo(
+  project: string,
+  worldRel: string
+): Promise<RecordingInfo | { error: string }> {
+  const doc = runningDoc(project, worldRel);
+  if ("error" in doc) return doc;
+  const body = await ask(doc, { op: "info" });
+  if (body.op === "error") return { error: body.message };
+  if (body.op !== "info") return { error: "recording did not answer" };
+  return body.info;
+}
+
+/**
+ * Frames and events in `[from, to]`, seconds of sim time.
+ * `maxFrames` picks real frames and keeps the extremes of the ones it skips.
+ */
+export async function readRecording(
+  project: string,
+  worldRel: string,
+  query: {
+    from: number;
+    to: number;
+    tracks?: string[];
+    maxFrames?: number;
+  }
+): Promise<RecordingRead | { error: string }> {
+  const doc = runningDoc(project, worldRel);
+  if ("error" in doc) return doc;
+  const body = await ask(doc, { op: "read", ...query });
+  if (body.op === "error") return { error: body.message };
+  if (body.op !== "read") return { error: "recording did not answer" };
+  return body.read;
+}
+
+/** The full frame at or before `t` seconds. Null when that time was dropped. */
+export async function frameAt(
+  project: string,
+  worldRel: string,
+  t: number
+): Promise<RecordedFrame | null | { error: string }> {
+  const doc = runningDoc(project, worldRel);
+  if ("error" in doc) return doc;
+  const body = await ask(doc, { op: "frame", t });
+  if (body.op === "error") return { error: body.message };
+  if (body.op !== "frame") return { error: "recording did not answer" };
+  return body.frame;
+}
+
+/** Test-only. Keep this many milliseconds of sim time instead of 10 minutes. */
+export async function setRecordingBound(
+  project: string,
+  worldRel: string,
+  boundMs: number
+): Promise<{ ok: true } | { error: string }> {
+  const doc = runningDoc(project, worldRel);
+  if ("error" in doc) return doc;
+  const body = await ask(doc, { op: "config", boundMs });
+  if (body.op === "error") return { error: body.message };
+  return { ok: true };
+}
+
+/** Test-only. The lockstep loop skips the recorder while this is false. */
+export async function setRecordingEnabled(
+  project: string,
+  worldRel: string,
+  enabled: boolean
+): Promise<{ ok: true } | { error: string }> {
+  const doc = runningDoc(project, worldRel);
+  if ("error" in doc) return doc;
+  const body = await ask(doc, { op: "config", enabled });
+  if (body.op === "error") return { error: body.message };
+  return { ok: true };
 }
 
 /** Test-only. The next `step` on this document throws inside the worker. */
