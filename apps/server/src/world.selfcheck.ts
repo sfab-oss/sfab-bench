@@ -395,6 +395,36 @@ assertOk(validateWorld(signalOn("D2"), holdCtx), "servo on D2 via signalOn");
 assertOk(validateWorld(signalOn("D9"), holdCtx), "servo on D9");
 assertOk(validateWorld(signalOn("A0"), holdCtx), "servo on A0");
 
+const hoppedSignal = clone(hold);
+// A second servo is the hop, so the only new issue is the direct-pair
+// warning. `servo.signal → hop.signal → uno.D9` still reaches a GPIO.
+hoppedSignal.parts.push({
+  id: "hop",
+  model: "sg90",
+  drives: { robot: "arm", joint: "shoulder" },
+});
+hoppedSignal.wires = hoppedSignal.wires.map((wire) =>
+  wire[0] === "uno.D9" && wire[1] === "servo.signal"
+    ? (["servo.signal", "hop.signal"] as [string, string])
+    : wire
+);
+hoppedSignal.wires.push(["hop.signal", "uno.D9"]);
+const hoppedSignalResult = validateWorld(hoppedSignal, holdCtx);
+assertIssues(
+  hoppedSignalResult,
+  "servo signal hop",
+  [],
+  ["servo-signal-direct"]
+);
+expect(
+  hoppedSignalResult.warnings.some((issue) =>
+    issue.message.startsWith(
+      "servo servo: signal must be wired directly to a board pin"
+    )
+  ),
+  `hop warning ${hoppedSignalResult.warnings.map((issue) => issue.message).join(" | ")}`
+);
+
 const toRegulator = clone(hold);
 toRegulator.wires.push(["usb.5V", "uno.3V3"]);
 assertIssues(validateWorld(toRegulator, holdCtx), "supply on 3V3", [

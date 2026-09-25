@@ -1,4 +1,4 @@
-import type { UrdfInfo } from "@sfab-bench/contract";
+import { powerFeeds, type UrdfInfo } from "@sfab-bench/contract";
 
 export type WorldOutlineJoint = {
   name: string;
@@ -40,10 +40,23 @@ export type WorldOutlinePart = {
   wires: WorldOutlineWire[];
 };
 
+export type WorldOutlineSupply = {
+  id: string;
+  /** Nominal volts, before droop. */
+  voltage: number;
+  currentLimit: number;
+  rDroop: number;
+  /** Boards whose power input this supply reaches. */
+  boards: string[];
+  /** Parts whose supply pin this supply reaches. */
+  parts: string[];
+};
+
 export type WorldOutline = {
   robots: { id: string; links: WorldOutlineLink[] }[];
   parts: WorldOutlinePart[];
   boards: WorldOutlineBoard[];
+  supplies: WorldOutlineSupply[];
 };
 
 export type WorldOutlineInput = {
@@ -51,6 +64,8 @@ export type WorldOutlineInput = {
   boards: readonly {
     id: string;
     chip: string;
+    /** Board model id, for example `uno`. Feeds need it to find the power pin. */
+    board?: string;
     firmware: string;
     source?: string;
   }[];
@@ -60,6 +75,12 @@ export type WorldOutlineInput = {
     drives?: { robot: string; joint: string };
   }[];
   wires?: readonly [string, string][];
+  supplies?: readonly {
+    id: string;
+    voltage: number;
+    currentLimit: number;
+    rDroop: number;
+  }[];
 };
 
 const WIRE_PIN_ORDER = ["signal", "V+", "GND"];
@@ -121,7 +142,31 @@ function prismaticMillimetres(
   return metres * 1000;
 }
 
-/** Robots, the joint that moves each link, parts, and boards. Pure. */
+/** Same pin-then-supply walk the runtime uses. */
+function supplyFeeds(world: WorldOutlineInput): WorldOutlineSupply[] {
+  const feeds = powerFeeds({
+    boards: world.boards.flatMap((board) =>
+      board.board ? [{ id: board.id, board: board.board }] : []
+    ),
+    parts: world.parts ?? [],
+    supplies: world.supplies ?? [],
+    wires: world.wires ?? [],
+  });
+  return (world.supplies ?? []).map((supply) => ({
+    id: supply.id,
+    voltage: supply.voltage,
+    currentLimit: supply.currentLimit,
+    rDroop: supply.rDroop,
+    boards: world.boards
+      .filter((board) => feeds.boards[board.id] === supply.id)
+      .map((board) => board.id),
+    parts: (world.parts ?? [])
+      .filter((part) => feeds.parts[part.id] === supply.id)
+      .map((part) => part.id),
+  }));
+}
+
+/** Robots, the joint that moves each link, parts, boards, and supplies. Pure. */
 export function buildWorldOutline(
   world: WorldOutlineInput,
   urdfByRobot: Readonly<Record<string, UrdfInfo>>
@@ -165,6 +210,7 @@ export function buildWorldOutline(
       firmware: board.firmware,
       ...(board.source ? { source: board.source } : {}),
     })),
+    supplies: supplyFeeds(world),
   };
 }
 
@@ -172,6 +218,7 @@ export function outlineItems(outline: WorldOutline): {
   links: { robot: string; link: string }[];
   boards: string[];
   parts: string[];
+  supplies: string[];
 } {
   const links: { robot: string; link: string }[] = [];
   for (const robot of outline.robots) {
@@ -183,6 +230,7 @@ export function outlineItems(outline: WorldOutline): {
     links,
     boards: outline.boards.map((board) => board.id),
     parts: outline.parts.map((part) => part.id),
+    supplies: outline.supplies.map((supply) => supply.id),
   };
 }
 

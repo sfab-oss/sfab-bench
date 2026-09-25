@@ -11,6 +11,10 @@
  * a signal wire does not feed a supply.
  */
 
+import {
+  wireAdjacency as adjacency,
+  reachableEndpoints as reachable,
+} from "./power-feeds";
 import { resolveUrdfMesh, type UrdfInfo } from "./urdf";
 import {
   type BoardId,
@@ -57,6 +61,7 @@ export const WORLD_ERROR_CODES = [
 
 export const WORLD_WARNING_CODES = [
   "servo-pwm-conflict",
+  "servo-signal-direct",
   "duplicate-mesh-basename",
 ] as const;
 
@@ -1437,6 +1442,46 @@ function checkNets(doc: WorldDocument, errors: WorldError[]) {
   }
 }
 
+function servoSignalWiredTo(doc: WorldDocument, endpoint: string): boolean {
+  return doc.wires.some((wire) => wire[0] === endpoint || wire[1] === endpoint);
+}
+
+/**
+ * `checkNets` follows a signal through hops. The runtime only drives a
+ * direct pair, so a hop that still reaches a GPIO is a warning.
+ */
+function checkDirectServoSignal(doc: WorldDocument, warnings: WorldWarning[]) {
+  for (let i = 0; i < doc.parts.length; i++) {
+    const part = doc.parts[i];
+    if (!part) continue;
+    const model = partModel(part.model);
+    if (model?.drive.kind !== "servo") continue;
+    const pin = model.drive.pin;
+    const endpoint = `${part.id}.${pin}`;
+    if (!servoSignalWiredTo(doc, endpoint)) continue;
+    let direct = false;
+    for (const wire of doc.wires) {
+      const other =
+        wire[0] === endpoint ? wire[1] : wire[1] === endpoint ? wire[0] : null;
+      if (!other) continue;
+      const resolved = resolveEndpoint(doc, other);
+      if ("fail" in resolved) continue;
+      if (resolved.owner === "board" && resolved.spec.digital) {
+        direct = true;
+        break;
+      }
+    }
+    if (direct) continue;
+    warnings.push(
+      warn(
+        "servo-signal-direct",
+        `parts[${i}]`,
+        `servo ${part.id}: signal must be wired directly to a board pin. Hint: wire ${part.id}.${pin} straight to a board GPIO. A hop through another part does not drive the servo.`
+      )
+    );
+  }
+}
+
 function servoSignalWired(doc: WorldDocument): boolean {
   return doc.parts.some((part) => {
     const model = partModel(part.model);
@@ -1501,44 +1546,6 @@ function supplyNodes(doc: WorldDocument): SupplyNode[] {
     positive: `${supply.id}.${preset.positivePin}`,
     ground: `${supply.id}.${preset.groundPin}`,
   }));
-}
-
-function adjacency(
-  doc: WorldDocument,
-  kind: "power" | "ground"
-): Map<string, string[]> {
-  const map = new Map<string, string[]>();
-  const link = (from: string, to: string) => {
-    const list = map.get(from);
-    if (list) list.push(to);
-    else map.set(from, [to]);
-  };
-  for (const wire of doc.wires) {
-    const left = resolveEndpoint(doc, wire[0]);
-    const right = resolveEndpoint(doc, wire[1]);
-    if ("fail" in left || "fail" in right) continue;
-    if (left.spec.kind !== kind || right.spec.kind !== kind) continue;
-    link(wire[0], wire[1]);
-    link(wire[1], wire[0]);
-  }
-  return map;
-}
-
-function reachable(
-  start: string,
-  adjacent: Map<string, string[]>
-): Set<string> {
-  const seen = new Set<string>();
-  const stack = [start];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (current === undefined || seen.has(current)) continue;
-    seen.add(current);
-    for (const next of adjacent.get(current) ?? []) {
-      if (!seen.has(next)) stack.push(next);
-    }
-  }
-  return seen;
 }
 
 function outOfRange(
@@ -1689,6 +1696,7 @@ export function validateWorld(
   checkRobots(parsed, ctx, errors, warnings);
   checkWires(parsed, errors);
   checkNets(parsed, errors);
+  checkDirectServoSignal(parsed, warnings);
   checkDrivePins(parsed, errors, warnings);
   checkPower(parsed, errors);
   return { ok: errors.length === 0, errors, warnings };

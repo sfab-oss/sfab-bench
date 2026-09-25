@@ -26,6 +26,12 @@ const SRAM_BYTES = 2048;
 /** Written into that board's ring when its `.hex` is loaded again. */
 export const FIRMWARE_RELOADED = "— firmware reloaded —\n";
 
+/**
+ * Appended to the serial stream when a brownout ends and the CPU boots
+ * from address 0. Earlier text stays in the ring ahead of this line.
+ */
+export const BROWNOUT_RESET = "— brownout reset —\n";
+
 /** Pending USART0 RX bytes. A send that does not fit is refused whole. */
 export const RX_BACKLOG = 4 * 1024;
 
@@ -38,9 +44,13 @@ export class AvrBoard {
   readonly id: string;
   running = false;
   fault?: string;
+  /** Held in reset because the supply is under the chip's brownout voltage. */
+  brownout = false;
   overshoot = 0;
   /** Bytes passed to USART0, one at a time, at the baud the firmware set. */
   rxAccepted = 0;
+  /** Firmware image kept so a brownout can boot the same program again. */
+  private image: Uint8Array | null = null;
   private cpu: CPU | null = null;
   private usart: AVRUSART | null = null;
   /** Held so the port and timer hooks stay attached for the life of the CPU. */
@@ -74,6 +84,45 @@ export class AvrBoard {
       this.stop("firmware image is the wrong size");
       return;
     }
+    this.image = program.slice();
+    this.mount(program, false);
+  }
+
+  /**
+   * Drop the CPU so every pin reads as an input with no drive. The image
+   * and any serial not yet flushed stay, so `reboot` can start over.
+   */
+  holdInReset() {
+    this.brownout = true;
+    this.running = false;
+    this.fault = undefined;
+    this.cpu = null;
+    this.usart = null;
+    this.peripherals = [];
+    this.portB = null;
+    this.portC = null;
+    this.portD = null;
+    this.toggled = 0;
+    this.riseAt.clear();
+    this.pulses = [];
+    this.rx = [];
+    this.overshoot = 0;
+  }
+
+  /**
+   * Boot the saved image from address 0: a fresh CPU, USART, and timers.
+   * The brownout marker is appended in front of whatever the new program
+   * prints. Serial that was already in `tx` stays ahead of the marker.
+   */
+  reboot(): boolean {
+    if (!this.image) return false;
+    this.tx += BROWNOUT_RESET;
+    this.mount(this.image, true);
+    return this.running;
+  }
+
+  private mount(program: Uint8Array, keepTx: boolean) {
+    const keptTx = keepTx ? this.tx : "";
     const words = new Uint16Array(FLASH_BYTES / 2);
     for (let i = 0; i < words.length; i++) {
       const lo = program[i * 2] ?? 0xff;
@@ -114,16 +163,19 @@ export class AvrBoard {
     this.usart = usart;
     this.peripherals = peripherals;
     this.rx = [];
-    this.tx = "";
+    this.tx = keptTx;
     this.overshoot = 0;
     this.rxAccepted = 0;
     this.fault = undefined;
+    this.brownout = false;
     this.running = true;
   }
 
   stop(fault: string) {
     this.running = false;
     this.fault = fault;
+    this.brownout = false;
+    this.image = null;
     this.cpu = null;
     this.usart = null;
     this.peripherals = [];

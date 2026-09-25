@@ -18,7 +18,8 @@ import type { WorldBytes } from "./files";
  * Implicit integration, so this damping does not fight the 1 ms step.
  * No control filter: the part-model slew is already the rate limit.
  * Hold sketch, the 10° → 90° move: overshoot 0.054°, within 1° at
- * 101 ms after the slew ended. Torque is the part model's 0.176 N·m.
+ * 101 ms after the slew ended. Torque starts at the part model's
+ * 0.176 N·m. Each step replaces that range with V / V_nom.
  */
 const SERVO_KP = 0.8;
 const SERVO_KV = 0.03;

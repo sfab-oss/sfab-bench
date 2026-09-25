@@ -317,6 +317,11 @@ function listen(doc: Doc, worker: Worker) {
       }
       return;
     }
+    if (message.type === "brownoutBoot") {
+      // The marker is already in the serial stream. Keep the ring text.
+      clearRxBook(doc, message.board);
+      return;
+    }
     if (message.type === "boardReset") {
       clearRxBook(doc, message.board);
       const ring = ringOf(doc, message.board);

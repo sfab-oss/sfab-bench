@@ -4,6 +4,8 @@ import {
   type WorldDocument,
 } from "@sfab-bench/contract";
 
+export { type PowerFeeds, powerFeeds } from "@sfab-bench/contract";
+
 /**
  * A servo signal tied straight to one board GPIO pin. Direct pairs only:
  * a wire is `["uno.D9", "servo.signal"]`, not a net of several hops.

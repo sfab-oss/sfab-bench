@@ -1,6 +1,7 @@
 import {
   ARDUINO_PINS,
   maskHasPin,
+  partModel,
   type WorldPinState,
 } from "@sfab-bench/contract";
 import { useEffect } from "react";
@@ -28,6 +29,7 @@ import {
   type WorldOutlineJoint,
   type WorldOutlineLink,
   type WorldOutlinePart,
+  type WorldOutlineSupply,
 } from "@/lib/world-outline";
 import {
   type BoardConsoleEntry,
@@ -92,11 +94,12 @@ function OutlineBody({ outline }: { outline: WorldOutline | null }) {
   const empty =
     outline.robots.length === 0 &&
     outline.parts.length === 0 &&
-    outline.boards.length === 0;
+    outline.boards.length === 0 &&
+    outline.supplies.length === 0;
   if (empty) {
     return (
       <p className="text-[12px] text-muted-foreground">
-        This world has no robots, parts, or boards.
+        This world has no robots, parts, boards, or supplies.
       </p>
     );
   }
@@ -148,6 +151,21 @@ function OutlineBody({ outline }: { outline: WorldOutline | null }) {
               onClick={() => select({ kind: "board", board: board.id })}
             >
               {board.id}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {outline.supplies.length > 0 ? (
+        <div>
+          <div className="px-1 text-[12px] font-medium">Supplies</div>
+          {outline.supplies.map((supply) => (
+            <button
+              key={supply.id}
+              type="button"
+              className="flex w-full rounded-md px-1 py-0.5 text-left text-[12px] hover:bg-muted"
+              onClick={() => select({ kind: "supply", supply: supply.id })}
+            >
+              {supply.id}
             </button>
           ))}
         </div>
@@ -210,9 +228,14 @@ function pulseOnPin(
   parts: readonly WorldOutlinePart[],
   live: Record<string, { pulseUs: number | null }>
 ): number | null | undefined {
-  const hit = parts.find((part) =>
-    part.wires.some((wire) => wire.other === `${boardId}.${pin}`)
-  );
+  const signal = `${boardId}.${pin}`;
+  const hit = parts.find((part) => {
+    const model = partModel(part.model);
+    if (model?.drive.kind !== "servo") return false;
+    return part.wires.some(
+      (wire) => wire.pin === model.drive.pin && wire.other === signal
+    );
+  });
   if (!hit) return undefined;
   return live[hit.id]?.pulseUs ?? null;
 }
@@ -226,6 +249,19 @@ function commandText(deg: number | null): string {
   if (deg === null) return "—";
   const shown = Math.round(deg * 10) / 10;
   return `${shown.toFixed(1)}°`;
+}
+
+function voltsText(voltage: number): string {
+  return `${voltage.toFixed(2)} V`;
+}
+
+function ampsText(current: number): string {
+  return `${Math.round(current * 1000)} mA`;
+}
+
+function motionText(state: string | undefined): string {
+  if (state === "idle" || state === "moving" || state === "stall") return state;
+  return "—";
 }
 
 function PinTable({
@@ -351,12 +387,52 @@ function PartBody({
       </div>
       <Field label="Pulse" value={pulseText(live?.pulseUs ?? null)} />
       <Field label="Command" value={commandText(live?.commandDeg ?? null)} />
+      <Field label="State" value={motionText(live?.state)} />
+      <Field
+        label="Current"
+        value={live?.current === undefined ? "—" : ampsText(live.current)}
+      />
       {drives ? (
         <>
           <Field label="Joint" value={`${drives.robot}/${drives.joint}`} />
           <Field label="Angle" value={angle} />
         </>
       ) : null}
+    </>
+  );
+}
+
+function feedText(info: WorldOutlineSupply | undefined): string {
+  const names = [...(info?.boards ?? []), ...(info?.parts ?? [])];
+  return names.length > 0 ? names.join(", ") : "Nothing";
+}
+
+function SupplyBody({
+  id,
+  info,
+  pending,
+}: {
+  id: string;
+  info: WorldOutlineSupply | undefined;
+  pending: boolean;
+}) {
+  const live = useWorld((s) => s.supplies[id]);
+  if (pending) {
+    return (
+      <p className="text-[12px] text-muted-foreground">Reading the world…</p>
+    );
+  }
+  return (
+    <>
+      <Field label="Supply" value={id} />
+      <Field
+        label="Voltage"
+        value={voltsText(live?.voltage ?? info?.voltage ?? 0)}
+      />
+      <Field label="Current" value={live ? ampsText(live.current) : "—"} />
+      <Field label="Limit" value={info ? ampsText(info.currentLimit) : "—"} />
+      <Field label="Droop" value={info ? `${info.rDroop} Ω` : "—"} />
+      <Field label="Feeds" value={feedText(info)} />
     </>
   );
 }
@@ -392,6 +468,10 @@ function BoardBody({
       <Field label="Firmware" value={info?.firmware ?? "—"} />
       <Field label="Source" value={info?.source ?? "None"} />
       <Field label="Status" value={boardStatusLabel(live, playing) || "—"} />
+      <Field
+        label="Resets"
+        value={live?.resets === undefined ? "—" : String(live.resets)}
+      />
       <div className="mb-3 flex h-36 flex-col overflow-hidden rounded-md border border-border">
         <SerialConsole
           title={id}
@@ -452,6 +532,10 @@ export function WorldInspector({
     selection?.kind === "part"
       ? outline?.parts.find((item) => item.id === selection.part)
       : undefined;
+  const supply =
+    selection?.kind === "supply"
+      ? outline?.supplies.find((item) => item.id === selection.supply)
+      : undefined;
 
   return (
     <aside
@@ -494,6 +578,12 @@ export function WorldInspector({
         />
       ) : selection?.kind === "part" ? (
         <PartBody id={selection.part} info={part} pending={outline === null} />
+      ) : selection?.kind === "supply" ? (
+        <SupplyBody
+          id={selection.supply}
+          info={supply}
+          pending={outline === null}
+        />
       ) : (
         <OutlineBody outline={outline} />
       )}

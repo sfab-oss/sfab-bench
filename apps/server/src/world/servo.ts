@@ -56,7 +56,15 @@ export function trackServo(input: {
   qpos: number;
   speedRadPerSec: number;
   dt?: number;
+  /**
+   * False when the pin is not driving (brownout, or a board that is not
+   * running). The signal gap does not apply: the servo is limp this step.
+   */
+  driven?: boolean;
 }): { track: ServoTrack; ctrl: number | null; limp: boolean } {
+  if (input.driven === false) {
+    return { track: blankTrack(), ctrl: null, limp: true };
+  }
   let pulseUs = input.track.pulseUs;
   let commandDeg = input.track.commandDeg;
   let seen = input.track.seen;

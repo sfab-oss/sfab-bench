@@ -52,6 +52,7 @@ const outline = buildWorldOutline(
       {
         id: "uno",
         chip: "atmega328p",
+        board: "uno",
         firmware: "firmware/hold/hold.hex",
         source: "firmware/hold/hold.ino",
       },
@@ -64,10 +65,13 @@ const outline = buildWorldOutline(
       },
     ],
     wires: [
+      ["usb.5V", "uno.5V"],
+      ["usb.GND", "uno.GND"],
       ["uno.D9", "servo.signal"],
       ["uno.5V", "servo.V+"],
       ["uno.GND", "servo.GND"],
     ],
+    supplies: [{ id: "usb", voltage: 5, currentLimit: 0.5, rDroop: 10 }],
   },
   { arm, gripper }
 );
@@ -174,6 +178,20 @@ expect(
   servo?.wires.map(formatPartWire).join(", ") ===
     "signal ← uno.D9, V+ ← uno.5V, GND ← uno.GND",
   `wires ${servo?.wires.map(formatPartWire).join(", ")}`
+);
+const usb = outline.supplies[0];
+expect(outline.supplies.length === 1 && usb?.id === "usb", "one supply");
+expect(
+  usb?.voltage === 5 && usb.currentLimit === 0.5 && usb.rDroop === 10,
+  "usb numbers"
+);
+expect(
+  usb?.boards.join(",") === "uno",
+  `usb feeds boards ${usb?.boards.join(",")}`
+);
+expect(
+  usb?.parts.join(",") === "servo",
+  `usb feeds parts ${usb?.parts.join(",")}`
 );
 
 console.log("world-outline.selfcheck ok");
