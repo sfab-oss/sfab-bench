@@ -50,15 +50,10 @@ export function commandNotice(
   return command === "play" ? `Played by ${who}` : `Paused by ${who}`;
 }
 
-/**
- * A command from this tab is not a notice. Loopback clients share the
- * label "Mac"; a paired device matches its session label.
- */
-export function commandIsOwn(
-  by: WorldSender,
-  you: { id: string; label: string }
+/** True when this tab sent the nonce the server echoed. Agent commands have none. */
+export function isOwnCommandNonce(
+  nonce: string | undefined,
+  sent: ReadonlySet<string>
 ): boolean {
-  if (by.kind === "agent") return false;
-  if (by.kind === "loopback") return you.id === "loopback";
-  return you.id !== "loopback" && by.label === you.label;
+  return nonce != null && sent.has(nonce);
 }

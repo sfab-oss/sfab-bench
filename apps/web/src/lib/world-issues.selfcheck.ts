@@ -1,8 +1,8 @@
 import {
-  commandIsOwn,
   commandNotice,
   formatSimTime,
   formatWorldIssues,
+  isOwnCommandNonce,
 } from "./world-issues";
 
 function expect(cond: boolean, label: string) {
@@ -57,20 +57,9 @@ expect(
   "agent play"
 );
 
-const mac = { id: "loopback", label: "Mac" };
-const headset = { id: "dev-1", label: "Headset A" };
-expect(
-  commandIsOwn({ kind: "loopback", label: "Mac" }, mac),
-  "this Mac sent it"
-);
-expect(
-  !commandIsOwn({ kind: "loopback", label: "Mac" }, headset),
-  "the headset did not"
-);
-expect(
-  commandIsOwn({ kind: "paired", label: "Headset A" }, headset),
-  "this headset sent it"
-);
-expect(!commandIsOwn({ kind: "agent" }, mac), "the agent is someone else");
+const sent = new Set(["tab-a"]);
+expect(isOwnCommandNonce("tab-a", sent), "echo of this tab's nonce");
+expect(!isOwnCommandNonce("tab-b", sent), "another client's nonce");
+expect(!isOwnCommandNonce(undefined, sent), "an agent command has no nonce");
 
 console.log("world-issues.selfcheck ok");

@@ -314,7 +314,7 @@ try {
   }
   const markA = eventsA.length;
   const markB = eventsB.length;
-  handleA.pause();
+  handleA.pause("tab-a");
   await waitUntil(
     () =>
       eventsB.some(
@@ -331,6 +331,7 @@ try {
       pause.by.kind === "paired" && pause.by.label === "Headset A",
       "sender is A"
     );
+    expect(pause.nonce === "tab-a", "B receives A's nonce");
   }
   const eventsC: WorldServerMessage[] = [];
   const attachedC = await withTimeout(
@@ -354,6 +355,7 @@ try {
       lateCommand.by.kind === "paired" && lateCommand.by.label === "Headset A",
       "late joiner learns A paused"
     );
+    expect(lateCommand.nonce === "tab-a", "late joiner receives A's nonce");
   }
   attachedC.detach();
   handleA.step(10);
@@ -399,6 +401,7 @@ try {
       stepPause.by.kind === "paired" && stepPause.by.label === "Headset A",
       "step pause names A"
     );
+    expect(stepPause.nonce === undefined, "a step pause has no client nonce");
   }
   await waitUntil(
     () =>

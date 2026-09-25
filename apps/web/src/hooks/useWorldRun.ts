@@ -2,7 +2,7 @@ import type { WorldServerMessage, WorldState } from "@sfab-bench/contract";
 import { useEffect } from "react";
 
 import { getDeviceToken } from "@/lib/api";
-import { commandNotice } from "@/lib/world-issues";
+import { commandNotice, isOwnCommandNonce } from "@/lib/world-issues";
 import { worldLiveSocketUrl } from "@/lib/world-live-url";
 import { invalidateSceneNow } from "@/scene/invalidate";
 import { setWorldLiveState, worldLiveState, worldStore } from "@/state/world";
@@ -12,13 +12,14 @@ const ATTACH_COMMAND_MS = 300;
 const NOTICE_MS = 3200;
 
 let socket: WebSocket | null = null;
-/** When this tab last sent play or pause. Two Mac tabs share one principal. */
-let sentCommandAt = 0;
+/** Nonces this tab has sent and not yet seen echoed. */
+const sentNonces = new Set<string>();
 
 export function sendWorldCommand(type: "play" | "pause") {
   if (socket?.readyState !== WebSocket.OPEN) return;
-  sentCommandAt = performance.now();
-  socket.send(JSON.stringify({ type }));
+  const nonce = crypto.randomUUID();
+  sentNonces.add(nonce);
+  socket.send(JSON.stringify({ type, nonce }));
 }
 
 function backoff(attempt: number): number {
@@ -97,12 +98,10 @@ export function useWorldRun(project: string, world: string) {
         const live = worldLiveState();
         if (live) setWorldLiveState({ ...live, playing });
         worldStore.getState().setRun(playing, worldStore.getState().simTime);
-        if (duringAttach) return;
-        // The echo of this tab's own click is not a notice. Every other
-        // client, including another tab on this Mac, shows who sent it.
-        if (performance.now() - sentCommandAt > 500) {
-          showNotice(commandNotice(message.command, message.by));
-        }
+        const own = isOwnCommandNonce(message.nonce, sentNonces);
+        if (message.nonce) sentNonces.delete(message.nonce);
+        if (duringAttach || own) return;
+        showNotice(commandNotice(message.command, message.by));
         return;
       }
       if (message.type === "reloaded") {
@@ -154,6 +153,7 @@ export function useWorldRun(project: string, world: string) {
 
     return () => {
       closed = true;
+      sentNonces.clear();
       if (retry) clearTimeout(retry);
       if (noticeTimer) clearTimeout(noticeTimer);
       clearAttach();
