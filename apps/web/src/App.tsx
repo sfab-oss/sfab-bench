@@ -13,6 +13,7 @@ import {
   frameFitObject,
   homeFitDirection,
 } from "@/cad/review";
+import { BoardPanel } from "@/components/BoardPanel";
 import { LiveDot } from "@/components/brand/LiveDot";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CloseFolderDialog } from "@/components/CloseFolderDialog";
@@ -428,6 +429,7 @@ function Overlay({
         </div>
       )}
       {!session ? <WorldProblemCard /> : null}
+      {!session && worldPath ? <BoardPanel /> : null}
       {sceneCrash ? (
         <div className="pointer-events-auto absolute inset-x-4 top-1/2 z-30 mx-auto flex max-w-80 justify-center">
           <CrashCard error={sceneCrash.error} onRetry={sceneCrash.reset} />

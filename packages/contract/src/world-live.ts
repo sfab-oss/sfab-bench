@@ -16,6 +16,17 @@ export type WorldLinkPose = {
   q: WorldQuat;
 };
 
+/** One board in the shared run. Pins are not on this snapshot. */
+export type WorldBoardState = {
+  /**
+   * The firmware image is loaded. While the run is paused the CPU does
+   * not advance, and `running` stays true. A fault clears it.
+   */
+  running: boolean;
+  /** Why this board is stopped. The rest of the run keeps going. */
+  fault?: string;
+};
+
 export type WorldState = {
   /** Seconds of simulation since the run was loaded or reloaded. */
   simTime: number;
@@ -24,6 +35,8 @@ export type WorldState = {
   poses: Record<string, Record<string, WorldLinkPose>>;
   /** robot id → joint name → joint position in radians. */
   joints: Record<string, Record<string, number>>;
+  /** board id → whether that CPU is loaded. */
+  boards: Record<string, WorldBoardState>;
 };
 
 /**
@@ -38,11 +51,15 @@ export type WorldSender =
 /** Play/pause nonce. Optional, and absent on agent commands. */
 export const WORLD_NONCE_MAX = 64;
 
+/** One serial-send or send_serial payload, in characters. */
+export const SERIAL_TEXT_MAX = 8_000;
+
 /** What a client may send on the world socket. `step` is loopback only. */
 export type WorldClientMessage =
   | { type: "play"; nonce?: string }
   | { type: "pause"; nonce?: string }
-  | { type: "step"; n: number };
+  | { type: "step"; n: number }
+  | { type: "serial-send"; board: string; text: string; nonce?: string };
 
 export type WorldServerMessage =
   | { type: "state"; state: WorldState }
@@ -54,4 +71,20 @@ export type WorldServerMessage =
       nonce?: string;
     }
   | { type: "reloaded" }
-  | { type: "error"; errors: WorldError[]; message?: string };
+  /** The document cannot run. A board fault is `board-error`, not this. */
+  | { type: "error"; errors: WorldError[]; message?: string }
+  /**
+   * One board failed, or this client's serial write was rejected.
+   * The run keeps its play state. `nonce` is set on a rejected send so
+   * only that sender shows the line.
+   */
+  | { type: "board-error"; board: string; message: string; nonce?: string }
+  /** USART0 TX since the previous event. `next` is the ring offset after `text`. */
+  | { type: "serial"; board: string; text: string; next: number }
+  | {
+      type: "serial-sent";
+      board: string;
+      text: string;
+      by: WorldSender;
+      nonce?: string;
+    };

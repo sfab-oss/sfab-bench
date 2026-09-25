@@ -1,4 +1,9 @@
-import type { WorldError, WorldSender, WorldState } from "@sfab-bench/contract";
+import type {
+  WorldBoardState,
+  WorldError,
+  WorldSender,
+  WorldState,
+} from "@sfab-bench/contract";
 import { useStore as useZustandStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
@@ -20,6 +25,7 @@ export type WorldHudState = {
   revision: number;
   playing: boolean;
   simTime: number;
+  boards: Record<string, WorldBoardState>;
   connection: WorldConnection;
   /** Short "Paused by …" line. The attach snapshot does not set this. */
   notice: string | null;
@@ -34,6 +40,7 @@ export type WorldHudState = {
   noteReload: () => void;
   setConnection: (connection: WorldConnection) => void;
   setRun: (playing: boolean, simTime: number) => void;
+  setBoards: (boards: Record<string, WorldBoardState>) => void;
   setRunProblem: (errors: WorldError[], message?: string | null) => void;
   clearRunProblem: () => void;
   setNotice: (notice: string | null) => void;
@@ -66,6 +73,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
   revision: 0,
   playing: false,
   simTime: 0,
+  boards: {},
   connection: path ? "connecting" : "idle",
   notice: null,
   runErrors: [],
@@ -89,6 +97,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
       loadId: current.loadId + 1,
       playing: false,
       simTime: 0,
+      boards: {},
       connection: "connecting",
       notice: null,
       runErrors: [],
@@ -105,6 +114,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
       path: "",
       playing: false,
       simTime: 0,
+      boards: {},
       connection: "idle",
       notice: null,
       runErrors: [],
@@ -128,6 +138,27 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
       return;
     }
     set({ playing, simTime, connection: "live" });
+  },
+  setBoards: (boards) => {
+    const current = get().boards;
+    const keys = Object.keys(boards);
+    const prev = Object.keys(current);
+    if (
+      keys.length === prev.length &&
+      keys.every((key) => {
+        const next = boards[key];
+        const old = current[key];
+        return (
+          next !== undefined &&
+          old !== undefined &&
+          next.running === old.running &&
+          next.fault === old.fault
+        );
+      })
+    ) {
+      return;
+    }
+    set({ boards });
   },
   setRunProblem: (errors, message) =>
     set({

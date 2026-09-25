@@ -1,4 +1,8 @@
-import type { WorldServerMessage, WorldState } from "@sfab-bench/contract";
+import type {
+  WorldSender,
+  WorldServerMessage,
+  WorldState,
+} from "@sfab-bench/contract";
 import { useEffect } from "react";
 
 import { getDeviceToken } from "@/lib/api";
@@ -7,6 +11,12 @@ import { worldLiveSocketUrl } from "@/lib/world-live-url";
 import { worldCommandNonce } from "@/lib/world-nonce";
 import { worldSocketKey } from "@/lib/world-socket";
 import { invalidateSceneNow } from "@/scene/invalidate";
+import {
+  appendBoardSerial,
+  noteBoardReject,
+  noteBoardSent,
+  resetBoardConsole,
+} from "@/state/board-console";
 import {
   setWorldLiveState,
   useWorld,
@@ -21,12 +31,25 @@ const NOTICE_MS = 3200;
 let socket: WebSocket | null = null;
 /** Nonces this tab has sent and not yet seen echoed. */
 const sentNonces = new Set<string>();
+/** Serial writes this tab sent. A rejection with one of these is ours. */
+const sentSerialNonces = new Set<string>();
 
 export function sendWorldCommand(type: "play" | "pause") {
   if (socket?.readyState !== WebSocket.OPEN) return;
   const nonce = worldCommandNonce();
   sentNonces.add(nonce);
   socket.send(JSON.stringify({ type, nonce }));
+}
+
+export function sendBoardSerial(board: string, text: string) {
+  if (!board || !text || socket?.readyState !== WebSocket.OPEN) return;
+  const nonce = worldCommandNonce();
+  sentSerialNonces.add(nonce);
+  socket.send(JSON.stringify({ type: "serial-send", board, text, nonce }));
+}
+
+function senderLabel(by: WorldSender): string {
+  return by.kind === "agent" ? "agent" : by.label || "someone";
 }
 
 function backoff(attempt: number): number {
@@ -52,6 +75,7 @@ export function useWorldRun(project: string, world: string) {
     let sawState = false;
     let attachCommand = false;
     const hud = worldStore.getState();
+    resetBoardConsole();
 
     const clearAttach = () => {
       if (attachTimer) clearTimeout(attachTimer);
@@ -64,6 +88,7 @@ export function useWorldRun(project: string, world: string) {
       invalidateSceneNow();
       const now = performance.now();
       const current = worldStore.getState();
+      current.setBoards(state.boards);
       const playingChanged = current.playing !== state.playing;
       const due = now - lastHud >= SIM_TIME_MS || current.connection !== "live";
       if (!playingChanged && !due) return;
@@ -115,7 +140,22 @@ export function useWorldRun(project: string, world: string) {
         return;
       }
       if (message.type === "reloaded") {
+        resetBoardConsole();
         worldStore.getState().noteReload();
+        return;
+      }
+      if (message.type === "serial") {
+        appendBoardSerial(message.board, message.text, message.next);
+        return;
+      }
+      if (message.type === "serial-sent") {
+        noteBoardSent(message.board, message.text, senderLabel(message.by));
+        return;
+      }
+      if (message.type === "board-error") {
+        if (!isOwnCommandNonce(message.nonce, sentSerialNonces)) return;
+        if (message.nonce) sentSerialNonces.delete(message.nonce);
+        noteBoardReject(message.board, message.message);
         return;
       }
       if (message.type === "error") {
@@ -164,6 +204,7 @@ export function useWorldRun(project: string, world: string) {
     return () => {
       closed = true;
       sentNonces.clear();
+      sentSerialNonces.clear();
       if (retry) clearTimeout(retry);
       if (noticeTimer) clearTimeout(noticeTimer);
       clearAttach();

@@ -2,15 +2,24 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 
-import type {
-  WorldError,
-  WorldSender,
-  WorldServerMessage,
-  WorldState,
+import {
+  SERIAL_TEXT_MAX,
+  type WorldError,
+  type WorldSender,
+  type WorldServerMessage,
+  type WorldState,
 } from "@sfab-bench/contract";
 
 import { subscribeRootWatch } from "../projects";
-import { dependencyRels, dependencyStamp, projectReal } from "./files";
+import { RX_BACKLOG } from "./board";
+import {
+  dependencyRels,
+  dependencyStamp,
+  type FirmwareWatch,
+  firmwareWatch,
+  projectReal,
+} from "./files";
+import { type SerialPage, SerialRing } from "./serial-ring";
 import type { FromWorker, ToWorker } from "./worker";
 
 /**
@@ -32,6 +41,11 @@ export type WorldHandle = {
   play: (nonce?: string) => void;
   pause: (nonce?: string) => void;
   step: (n: number) => void;
+  sendSerial: (
+    board: string,
+    text: string,
+    nonce?: string
+  ) => { ok: true } | { error: string };
   detach: () => void;
 };
 
@@ -59,6 +73,11 @@ type Doc = {
   unwatch: (() => void) | null;
   deps: string[];
   stamp: string;
+  firmware: FirmwareWatch[];
+  serial: Map<string, SerialRing>;
+  rx: Map<string, { queued: number; accepted: number }>;
+  /** Bytes this host has handed to the worker since the board last booted. */
+  rxSent: Map<string, number>;
   stopping: boolean;
 };
 
@@ -85,12 +104,11 @@ function docKey(
   const root = projectReal(project);
   if (!root) return { error: "the project folder is gone" };
   const world = worldRel.trim().replace(/\\/g, "/").replace(/^\/+/, "");
-  if (
-    !world ||
-    world.split("/").includes("..") ||
-    !world.toLowerCase().endsWith(".world.json")
-  ) {
+  if (!world || !world.toLowerCase().endsWith(".world.json")) {
     return { error: "not a world document" };
+  }
+  if (world.split("/").includes("..")) {
+    return { error: "path escapes the project" };
   }
   return { key: `${root}\0${world}`, project: root, world };
 }
@@ -174,6 +192,45 @@ function sendSnapshot(sub: Sub, doc: Doc) {
       )
     );
   }
+  if (event?.type === "state") sendSerialTails(sub, doc);
+}
+
+function ringOf(doc: Doc, board: string): SerialRing {
+  let ring = doc.serial.get(board);
+  if (!ring) {
+    ring = new SerialRing();
+    doc.serial.set(board, ring);
+  }
+  return ring;
+}
+
+function sendSerialTails(sub: Sub, doc: Doc) {
+  for (const id of Object.keys(doc.lastState?.boards ?? {})) {
+    const ring = doc.serial.get(id);
+    if (!ring || ring.next === 0) continue;
+    const page = ring.tail(SERIAL_TEXT_MAX);
+    if (!page.text) continue;
+    sub.delivered = true;
+    sub.onEvent(
+      structuredClone({
+        type: "serial",
+        board: id,
+        text: page.text,
+        next: page.next,
+      } satisfies WorldServerMessage)
+    );
+  }
+}
+
+function resetSerial(doc: Doc) {
+  doc.serial = new Map();
+  doc.rx = new Map();
+  doc.rxSent = new Map();
+}
+
+function clearRxBook(doc: Doc, board: string) {
+  doc.rx.delete(board);
+  doc.rxSent.delete(board);
 }
 
 function refreshDeps(doc: Doc) {
@@ -245,6 +302,50 @@ function listen(doc: Doc, worker: Worker) {
       broadcast(doc, { type: "state", state: message.state });
       return;
     }
+    if (message.type === "serial") {
+      for (const chunk of message.chunks) {
+        const ring = ringOf(doc, chunk.board);
+        const before = ring.next;
+        ring.append(chunk.text);
+        const page = ring.read(before);
+        broadcast(doc, {
+          type: "serial",
+          board: chunk.board,
+          text: page.text,
+          next: page.next,
+        });
+      }
+      return;
+    }
+    if (message.type === "boardReset") {
+      clearRxBook(doc, message.board);
+      const ring = ringOf(doc, message.board);
+      ring.clear(message.marker);
+      const page = ring.read(ring.next - message.marker.length);
+      broadcast(doc, {
+        type: "serial",
+        board: message.board,
+        text: page.text || message.marker,
+        next: ring.next,
+      });
+      return;
+    }
+    if (message.type === "boardFault") {
+      clearRxBook(doc, message.board);
+      broadcast(doc, {
+        type: "board-error",
+        board: message.board,
+        message: message.message,
+      });
+      return;
+    }
+    if (message.type === "rx") {
+      doc.rx.set(message.board, {
+        queued: message.queued,
+        accepted: message.accepted,
+      });
+      return;
+    }
     if (message.type === "error") {
       doc.errorMessage = message.message;
       if (message.errors.length > 0) {
@@ -301,6 +402,7 @@ async function spawn(doc: Doc): Promise<void> {
   liveWorkers.add(worker);
   doc.worker = worker;
   doc.generation += 1;
+  resetSerial(doc);
   const generation = doc.generation;
   listen(doc, worker);
   const pending = waitForResult(worker, generation);
@@ -334,6 +436,7 @@ async function reload(doc: Doc): Promise<void> {
     return;
   }
   doc.generation += 1;
+  resetSerial(doc);
   const generation = doc.generation;
   const pending = waitForResult(worker, generation);
   worker.postMessage({ type: "reload", generation } satisfies ToWorker);
@@ -369,7 +472,12 @@ async function load(doc: Doc, reason: "attach" | "change"): Promise<void> {
   if (!doc.worker) await spawn(doc);
   else await reload(doc);
   refreshDeps(doc);
+  refreshFirmware(doc);
   doc.ready = true;
+}
+
+function refreshFirmware(doc: Doc) {
+  doc.firmware = firmwareWatch(doc.project, doc.world);
 }
 
 function startLoad(doc: Doc, reason: "attach" | "change"): Promise<void> {
@@ -396,9 +504,32 @@ function startLoad(doc: Doc, reason: "attach" | "change"): Promise<void> {
 function onWatched(doc: Doc) {
   setImmediate(() => {
     if (!docs.has(doc.key)) return;
+    if (doc.busy) {
+      void doc.busy.then(() => {
+        if (docs.has(doc.key)) onWatched(doc);
+      });
+      return;
+    }
     const stamp = dependencyStamp(doc.project, doc.deps);
-    if (stamp === doc.stamp) return;
-    void startLoad(doc, "change");
+    if (stamp !== doc.stamp) {
+      void startLoad(doc, "change");
+      return;
+    }
+    const next = firmwareWatch(doc.project, doc.world);
+    const changed = next.filter((item) => {
+      const prev = doc.firmware.find((row) => row.id === item.id);
+      return !prev || prev.rel !== item.rel || prev.stamp !== item.stamp;
+    });
+    doc.firmware = next;
+    if (changed.length === 0) return;
+    if (!doc.worker || (doc.errors && doc.errors.length > 0)) return;
+    for (const item of changed) {
+      post(doc, {
+        type: "reloadBoard",
+        board: item.id,
+        generation: doc.generation,
+      });
+    }
   });
 }
 
@@ -434,6 +565,10 @@ function ensure(project: string, worldRel: string): Doc | { error: string } {
       unwatch: null,
       deps: dependencyRels(named.project, named.world),
       stamp: "",
+      firmware: firmwareWatch(named.project, named.world),
+      serial: new Map(),
+      rx: new Map(),
+      rxSent: new Map(),
       stopping: false,
     };
     doc.stamp = dependencyStamp(doc.project, doc.deps);
@@ -485,6 +620,10 @@ export async function attachWorld(
       }
       post(doc, { type: "step", n, generation: doc.generation });
     },
+    sendSerial(board: string, text: string, nonce?: string) {
+      if (sub.detached) return { error: "world is not running" };
+      return deliverSerial(doc, sub.sender, board, text, nonce);
+    },
     detach() {
       if (sub.detached) return;
       sub.detached = true;
@@ -494,6 +633,137 @@ export async function attachWorld(
     },
   };
   return handle;
+}
+
+const BOARD_ID = /^[A-Za-z_][A-Za-z0-9_-]{0,63}$/;
+
+function rejectSerial(
+  doc: Doc,
+  board: string,
+  message: string,
+  nonce?: string
+): { error: string } {
+  broadcast(doc, {
+    type: "board-error",
+    board,
+    message,
+    ...(nonce ? { nonce } : {}),
+  });
+  return { error: message };
+}
+
+function deliverSerial(
+  doc: Doc,
+  sender: WorldSender,
+  board: string,
+  text: string,
+  nonce?: string
+): { ok: true } | { error: string } {
+  const reject = (message: string) => rejectSerial(doc, board, message, nonce);
+  if (!doc.worker || !doc.lastState) return reject("world is not running");
+  if (doc.errors && doc.errors.length > 0) {
+    return reject(doc.errorMessage ?? "world failed to load");
+  }
+  if (!BOARD_ID.test(board)) return reject("serial needs a board id");
+  if (text.length > SERIAL_TEXT_MAX) {
+    return reject(`serial text is longer than ${SERIAL_TEXT_MAX} characters`);
+  }
+  if (text.length === 0) return reject("serial text is empty");
+  const info = doc.lastState.boards[board];
+  if (!info) return reject(`no board "${board}"`);
+  if (!info.running) {
+    const why = info.fault ? `: ${info.fault}` : "";
+    return reject(`board "${board}" is stopped${why}`);
+  }
+  const sent = doc.rxSent.get(board) ?? 0;
+  const accepted = doc.rx.get(board)?.accepted ?? 0;
+  const queued = Math.max(0, sent - accepted);
+  const bytes = new TextEncoder().encode(text).length;
+  if (queued + bytes > RX_BACKLOG) return reject("serial input is full");
+  doc.rxSent.set(board, sent + bytes);
+  post(doc, {
+    type: "serialIn",
+    board,
+    text,
+    generation: doc.generation,
+  });
+  broadcast(doc, {
+    type: "serial-sent",
+    board,
+    text,
+    by: sender,
+    ...(nonce ? { nonce } : {}),
+  });
+  return { ok: true };
+}
+
+/**
+ * Load the document if nobody has it open yet. Leaves play state alone:
+ * a new run starts paused, and a run that is already playing stays playing.
+ */
+export async function ensureWorldRun(
+  project: string,
+  worldRel: string
+): Promise<{ ok: true } | { error: string }> {
+  const found = ensure(project, worldRel);
+  if ("error" in found) return found;
+  const doc = found;
+  if (doc.busy) await doc.busy;
+  if (!doc.ready || !doc.worker) await startLoad(doc, "attach");
+  if (doc.errors && doc.errors.length > 0) {
+    return {
+      error:
+        doc.errorMessage ?? doc.errors[0]?.message ?? "world failed to load",
+    };
+  }
+  if (!doc.worker || !doc.lastState) return { error: "world did not start" };
+  if (doc.subs.size === 0) armIdle(doc);
+  return { ok: true };
+}
+
+export function readSerial(
+  project: string,
+  worldRel: string,
+  board: string,
+  from = 0
+): SerialPage | { error: string } {
+  const named = docKey(project, worldRel);
+  if ("error" in named) return named;
+  const doc = docs.get(named.key);
+  if (!doc?.worker || !doc.lastState) return { error: "world is not running" };
+  if (!doc.lastState.boards[board]) return { error: `no board "${board}"` };
+  const ring = doc.serial.get(board);
+  if (!ring) return { text: "", next: 0 };
+  return ring.read(from);
+}
+
+export function sendSerial(
+  project: string,
+  worldRel: string,
+  board: string,
+  text: string,
+  sender: WorldSender,
+  nonce?: string
+): { ok: true } | { error: string } {
+  const named = docKey(project, worldRel);
+  if ("error" in named) return named;
+  const doc = docs.get(named.key);
+  if (!doc) return { error: "world is not running" };
+  return deliverSerial(doc, sender, board, text, nonce);
+}
+
+/** Test-only. Bytes waiting on USART0 RX, and how many have been accepted. */
+export function boardRx(
+  project: string,
+  worldRel: string,
+  board: string
+): { queued: number; accepted: number } | { error: string } {
+  const named = docKey(project, worldRel);
+  if ("error" in named) return named;
+  const doc = docs.get(named.key);
+  if (!doc?.lastState) return { error: "world is not running" };
+  if (!doc.lastState.boards[board]) return { error: `no board "${board}"` };
+  return doc.rx.get(board) ?? { queued: 0, accepted: 0 };
 }
 
 /** Test-only. The next `step` on this document throws inside the worker. */

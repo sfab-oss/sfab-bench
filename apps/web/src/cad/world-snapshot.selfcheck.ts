@@ -12,6 +12,7 @@ const live: WorldState = {
   playing: true,
   poses: {},
   joints: {},
+  boards: { uno: { running: true } },
 };
 
 worldStore.setState({

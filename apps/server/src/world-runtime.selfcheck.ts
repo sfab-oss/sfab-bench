@@ -13,11 +13,14 @@ import { Worker } from "node:worker_threads";
 import type { WorldServerMessage } from "@sfab-bench/contract";
 
 import { handleProjectFile } from "./cad-pkg";
-import { listProjectFiles } from "./projects";
+import { closeRootWatches, listProjectFiles } from "./projects";
+import { RX_BACKLOG } from "./world/board";
 import { projectReal, readerFor } from "./world/files";
 import {
   attachWorld,
+  boardRx,
   faultWorld,
+  readSerial,
   stopWorld,
   type WorldHandle,
   worldWorkerCount,
@@ -826,5 +829,458 @@ const outside = await handleProjectFile(
   armDir
 );
 expect(outside.status === 404, "hex is not a world asset");
+const source = await handleProjectFile(
+  new Request("http://bench.local/api/files/firmware/hold/hold.ino"),
+  armDir
+);
+expect(source.status === 200, `ino status ${source.status}`);
+expect(
+  (source.headers.get("content-type") ?? "").startsWith("text/plain"),
+  `ino type ${source.headers.get("content-type")}`
+);
+expect(
+  (await source.text()).includes("Serial.println"),
+  "ino source is served"
+);
 
+function inOrder(text: string, parts: readonly string[]): boolean {
+  let at = 0;
+  for (const part of parts) {
+    const found = text.indexOf(part, at);
+    if (found < 0) return false;
+    at = found + part.length;
+  }
+  return true;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const serialEvents: WorldServerMessage[] = [];
+let serialHandle: WorldHandle | null = null;
+try {
+  const attached = await withTimeout(
+    attachWorld(armDir, "arm.world.json", {
+      sender: { kind: "loopback", label: "Mac" },
+      onEvent(event) {
+        serialEvents.push(event);
+      },
+    }),
+    20000,
+    "attach hold world"
+  );
+  if ("error" in attached) throw new Error(attached.error);
+  serialHandle = attached;
+  const started = performance.now();
+  serialHandle.step(3500);
+  await withTimeout(
+    waitUntil(() => {
+      const page = readSerial(armDir, "arm.world.json", "uno", 0);
+      return !("error" in page) && page.text.includes("120\r\n");
+    }, "hold printed 120"),
+    30000,
+    "hold printed 120"
+  );
+  const wallS = (performance.now() - started) / 1000;
+  const page = readSerial(armDir, "arm.world.json", "uno", 0);
+  if ("error" in page) throw new Error(page.error);
+  expect(
+    inOrder(page.text, ["10\r\n", "90\r\n", "120\r\n"]),
+    `serial order ${JSON.stringify(page.text)}`
+  );
+  console.log(
+    `board lockstep rtf ${(3.5 / wallS).toFixed(3)} (3.500 sim s / ${wallS.toFixed(3)} wall s)`
+  );
+  const mid = page.text.indexOf("90\r\n");
+  const newer = readSerial(armDir, "arm.world.json", "uno", mid);
+  if ("error" in newer) throw new Error(newer.error);
+  expect(newer.text === page.text.slice(mid), "from returns only newer text");
+  expect(newer.next === page.next, "next is the ring end");
+  const done = readSerial(armDir, "arm.world.json", "uno", page.next);
+  if ("error" in done) throw new Error(done.error);
+  expect(done.text === "", "from next is empty");
+  expect(
+    serialEvents.some(
+      (event) =>
+        event.type === "serial" &&
+        event.board === "uno" &&
+        event.text.includes("10\r\n")
+    ),
+    "subscriber receives serial"
+  );
+
+  serialHandle.pause();
+  const frozen = readSerial(armDir, "arm.world.json", "uno", 0);
+  if ("error" in frozen) throw new Error(frozen.error);
+  await sleep(300);
+  const still = readSerial(armDir, "arm.world.json", "uno", 0);
+  if ("error" in still) throw new Error(still.error);
+  expect(still.next === frozen.next, "pausing stops serial");
+
+  serialHandle.play();
+  await withTimeout(
+    waitUntil(() => {
+      const live = readSerial(armDir, "arm.world.json", "uno", 0);
+      return !("error" in live) && live.next > frozen.next;
+    }, "serial while playing"),
+    8000,
+    "serial while playing"
+  );
+  serialHandle.pause();
+  const paused = readSerial(armDir, "arm.world.json", "uno", 0);
+  if ("error" in paused) throw new Error(paused.error);
+  await sleep(350);
+  const held = readSerial(armDir, "arm.world.json", "uno", 0);
+  if ("error" in held) throw new Error(held.error);
+  expect(held.next === paused.next, "pause after play stops serial");
+
+  const late: WorldServerMessage[] = [];
+  const lateAttached = await withTimeout(
+    attachWorld(armDir, "arm.world.json", {
+      sender: { kind: "paired", label: "Late" },
+      onEvent(event) {
+        late.push(event);
+      },
+    }),
+    20000,
+    "late serial joiner"
+  );
+  if ("error" in lateAttached) throw new Error(lateAttached.error);
+  const tail = late.find((event) => event.type === "serial");
+  expect(tail?.type === "serial", "late joiner gets a serial tail");
+  if (tail?.type === "serial") {
+    expect(
+      inOrder(tail.text, ["10\r\n", "90\r\n", "120\r\n"]),
+      `late tail ${JSON.stringify(tail.text)}`
+    );
+    expect(tail.board === "uno", "late tail names the board");
+  }
+  lateAttached.detach();
+
+  const beforeSend = serialEvents.length;
+  const sent = serialHandle.sendSerial("uno", "ping", "line-1");
+  expect(!("error" in sent) && sent.ok === true, "serial-send accepted");
+  await waitUntil(
+    () =>
+      serialEvents
+        .slice(beforeSend)
+        .some((event) => event.type === "serial-sent"),
+    "serial-sent echo"
+  );
+  const echo = serialEvents
+    .slice(beforeSend)
+    .find((event) => event.type === "serial-sent");
+  expect(echo?.type === "serial-sent", "echo event");
+  if (echo?.type === "serial-sent") {
+    expect(echo.board === "uno" && echo.text === "ping", "echo text");
+    expect(
+      echo.by.kind === "loopback" && echo.by.label === "Mac",
+      "echo sender"
+    );
+    expect(echo.nonce === "line-1", "echo nonce");
+  }
+  await waitUntil(() => {
+    const rx = boardRx(armDir, "arm.world.json", "uno");
+    return !("error" in rx) && rx.queued === 4 && rx.accepted === 0;
+  }, "rx queued while paused");
+  serialHandle.step(5);
+  await waitUntil(() => {
+    const rx = boardRx(armDir, "arm.world.json", "uno");
+    return !("error" in rx) && rx.accepted > 0;
+  }, "rx reached the USART");
+  const rx = boardRx(armDir, "arm.world.json", "uno");
+  if ("error" in rx) throw new Error(rx.error);
+  console.log(
+    `serial-send reached USART0 RX (hold.ino does not echo): accepted ${rx.accepted}, still queued ${rx.queued}`
+  );
+  const chunk = "x".repeat(1000);
+  let fitted = 0;
+  let full: { error: string } | { ok: true } | undefined;
+  for (let i = 0; i < 8; i++) {
+    const attempt = serialHandle.sendSerial("uno", chunk, `cap-${i}`);
+    if ("error" in attempt) {
+      full = attempt;
+      break;
+    }
+    fitted += 1;
+  }
+  expect(full && "error" in full, "a send past the RX cap is rejected");
+  if (full && "error" in full) {
+    expect(full.error === "serial input is full", full.error);
+  }
+  expect(fitted * chunk.length <= RX_BACKLOG, "accepted sends fit in the cap");
+  await waitUntil(() => {
+    const queued = boardRx(armDir, "arm.world.json", "uno");
+    return (
+      !("error" in queued) &&
+      queued.queued === fitted * chunk.length &&
+      queued.queued <= RX_BACKLOG
+    );
+  }, "rx backlog stayed within the cap");
+  const backlog = boardRx(armDir, "arm.world.json", "uno");
+  if ("error" in backlog) throw new Error(backlog.error);
+  expect(backlog.queued <= RX_BACKLOG, `queued ${backlog.queued}`);
+  console.log(
+    `rx backlog capped at ${RX_BACKLOG}: queued ${backlog.queued} after ${fitted} sends`
+  );
+  const beforeReject = serialEvents.length;
+  const playingAtReject = [...serialEvents]
+    .reverse()
+    .find((event) => event.type === "state");
+  const unknown = serialHandle.sendSerial("missing", "x", "nope");
+  expect("error" in unknown, "unknown board is rejected");
+  const rejection = serialEvents
+    .slice(beforeReject)
+    .find((event) => event.type === "board-error");
+  expect(rejection?.type === "board-error", "rejection is a board-error");
+  if (rejection?.type === "board-error") {
+    expect(rejection.board === "missing", "rejection names the board");
+    expect(rejection.nonce === "nope", "rejection echoes the sender nonce");
+    expect(rejection.message.includes("no board"), rejection.message);
+  }
+  expect(
+    !serialEvents.slice(beforeReject).some((event) => event.type === "error"),
+    "a rejected send is not a world error"
+  );
+  const playingAfter = [...serialEvents]
+    .reverse()
+    .find((event) => event.type === "state");
+  expect(
+    playingAtReject?.type === "state" &&
+      playingAfter?.type === "state" &&
+      playingAfter.state.playing === playingAtReject.state.playing,
+    "a rejected send leaves play state alone"
+  );
+  const emptySend = serialHandle.sendSerial("uno", "", "empty");
+  expect("error" in emptySend, "empty serial is rejected");
+  expect(
+    serialEvents.some(
+      (event) =>
+        event.type === "board-error" &&
+        event.nonce === "empty" &&
+        event.message.includes("empty")
+    ),
+    "empty text is a board-error"
+  );
+} finally {
+  serialHandle?.detach();
+  await stopWorld(armDir, "arm.world.json");
+}
+
+const pairRoot = mkdtempSync(join(tmpdir(), "sfab-world-boards-"));
+cpSync(armDir, pairRoot, { recursive: true });
+const pairDoc = JSON.parse(
+  readFileSync(join(pairRoot, "arm.world.json"), "utf8")
+) as {
+  boards: Record<string, unknown>[];
+};
+pairDoc.boards.push({
+  id: "stall",
+  chip: "atmega328p",
+  board: "uno",
+  firmware: "firmware/stall/stall.hex",
+  source: "firmware/stall/stall.ino",
+  pose: {
+    position: [0.2, 0, 0.006],
+    rotation: [1, 0, 0, 0],
+  },
+  size: [0.0686, 0.0534, 0.012],
+});
+writeFileSync(join(pairRoot, "two.world.json"), JSON.stringify(pairDoc));
+const holdHexPath = join(pairRoot, "firmware/hold/hold.hex");
+const goodHex = readFileSync(holdHexPath);
+const pairEvents: WorldServerMessage[] = [];
+let pairHandle: WorldHandle | null = null;
+try {
+  const attached = await withTimeout(
+    attachWorld(pairRoot, "two.world.json", {
+      sender: { kind: "loopback", label: "Mac" },
+      onEvent(event) {
+        pairEvents.push(event);
+      },
+    }),
+    20000,
+    "attach two boards"
+  );
+  if ("error" in attached) throw new Error(attached.error);
+  pairHandle = attached;
+  pairHandle.step(3500);
+  await withTimeout(
+    waitUntil(() => {
+      const holdPage = readSerial(pairRoot, "two.world.json", "uno", 0);
+      const stallPage = readSerial(pairRoot, "two.world.json", "stall", 0);
+      return (
+        !("error" in holdPage) &&
+        holdPage.text.includes("120\r\n") &&
+        !("error" in stallPage) &&
+        stallPage.text.includes("boot\r\n")
+      );
+    }, "both boards printed"),
+    40000,
+    "both boards printed"
+  );
+  const holdPage = readSerial(pairRoot, "two.world.json", "uno", 0);
+  const stallPage = readSerial(pairRoot, "two.world.json", "stall", 0);
+  if ("error" in holdPage) throw new Error(holdPage.error);
+  if ("error" in stallPage) throw new Error(stallPage.error);
+  expect(
+    inOrder(holdPage.text, ["10\r\n", "90\r\n", "120\r\n"]),
+    `hold ring ${JSON.stringify(holdPage.text)}`
+  );
+  expect(
+    !holdPage.text.includes("boot\r\n"),
+    "hold ring is not the stall firmware"
+  );
+  expect(
+    stallPage.text.includes("boot\r\n"),
+    "stall ring has its own firmware"
+  );
+  expect(
+    !stallPage.text.includes("90\r\n"),
+    "stall ring is not the hold firmware"
+  );
+  // Serial can land before the state tick that closes the step.
+  const atSim = (at: string) => () => {
+    const last = [...pairEvents]
+      .reverse()
+      .find((event) => event.type === "state");
+    return last?.type === "state" && last.state.simTime.toFixed(3) === at;
+  };
+  await waitUntil(atSim("3.500"), "two-board state at 3.5 s");
+  const simBefore =
+    [...pairEvents].reverse().find((event) => event.type === "state") ?? null;
+  expect(simBefore?.type === "state", "two-board state");
+  const simAt = simBefore?.type === "state" ? simBefore.state.simTime : -1;
+  expect(simAt.toFixed(3) === "3.500", `two-board simTime ${simAt}`);
+
+  const stallNext = stallPage.next;
+  writeFileSync(holdHexPath, ":0000000001\n");
+  await withTimeout(
+    waitUntil(() => {
+      const state = [...pairEvents]
+        .reverse()
+        .find((event) => event.type === "state");
+      return (
+        state?.type === "state" &&
+        state.state.boards.uno?.running === false &&
+        (state.state.boards.uno?.fault ?? "").includes("checksum")
+      );
+    }, "bad hex faults uno"),
+    10000,
+    "bad hex faults uno"
+  );
+  const faultEvent = pairEvents.find(
+    (event) => event.type === "board-error" && event.board === "uno"
+  );
+  expect(faultEvent?.type === "board-error", "a board fault is a board-error");
+  if (faultEvent?.type === "board-error") {
+    expect(faultEvent.message.includes("checksum"), faultEvent.message);
+    expect(faultEvent.nonce === undefined, "a firmware fault has no nonce");
+  }
+  expect(
+    !pairEvents.some((event) => event.type === "error"),
+    "a board fault is not a world error"
+  );
+  const faulted = [...pairEvents]
+    .reverse()
+    .find((event) => event.type === "state");
+  expect(faulted?.type === "state", "state after the fault");
+  if (faulted?.type === "state") {
+    expect(faulted.state.boards.uno?.running === false, "uno stopped");
+    expect(
+      (faulted.state.boards.uno?.fault ?? "").includes("checksum"),
+      `uno fault ${faulted.state.boards.uno?.fault ?? ""}`
+    );
+    expect(faulted.state.boards.stall?.running === true, "stall keeps running");
+    expect(
+      faulted.state.simTime.toFixed(3) === "3.500",
+      `fault did not reset simTime ${faulted.state.simTime}`
+    );
+  }
+  const stallHeld = readSerial(pairRoot, "two.world.json", "stall", 0);
+  if ("error" in stallHeld) throw new Error(stallHeld.error);
+  expect(
+    stallHeld.text === stallPage.text,
+    "stall ring survived the other board's fault"
+  );
+  expect(stallHeld.next === stallNext, "stall offsets survived");
+
+  const beforeGood = pairEvents.length;
+  writeFileSync(holdHexPath, goodHex);
+  await withTimeout(
+    waitUntil(
+      () =>
+        pairEvents
+          .slice(beforeGood)
+          .some(
+            (event) =>
+              event.type === "serial" &&
+              event.board === "uno" &&
+              event.text.includes("firmware reloaded")
+          ),
+      "good hex reloads uno"
+    ),
+    10000,
+    "good hex reloads uno"
+  );
+  const recovered = [...pairEvents]
+    .reverse()
+    .find((event) => event.type === "state");
+  expect(recovered?.type === "state", "state after recovery");
+  if (recovered?.type === "state") {
+    expect(
+      recovered.state.boards.uno?.running === true,
+      "uno is running again"
+    );
+    expect(
+      recovered.state.boards.uno?.fault === undefined,
+      "uno fault cleared"
+    );
+    expect(
+      recovered.state.simTime.toFixed(3) === "3.500",
+      `recovery kept simTime ${recovered.state.simTime}`
+    );
+  }
+  pairHandle.step(1200);
+  await waitUntil(() => {
+    const again = readSerial(pairRoot, "two.world.json", "uno", 0);
+    return (
+      !("error" in again) &&
+      again.text.includes("firmware reloaded") &&
+      again.text.includes("10\r\n")
+    );
+  }, "reloaded uno prints");
+  const again = readSerial(pairRoot, "two.world.json", "uno", 0);
+  if ("error" in again) throw new Error(again.error);
+  expect(again.text.includes("firmware reloaded"), "marker is in the new ring");
+  const stallAfter = readSerial(pairRoot, "two.world.json", "stall", 0);
+  if ("error" in stallAfter) throw new Error(stallAfter.error);
+  expect(
+    stallAfter.text === stallPage.text,
+    "stall ring unchanged after uno reloaded"
+  );
+  expect(
+    !stallAfter.text.includes("firmware reloaded"),
+    "reload marker is only on the board whose hex changed"
+  );
+  await waitUntil(atSim("4.700"), "two-board state at 4.7 s");
+  const moved = [...pairEvents]
+    .reverse()
+    .find((event) => event.type === "state");
+  expect(moved?.type === "state", "state after the extra step");
+  if (moved?.type === "state") {
+    expect(
+      moved.state.simTime.toFixed(3) === "4.700",
+      `sim time continued ${moved.state.simTime}`
+    );
+  }
+  console.log("two boards: separate rings, hex fault, and hex reload");
+} finally {
+  pairHandle?.detach();
+  await stopWorld(pairRoot, "two.world.json");
+  rmSync(pairRoot, { recursive: true, force: true });
+}
+
+closeRootWatches();
 console.log("world-runtime.selfcheck ok");
