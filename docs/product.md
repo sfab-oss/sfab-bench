@@ -49,7 +49,7 @@ Do not re-open these unless the human asks.
 - **Tessellation is a loader**, not an adapter. OpenCascade WASM in the API process, and the only one, producing `assembly.json` + `.tess` + `#o…` ([ADR 0002](decisions/0002-step-loader-occt.md), [ADR 0004](decisions/0004-occt-via-opencascade-js.md)). The Python stopgap it replaced is gone.
 - **One process, two HTTPS clients.** Mac tab (loopback trusted) and Quest Browser (paired). No Unity, no APK.
 - **Share the library.** Recents, thread list, messages at rest, pairing. The folder a tab is in stays the tab's (`?project=`, [ADR 0006](decisions/0006-folder-is-a-tab.md)). For a STEP or GLB the viewport stays per client: loaded file, selection, camera, XR, which chat is open, live stream. `show_artifact` moves only the asking client ([ADR 0003](decisions/0003-library-not-viewport.md)). For a world, the run is shared per document — play state, sim time, poses, signals — and the last play or pause shows who sent it. Camera, selection, lens, and scrub stay per client ([ADR 0009](decisions/0009-world-simulation.md)).
-- **This app runs the world.** Physics is MuJoCo. The board is avr8js. Wires are pin-to-pin, plus a power budget. Milestone 1 link meshes are STL or OBJ. Firmware is a `.hex` built outside; this app watches it and restarts the board; source is read-only. rp2040js, `micro-emulator`, 3MF/GLB, `package://`, and RL export are later ([ADR 0009](decisions/0009-world-simulation.md)).
+- **This app runs the world.** Physics is MuJoCo. The board is avr8js. Wires are pin-to-pin, plus a power budget. SPICE/analog, heat, wire resistance, a breadboard view, and KiCad import are out of the format for now and can be added later without breaking it. Milestone 1 link meshes are STL or OBJ. Firmware is a `.hex` built outside; this app watches it and restarts the board; source is read-only. rp2040js, `micro-emulator`, 3MF/GLB, `package://`, and RL export are later ([ADR 0009](decisions/0009-world-simulation.md)).
 - **Desktop composer stays TipTap** for `#` chips (parts, faces, `#o…`). Quest stays plain input + voice.
 - **Electron is a shell, not a client.** It starts the same server and loads the same `https://127.0.0.1:7322` page, and adds exactly one thing a browser cannot do: a native folder dialog ([ADR 0005](decisions/0005-electron-shell.md)). The browser path stays first-class — Quest depends on it.
 - **Ship is a `.app` from GitHub Releases plus `serve`.** No npm until the repo is public. No cask, no auto-update until a notarised `.app` is in a public release.
@@ -82,7 +82,7 @@ Shipped rows stay. Next is the world.
 | 16 | later | ship-02 — `sfab-bench app [dir]`, binary inside the `.app`, "Open at login". Not until the `.app` sits in `/Applications` and launches from the Dock |
 | 17 | later | IWER in the packaged `.app`: confirm the zip does not ship or inject IWER; a future marketing-demo force-install must not leak into Quest LAN or the `.app`. |
 | 18 | **done** | First-run: README + Welcome + user doc point at [sfab-bench-starter](https://github.com/sfab-oss/sfab-bench-starter), which vendors Jake `$cad` and a project Bench skill. No in-app clone. |
-| 19 | **next** | The world ([ADR 0009](decisions/0009-world-simulation.md)). Demo 1: an unmodified `Servo.h` sweep moves a one-joint arm in a `.world.json` on the Mac; the timeline scrubs; the agent can run it and read pulse widths; Quest watches that run and can play or pause. Demo 2 (sensor, ground contact, wheeled robot) is later, as are rp2040js, `micro-emulator`, 3MF/GLB meshes, `package://`, and RL export. |
+| 19 | **next** | The world ([ADR 0009](decisions/0009-world-simulation.md)). Demo 1: an unmodified `Servo.h` sweep moves a one-joint arm in a `.world.json` on the Mac; the timeline scrubs; the agent can run it and read pulse widths; Quest watches that run and can play or pause. Demo 2 (sensor, ground contact, wheeled robot) is later, as are a lone STEP or URDF opening as a world, rp2040js, `micro-emulator`, 3MF/GLB meshes, `package://`, and RL export. |
 
 ## Do not build
 
@@ -95,8 +95,7 @@ Windows anything, merging sfab-cad, merging the `mcu` branch.
 This app does not compile firmware, ship an in-app code editor, or bundle
 a toolchain. The world is one view plus chat.
 ADR 0008 (second domain) lived only on `mcu`, and it is void
-([ADR 0009](decisions/0009-world-simulation.md)). Wiring is pin-to-pin
-plus a power budget: no SPICE, breadboard, or KiCad import in this format.
+([ADR 0009](decisions/0009-world-simulation.md)).
 
 Electron came off this list on 2026-09-14 by direct ask, as a shell only
 ([ADR 0005](decisions/0005-electron-shell.md)). A second UI inside it is

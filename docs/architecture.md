@@ -84,5 +84,6 @@ to every client of that document. Camera, selection, lens, and timeline
 scrub stay per client. That amends the per-browser viewport rule above
 for worlds only. A STEP or GLB viewport stays per browser, as the Model
 section says. Bench still does not author the CAD or compile the firmware.
-rp2040js, `micro-emulator`, 3MF/GLB meshes, `package://`, and RL export
-are later. Sensors and ground contact are demo 2, later.
+rp2040js, `micro-emulator`, 3MF/GLB meshes, `package://`, RL export, and
+a lone STEP or URDF opening as a world are later. Sensors and ground
+contact are demo 2, later.

@@ -47,7 +47,7 @@ environment (ground, primitives, STEP props), boards (a chip and a
 firmware path), and wiring. The server builds one MuJoCo model from that
 file. The file ships with a validator and a Bench skill. A lone STEP or a
 lone URDF opens as a world too — one static object, or one posable robot —
-so there is one viewer.
+so there is one viewer. That opening is later.
 
 ### Robot
 
@@ -101,9 +101,10 @@ simulation, heat, wire resistance, a breadboard view, KiCad import.
 
 Bench never compiles. A board entry names the firmware artifact (`.hex`
 for AVR). The agent or the user builds it with their toolchain (the
-starter documents `arduino-cli`). Bench watches the artifact and restarts
-that board when the file changes, the way a STEP reloads. Source files in
-the folder show read-only. There is no in-app code editor.
+starter documents `arduino-cli`; that firmware section is a follow-up
+after milestone 1). Bench watches the artifact and restarts that board
+when the file changes, the way a STEP reloads. Source files in the
+folder show read-only. There is no in-app code editor.
 
 ### One shared run
 
@@ -131,13 +132,13 @@ product rules.
 
 - **D-001.** Milestone 1 = probes, cleanup on main, and demo 1 (the world document, runtime, Mac and Quest viewers, avr8js board, wires, power budget, timeline, and agent tools). An unmodified Arduino `Servo.h` sweep moves a one-joint arm made of STEP parts, in a world file, on the Mac. The timeline scrubs. The agent can run it and read pulse widths. Demo 2 (a sensor and ground contact) and later stay as rough rows.
 - **D-002.** workspace/process decision, not product.
-- **D-003.** A robot is a `.urdf` in the project, written with `$urdf` (link meshes from `$cad`, bought parts from `$step-parts`) or exported by any CAD tool. Bench converts link meshes to STL for MuJoCo when they are not STL or OBJ. Servos and sensors live in the wiring, not in the URDF. Later, and not blocking: cadgen sidecar mates show read-only pose sliders in the CAD lens.
-- **D-004.** A world is `<name>.world.json`, opened with `?world=`: robots (URDF path and pose), environment (ground, primitives, STEP props), boards (chip and firmware path), and wiring. The server builds the MuJoCo model from it, with a validator and a Bench skill. A lone STEP or URDF opens as a world with one static object or one posable robot, so there is one viewer.
-- **D-005.** `wires` are pin-to-pin pairs, including power and ground: no breadboard, no net names, no discrete resistors. `parts` name a part model and what it drives or reads in the physics. The validator and runtime check missing ground, a PWM part on a non-PWM pin, a voltage mismatch, and two outputs driving each other. A supply is a voltage plus a current limit. Part models draw current by state. Over the limit, voltage sags linearly. Servos lose speed and torque as voltage drops, and a board below brownout resets, which the recording shows. Wires, checks, and the power budget are milestone 1. Out: SPICE, heat, wire resistance, a breadboard view, KiCad import.
-- **D-006.** Bench never compiles. A board names its firmware artifact (`.hex` for AVR). The agent or the user builds it with their toolchain (the starter documents `arduino-cli`). Bench watches that artifact and restarts the board when it changes. Source is read-only. There is no in-app code editor.
+- **D-003.** A robot is a `.urdf` in the project, written with `$urdf` (link meshes from `$cad`, bought parts from `$step-parts`) or exported by any CAD tool. In milestone 1 the link meshes are already `.stl` or `.obj` at paths relative to the URDF (D-010); converting other meshes is later. Servos and sensors live in the wiring, not in the URDF. Later, and not blocking: cadgen sidecar mates show read-only pose sliders in the CAD lens.
+- **D-004.** A world is `<name>.world.json`, opened with `?world=`: robots (URDF path and pose), environment (ground, primitives, STEP props), boards (chip and firmware path), and wiring. The server builds the MuJoCo model from it, with a validator and a Bench skill. A lone STEP or URDF opens as a world with one static object or one posable robot, so there is one viewer. That opening is later.
+- **D-005.** `wires` are pin-to-pin pairs, including power and ground: no breadboard, no net names, no discrete resistors. `parts` name a part model and what it drives or reads in the physics. The validator and runtime check missing ground, a voltage mismatch, and two outputs driving each other. The PWM-capable-pin check applies to `analogWrite` parts, and a Servo may use any digital pin (D-018). The validator warns when an `analogWrite` part sits on D9 or D10 while any Servo is wired. A supply is a voltage plus a current limit. Part models draw current by state. Over the limit, voltage sags linearly. Servos lose speed and torque as voltage drops, and a board below brownout resets, which the recording shows. Wires, checks, and the power budget are milestone 1. Out: SPICE/analog, heat, wire resistance, a breadboard view, KiCad import. Each can be added later without breaking the format.
+- **D-006.** Bench never compiles. A board names its firmware artifact (`.hex` for AVR). The agent or the user builds it with their toolchain (the starter documents `arduino-cli`; that firmware section is a follow-up after milestone 1). Bench watches that artifact and restarts the board when it changes. Source is read-only. There is no in-app code editor.
 - **D-007.** `origin/mcu` stays at `49cda2e` and is never merged. The port starts from main and, onto avr8js, takes the one-machine-per-document host (`emu/host.ts`), `SerialConsole`, `SourceView`, the run/read/send serial tools, and the contract types renamed device → board. Not ported: the vendored esp-emu files, the ESP32 fixtures, `.esp32c3.bin` naming, `experience.ts` and the per-screen chat work from #54, and the DevKit board view. D-009 on that branch (the QEMU fork runner) is void. Deleting the nine merged `feat/mcu-*` remote branches needs its own approval.
 - **D-008.** In milestone 1, Quest opens a world, sees the same server run live and in sync with the Mac, and has one play/pause control in the existing XR chrome. Chat behaves as today. No timeline, board panel, console, or pin inspection in XR. Browser evidence uses IWER.
-- **D-009.** Four cleanup rows, each before the work that needs it: dead-code cuts first, the store split before the world viewer, and chat that survives a restart (stop → `resumeFrom`, no leaked process per thread) plus one shared chat hook for desktop and Quest, both before the agent world tools. Left as notes: pairing scopes, OCCT test-only modules, the recents poll, the chat error path, trust-model docs. Deleting the nine `feat/mcu-*` remote branches is not approved yet.
+- **D-009.** Dead-code cuts first. The store split comes before the world viewer. The one shared chat hook comes before the board tools, which are built on it (D-012). Chat survival across a restart (stop → `resumeFrom`, no leaked process per thread) is already done and is outside milestone 1. Left as notes: pairing scopes, OCCT test-only modules, the recents poll, the chat error path, trust-model docs. The old probe scratch directories and the nine merged `feat/mcu-*` branches are not approved for deletion.
 - **D-010.** Amends D-003 for milestone 1: URDF link meshes are `.stl` or `.obj` at paths relative to the URDF. The validator rejects anything else and hints to export STL with `$cad` (`cadgen stl build`). MuJoCo's URDF compiler runs with `fusestatic` false so every link keeps a body, and the validator warns on duplicate mesh basenames. 3MF/GLB conversion and `package://` resolution are later.
 - **D-011.** Fixture `.hex` files ship with their `.ino` sources, the arduino-cli version, the `arduino:avr` core and Servo library versions, and a NOTICE naming LGPL-2.1. Fixture geometry is authored with `$cad`. No step.parts or other vendor geometry in the repo.
 - **D-012.** Amends D-009: the one shared chat hook runs before the board tools, and those tools are built on it. Chat survival across a restart is already done and leaves milestone 1. The leftover (unfinished-turn handles never leave the sessions map, `chat.ts:327`) stays a note.
