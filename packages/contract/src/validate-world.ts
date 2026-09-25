@@ -11,6 +11,10 @@
  * a signal wire does not feed a supply.
  */
 
+import {
+  wireAdjacency as adjacency,
+  reachableEndpoints as reachable,
+} from "./power-feeds";
 import { resolveUrdfMesh, type UrdfInfo } from "./urdf";
 import {
   type BoardId,
@@ -1542,44 +1546,6 @@ function supplyNodes(doc: WorldDocument): SupplyNode[] {
     positive: `${supply.id}.${preset.positivePin}`,
     ground: `${supply.id}.${preset.groundPin}`,
   }));
-}
-
-function adjacency(
-  doc: WorldDocument,
-  kind: "power" | "ground"
-): Map<string, string[]> {
-  const map = new Map<string, string[]>();
-  const link = (from: string, to: string) => {
-    const list = map.get(from);
-    if (list) list.push(to);
-    else map.set(from, [to]);
-  };
-  for (const wire of doc.wires) {
-    const left = resolveEndpoint(doc, wire[0]);
-    const right = resolveEndpoint(doc, wire[1]);
-    if ("fail" in left || "fail" in right) continue;
-    if (left.spec.kind !== kind || right.spec.kind !== kind) continue;
-    link(wire[0], wire[1]);
-    link(wire[1], wire[0]);
-  }
-  return map;
-}
-
-function reachable(
-  start: string,
-  adjacent: Map<string, string[]>
-): Set<string> {
-  const seen = new Set<string>();
-  const stack = [start];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (current === undefined || seen.has(current)) continue;
-    seen.add(current);
-    for (const next of adjacent.get(current) ?? []) {
-      if (!seen.has(next)) stack.push(next);
-    }
-  }
-  return seen;
 }
 
 function outOfRange(

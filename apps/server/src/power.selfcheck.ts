@@ -10,6 +10,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  boardModels,
+  chipModels,
   partModels,
   supplyPresets,
   type WorldDocument,
@@ -319,6 +321,34 @@ function bootCount(text: string | undefined): number {
   return text ? (text.match(/boot/g) ?? []).length : 0;
 }
 
+/** The first state posted after `from`, not whichever event is last. */
+function stateAfter(
+  events: WorldServerMessage[],
+  from: number
+): Promise<WorldState> {
+  const found = () => {
+    for (const event of events.slice(from)) {
+      if (event.type === "state") return event.state;
+    }
+    return null;
+  };
+  const ready = found();
+  if (ready) return Promise.resolve(ready);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      clearInterval(poll);
+      reject(new Error("timed out waiting for the state after reload"));
+    }, 10000);
+    const poll = setInterval(() => {
+      const state = found();
+      if (!state) return;
+      clearInterval(poll);
+      clearTimeout(timer);
+      resolve(state);
+    }, 15);
+  });
+}
+
 const holdRows = await sample(armDir, "arm.world.json", 3500, 1, ["uno"]);
 let holdMin = Infinity;
 for (const row of holdRows) {
@@ -520,6 +550,73 @@ try {
   console.log(
     `shared rail: hold resets at ${holdReset.state.simTime.toFixed(3)} s, stall at ${stallReset.state.simTime.toFixed(3)} s`
   );
+
+  const reloadRoot = mkdtempSync(join(tmpdir(), "sfab-power-reload-"));
+  try {
+    cpSync(armDir, reloadRoot, { recursive: true });
+    const trace = openTrace(reloadRoot, "arm-stall.world.json");
+    const attached = await trace.attached;
+    if ("error" in attached) throw new Error(attached.error);
+    try {
+      attached.step(524);
+      const browned = await trace.at(0.524);
+      const brownedRail = browned.supplies?.usb;
+      const brownedPart = browned.parts?.servo;
+      expect(
+        browned.boards.uno?.brownout === true &&
+          (brownedRail?.voltage ?? 5) < chipModels.atmega328p.brownoutVoltage &&
+          brownedPart?.state === "idle" &&
+          brownedPart.current === partModels.sg90.current?.idle,
+        `brownout sample ${browned.boards.uno?.brownout} ${brownedRail?.voltage} V ${brownedPart?.state} ${brownedPart?.current} A`
+      );
+      const hexPath = join(reloadRoot, "firmware/stall/stall.hex");
+      const from = trace.events.length;
+      writeFileSync(hexPath, readFileSync(hexPath));
+      const published = await stateAfter(trace.events, from);
+      const rail = published.supplies?.usb;
+      const part = published.parts?.servo;
+      const board = published.boards.uno;
+      const idle = partModels.sg90.current?.idle ?? 0;
+      const draw = boardModels.uno.current + idle;
+      expect(
+        published.simTime.toFixed(3) === "0.524",
+        `reload moved sim to ${published.simTime}`
+      );
+      expect(rail, "reload dropped the supply");
+      expect(
+        part?.state === "idle" && part.current === idle,
+        "servo stays idle"
+      );
+      if (!rail) throw new Error("unreachable");
+      const voltage = supplyVoltage(
+        supplyPresets.usb.voltage,
+        supplyPresets.usb.currentLimit,
+        supplyPresets.usb.rDroop,
+        rail.current
+      );
+      expect(
+        Math.abs(rail.current - draw) < 1e-9 &&
+          Math.abs(rail.voltage - voltage) < 1e-9,
+        `rail ${rail.voltage} V at ${rail.current} A, formula ${voltage} V from ${draw} A`
+      );
+      const under = rail.voltage < chipModels.atmega328p.brownoutVoltage;
+      expect(
+        under
+          ? board?.brownout === true && board.running === false
+          : board?.brownout === false && board.running === true,
+        `running ${board?.running} brownout ${board?.brownout} at ${rail.voltage} V`
+      );
+      expect(!under && rail.voltage === 5, `recovered rail ${rail.voltage} V`);
+      console.log(
+        `hex reload during brownout: ${rail.voltage.toFixed(2)} V, ${rail.current} A, running ${board?.running}, brownout ${board?.brownout}`
+      );
+    } finally {
+      attached.detach();
+      await stopWorld(reloadRoot, "arm-stall.world.json");
+    }
+  } finally {
+    rmSync(reloadRoot, { recursive: true, force: true });
+  }
 } finally {
   rmSync(splitRoot, { recursive: true, force: true });
   rmSync(sharedRoot, { recursive: true, force: true });

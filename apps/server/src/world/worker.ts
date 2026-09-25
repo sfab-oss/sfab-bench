@@ -23,7 +23,7 @@ import {
 } from "./model";
 import { scaleWithVoltage, stepPartMotion, supplyVoltage } from "./power";
 import { blankTrack, type ServoTrack, trackServo } from "./servo";
-import { powerFeeds, servoSignalDrives } from "./wiring";
+import { type PowerFeeds, powerFeeds, servoSignalDrives } from "./wiring";
 
 /**
  * One world, off the API thread. The host starts one of these per open
@@ -90,7 +90,8 @@ let specs: BoardSpec[] = [];
 let boards: AvrBoard[] = [];
 
 type ServoDrive = {
-  boardId: string;
+  /** The live CPU. Replaced when that board's firmware reloads. */
+  board: AvrBoard;
   pinBit: number;
   actuatorId: number;
   jointName: string;
@@ -140,11 +141,15 @@ type SupplySpec = {
 let loads: Load[] = [];
 let boardPower = new Map<string, BoardPower>();
 let supplySpecs: SupplySpec[] = [];
+let partFeeds: PowerFeeds["parts"] = {};
 /**
  * Voltage and current used for the step in progress. Filled from the
  * previous step's part states before the CPUs and the joint move.
  */
 let supplyLive: Record<string, WorldSupplyState> = {};
+/** Reused each step. Cleared at the start of the voltage and pulse passes. */
+const stepDraw = new Map<string, number>();
+const stepPulses = new Map<string, { bit: number; us: number }[]>();
 const faulted = new Set<string>();
 const rxSent = new Map<string, string>();
 let playing = false;
@@ -354,26 +359,22 @@ function restingCurrent(load: Load): number {
 }
 
 /**
- * Wire supplies, then each servo signal. An unwired V+ draws nothing.
- * Speed and torque start at the part-model numbers; each step scales
- * them by the supply voltage at V+.
+ * One power walk per load. `bootBoard` reads this map, so it is filled
+ * before the CPUs start and not again when the servos are bound.
  */
-function bindPower(doc: WorldDocument) {
-  loads = [];
+function fillBoardPower(doc: WorldDocument) {
   const feeds = powerFeeds(doc);
-  supplySpecs = (Array.isArray(doc.supplies) ? doc.supplies : []).map(
-    (supply) => ({
-      id: supply.id,
-      voltage: supply.voltage,
-      currentLimit: supply.currentLimit,
-      rDroop: supply.rDroop,
-    })
-  );
+  partFeeds = feeds.parts;
+  supplySpecs = doc.supplies.map((supply) => ({
+    id: supply.id,
+    voltage: supply.voltage,
+    currentLimit: supply.currentLimit,
+    rDroop: supply.rDroop,
+  }));
   boardPower = new Map();
-  for (const spec of specs) {
-    const model = boardModel(
-      doc.boards.find((item) => item.id === spec.id)?.board ?? ""
-    );
+  for (const spec of boardSpecsOf(doc)) {
+    const row = doc.boards.find((item) => item.id === spec.id);
+    const model = row ? boardModel(row.board) : undefined;
     const chip = chipModel(spec.chip);
     const supplyId = feeds.boards[spec.id] ?? null;
     boardPower.set(spec.id, {
@@ -383,12 +384,20 @@ function bindPower(doc: WorldDocument) {
       resets: 0,
     });
   }
+}
+
+/**
+ * Wire each servo signal. An unwired V+ draws nothing. Speed and torque
+ * start at the part-model numbers; each step scales them by V / V_nom.
+ */
+function bindPower(doc: WorldDocument) {
+  loads = [];
   if (!sim) return;
   const drives = servoSignalDrives(doc);
   for (const part of doc.parts) {
     const model = partModel(part.model);
     if (!model?.current) continue;
-    const supplyId = feeds.parts[part.id] ?? null;
+    const supplyId = partFeeds[part.id] ?? null;
     const signal = drives.find((item) => item.partId === part.id);
     let drive: ServoDrive | null = null;
     if (signal && part.drives && sim) {
@@ -396,17 +405,18 @@ function bindPower(doc: WorldDocument) {
       const actuatorId = sim.index.parts[part.id];
       const speed = model.speedDegPerSec;
       const torque = model.torqueNm;
+      const board = boards.find((item) => item.id === signal.boardId);
       if (
+        board &&
         bit !== undefined &&
         actuatorId !== undefined &&
         speed !== undefined &&
         torque !== undefined
       ) {
-        const board = boards.find((item) => item.id === signal.boardId);
-        board?.watchEdge(bit);
+        board.watchEdge(bit);
         setActuatorTorque(actuatorId, 0);
         drive = {
-          boardId: signal.boardId,
+          board,
           pinBit: bit,
           actuatorId,
           jointName: `${part.drives.robot}/${part.drives.joint}`,
@@ -440,7 +450,8 @@ function bindPower(doc: WorldDocument) {
 function rearmServos(boardId: string, board: AvrBoard) {
   for (const load of loads) {
     const drive = load.drive;
-    if (!drive || drive.boardId !== boardId) continue;
+    if (!drive || drive.board.id !== boardId) continue;
+    drive.board = board;
     board.watchEdge(drive.pinBit);
     drive.track = blankTrack();
     drive.slewing = false;
@@ -457,19 +468,25 @@ function rearmServos(boardId: string, board: AvrBoard) {
  * not recomputed here, so a stall cannot sag the rail it is still using.
  */
 function applySupplyVoltages() {
-  const draw = new Map<string, number>();
-  for (const supply of supplySpecs) draw.set(supply.id, 0);
+  stepDraw.clear();
+  for (const supply of supplySpecs) stepDraw.set(supply.id, 0);
   for (const power of boardPower.values()) {
     if (!power.supplyId) continue;
-    draw.set(power.supplyId, (draw.get(power.supplyId) ?? 0) + power.draw);
+    stepDraw.set(
+      power.supplyId,
+      (stepDraw.get(power.supplyId) ?? 0) + power.draw
+    );
   }
   for (const load of loads) {
     if (!load.supplyId) continue;
-    draw.set(load.supplyId, (draw.get(load.supplyId) ?? 0) + load.current);
+    stepDraw.set(
+      load.supplyId,
+      (stepDraw.get(load.supplyId) ?? 0) + load.current
+    );
   }
   const next: Record<string, WorldSupplyState> = {};
   for (const supply of supplySpecs) {
-    const current = draw.get(supply.id) ?? 0;
+    const current = stepDraw.get(supply.id) ?? 0;
     next[supply.id] = {
       current,
       voltage: supplyVoltage(
@@ -499,6 +516,15 @@ function reloadBoard(id: string) {
   if (index >= 0) boards[index] = next;
   else boards.push(next);
   rearmServos(id, next);
+  // The new image has not run, and this board's servos are idle. Publish
+  // the rail those currents actually draw. A sag that is still under the
+  // brownout voltage holds the new CPU in reset.
+  applySupplyVoltages();
+  const power = boardPower.get(id);
+  if (power?.supplyId && !next.fault) {
+    const voltage = supplyOf(power.supplyId);
+    if (voltage < power.brownoutVoltage) next.holdInReset();
+  }
   rxSent.delete(id);
   faulted.delete(id);
   if (next.running) {
@@ -547,15 +573,19 @@ function supplyOf(id: string | null): number {
 function applyServos() {
   if (!sim) return;
   const simTime = sim.data.time;
-  const pulses = new Map<string, { bit: number; us: number }[]>();
-  for (const board of boards) pulses.set(board.id, board.takePulses());
+  stepPulses.clear();
+  for (const board of boards) {
+    const taken = board.takePulses();
+    if (taken.length > 0) stepPulses.set(board.id, taken);
+  }
   for (const load of loads) {
     const drive = load.drive;
     if (!drive) continue;
-    const cpu = boards.find((item) => item.id === drive.boardId);
-    const driven = Boolean(cpu?.running && !cpu.brownout);
-    const widths = driven
-      ? (pulses.get(drive.boardId) ?? [])
+    const cpu = drive.board;
+    const driven = Boolean(cpu.running && !cpu.brownout);
+    const taken = driven ? stepPulses.get(cpu.id) : undefined;
+    const widths = taken
+      ? taken
           .filter((pulse) => pulse.bit === drive.pinBit)
           .map((pulse) => pulse.us)
       : [];
@@ -674,7 +704,10 @@ function dispose() {
   loads = [];
   boardPower = new Map();
   supplySpecs = [];
+  partFeeds = {};
   supplyLive = {};
+  stepDraw.clear();
+  stepPulses.clear();
   specs = [];
   files = null;
   faulted.clear();
@@ -752,22 +785,7 @@ async function build(): Promise<boolean> {
   files = bytesReader;
   playing = false;
   // Feeds are known before boot: an unwired board does not run.
-  boardPower = new Map();
-  const feeds = powerFeeds(parsed as WorldDocument);
-  for (const spec of boardSpecsOf(parsed)) {
-    const row = (parsed as WorldDocument).boards.find(
-      (item) => item.id === spec.id
-    );
-    const model = row ? boardModel(row.board) : undefined;
-    const chip = chipModel(spec.chip);
-    const supplyId = feeds.boards[spec.id] ?? null;
-    boardPower.set(spec.id, {
-      supplyId,
-      draw: supplyId ? (model?.current ?? 0) : 0,
-      brownoutVoltage: chip?.brownoutVoltage ?? Number.POSITIVE_INFINITY,
-      resets: 0,
-    });
-  }
+  fillBoardPower(parsed as WorldDocument);
   loadBoards(parsed);
   bindPower(parsed as WorldDocument);
   post({ type: "ready", generation, counts: countsOf(compiled) });

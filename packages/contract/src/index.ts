@@ -1,4 +1,5 @@
 export * from "./harness";
+export * from "./power-feeds";
 export * from "./principal";
 export * from "./session";
 export * from "./snapshot";
