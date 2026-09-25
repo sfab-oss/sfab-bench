@@ -31,10 +31,9 @@ export function clientOf(principal: ClientPrincipal): SessionClient {
   return { id: principal.deviceId, label: "Account" };
 }
 
-function emit(event: SessionEvent, except?: SessionSocket) {
+function emit(event: SessionEvent) {
   const payload = JSON.stringify(event);
   for (const socket of sockets) {
-    if (socket === except) continue;
     try {
       socket.send(payload);
     } catch {
