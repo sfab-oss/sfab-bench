@@ -356,6 +356,10 @@ async function pump() {
   } finally {
     pumping = false;
   }
+  // The message that threw was already shifted off. Keep going so a later
+  // step or pause queued behind it is not dropped. A second throw is caught
+  // on the next pump.
+  if (queue.length > 0) void pump();
 }
 
 if (port) {

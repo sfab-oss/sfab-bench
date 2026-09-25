@@ -515,12 +515,233 @@ try {
   }
   expect(worldWorkerCount() === 1, "a caught step fault leaves the thread up");
   expect(process.exitCode == null, "the host process is still running");
+  const lateFault: WorldServerMessage[] = [];
+  const lateFaultAttach = await withTimeout(
+    attachWorld(faultRoot, "arm.world.json", {
+      sender: { kind: "paired", label: "Late" },
+      onEvent(event) {
+        lateFault.push(event);
+      },
+    }),
+    20000,
+    "attach after fault"
+  );
+  if ("error" in lateFaultAttach)
+    throw new Error(String(lateFaultAttach.error));
+  const lateFaultEvent = lateFault.find((event) => event.type === "error");
+  expect(lateFaultEvent?.type === "error", "late joiner receives the fault");
+  if (lateFaultEvent?.type === "error") {
+    expect(
+      lateFaultEvent.message?.includes("injected step fault"),
+      `late fault message ${lateFaultEvent.message ?? ""}`
+    );
+  }
+  console.log("late joiner after step fault: received injected step fault");
+  lateFaultAttach.detach();
 } finally {
   faultHandle?.detach();
   await stopWorld(faultRoot, "arm.world.json");
   rmSync(faultRoot, { recursive: true, force: true });
 }
 expect(worldWorkerCount() === 0, "fault world did not leak a worker");
+
+const twoRoot = mkdtempSync(join(tmpdir(), "sfab-world-two-"));
+cpSync(armDir, twoRoot, { recursive: true });
+writeFileSync(
+  join(twoRoot, "robot/crane.urdf"),
+  `<?xml version="1.0"?>
+<robot name="crane">
+  <link name="stand">
+    <inertial>
+      <origin xyz="0 0 0.02" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="0.00002" ixy="0" ixz="0" iyy="0.00002" iyz="0" izz="0.00002"/>
+    </inertial>
+    <visual>
+      <geometry><box size="0.04 0.04 0.04"/></geometry>
+    </visual>
+  </link>
+  <link name="box">
+    <inertial>
+      <origin xyz="0.05 0 0" rpy="0 0 0"/>
+      <mass value="0.03"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00004" iyz="0" izz="0.00004"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="meshes/base.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="hinge" type="revolute">
+    <parent link="stand"/>
+    <child link="box"/>
+    <origin xyz="0 0 0.04" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="0" upper="2.617993877991494" effort="0.18" velocity="10.472"/>
+    <dynamics damping="0.001" friction="0"/>
+  </joint>
+</robot>
+`
+);
+const twoWorld = JSON.parse(
+  readFileSync(join(twoRoot, "arm.world.json"), "utf8")
+) as {
+  robots: { id: string; urdf: string; pose: unknown }[];
+  parts: {
+    id: string;
+    model: string;
+    drives?: { robot: string; joint: string };
+  }[];
+};
+twoWorld.robots.push({
+  id: "crane",
+  urdf: "robot/crane.urdf",
+  pose: { position: [0.3, 0, 0], rotation: [1, 0, 0, 0] },
+});
+twoWorld.parts.push({
+  id: "elbow",
+  model: "sg90",
+  drives: { robot: "crane", joint: "hinge" },
+});
+writeFileSync(join(twoRoot, "arm.world.json"), JSON.stringify(twoWorld));
+const twoWorker = new Worker(worldWorkerEntry());
+const twoMessages: FromWorker[] = [];
+twoWorker.on("message", (message: FromWorker) => {
+  twoMessages.push(message);
+});
+try {
+  twoWorker.postMessage({
+    type: "load",
+    project: twoRoot,
+    world: "arm.world.json",
+    generation: 1,
+  } satisfies ToWorker);
+  await withTimeout(
+    waitUntil(
+      () => twoMessages.some((message) => message.type === "ready"),
+      "two-robot ready",
+      20000
+    ),
+    20000,
+    "two-robot ready"
+  );
+  const twoReady = twoMessages.find((message) => message.type === "ready");
+  if (!twoReady || twoReady.type !== "ready") {
+    throw new Error("two-robot world did not become ready");
+  }
+  const bodies = twoReady.counts.bodyNames;
+  for (const name of [
+    "arm/base",
+    "arm/upper_arm",
+    "crane/stand",
+    "crane/box",
+  ]) {
+    expect(bodies.includes(name), `${name} missing from ${bodies.join(",")}`);
+  }
+  expect(
+    !bodies.some((name) => name.startsWith("arm/") && name.endsWith("box")),
+    "arm did not take the crane link"
+  );
+  expect(
+    !bodies.some((name) => name.startsWith("crane/") && name.endsWith("base")),
+    "crane did not take the arm link"
+  );
+  expect(
+    twoReady.counts.actuatorNames.includes("servo") &&
+      twoReady.counts.actuatorNames.includes("elbow"),
+    `actuators ${twoReady.counts.actuatorNames.join(",")}`
+  );
+  const jointOf = (robot: string, joint: string) => {
+    const hit = [...twoMessages]
+      .reverse()
+      .find((message) => message.type === "state");
+    if (!hit || hit.type !== "state") return Number.NaN;
+    return hit.state.joints[robot]?.[joint] ?? Number.NaN;
+  };
+  twoWorker.postMessage({
+    type: "setTarget",
+    partId: "elbow",
+    radians: Math.PI / 2,
+    generation: 1,
+  } satisfies ToWorker);
+  twoWorker.postMessage({
+    type: "step",
+    n: 2000,
+    generation: 1,
+  } satisfies ToWorker);
+  await withTimeout(
+    waitUntil(
+      () => {
+        const hit = [...twoMessages]
+          .reverse()
+          .find((message) => message.type === "state");
+        return hit?.type === "state" && hit.state.simTime > 1;
+      },
+      "crane stepped",
+      20000
+    ),
+    20000,
+    "crane stepped"
+  );
+  const hingeOnly = deg(jointOf("crane", "hinge"));
+  const shoulderStill = deg(jointOf("arm", "shoulder"));
+  expect(
+    Math.abs(hingeOnly - 90) < 2,
+    `crane hinge ${hingeOnly.toFixed(3)}° after its own target`
+  );
+  expect(
+    Math.abs(shoulderStill) < 2,
+    `arm shoulder ${shoulderStill.toFixed(3)}° moved with the crane`
+  );
+  twoWorker.postMessage({
+    type: "setTarget",
+    partId: "servo",
+    radians: Math.PI / 2,
+    generation: 1,
+  } satisfies ToWorker);
+  twoWorker.postMessage({
+    type: "step",
+    n: 2000,
+    generation: 1,
+  } satisfies ToWorker);
+  await withTimeout(
+    waitUntil(
+      () => {
+        const hit = [...twoMessages]
+          .reverse()
+          .find((message) => message.type === "state");
+        return (
+          hit?.type === "state" && hit.state.simTime > 3 && !hit.state.playing
+        );
+      },
+      "both robots stepped",
+      20000
+    ),
+    20000,
+    "both robots stepped"
+  );
+  const shoulderMoved = deg(jointOf("arm", "shoulder"));
+  const hingeHeld = deg(jointOf("crane", "hinge"));
+  expect(
+    Math.abs(shoulderMoved - 90) < 2,
+    `arm shoulder ${shoulderMoved.toFixed(3)}° after its own target`
+  );
+  expect(
+    Math.abs(hingeHeld - 90) < 2,
+    `crane hinge ${hingeHeld.toFixed(3)}° moved with the arm`
+  );
+  console.log(
+    `two robots: hinge ${hingeOnly.toFixed(3)}° shoulder ${shoulderStill.toFixed(3)}° then shoulder ${shoulderMoved.toFixed(3)}° hinge ${hingeHeld.toFixed(3)}°`
+  );
+} finally {
+  const twoExit = new Promise<number>((resolve) => {
+    twoWorker.once("exit", (code) => resolve(code));
+  });
+  await twoWorker.terminate();
+  await twoExit;
+  rmSync(twoRoot, { recursive: true, force: true });
+}
 
 const catalog = listProjectFiles(armDir);
 expect(
