@@ -1244,6 +1244,13 @@ try {
     10000,
     "good hex reloads uno"
   );
+  // The reload marker can arrive before the state tick that shows it.
+  await waitUntil(() => {
+    const last = [...pairEvents]
+      .reverse()
+      .find((event) => event.type === "state");
+    return last?.type === "state" && last.state.boards.uno?.running === true;
+  }, "uno running after recovery");
   const recovered = [...pairEvents]
     .reverse()
     .find((event) => event.type === "state");
