@@ -19,7 +19,7 @@ pieces, in that file:
 - `boards` — `chip` (`atmega328p`) and a firmware path (the `.hex`).
   `source` is the `.ino`, shown read-only.
 - `parts` — a part model (`sg90`) and `drives: { robot, joint }`.
-- `supplies` — voltage, current limit, droop resistance.
+- `supplies` — voltage, current limit, series resistance (`rSeries`).
 - `wires` — pin-to-pin pairs, power and ground included:
   `["usb.5V", "uno.5V"]`, `["usb.GND", "uno.GND"]`,
   `["uno.D9", "servo.signal"]`, `["uno.5V", "servo.V+"]`,
@@ -103,8 +103,9 @@ The same widths are on the `part:servo.pulseUs` track.
 degrees (metres for a prismatic joint), and each part's own board and pin
 when several robots share a folder. `warnings` is an array of short
 strings, empty when nothing is wrong: a board whose supply is above
-brownout and below the 3.78 V an ATmega328P needs at 16 MHz, a joint more
-than 1° past its limit, and any validator warning on the document.
+brownout and below the 3.78 V an ATmega328P needs at 16 MHz, a hinge more
+than 1° or a slide more than 1 mm past its limit, and any validator
+warning on the document.
 `read_recording` uses the same array for the range you asked for (the
 worst limit violation in that range, and a 1 ms out-of-SOA dip kept the
 way brownout is). It also returns `manifest`: MuJoCo and avr8js versions,
@@ -115,19 +116,26 @@ built.
 
 ## A reset
 
-Currents follow the part's state, not the voltage. The Uno draws 50 mA.
-An SG90 draws 10 mA idle, 250 mA moving, 700 mA stalled. A stall is
-`|command − measured| > 5°` and `|velocity| < 5°/s`, held 50 ms. The USB
-supply is 5 V, 0.5 A, droop 10 Ω. Above the limit,
-`V = 5 − 10 · (I − 0.5)` with I in amperes, clamped at 0. A stall draws
-0.75 A and the rail falls to 2.5 V. The Uno resets below 2.7 V: pins
-float, the servo goes idle, the voltage recovers, the board boots again,
-and the stall repeats.
+The SG90 is a voltage-mode DC motor. Supply current is 10 mA plus the
+motor current, and the motor current falls as the joint speeds up. The
+Uno draws 50 mA, including while it is in reset. A supply is
+`V = V_nom − rSeries·I` up to `currentLimit`; above that the rail sits
+where the draw equals the limit. USB ("500 mA" port) is 5 V, 0.5 Ω,
+0.9 A. A bench supply is 0.05 Ω with the voltage and current limit in
+the file.
+
+`arm-stall.world.json` is a bench supply at 5 V / 0.3 A. A stall pulls
+that rail to about 1.8 V. The ATmega328P resets below 2.675 V, releases
+above 2.725 V, and stays in reset for 66 ms before the first instruction.
+Pins float from the reset. The recording has a `reset` event at the
+assert and a `reboot` event at the first instruction. The same stall on
+the USB preset stays near 4.6 V and does not reset.
 
 To explain one: `world_restart` `arm-stall.world.json`, `world_step` 2000,
 then `read_recording` from 0 to 2. Expect `resets` ≥ 1 on the board, a
-`reset` event, and a supply frame whose `minVoltage` is under 2.7. The
-serial line says `— brownout reset —`.
+`reset` event, a later `reboot`, and a supply frame whose `minVoltage`
+is under 2.675. The serial line `— brownout reset —` is on the reboot.
+The board status says **in reset** through the 66 ms hold.
 
 ## Not yet
 

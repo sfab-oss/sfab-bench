@@ -78,20 +78,23 @@ driven by `analogWrite` must sit on a PWM-capable pin. A Servo part may
 use any digital pin, because `Servo.h` does. The validator warns when an
 `analogWrite` part sits on D9 or D10 while any Servo is wired.
 
-A supply is a voltage plus a current limit. Part models draw current by
-state — idle, moving, stall — and the current follows the state, not the
-voltage. Up to the limit the voltage stays nominal. Above it,
-`V = V_nom - R_droop · (I - I_limit)`, clamped at 0. Servo speed and
-torque scale with `V / V_nom`. An over-limit draw that puts the board
-under its brownout resets the board, and the recording shows that.
-
-The milestone 1 numbers are part-model data. The Uno draws 50 mA. An SG90
-draws 10 mA idle, 250 mA moving, and 700 mA stalled. A stall is
-`|commanded − measured| > 5°` and `|joint velocity| < 5°/s`, held for 50 ms
-of sim time. The USB supply is 5 V, 500 mA, `R_droop = 10 Ω`. A stall
-draws 750 mA, which gives 2.5 V. The Uno resets below 2.7 V (extended fuse
-`0xFD`). While reset it drives no pins, so the servo goes idle, the
-voltage recovers, the board reboots, and the stall repeats.
+A supply is a nominal voltage, a series resistance, and a hard current
+limit. While the draw is at or under the limit,
+`V = V_nom − R_s · I`. Above it, the rail is the voltage where the
+voltage-dependent loads draw exactly the limit. The Uno draws 50 mA,
+including in reset. An SG90 is a voltage-mode DC motor
+(`I = (V_drive − K·ω) / R`, `τ = η·K·I`); its supply current is 10 mA
+plus `|I_motor|`, with no regeneration. A rail that falls through the
+ATmega328P brown-out detector resets the board, and the recording shows
+that. Revised 2026-09-25 (fidelity): see D-017. The USB "500 mA" preset
+is 5 V, `R_s = 0.5 Ω`, `I_limit = 0.9 A`, and one stalled SG90 sits near
+4.6 V without a reset. A bench preset is `R_s = 0.05 Ω` with the file's
+voltage and current limit; at 5 V / 0.3 A a stall pulls the rail to about
+1.8 V. Reset asserts below 2.675 V and releases above 2.725 V (extended
+fuse `0xFD`, BODLEVEL 2.7 V). The CPU then stays in reset for 66 ms
+before the first instruction. Pins are Hi-Z from the assert. There is
+no bootloader delay on brownout. The recording stamps `reset` when reset
+asserts and `reboot` at the first instruction.
 
 Wires, those checks, and the power budget are all milestone 1. Left out of
 the format until added later, without breaking it: SPICE and other analog
@@ -146,7 +149,7 @@ product rules.
 - **D-014.** Milestone 1 is judged on the pipe in D-001. The vision shows at demo 2, which is later: a sensor, ground contact, a wheeled robot.
 - **D-015.** For worlds only, the run (play state, sim time, poses, signals) is shared per document. Camera, selection, lens, and timeline scrub stay per client. Any client or the agent may play or pause. The last command wins. The event names who sent it, and every client shows it. This ADR records that. ADR 0008 is void.
 - **D-016.** workspace/process decision, not product.
-- **D-017.** Refines D-005. Currents by state, independent of voltage: Uno 50 mA; SG90 idle 10 mA, moving 250 mA, stalled 700 mA. Stall is `|commanded − measured| > 5°` and `|joint velocity| < 5°/s`, held 50 ms of sim time. Voltage stays nominal up to the current limit; above it, `V = V_nom − R_droop · (I − I_limit)`, clamped at 0. USB is 5 V, 500 mA, `R_droop = 10 Ω`. A stall draws 750 mA and gives 2.5 V. The Uno resets below 2.7 V (extended fuse `0xFD`): no pins driven, servo idle, voltage recovers, board reboots, stall repeats, and the recording shows the cycle. Servo speed and torque scale with `V / V_nom`. The numbers are part-model data.
+- **D-017.** Revised 2026-09-25 (fidelity). Refines D-005. The SG90 is a voltage-mode DC motor on the output side, gearbox included: `I_motor = (V_drive − K·ω) / R`, `τ = η·K·I_motor`, with `K = 0.458 V·s/rad`, `R = 7.1 Ω`, `η = 0.57`. `|V_drive| ≤ V_rail` and `V_drive = V_rail · clamp(error / E_sat, −1, 1)`. No pulse for 60 ms is no drive. `E_sat`, joint `frictionloss`, and `armature` are fitted catalog values. `torqueNm` stays the clamp. Idle, moving, and stall are display states only. A supply is `V = V_nom − R_s·I` while `I ≤ I_limit`; above the limit the rail is where the draw equals `I_limit`. USB ("500 mA" port) is 5 V, `R_s = 0.5 Ω`, `I_limit = 0.9 A`. A bench supply takes the user's voltage and current limit with `R_s = 0.05 Ω`. The Uno draws 50 mA, including in reset. Servo supply current is 10 mA plus `|I_motor|`, with no regeneration. The ATmega328P (extended fuse `0xFD`, BODLEVEL 2.7 V) resets below 2.675 V and releases above 2.725 V, then holds reset 66 ms before the first instruction. Pins are Hi-Z from the assert. No bootloader on brownout. The recording stamps `reset` at assert and `reboot` at the first instruction. A stall on a 5 V / 0.3 A bench supply pulls the rail to about 1.8 V and the board resets; the same stall on USB sits near 4.6 V and does not.
 - **D-018.** Amends D-005: a Servo part may use any digital pin. The PWM-capable-pin check applies to parts driven by `analogWrite`. The validator warns when an `analogWrite` part sits on D9 or D10 while any Servo is wired.
 
 ## Contradictions resolved
@@ -198,8 +201,8 @@ is the board.
   MuJoCo model from the world file.
 - Pin-to-pin wires catch a missing ground, a voltage clash, and two
   outputs driving each other. The power budget reproduces a stalled servo
-  sagging a USB supply until the board resets, and the numbers are fixed
-  so that check can fail a test.
+  on a 0.3 A bench supply resetting the board, and a USB port that does
+  not, and the numbers are fixed so that check can fail a test.
 - CAD and firmware stay outside Bench. Bench still does not learn which
   tool wrote them.
 - The Mac, Quest, and the agent watch one run. Demo 1 is a visible pipe:
@@ -225,8 +228,8 @@ is the board.
 
 - The validator rejects a bad mesh and a bad wire, warns on duplicate mesh
   basenames, and warns when `analogWrite` shares D9 or D10 with a Servo.
-- Brownout uses the pinned part-model numbers, so the threshold is not
-  tuned until a test passes.
+- Brownout uses the ATmega328P BODLEVEL 2.7 V thresholds, so the
+  comparator is not tuned until a test passes.
 - Play and pause name who sent the command. Camera, selection, lens, and
   scrub stay on the client, so two people can look at different parts of
   one run.
