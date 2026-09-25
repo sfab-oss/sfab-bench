@@ -102,6 +102,12 @@ export class AvrBoard {
    * changes. Pull-ups themselves are applied here.
    */
   onPinsChanged: (() => void) | null = null;
+  /**
+   * Latest GPIO value reported by each port listener. avr8js copies
+   * that value into PIN after the listener returns, so a same-port
+   * read during the callback has to use this cache.
+   */
+  private liveLevel = new Map<AVRIOPort, number>();
 
   constructor(id: string) {
     this.id = id;
@@ -139,6 +145,7 @@ export class AvrBoard {
     this.pulses = [];
     this.rx = [];
     this.overshoot = 0;
+    this.liveLevel.clear();
   }
 
   /**
@@ -155,6 +162,7 @@ export class AvrBoard {
 
   private mount(program: Uint8Array, keepTx: boolean) {
     const keptTx = keepTx ? this.tx : "";
+    this.liveLevel.clear();
     const words = new Uint16Array(FLASH_BYTES / 2);
     for (let i = 0; i < words.length; i++) {
       const lo = program[i * 2] ?? 0xff;
@@ -220,6 +228,7 @@ export class AvrBoard {
     this.pulses = [];
     this.rx = [];
     this.overshoot = 0;
+    this.liveLevel.clear();
   }
 
   /**
@@ -285,6 +294,7 @@ export class AvrBoard {
   private watchPort(port: AVRIOPort, shift: number, width: number) {
     const mask = (1 << width) - 1;
     port.addListener((value, oldValue) => {
+      this.liveLevel.set(port, value);
       const changed = (value ^ oldValue) & mask;
       if (changed !== 0) {
         this.toggled |= changed << shift;
@@ -416,7 +426,8 @@ export class AvrBoard {
 
   /**
    * Output level of an Arduino bit, or null when the pin is an input
-   * or the CPU is down. The level is the pin the wire actually sees.
+   * or the CPU is down. DDR bits use the port listener's value when
+   * one is cached: avr8js has not written PIN yet at that point.
    */
   outputLevel(bit: number): boolean | null {
     const found = this.pinIndex(bit);
@@ -425,8 +436,12 @@ export class AvrBoard {
     const ddr = cpu.data[found.port.portConfig.DDR] ?? 0;
     const mask = 1 << found.index;
     if ((ddr & mask) === 0) return null;
-    const pin = cpu.data[found.port.portConfig.PIN] ?? 0;
-    return (pin & mask) !== 0;
+    const cached = this.liveLevel.get(found.port);
+    const level =
+      cached !== undefined
+        ? cached
+        : (cpu.data[found.port.portConfig.PIN] ?? 0);
+    return (level & mask) !== 0;
   }
 
   stepMillis() {

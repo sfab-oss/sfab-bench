@@ -41,6 +41,7 @@ import { scaleWithVoltage, stepPartMotion, supplyVoltage } from "./power";
 import { motionRank, RunRecorder, timelineFromRead } from "./record";
 import { blankTrack, type ServoTrack, trackServo } from "./servo";
 import {
+  applyGpioDrives,
   gpioInputNets,
   type PowerFeeds,
   powerFeeds,
@@ -789,19 +790,7 @@ function applyInputNets() {
   if (applyingInputs || inputNets.length === 0) return;
   applyingInputs = true;
   try {
-    for (const net of inputNets) {
-      const board = boards.find((item) => item.id === net.boardId);
-      if (!board) continue;
-      let level: boolean | null = null;
-      for (const driver of net.drivers) {
-        const other = boards.find((item) => item.id === driver.boardId);
-        const driven = other?.outputLevel(driver.bit);
-        if (driven === null || driven === undefined) continue;
-        level = driven;
-        break;
-      }
-      board.setDriven(net.bit, level);
-    }
+    applyGpioDrives(inputNets, boards);
   } finally {
     applyingInputs = false;
   }

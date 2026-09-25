@@ -62,17 +62,26 @@ export function servoSignalDrives(doc: WorldDocument): ServoSignalDrive[] {
 
 export type GpioDriver = { boardId: string; bit: number };
 
+export type GpioInputNet = {
+  boardId: string;
+  bit: number;
+  drivers: GpioDriver[];
+};
+
+/** A board the net resolver can read an output from and drive an input on. */
+export type GpioLevelBoard = {
+  id: string;
+  outputLevel(bit: number): boolean | null;
+  setDriven(bit: number, level: boolean | null): void;
+};
+
 /**
  * Board GPIO pins that share a wire net with another board GPIO.
  * The other pin is a driver only while its DDR says output; this list
  * is the candidates. Catalog `output` is not consulted: a GPIO is an
  * output at runtime when the firmware sets DDR.
  */
-export function gpioInputNets(doc: WorldDocument): {
-  boardId: string;
-  bit: number;
-  drivers: GpioDriver[];
-}[] {
+export function gpioInputNets(doc: WorldDocument): GpioInputNet[] {
   const boards = Array.isArray(doc.boards) ? doc.boards : [];
   const wires = Array.isArray(doc.wires) ? doc.wires : [];
   const gpio = new Map<string, GpioDriver>();
@@ -96,7 +105,7 @@ export function gpioInputNets(doc: WorldDocument): {
     link(wire[0], wire[1]);
     link(wire[1], wire[0]);
   }
-  const out: { boardId: string; bit: number; drivers: GpioDriver[] }[] = [];
+  const out: GpioInputNet[] = [];
   for (const [endpoint, self] of gpio) {
     const seen = new Set<string>();
     const stack = [endpoint];
@@ -123,4 +132,27 @@ export function gpioInputNets(doc: WorldDocument): {
     }
   }
   return out;
+}
+
+/**
+ * First GPIO output on the net wins. The worker calls this from the
+ * port listener (`onPinsChanged`) before that board applies pull-ups.
+ */
+export function applyGpioDrives(
+  nets: readonly GpioInputNet[],
+  boards: readonly GpioLevelBoard[]
+): void {
+  for (const net of nets) {
+    const board = boards.find((item) => item.id === net.boardId);
+    if (!board) continue;
+    let level: boolean | null = null;
+    for (const driver of net.drivers) {
+      const other = boards.find((item) => item.id === driver.boardId);
+      const driven = other?.outputLevel(driver.bit);
+      if (driven === null || driven === undefined) continue;
+      level = driven;
+      break;
+    }
+    board.setDriven(net.bit, level);
+  }
 }

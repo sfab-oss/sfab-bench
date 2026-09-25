@@ -3,7 +3,7 @@ import { assemble } from "avr8js/dist/esm/utils/assembler.js";
 
 import { AvrBoard } from "./world/board";
 import { FLASH_BYTES } from "./world/ihex";
-import { gpioInputNets } from "./world/wiring";
+import { applyGpioDrives, gpioInputNets } from "./world/wiring";
 
 /**
  * avr8js does not resolve INPUT_PULLUP. The bridge holds an undriven
@@ -81,5 +81,158 @@ expect(
   `D2/D3 net ${JSON.stringify(nets)}`
 );
 console.log("pull-up nets: D2 and D3 can drive each other");
+
+/**
+ * D3 is an output on the same port as D2's pull-up. The program writes
+ * HIGH, LOW, HIGH. Each `in` lands in SRAM so the peer's own read is
+ * what we check, and the listener records the same levels.
+ *
+ *   ldi r16, 0x0c / out PORTD   ; D2 pull-up, D3 high, still an input
+ *   ldi r16, 0x08 / out DDRD    ; D3 output HIGH
+ *   in / sts 0x100
+ *   ldi r16, 0x04 / out PORTD   ; D3 LOW, D2 pull-up stays
+ *   in / sts 0x101
+ *   ldi r16, 0x0c / out PORTD   ; D3 HIGH again
+ *   in / sts 0x102
+ */
+function loadProgram(id: string, source: string): AvrBoard {
+  const assembled = assemble(source);
+  expect(assembled.errors.length === 0, assembled.errors.join("; "));
+  const image = new Uint8Array(FLASH_BYTES);
+  image.fill(0xff);
+  image.set(assembled.bytes);
+  const board = new AvrBoard(id);
+  board.load(image);
+  expect(board.running, `${id} did not load`);
+  return board;
+}
+
+/** The worker's listener: resolve nets, then the caller can sample. */
+function bindNets(
+  boards: AvrBoard[],
+  doc: WorldDocument,
+  after: () => void
+): void {
+  const nets = gpioInputNets(doc);
+  expect(nets.length > 0, "expected a GPIO net");
+  let applying = false;
+  const refresh = () => {
+    if (applying) return;
+    applying = true;
+    try {
+      applyGpioDrives(nets, boards);
+    } finally {
+      applying = false;
+    }
+    after();
+  };
+  for (const item of boards) item.onPinsChanged = refresh;
+}
+
+const driverSource = `
+ldi r16, 0x0c
+out 0x0b, r16
+ldi r16, 0x08
+out 0x0a, r16
+in r17, 0x09
+sts 0x100, r17
+ldi r16, 0x04
+out 0x0b, r16
+in r17, 0x09
+sts 0x101, r17
+ldi r16, 0x0c
+out 0x0b, r16
+in r17, 0x09
+sts 0x102, r17
+loop:
+rjmp loop
+`;
+
+const same = loadProgram("uno", driverSource);
+const sameLevels: boolean[] = [];
+bindNets(
+  [same],
+  {
+    boards: [{ id: "uno", board: "uno" }],
+    wires: [["uno.D2", "uno.D3"]],
+  } as WorldDocument,
+  () => {
+    const level = same.outputLevel(3);
+    if (level === null) return;
+    const pins = same.peekPins();
+    expect(!maskHasPin(pins.ddr, "D2"), "D2 became an output");
+    expect(
+      maskHasPin(pins.level, "D2") === level,
+      `same-port D2 ${maskHasPin(pins.level, "D2")} vs D3 ${level}`
+    );
+    sameLevels.push(level);
+  }
+);
+same.stepMillis();
+expect(
+  sameLevels.length === 3 &&
+    sameLevels[0] === true &&
+    sameLevels[1] === false &&
+    sameLevels[2] === true,
+  `same-port listener levels ${sameLevels.join(",")}`
+);
+for (const [addr, high] of [
+  [0x100, true],
+  [0x101, false],
+  [0x102, true],
+] as const) {
+  const byte = same.peekByte(addr);
+  expect(
+    byte !== null && ((byte & 0x04) !== 0) === high,
+    `same-port PIND at ${addr.toString(16)} was ${byte}, want D2 ${high ? "H" : "L"}`
+  );
+}
+console.log("pull-up: same-port D3 output wins HIGH LOW HIGH");
+
+const peerSource = `
+ldi r16, 0x04
+out 0x0b, r16
+loop:
+rjmp loop
+`;
+const driver = loadProgram("uno", driverSource);
+const peer = loadProgram("other", peerSource);
+const crossLevels: boolean[] = [];
+bindNets(
+  [driver, peer],
+  {
+    boards: [
+      { id: "uno", board: "uno" },
+      { id: "other", board: "uno" },
+    ],
+    wires: [["uno.D3", "other.D2"]],
+  } as WorldDocument,
+  () => {
+    const level = driver.outputLevel(3);
+    if (level === null) return;
+    const pins = peer.peekPins();
+    expect(!maskHasPin(pins.ddr, "D2"), "peer D2 became an output");
+    expect(
+      maskHasPin(pins.level, "D2") === level,
+      `cross-board D2 ${maskHasPin(pins.level, "D2")} vs D3 ${level}`
+    );
+    crossLevels.push(level);
+  }
+);
+peer.stepMillis();
+const pulled = peer.peekPins();
+expect(
+  !maskHasPin(pulled.ddr, "D2") && maskHasPin(pulled.level, "D2"),
+  "peer D2 pull-up was not high before the driver wrote"
+);
+driver.stepMillis();
+expect(
+  crossLevels.length === 3 &&
+    crossLevels[0] === true &&
+    crossLevels[1] === false &&
+    crossLevels[2] === true,
+  `cross-board listener levels ${crossLevels.join(",")}`
+);
+console.log("pull-up: cross-board D3 output wins HIGH LOW HIGH");
 
 console.log("pullup.selfcheck ok");
