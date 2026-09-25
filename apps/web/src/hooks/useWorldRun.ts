@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { getDeviceToken } from "@/lib/api";
 import { commandNotice, isOwnCommandNonce } from "@/lib/world-issues";
 import { worldLiveSocketUrl } from "@/lib/world-live-url";
+import { worldCommandNonce } from "@/lib/world-nonce";
 import { worldSocketKey } from "@/lib/world-socket";
 import { invalidateSceneNow } from "@/scene/invalidate";
 import {
@@ -23,7 +24,7 @@ const sentNonces = new Set<string>();
 
 export function sendWorldCommand(type: "play" | "pause") {
   if (socket?.readyState !== WebSocket.OPEN) return;
-  const nonce = crypto.randomUUID();
+  const nonce = worldCommandNonce();
   sentNonces.add(nonce);
   socket.send(JSON.stringify({ type, nonce }));
 }
