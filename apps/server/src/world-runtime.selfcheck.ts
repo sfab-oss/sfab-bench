@@ -137,6 +137,19 @@ const stripped = ensureMujocoCompiler(
 );
 expect(stripped.includes('fusestatic="false"'), "injected fusestatic");
 expect(stripped.includes('discardvisual="false"'), "injected discardvisual");
+const keptCompiler = ensureMujocoCompiler(
+  `<robot name="arm"><mujoco><compiler balanceinertia="true" fusestatic="true" meshdir="meshes"/></mujoco></robot>`
+);
+expect(
+  keptCompiler.includes('balanceinertia="true"'),
+  `balanceinertia survived: ${keptCompiler}`
+);
+expect(keptCompiler.includes('fusestatic="false"'), "fusestatic overridden");
+expect(
+  keptCompiler.includes('discardvisual="false"'),
+  "discardvisual overridden"
+);
+expect(keptCompiler.includes('meshdir=""'), `meshdir overridden: ${keptCompiler}`);
 const bareRoot = mkdtempSync(join(tmpdir(), "sfab-world-bare-"));
 cpSync(armDir, bareRoot, { recursive: true });
 writeFileSync(
@@ -316,6 +329,30 @@ try {
       "sender is A"
     );
   }
+  const eventsC: WorldServerMessage[] = [];
+  const attachedC = await withTimeout(
+    attachWorld(shared, "arm.world.json", {
+      sender: { kind: "paired", label: "Headset C" },
+      onEvent(event) {
+        eventsC.push(event);
+      },
+    }),
+    20000,
+    "attach C"
+  );
+  if ("error" in attachedC) throw new Error(String(attachedC.error));
+  const lateState = eventsC.findIndex((event) => event.type === "state");
+  const lateCommand = eventsC.find((event) => event.type === "command");
+  expect(lateState === 0, "late joiner gets state first");
+  expect(lateCommand?.type === "command", "late joiner gets the last command");
+  if (lateCommand?.type === "command") {
+    expect(lateCommand.command === "pause", "late command is pause");
+    expect(
+      lateCommand.by.kind === "paired" && lateCommand.by.label === "Headset A",
+      "late joiner learns A paused"
+    );
+  }
+  attachedC.detach();
   handleA.step(10);
   const sawStep = (events: WorldServerMessage[], from: number) =>
     events
@@ -332,6 +369,43 @@ try {
   expect(
     JSON.stringify(seqA) === JSON.stringify(seqB),
     "subscribers saw the same states"
+  );
+
+  handleA.play();
+  await waitUntil(
+    () =>
+      eventsB.some((event) => event.type === "state" && event.state.playing),
+    "B sees play"
+  );
+  const beforeStep = eventsB.length;
+  handleA.step(5);
+  await waitUntil(
+    () =>
+      eventsB
+        .slice(beforeStep)
+        .some((event) => event.type === "command" && event.command === "pause"),
+    "step while playing pauses"
+  );
+  const stepPause = eventsB
+    .slice(beforeStep)
+    .find((event) => event.type === "command");
+  expect(stepPause?.type === "command", "step broadcast a command");
+  if (stepPause?.type === "command") {
+    expect(stepPause.command === "pause", "step's command is pause");
+    expect(
+      stepPause.by.kind === "paired" && stepPause.by.label === "Headset A",
+      "step pause names A"
+    );
+  }
+  await waitUntil(
+    () =>
+      eventsB.slice(beforeStep).some(
+        (event) =>
+          event.type === "state" &&
+          !event.state.playing &&
+          event.state.simTime > 0
+      ),
+    "step settled paused"
   );
 
   const beforeReload = eventsB.length;

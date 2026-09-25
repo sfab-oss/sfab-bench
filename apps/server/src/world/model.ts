@@ -109,15 +109,33 @@ function linkNames(xml: string): string[] {
   return names;
 }
 
+const COMPILER_FORCED: ReadonlyArray<readonly [string, string]> = [
+  ["fusestatic", "false"],
+  ["discardvisual", "false"],
+  // Empty so a URDF meshdir does not prefix the VFS paths we write.
+  ["meshdir", ""],
+];
+
+/** Keep every other attribute. Force the three MuJoCo flags this runtime needs. */
+function forceCompilerAttrs(attrs: string): string {
+  let next = attrs.replace(/\/\s*$/, "");
+  for (const [name, value] of COMPILER_FORCED) {
+    const re = new RegExp(`\\b${name}\\s*=\\s*("[^"]*"|'[^']*')`, "i");
+    if (re.test(next)) next = next.replace(re, `${name}="${value}"`);
+    else next += ` ${name}="${value}"`;
+  }
+  return `<compiler${next}/>`;
+}
+
 /**
  * MuJoCo's URDF compiler fuses a static base into the world unless
  * `fusestatic` is false, and it drops visual meshes when `discardvisual`
- * is true. Inject the element when the URDF has none, and force both
- * flags false when it has something else.
+ * is true. Inject the element when the URDF has none, and force those
+ * flags (and `meshdir`) without dropping the rest of the compiler tag.
  */
 export function ensureMujocoCompiler(xml: string): string {
   const stripped = xml.replace(/<!--[\s\S]*?-->/g, "");
-  const compiler = '<compiler fusestatic="false" discardvisual="false"/>';
+  const compiler = forceCompilerAttrs("");
   if (!/<mujoco\b/i.test(stripped)) {
     return stripped.replace(
       /<robot\b[^>]*>/i,
@@ -127,9 +145,8 @@ export function ensureMujocoCompiler(xml: string): string {
   if (!/<compiler\b/i.test(stripped)) {
     return stripped.replace(/<mujoco\b[^>]*>/i, (open) => `${open}${compiler}`);
   }
-  return stripped.replace(
-    /<compiler\b[^>]*>/i,
-    '<compiler fusestatic="false" discardvisual="false"/>'
+  return stripped.replace(/<compiler\b([^>]*)>/i, (_full, attrs: string) =>
+    forceCompilerAttrs(attrs)
   );
 }
 
@@ -259,6 +276,17 @@ export async function compileWorld(
   const mj = await mujoco();
   const vfs = new mj.MjVFS();
   const robotSpecs: MjSpec[] = [];
+  let world: MjSpec | null = null;
+  let model: MjModel | null = null;
+  let returned = false;
+  const release = (obj: { delete: () => void } | null) => {
+    if (!obj) return;
+    try {
+      obj.delete();
+    } catch {
+      /* already freed */
+    }
+  };
   try {
     for (const robot of worldDoc.robots) {
       const raw = files.read(robot.urdf);
@@ -292,28 +320,24 @@ export async function compileWorld(
         addBuffer(vfs, mesh.vfs, bytes);
       }
       const spec = mj.parseXMLString(retargeted.xml, vfs);
+      robotSpecs.push(spec);
       const parseError = mj.mjs_getError(spec);
-      if (parseError) {
-        spec.delete();
-        return { ok: false, errors: [schemaError(parseError)] };
-      }
+      if (parseError) return { ok: false, errors: [schemaError(parseError)] };
       forceCompiler(spec);
       robotSpecs.push(spec);
     }
 
-    const world = mj.parseXMLString(worldXml(worldDoc));
-    const worldError = mj.mjs_getError(world);
-    if (worldError) {
-      world.delete();
-      return { ok: false, errors: [schemaError(worldError)] };
-    }
-    forceCompiler(world);
-    world.option.timestep = TIMESTEP_S;
+    const scene = mj.parseXMLString(worldXml(worldDoc));
+    world = scene;
+    const worldError = mj.mjs_getError(scene);
+    if (worldError) return { ok: false, errors: [schemaError(worldError)] };
+    forceCompiler(scene);
+    scene.option.timestep = TIMESTEP_S;
 
     worldDoc.robots.forEach((robot, i) => {
       const spec = robotSpecs[i];
       if (!spec) return;
-      const mount = mj.mjs_findBody(world, `pose_${robot.id}`);
+      const mount = mj.mjs_findBody(scene, `pose_${robot.id}`);
       if (!mount) {
         throw new Error(`mount for ${robot.id} is missing`);
       }
@@ -325,7 +349,7 @@ export async function compileWorld(
       );
       if (!attached) {
         throw new Error(
-          mj.mjs_getError(world) || `could not attach ${robot.id}`
+          mj.mjs_getError(scene) || `could not attach ${robot.id}`
         );
       }
     });
@@ -334,11 +358,11 @@ export async function compileWorld(
       if (!part.drives) continue;
       const model = partModel(part.model);
       if (model?.drive.kind !== "servo") continue;
-      const defaults = mj.mjs_getSpecDefault(world);
+      const defaults = mj.mjs_getSpecDefault(scene);
       if (!defaults) throw new Error("MuJoCo spec has no default");
       const actuator = mj.mjs_addActuator(world, defaults);
       if (!actuator) {
-        throw new Error(mj.mjs_getError(world) || "could not add an actuator");
+        throw new Error(mj.mjs_getError(scene) || "could not add an actuator");
       }
       mj.mjs_setName(actuator.element, part.id);
       actuator.trntype = mj.mjtTrn.mjTRN_JOINT
@@ -355,9 +379,8 @@ export async function compileWorld(
       if (setErr) throw new Error(setErr);
     }
 
-    let model: MjModel | undefined;
     try {
-      model = mj.mj_compile(world, vfs);
+      model = mj.mj_compile(scene, vfs);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, errors: [schemaError(message)] };
@@ -365,7 +388,7 @@ export async function compileWorld(
     if (!model) {
       return {
         ok: false,
-        errors: [schemaError(mj.mjs_getError(world) || "mj_compile failed")],
+        errors: [schemaError(mj.mjs_getError(scene) || "mj_compile failed")],
       };
     }
 
@@ -400,7 +423,6 @@ export async function compileWorld(
         const mjName = `${robot.id}/${link}`;
         const id = mj.mj_name2id(model, bodyType, mjName);
         if (id < 0) {
-          model.delete();
           return {
             ok: false,
             errors: [
@@ -423,7 +445,6 @@ export async function compileWorld(
         const mjName = `${robot.id}/${joint}`;
         const id = mj.mj_name2id(model, jointType, mjName);
         if (id < 0) {
-          model.delete();
           return {
             ok: false,
             errors: [
@@ -435,7 +456,6 @@ export async function compileWorld(
         }
         const qpos = readNum(model.jnt_qposadr, id);
         if (!Number.isFinite(qpos)) {
-          model.delete();
           return {
             ok: false,
             errors: [schemaError(`Joint "${joint}" has no qpos address.`)],
@@ -452,7 +472,6 @@ export async function compileWorld(
       if (!part.drives) continue;
       const id = mj.mj_name2id(model, actuatorType, part.id);
       if (id < 0) {
-        model.delete();
         return {
           ok: false,
           errors: [schemaError(`Part "${part.id}" has no actuator.`)],
@@ -461,11 +480,21 @@ export async function compileWorld(
       index.parts[part.id] = id;
     }
 
-    for (const spec of robotSpecs) spec.delete();
-    world.delete();
+    for (const spec of robotSpecs) release(spec);
+    robotSpecs.length = 0;
+    release(world);
+    world = null;
+    returned = true;
     return { ok: true, mj, model, vfs, index };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, errors: [schemaError(message)] };
+  } finally {
+    if (!returned) {
+      release(model);
+      release(world);
+      for (const spec of robotSpecs) release(spec);
+      release(vfs);
+    }
   }
 }

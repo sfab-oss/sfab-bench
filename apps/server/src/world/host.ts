@@ -45,6 +45,8 @@ type Doc = {
   worker: Worker | null;
   generation: number;
   lastState: WorldState | null;
+  /** Last play or pause, so a subscriber who attaches later can show who sent it. */
+  lastCommand: { command: "play" | "pause"; by: WorldSender } | null;
   errors: WorldError[] | null;
   errorMessage?: string;
   ready: boolean;
@@ -113,11 +115,33 @@ function snapshot(doc: Doc): WorldServerMessage | null {
   return null;
 }
 
+function announce(
+  doc: Doc,
+  command: "play" | "pause",
+  by: WorldSender
+) {
+  doc.lastCommand = { command, by };
+  broadcast(doc, { type: "command", command, by });
+}
+
 function sendSnapshot(sub: Sub, doc: Doc) {
   const event = snapshot(doc);
-  if (!event) return;
-  sub.delivered = true;
-  sub.onEvent(structuredClone(event));
+  if (event) {
+    sub.delivered = true;
+    sub.onEvent(structuredClone(event));
+  }
+  // The command follows the state, so a late joiner sees who last played
+  // or paused without folding that into the physics snapshot.
+  if (event?.type === "state" && doc.lastCommand) {
+    sub.delivered = true;
+    sub.onEvent(
+      structuredClone({
+        type: "command",
+        command: doc.lastCommand.command,
+        by: doc.lastCommand.by,
+      } satisfies WorldServerMessage)
+    );
+  }
 }
 
 function refreshDeps(doc: Doc) {
@@ -303,7 +327,10 @@ async function load(doc: Doc, reason: "attach" | "change"): Promise<void> {
   const before = doc.stamp;
   refreshDeps(doc);
   if (reason === "change" && doc.stamp === before) return;
-  if (reason === "change") broadcast(doc, { type: "reloaded" });
+  if (reason === "change") {
+    doc.lastCommand = null;
+    broadcast(doc, { type: "reloaded" });
+  }
   if (!doc.worker) await spawn(doc);
   else await reload(doc);
   refreshDeps(doc);
@@ -363,6 +390,7 @@ function ensure(project: string, worldRel: string): Doc | { error: string } {
       worker: null,
       generation: 0,
       lastState: null,
+      lastCommand: null,
       errors: null,
       ready: false,
       busy: null,
@@ -403,17 +431,22 @@ export async function attachWorld(
     play() {
       if (sub.detached || !doc.worker) return;
       if (doc.errors && doc.errors.length > 0) return;
-      broadcast(doc, { type: "command", command: "play", by: sub.sender });
+      announce(doc, "play", sub.sender);
       post(doc, { type: "play", generation: doc.generation });
     },
     pause() {
       if (sub.detached || !doc.worker) return;
       if (doc.errors && doc.errors.length > 0) return;
-      broadcast(doc, { type: "command", command: "pause", by: sub.sender });
+      announce(doc, "pause", sub.sender);
       post(doc, { type: "pause", generation: doc.generation });
     },
     step(n: number) {
       if (sub.detached || !doc.worker) return;
+      if (doc.errors && doc.errors.length > 0) return;
+      if (doc.lastState?.playing) {
+        announce(doc, "pause", sub.sender);
+        doc.lastState = { ...doc.lastState, playing: false };
+      }
       post(doc, { type: "step", n, generation: doc.generation });
     },
     detach() {
