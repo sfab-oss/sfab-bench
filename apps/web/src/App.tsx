@@ -427,7 +427,7 @@ function Overlay({
           </div>
         </div>
       )}
-      <WorldProblemCard />
+      {!session ? <WorldProblemCard /> : null}
       {sceneCrash ? (
         <div className="pointer-events-auto absolute inset-x-4 top-1/2 z-30 mx-auto flex max-w-80 justify-center">
           <CrashCard error={sceneCrash.error} onRetry={sceneCrash.reset} />

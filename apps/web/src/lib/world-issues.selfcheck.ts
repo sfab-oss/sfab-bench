@@ -2,6 +2,8 @@ import {
   commandNotice,
   formatSimTime,
   formatWorldIssues,
+  formatXrErrorLine,
+  formatXrIssueLine,
   isOwnCommandNonce,
   visibleAssetIssues,
 } from "./world-issues";
@@ -56,6 +58,79 @@ expect(
 expect(
   commandNotice("play", { kind: "agent" }) === "Played by agent",
   "agent play"
+);
+expect(
+  commandNotice("pause", { kind: "loopback", label: "Mac" }) ===
+    "Paused by Mac",
+  "mac pause"
+);
+expect(
+  commandNotice("play", { kind: "paired", label: "Quest" }) ===
+    "Played by Quest",
+  "paired play uses the device label"
+);
+expect(
+  commandNotice("pause", { kind: "paired", label: "" }) === "Paused by someone",
+  "a paired sender with no label"
+);
+
+const xrLine = formatXrErrorLine([
+  {
+    code: "missing-file",
+    path: "robots[0].urdf",
+    message:
+      "URDF is missing. Hint: export STL with $cad (`cadgen stl build`).",
+  },
+  {
+    code: "schema",
+    path: "boards[0].size",
+    message: "Size needs three lengths.",
+  },
+  {
+    code: "wires",
+    path: "wires[0]",
+    message: "Missing ground.",
+  },
+]);
+expect(
+  xrLine === "missing-file: URDF is missing. (+2 more)",
+  "headset line keeps the first code and message, and counts the rest"
+);
+expect(!xrLine.includes("Hint:"), "headset line drops the hint");
+expect(!xrLine.includes("robots[0]"), "headset line drops the path");
+expect(
+  formatXrErrorLine([
+    {
+      code: "schema",
+      path: "boards[0].size",
+      message: "Size needs three lengths.",
+    },
+  ]) === "schema: Size needs three lengths.",
+  "a single error has no count"
+);
+expect(
+  formatXrErrorLine([], "could not open this world") ===
+    "error: could not open this world",
+  "a message with no rows still has a line"
+);
+expect(formatXrErrorLine([], "  ") === "", "a blank fallback has no line");
+expect(formatXrErrorLine([]) === "", "no errors has no line");
+
+const mixedErrors = [
+  {
+    code: "schema",
+    path: "boards[0].size",
+    message: "Size needs three lengths.",
+  },
+];
+const mixedAssets = visibleAssetIssues(
+  [{ text: "could not load the URDF" }],
+  mixedErrors
+);
+expect(
+  formatXrIssueLine(mixedErrors, mixedAssets) ===
+    "schema: Size needs three lengths. (+1 more)",
+  "a validator error and a non-mesh asset issue count together"
 );
 
 const meshLine = {

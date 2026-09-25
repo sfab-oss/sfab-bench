@@ -1,5 +1,5 @@
 import { Container, Text } from "@react-three/uikit";
-import { ChevronDown } from "@react-three/uikit-lucide";
+import { ChevronDown, Globe } from "@react-three/uikit-lucide";
 import { useContext, useEffect, useMemo, useState } from "react";
 
 import { useCatalog } from "@/hooks/useCatalog";
@@ -21,12 +21,14 @@ import { asciiSafe } from "@/xr/ui/UikitMarkdown";
 function FileRow({
   name,
   path,
+  kind,
   current,
   depth,
   onPick,
 }: {
   name: string;
   path: string;
+  kind: CatalogEntry["kind"];
   current: string;
   depth: number;
   onPick?: () => void;
@@ -35,10 +37,14 @@ function FileRow({
   const feedback = useContext(FeedbackContext);
   const theme = useXrTheme();
   const active = path === current;
+  const world = kind === "world";
   return (
     <Container
       width="100%"
       flexShrink={0}
+      flexDirection="row"
+      alignItems="center"
+      gap={4}
       padding={6}
       paddingLeft={6 + depth * 12}
       borderRadius={8}
@@ -52,9 +58,15 @@ function FileRow({
         onPick?.();
       }}
     >
-      <Text fontSize={13} color={theme.text}>
+      {world ? <Globe width={12} height={12} color={theme.text} /> : null}
+      <Text fontSize={13} color={theme.text} flexGrow={1}>
         {asciiSafe(name)}
       </Text>
+      {world ? (
+        <Text fontSize={10} color={theme.subtle} flexShrink={0}>
+          World
+        </Text>
+      ) : null}
     </Container>
   );
 }
@@ -146,6 +158,7 @@ function TreeNode({
       <FileRow
         name={node.name}
         path={node.path}
+        kind={node.kind}
         current={current}
         depth={depth}
         onPick={onPick}
@@ -227,7 +240,7 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
     return (
       <Text fontSize={12} color={theme.subtle}>
         {projectPath
-          ? "This folder has no STEP or GLB."
+          ? "This folder has no STEP, GLB, or world."
           : "Open a folder first."}
       </Text>
     );
@@ -245,6 +258,7 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
               key={`recent-${row.path}`}
               name={row.path.split("/").filter(Boolean).pop() ?? row.path}
               path={row.path}
+              kind={row.kind}
               current={current}
               depth={0}
               onPick={onPick}
