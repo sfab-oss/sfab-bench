@@ -515,6 +515,29 @@ try {
   }
   expect(worldWorkerCount() === 1, "a caught step fault leaves the thread up");
   expect(process.exitCode == null, "the host process is still running");
+  const lateFault: WorldServerMessage[] = [];
+  const lateFaultAttach = await withTimeout(
+    attachWorld(faultRoot, "arm.world.json", {
+      sender: { kind: "paired", label: "Late" },
+      onEvent(event) {
+        lateFault.push(event);
+      },
+    }),
+    20000,
+    "attach after fault"
+  );
+  if ("error" in lateFaultAttach)
+    throw new Error(String(lateFaultAttach.error));
+  const lateFaultEvent = lateFault.find((event) => event.type === "error");
+  expect(lateFaultEvent?.type === "error", "late joiner receives the fault");
+  if (lateFaultEvent?.type === "error") {
+    expect(
+      lateFaultEvent.message?.includes("injected step fault"),
+      `late fault message ${lateFaultEvent.message ?? ""}`
+    );
+  }
+  console.log("late joiner after step fault: received injected step fault");
+  lateFaultAttach.detach();
 } finally {
   faultHandle?.detach();
   await stopWorld(faultRoot, "arm.world.json");

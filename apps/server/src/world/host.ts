@@ -128,6 +128,18 @@ function sendSnapshot(sub: Sub, doc: Doc) {
   }
   // The command follows the state, so a late joiner sees who last played
   // or paused without folding that into the physics snapshot.
+  // A runtime fault sets `errorMessage` only. The state snapshot above
+  // does not carry it, so send the fault as its own error event.
+  if (event?.type === "state" && doc.errorMessage) {
+    sub.delivered = true;
+    sub.onEvent(
+      structuredClone({
+        type: "error",
+        errors: [],
+        message: doc.errorMessage,
+      } satisfies WorldServerMessage)
+    );
+  }
   if (event?.type === "state" && doc.lastCommand) {
     sub.delivered = true;
     sub.onEvent(
@@ -203,7 +215,9 @@ function listen(doc: Doc, worker: Worker) {
     if (message.type === "state") {
       doc.lastState = message.state;
       doc.errors = null;
-      doc.errorMessage = undefined;
+      // A caught step fault stays until the run is playing again. The
+      // paused state posted right after the fault must not clear it.
+      if (message.state.playing) doc.errorMessage = undefined;
       broadcast(doc, { type: "state", state: message.state });
       return;
     }
@@ -325,6 +339,7 @@ async function load(doc: Doc, reason: "attach" | "change"): Promise<void> {
   if (reason === "change" && doc.stamp === before) return;
   if (reason === "change") {
     doc.lastCommand = null;
+    doc.errorMessage = undefined;
     broadcast(doc, { type: "reloaded" });
   }
   if (!doc.worker) await spawn(doc);
@@ -337,6 +352,7 @@ function startLoad(doc: Doc, reason: "attach" | "change"): Promise<void> {
   if (doc.busy) {
     return doc.busy.then(() => {
       if (!docs.has(doc.key)) return;
+      // Queued attach is "change": same files must not reload the run just built.
       return startLoad(doc, reason === "attach" ? "change" : reason);
     });
   }
