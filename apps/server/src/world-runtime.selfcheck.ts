@@ -249,9 +249,11 @@ if (!stepped || stepped.type !== "state") {
 }
 const shoulder = stepped.state.joints.arm?.shoulder ?? Number.NaN;
 const shoulderDeg = deg(shoulder);
+// The wired servo overrides setTarget, so follow the sketch's command.
+const commanded = stepped.state.parts?.servo?.commandDeg ?? Number.NaN;
 expect(
-  Math.abs(shoulderDeg - 90) < 2,
-  `shoulder ${shoulderDeg.toFixed(3)}° is within 2° of 90`
+  Math.abs(shoulderDeg - commanded) < 2,
+  `shoulder ${shoulderDeg.toFixed(3)}° is within 2° of the command ${commanded}`
 );
 expect(
   stepped.state.simTime.toFixed(3) === "2.000",

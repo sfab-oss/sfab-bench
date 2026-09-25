@@ -74,7 +74,11 @@ export function trackServo(input: {
     commandDeg = command;
     seen = input.simTime;
   }
-  if (seen !== null && (input.simTime - seen) * 1000 > SIGNAL_GAP_MS) {
+  // Round to whole steps: MuJoCo's time is a float sum of 0.001 s steps.
+  if (
+    seen !== null &&
+    Math.round((input.simTime - seen) * 1000) > SIGNAL_GAP_MS
+  ) {
     pulseUs = null;
     commandDeg = null;
     seen = null;

@@ -159,6 +159,16 @@ const dropped = trackServo({
   speedRadPerSec: radPerSec,
 });
 expect(dropped.limp, "61 ms with no pulse is limp");
+let summed = 0;
+for (let i = 0; i < SIGNAL_GAP_MS; i++) summed += 0.001;
+const summedHeld = trackServo({
+  track: track.track,
+  simTime: summed,
+  pulsesUs: [],
+  qpos: 0,
+  speedRadPerSec: radPerSec,
+});
+expect(!summedHeld.limp, "60 summed 1 ms steps still count as a signal");
 console.log("pulse map: 544/1472/2400, out of range is no signal, clamp 0–180");
 
 const rootReal = projectReal(armDir);
