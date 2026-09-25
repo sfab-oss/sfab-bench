@@ -4,11 +4,12 @@ import {
   atmega328pSoaWarning,
   boardTrackId,
   chipModels,
-  degreesPastLimit,
   extractUrdfJointsAndMeshes,
+  type JointLimitKind,
   jointLimitWarning,
   maskHasPin,
   partTrackId,
+  pastLimitAmount,
   powerFeeds,
   RECORD_FRAME_MS,
   type RecordingEvent,
@@ -205,14 +206,17 @@ function liveWarnings(loaded: Loaded, state: WorldState): string[] {
     }
   }
   const limits = jointLimits(loaded.root, loaded.world, loaded.doc);
+  const units = jointUnits(loaded.root, loaded.world, loaded.doc);
   for (const [robot, names] of Object.entries(state.joints)) {
     for (const [joint, qpos] of Object.entries(names)) {
       const key = `${robot}/${joint}`;
       const limit = limits.get(key);
       if (!limit) continue;
+      const kind = limitKind(units.get(key));
       const text = jointLimitWarning(
         key,
-        degreesPastLimit(qpos, limit.lower, limit.upper)
+        pastLimitAmount(qpos, limit.lower, limit.upper, kind),
+        kind
       );
       if (text) out.push(text);
     }
@@ -230,6 +234,7 @@ function rangeWarnings(
   const feeds = powerFeeds(loaded.doc);
   const soaVoltage = new Map<string, number>();
   const soaSeen = new Set<string>();
+  const units = jointUnits(loaded.root, loaded.world, loaded.doc);
   const past = new Map<string, number>();
   for (const frame of frames) {
     for (const [id, board] of Object.entries(frame.boards)) {
@@ -265,12 +270,17 @@ function rangeWarnings(
         : `${id}: supply was below the 3.78 V the ATmega328P needs at 16 MHz`
     );
   }
-  for (const [joint, deg] of past) {
-    const text = jointLimitWarning(joint, deg);
+  for (const [joint, amount] of past) {
+    const kind = limitKind(units.get(joint));
+    const text = jointLimitWarning(joint, amount, kind);
     if (text) out.push(text);
   }
   out.push(...documentWarnings(loaded));
   return out;
+}
+
+function limitKind(unit: "deg" | "m" | undefined): JointLimitKind {
+  return unit === "m" ? "slide" : "hinge";
 }
 
 function jointUnits(root: string, world: string, doc: WorldDocument) {

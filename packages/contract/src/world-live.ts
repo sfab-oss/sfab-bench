@@ -187,16 +187,45 @@ export function degreesPastLimit(
   lower: number,
   upper: number
 ): number {
-  return (radiansPastLimit(qpos, lower, upper) * 180) / Math.PI;
+  return pastLimitAmount(qpos, lower, upper, "hinge");
 }
 
-/** Null at 1° or under. The text is the agent warning. */
+/** Hinge and ball warn in degrees. A slide warns in metres. */
+export type JointLimitKind = "hinge" | "ball" | "slide";
+
+/** A slide joint warns once it is past its limit by more than 1 mm. */
+export const SLIDE_LIMIT_WARN_M = 0.001;
+
+/**
+ * Overshoot in the unit the warning uses. Hinge and ball are degrees.
+ * A slide stays in metres: its coordinate is already a length.
+ */
+export function pastLimitAmount(
+  qpos: number,
+  lower: number,
+  upper: number,
+  kind: JointLimitKind
+): number {
+  const raw = radiansPastLimit(qpos, lower, upper);
+  if (kind === "slide") return raw;
+  return (raw * 180) / Math.PI;
+}
+
+/**
+ * Null at 1° or under for a hinge or ball, and at 1 mm or under for a
+ * slide. `past` is degrees or metres, matching `kind`.
+ */
 export function jointLimitWarning(
   joint: string,
-  pastDeg: number
+  past: number,
+  kind: JointLimitKind = "hinge"
 ): string | null {
-  if (!(pastDeg > 1)) return null;
-  return `${joint} is ${pastDeg.toFixed(2)}° past its limit`;
+  if (kind === "slide") {
+    if (!(past > SLIDE_LIMIT_WARN_M)) return null;
+    return `${joint} is ${past.toFixed(4)} m past its limit`;
+  }
+  if (!(past > 1)) return null;
+  return `${joint} is ${past.toFixed(2)}° past its limit`;
 }
 
 export type WorldState = {
@@ -397,8 +426,9 @@ export type RecordedFrame = {
   t: number;
   joints: Record<string, Record<string, number>>;
   /**
-   * Max degrees past each joint's limit in the window. 0 when the joint
-   * stayed inside. Folded like `minVoltage`, so a 1 ms spike is kept.
+   * Max overshoot in the window, in degrees for a hinge or ball and in
+   * metres for a slide. 0 when the joint stayed inside. Folded like
+   * `minVoltage`, so a 1 ms spike is kept.
    */
   limitDeg: Record<string, Record<string, number>>;
   poses: Record<string, Record<string, WorldLinkPose>>;

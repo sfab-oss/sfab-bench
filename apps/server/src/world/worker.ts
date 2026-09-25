@@ -9,8 +9,9 @@ import {
   atmega328pSoaWarning,
   boardModel,
   chipModel,
-  degreesPastLimit,
+  type JointLimitKind,
   partModel,
+  pastLimitAmount,
   RECORD_FRAME_MS,
   type RecordedFrame,
   type RecordingInfo,
@@ -308,6 +309,7 @@ type RecLayout = {
     mj: string;
     lower: number;
     upper: number;
+    kind: JointLimitKind;
   }[];
   bodies: { robot: string; link: string; mj: string }[];
   parts: Load[];
@@ -446,7 +448,7 @@ function fillRecorder(full: boolean) {
     const spec = lay.joints[i];
     if (!spec) continue;
     const qpos = scalar(sim.data.jnt(spec.mj).qpos as Float64Array);
-    rec.pastLimit[i] = degreesPastLimit(qpos, spec.lower, spec.upper);
+    rec.pastLimit[i] = pastLimitAmount(qpos, spec.lower, spec.upper, spec.kind);
     if (full) rec.joint[i] = qpos;
   }
   if (full) {
@@ -520,15 +522,22 @@ function openRecorder() {
   const joints: RecLayout["joints"] = [];
   const jointType = sim.mj.mjtObj.mjOBJ_JOINT.value;
   const limits = sim.model.jnt_range as Float64Array;
+  const jntType = sim.model.jnt_type as Int32Array;
+  const slide = sim.mj.mjtJoint.mjJNT_SLIDE.value;
+  const ball = sim.mj.mjtJoint.mjJNT_BALL.value;
   for (const [robot, names] of Object.entries(sim.index.jointNamesByRobot)) {
     for (const [joint, mjName] of Object.entries(names)) {
       const id = sim.mj.mj_name2id(sim.model, jointType, mjName);
+      const type = jntType[id] ?? 0;
+      const kind: JointLimitKind =
+        type === slide ? "slide" : type === ball ? "ball" : "hinge";
       joints.push({
         robot,
         joint,
         mj: mjName,
         lower: limits[id * 2] ?? 0,
         upper: limits[id * 2 + 1] ?? 0,
+        kind,
       });
     }
   }
