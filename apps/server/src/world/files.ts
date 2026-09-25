@@ -1,7 +1,10 @@
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 
-import { extractUrdfJointsAndMeshes } from "@sfab-bench/contract";
+import {
+  extractUrdfJointsAndMeshes,
+  resolveUrdfMesh,
+} from "@sfab-bench/contract";
 
 /**
  * Same containment rule as `projects.insideRoot`. This file does not import
@@ -130,9 +133,8 @@ export function dependencyRels(rootReal: string, worldRel: string): string[] {
     } catch {
       continue;
     }
-    const urdfDir = parentRel(urdfRel);
     for (const mesh of extractUrdfJointsAndMeshes(xml).meshes) {
-      const meshRel = joinRel(urdfDir, mesh);
+      const meshRel = resolveUrdfMesh(urdfRel, mesh);
       if (meshRel) rels.push(meshRel);
     }
   }

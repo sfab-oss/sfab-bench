@@ -65,13 +65,12 @@ db.exec(`
 
 export const MAX_FILE_RECENTS = 12;
 
-type WatchListener = (names: string[]) => void;
+type WatchListener = () => void;
 
 type LiveRoot = {
   revision: number;
   watcher: FSWatcher | null;
   watchTimer: ReturnType<typeof setTimeout> | null;
-  pending: Set<string>;
   listeners: Set<WatchListener>;
 };
 
@@ -97,7 +96,6 @@ function liveOf(root: string): LiveRoot {
       revision: 0,
       watcher: null,
       watchTimer: null,
-      pending: new Set(),
       listeners: new Set(),
     };
     live.set(root, row);
@@ -217,15 +215,12 @@ function startWatch(root: string) {
       const raw = filename ? String(filename) : "";
       const name = raw ? (raw.split(sep)[0] ?? "") : "";
       if (name && skipDir(name)) return;
-      slot.pending.add(raw ? raw.split(sep).join("/") : "");
       if (slot.watchTimer) clearTimeout(slot.watchTimer);
       slot.watchTimer = setTimeout(() => {
-        const names = [...slot.pending];
-        slot.pending.clear();
         bumpCatalog(root);
         for (const fn of slot.listeners) {
           try {
-            fn(names);
+            fn();
           } catch (err) {
             console.error("[watch]", err);
           }

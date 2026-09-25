@@ -11,7 +11,7 @@
  * a signal wire does not feed a supply.
  */
 
-import type { UrdfInfo } from "./urdf";
+import { resolveUrdfMesh, type UrdfInfo } from "./urdf";
 import {
   type BoardId,
   type BoardModel,
@@ -83,7 +83,11 @@ export type WorldValidation = {
 };
 
 export type WorldValidateCtx = {
-  /** `relativePath` is the string written in the document. */
+  /**
+   * `relativePath` is relative to the world file. Mesh paths are not the
+   * filename from the URDF: they are joined onto the URDF's directory first
+   * (`resolveUrdfMesh`).
+   */
   fileExists: (relativePath: string) => boolean;
   /**
    * Joints and mesh filenames for a URDF the caller has already read.
@@ -1126,23 +1130,6 @@ function checkFiles(
 function basename(filename: string): string {
   const parts = filename.split(/[\\/]/);
   return parts[parts.length - 1] ?? filename;
-}
-
-/**
- * A mesh path that `meshMessage` has already accepted, joined onto the
- * URDF's directory. Both are relative to the world file. `..` cannot
- * appear here: the mesh check rejects it, and URDF paths do too.
- */
-function resolveUrdfMesh(urdfRel: string, mesh: string): string | undefined {
-  const slash = urdfRel.lastIndexOf("/");
-  const dir = slash === -1 ? "" : urdfRel.slice(0, slash);
-  const parts: string[] = [];
-  for (const part of `${dir}/${mesh}`.split("/")) {
-    if (part === "" || part === ".") continue;
-    if (part === "..") return undefined;
-    parts.push(part);
-  }
-  return parts.join("/");
 }
 
 function isAbsoluteMesh(filename: string): boolean {

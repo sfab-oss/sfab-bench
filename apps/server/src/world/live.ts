@@ -24,11 +24,13 @@ function reject(socket: Duplex, status: number, reason: string) {
 }
 
 export function worldSender(principal: ClientPrincipal): WorldSender {
-  if (principal.kind === "loopback") return { kind: "loopback", label: "Mac" };
+  // resolveUpgradePrincipal only returns loopback or a paired device.
+  // An account principal is not produced on this path.
   if (principal.kind === "paired") {
     return { kind: "paired", label: principal.label || "Quest" };
   }
-  return { kind: "account", label: "Account" };
+  if (principal.kind === "loopback") return { kind: "loopback", label: "Mac" };
+  throw new Error("an account principal cannot open a world socket");
 }
 
 function parseClient(raw: string): WorldClientMessage | { error: string } {

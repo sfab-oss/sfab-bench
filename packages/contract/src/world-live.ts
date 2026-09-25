@@ -33,7 +33,6 @@ export type WorldState = {
 export type WorldSender =
   | { kind: "loopback"; label: string }
   | { kind: "paired"; label: string }
-  | { kind: "account"; label: string }
   | { kind: "agent" };
 
 /** What a client may send on the world socket. `step` is loopback only. */

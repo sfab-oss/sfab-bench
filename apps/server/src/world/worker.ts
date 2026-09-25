@@ -85,27 +85,16 @@ function countsOf(compiled: CompiledWorld): WorldModelCounts {
   };
 }
 
-function tuple3(value: unknown): [number, number, number] {
-  if (typeof value === "number") return [value, 0, 0];
-  const v = value as ArrayLike<number>;
-  return [Number(v[0] ?? 0), Number(v[1] ?? 0), Number(v[2] ?? 0)];
+function tuple3(value: Float64Array): [number, number, number] {
+  return [value[0] ?? 0, value[1] ?? 0, value[2] ?? 0];
 }
 
-function tuple4(value: unknown): [number, number, number, number] {
-  if (typeof value === "number") return [value, 0, 0, 0];
-  const v = value as ArrayLike<number>;
-  return [
-    Number(v[0] ?? 1),
-    Number(v[1] ?? 0),
-    Number(v[2] ?? 0),
-    Number(v[3] ?? 0),
-  ];
+function tuple4(value: Float64Array): [number, number, number, number] {
+  return [value[0] ?? 1, value[1] ?? 0, value[2] ?? 0, value[3] ?? 0];
 }
 
-function scalar(value: unknown): number {
-  if (typeof value === "number") return value;
-  const v = value as ArrayLike<number>;
-  return Number(v[0] ?? 0);
+function scalar(value: Float64Array): number {
+  return value[0] ?? 0;
 }
 
 function sample(): WorldState | null {
@@ -117,7 +106,10 @@ function sample(): WorldState | null {
     const robot: WorldState["poses"][string] = {};
     for (const [link, mjName] of Object.entries(links)) {
       const body = data.body(mjName);
-      robot[link] = { p: tuple3(body.xpos), q: tuple4(body.xquat) };
+      robot[link] = {
+        p: tuple3(body.xpos as Float64Array),
+        q: tuple4(body.xquat as Float64Array),
+      };
     }
     poses[robotId] = robot;
   }
@@ -125,7 +117,7 @@ function sample(): WorldState | null {
   for (const [robotId, names] of Object.entries(index.jointNamesByRobot)) {
     const robot: WorldState["joints"][string] = {};
     for (const [joint, mjName] of Object.entries(names)) {
-      robot[joint] = scalar(data.jnt(mjName).qpos);
+      robot[joint] = scalar(data.jnt(mjName).qpos as Float64Array);
     }
     joints[robotId] = robot;
   }

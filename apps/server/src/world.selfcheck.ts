@@ -124,6 +124,7 @@ expect(
 );
 
 const urdfInfo = extractUrdfJointsAndMeshes(urdfText);
+expect(urdfInfo.links.join(",") === "base,upper_arm", "link names");
 expect(urdfInfo.joints.join(",") === "shoulder", "shoulder joint");
 expect(
   urdfInfo.meshes.join(",") === "meshes/base.stl,meshes/upper_arm.stl",
@@ -131,10 +132,12 @@ expect(
 );
 
 const commented = extractUrdfJointsAndMeshes(
-  `<!-- <joint name="fake"></joint> <mesh filename="hidden.3mf"/> -->
+  `<!-- <link name="ghost"/> <joint name="fake"></joint> <mesh filename="hidden.3mf"/> -->
+   <link name="base"/>
    <joint name="shoulder" type="revolute"></joint>
    <mesh filename="meshes/base.stl"/>`
 );
+expect(commented.links.join(",") === "base", "commented link ignored");
 expect(commented.joints.join(",") === "shoulder", "commented joint ignored");
 expect(
   commented.meshes.join(",") === "meshes/base.stl",

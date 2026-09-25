@@ -2,6 +2,7 @@ import type { MainModule, MjModel, MjSpec, MjVFS } from "@mujoco/mujoco";
 import {
   extractUrdfJointsAndMeshes,
   partModel,
+  resolveUrdfMesh,
   validateWorld,
   type WorldDocument,
   type WorldError,
@@ -95,18 +96,6 @@ function ctxFor(files: WorldBytes): WorldValidateCtx {
       return extractUrdfJointsAndMeshes(decode(bytes));
     },
   };
-}
-
-function linkNames(xml: string): string[] {
-  const stripped = xml.replace(/<!--[\s\S]*?-->/g, "");
-  const names: string[] = [];
-  for (const tag of stripped.matchAll(/<link\b([^>]*)>/g)) {
-    const attrs = tag[1] ?? "";
-    const match = /(?:^|\s)name\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(attrs);
-    const name = match?.[1] ?? match?.[2];
-    if (name) names.push(name);
-  }
-  return names;
 }
 
 const COMPILER_FORCED: ReadonlyArray<readonly [string, string]> = [
@@ -226,30 +215,8 @@ function namesOf(
   return out;
 }
 
-function readNum(value: unknown, index: number): number {
-  if (typeof value === "number") return index === 0 ? value : Number.NaN;
-  if (ArrayBuffer.isView(value)) {
-    return Number((value as unknown as ArrayLike<number>)[index]);
-  }
-  if (value && typeof value === "object") {
-    const got = (value as { get?: (i: number) => unknown }).get?.(index);
-    if (typeof got === "number") return got;
-    const indexed = (value as Record<number, unknown>)[index];
-    if (typeof indexed === "number") return indexed;
-  }
-  return Number.NaN;
-}
-
-function meshProjectPath(urdfRel: string, mesh: string): string | null {
-  const slash = urdfRel.lastIndexOf("/");
-  const dir = slash === -1 ? "" : urdfRel.slice(0, slash);
-  const parts: string[] = [];
-  for (const part of `${dir}/${mesh}`.split("/")) {
-    if (part === "" || part === ".") continue;
-    if (part === "..") return null;
-    parts.push(part);
-  }
-  return parts.join("/");
+function readNum(value: Int32Array, index: number): number {
+  return value[index] ?? Number.NaN;
 }
 
 function addBuffer(vfs: MjVFS, name: string, bytes: Uint8Array) {
@@ -303,7 +270,7 @@ export async function compileWorld(
       const prepared = ensureMujocoCompiler(decode(raw));
       const retargeted = retargetMeshes(prepared, robot.id);
       for (const mesh of retargeted.meshes) {
-        const rel = meshProjectPath(robot.urdf, mesh.written);
+        const rel = resolveUrdfMesh(robot.urdf, mesh.written);
         const bytes = rel ? files.read(rel) : null;
         if (!bytes) {
           return {
@@ -417,9 +384,10 @@ export async function compileWorld(
     for (const robot of worldDoc.robots) {
       const raw = files.read(robot.urdf);
       if (!raw) continue;
+      const info = extractUrdfJointsAndMeshes(decode(raw));
       const links: Record<string, number> = {};
       const linkMj: Record<string, string> = {};
-      for (const link of linkNames(decode(raw))) {
+      for (const link of info.links) {
         const mjName = `${robot.id}/${link}`;
         const id = mj.mj_name2id(model, bodyType, mjName);
         if (id < 0) {
@@ -440,7 +408,6 @@ export async function compileWorld(
 
       const joints: Record<string, number> = {};
       const jointMj: Record<string, string> = {};
-      const info = extractUrdfJointsAndMeshes(decode(raw));
       for (const joint of info.joints) {
         const mjName = `${robot.id}/${joint}`;
         const id = mj.mj_name2id(model, jointType, mjName);
@@ -454,7 +421,7 @@ export async function compileWorld(
             ],
           };
         }
-        const qpos = readNum(model.jnt_qposadr, id);
+        const qpos = readNum(model.jnt_qposadr as Int32Array, id);
         if (!Number.isFinite(qpos)) {
           return {
             ok: false,
