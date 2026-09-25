@@ -30,6 +30,7 @@ import {
 import { cn } from "@/lib/utils";
 import { usePrefs } from "@/state/prefs";
 import { useViewer } from "@/state/viewer";
+import { useWorld } from "@/state/world";
 
 export function DesktopSidebar({
   host,
@@ -41,6 +42,8 @@ export function DesktopSidebar({
   catalog: CatalogState;
 }) {
   const url = useViewer((s) => s.url);
+  const worldPath = useWorld((s) => s.path);
+  const currentPath = worldPath || url;
   const recentFiles = usePrefs((s) => s.recentFiles);
   const {
     project,
@@ -128,7 +131,7 @@ export function DesktopSidebar({
             key={project.path}
             projectPath={project.path}
             files={files}
-            current={url}
+            current={currentPath}
             filter={filter}
             recents={recentFiles}
             error={error}

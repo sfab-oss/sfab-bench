@@ -35,14 +35,23 @@ export type WorldSender =
   | { kind: "paired"; label: string }
   | { kind: "agent" };
 
+/** Play/pause nonce. Optional, and absent on agent commands. */
+export const WORLD_NONCE_MAX = 64;
+
 /** What a client may send on the world socket. `step` is loopback only. */
 export type WorldClientMessage =
-  | { type: "play" }
-  | { type: "pause" }
+  | { type: "play"; nonce?: string }
+  | { type: "pause"; nonce?: string }
   | { type: "step"; n: number };
 
 export type WorldServerMessage =
   | { type: "state"; state: WorldState }
-  | { type: "command"; command: "play" | "pause"; by: WorldSender }
+  | {
+      type: "command";
+      command: "play" | "pause";
+      by: WorldSender;
+      /** Echo of the client nonce. Absent when the sender did not pass one. */
+      nonce?: string;
+    }
   | { type: "reloaded" }
   | { type: "error"; errors: WorldError[]; message?: string };

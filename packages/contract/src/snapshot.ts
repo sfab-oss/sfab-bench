@@ -12,6 +12,10 @@ export type ViewerSnapshot = {
   selectedName: string | null;
   tree: ViewerTreeItem[];
   partCount: number;
+  /** Present when the open document is a world. */
+  playing?: boolean;
+  /** Seconds. Present when the open document is a world. */
+  simTime?: number;
 };
 
 export type CatalogEntry = {

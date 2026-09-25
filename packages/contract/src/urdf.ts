@@ -15,7 +15,7 @@ export type UrdfInfo = {
   meshes: string[];
 };
 
-function decodeXml(text: string): string {
+export function decodeXml(text: string): string {
   return text
     .replaceAll("&amp;", "&")
     .replaceAll("&quot;", '"')
@@ -24,7 +24,7 @@ function decodeXml(text: string): string {
     .replaceAll("&gt;", ">");
 }
 
-function attr(attrs: string, name: string): string | undefined {
+export function attr(attrs: string, name: string): string | undefined {
   const match = new RegExp(
     `(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`
   ).exec(attrs);

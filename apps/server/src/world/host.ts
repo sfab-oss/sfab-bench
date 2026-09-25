@@ -29,8 +29,8 @@ export type WorldSubscription = {
 };
 
 export type WorldHandle = {
-  play: () => void;
-  pause: () => void;
+  play: (nonce?: string) => void;
+  pause: (nonce?: string) => void;
   step: (n: number) => void;
   detach: () => void;
 };
@@ -46,7 +46,11 @@ type Doc = {
   generation: number;
   lastState: WorldState | null;
   /** Last play or pause, so a subscriber who attaches later can show who sent it. */
-  lastCommand: { command: "play" | "pause"; by: WorldSender } | null;
+  lastCommand: {
+    command: "play" | "pause";
+    by: WorldSender;
+    nonce?: string;
+  } | null;
   errors: WorldError[] | null;
   errorMessage?: string;
   ready: boolean;
@@ -115,9 +119,27 @@ function snapshot(doc: Doc): WorldServerMessage | null {
   return null;
 }
 
-function announce(doc: Doc, command: "play" | "pause", by: WorldSender) {
-  doc.lastCommand = { command, by };
-  broadcast(doc, { type: "command", command, by });
+function commandEvent(
+  command: "play" | "pause",
+  by: WorldSender,
+  nonce?: string
+): WorldServerMessage {
+  return {
+    type: "command",
+    command,
+    by,
+    ...(nonce ? { nonce } : {}),
+  };
+}
+
+function announce(
+  doc: Doc,
+  command: "play" | "pause",
+  by: WorldSender,
+  nonce?: string
+) {
+  doc.lastCommand = { command, by, ...(nonce ? { nonce } : {}) };
+  broadcast(doc, commandEvent(command, by, nonce));
 }
 
 function sendSnapshot(sub: Sub, doc: Doc) {
@@ -143,11 +165,13 @@ function sendSnapshot(sub: Sub, doc: Doc) {
   if (event?.type === "state" && doc.lastCommand) {
     sub.delivered = true;
     sub.onEvent(
-      structuredClone({
-        type: "command",
-        command: doc.lastCommand.command,
-        by: doc.lastCommand.by,
-      } satisfies WorldServerMessage)
+      structuredClone(
+        commandEvent(
+          doc.lastCommand.command,
+          doc.lastCommand.by,
+          doc.lastCommand.nonce
+        )
+      )
     );
   }
 }
@@ -440,16 +464,16 @@ export async function attachWorld(
   if (!sub.detached && !sub.delivered) sendSnapshot(sub, doc);
 
   const handle: WorldHandle = {
-    play() {
+    play(nonce?: string) {
       if (sub.detached || !doc.worker) return;
       if (doc.errors && doc.errors.length > 0) return;
-      announce(doc, "play", sub.sender);
+      announce(doc, "play", sub.sender, nonce);
       post(doc, { type: "play", generation: doc.generation });
     },
-    pause() {
+    pause(nonce?: string) {
       if (sub.detached || !doc.worker) return;
       if (doc.errors && doc.errors.length > 0) return;
-      announce(doc, "pause", sub.sender);
+      announce(doc, "pause", sub.sender, nonce);
       post(doc, { type: "pause", generation: doc.generation });
     },
     step(n: number) {

@@ -14,9 +14,11 @@ import { CadModel } from "@/scene/CadModel";
 import { bindSceneInvalidate } from "@/scene/invalidate";
 import { RecenterOnReset } from "@/scene/RecenterOnReset";
 import { SpawnInFront } from "@/scene/SpawnInFront";
+import { WorldScene } from "@/scene/WorldScene";
 import { prefsStore } from "@/state/prefs";
 import { sceneStore, useScene } from "@/state/scene";
 import { useViewer, viewerStore } from "@/state/viewer";
+import { useWorld } from "@/state/world";
 import { xrUiStore } from "@/state/xr";
 import { HandRig } from "@/xr/hands/HandRig";
 import { HandSkeletons } from "@/xr/hands/HandSkeleton";
@@ -136,6 +138,7 @@ function SceneCrashBridge({
 export function ViewerCanvas() {
   const studio = useStudioColor();
   const url = useViewer((s) => s.url);
+  const worldPath = useWorld((s) => s.path);
   const setPlaced = useScene((s) => s.setPlaced);
   const xrSession = useXrSession();
   const reduceMotion = usePrefersReducedMotion();
@@ -169,12 +172,16 @@ export function ViewerCanvas() {
         >
           <SpawnInFront />
           <RenderErrorBoundary
-            resetKeys={[url]}
+            resetKeys={[url, worldPath]}
             fallback={({ error, reset }) => (
               <SceneCrashBridge error={error} reset={reset} />
             )}
           >
-            <CadModel onFit={onFit} />
+            {worldPath ? (
+              <WorldScene onFit={onFit} />
+            ) : (
+              <CadModel onFit={onFit} />
+            )}
           </RenderErrorBoundary>
         </group>
         <XRGrab />

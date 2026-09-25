@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import type { CatalogEntry } from "@/lib/viewer-snapshot";
 import { prefsStore, usePrefs } from "@/state/prefs";
 import { useViewer } from "@/state/viewer";
+import { useWorld } from "@/state/world";
 
 const EMPTY_COMMANDS: PaletteCommand[] = [];
 
@@ -60,6 +61,8 @@ export function CommandPalette({
   const { setTheme } = useTheme();
   const { project, setDoc } = useProjectSession();
   const url = useViewer((s) => s.url);
+  const worldPath = useWorld((s) => s.path);
+  const currentPath = worldPath || url;
   const { treeOpen, chatOpen, compactChatOpen } = usePrefs(
     useShallow((s) => ({
       treeOpen: s.treeOpen,
@@ -85,7 +88,7 @@ export function CommandPalette({
       files: catalogFiles.map((file) => ({
         name: folderName(file.path),
         path: file.path,
-        current: file.path === url,
+        current: file.path === currentPath,
       })),
       folders: folder.recents
         .filter((row) => row.path !== currentPath)
@@ -104,7 +107,7 @@ export function CommandPalette({
     treeOpen,
     chatVisible,
     catalogFiles,
-    url,
+    currentPath,
   ]);
 
   const items = useMemo(

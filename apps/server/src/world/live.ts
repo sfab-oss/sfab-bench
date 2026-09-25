@@ -1,6 +1,10 @@
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
-import type { WorldClientMessage, WorldSender } from "@sfab-bench/contract";
+import {
+  WORLD_NONCE_MAX,
+  type WorldClientMessage,
+  type WorldSender,
+} from "@sfab-bench/contract";
 import type { WebSocket } from "ws";
 import { WebSocketServer } from "ws";
 
@@ -43,7 +47,18 @@ function parseClient(raw: string): WorldClientMessage | { error: string } {
   if (!value || typeof value !== "object")
     return { error: "message is not an object" };
   const type = (value as { type?: unknown }).type;
-  if (type === "play" || type === "pause") return { type };
+  if (type === "play" || type === "pause") {
+    const nonce = (value as { nonce?: unknown }).nonce;
+    if (nonce === undefined) return { type };
+    if (
+      typeof nonce !== "string" ||
+      nonce.length < 1 ||
+      nonce.length > WORLD_NONCE_MAX
+    ) {
+      return { error: "nonce must be a short string" };
+    }
+    return { type, nonce };
+  }
   if (type === "step") {
     const n = (value as { n?: unknown }).n;
     if (typeof n !== "number" || !Number.isInteger(n) || n < 0) {
@@ -106,8 +121,8 @@ wss.on(
           send(ws, { type: "error", errors: [], message: parsed.error });
           return;
         }
-        if (parsed.type === "play") handle?.play();
-        else if (parsed.type === "pause") handle?.pause();
+        if (parsed.type === "play") handle?.play(parsed.nonce);
+        else if (parsed.type === "pause") handle?.pause(parsed.nonce);
         else if (principal.kind !== "loopback") {
           send(ws, {
             type: "error",

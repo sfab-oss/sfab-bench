@@ -13,6 +13,7 @@ import {
 } from "@/lib/viewer-snapshot";
 import { usePrefs } from "@/state/prefs";
 import { useViewer } from "@/state/viewer";
+import { useWorld } from "@/state/world";
 import { FeedbackContext } from "@/xr/ui/ToolBtn";
 import { useXrTheme } from "@/xr/ui/theme";
 import { asciiSafe } from "@/xr/ui/UikitMarkdown";
@@ -165,6 +166,8 @@ function TreeNode({
 
 export function FilesList({ onPick }: { onPick?: () => void }) {
   const url = useViewer((s) => s.url);
+  const worldPath = useWorld((s) => s.path);
+  const current = worldPath || url;
   const recents = usePrefs((s) => s.recentFiles);
   const projectPath = useProjectSession().project.path;
   const { files, error, ready } = useCatalog(Boolean(projectPath));
@@ -185,8 +188,8 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
           }
         }
       }
-      if (url) {
-        for (const path of catalogAncestors(url)) {
+      if (current) {
+        for (const path of catalogAncestors(current)) {
           if (!next.has(path)) {
             next.add(path);
             changed = true;
@@ -195,7 +198,7 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
       }
       return changed ? next : prev;
     });
-  }, [tree, url]);
+  }, [tree, current]);
 
   const toggle = (path: string) => {
     setExpanded((prev) => {
@@ -242,7 +245,7 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
               key={`recent-${row.path}`}
               name={row.path.split("/").filter(Boolean).pop() ?? row.path}
               path={row.path}
-              current={url}
+              current={current}
               depth={0}
               onPick={onPick}
             />
@@ -259,7 +262,7 @@ export function FilesList({ onPick }: { onPick?: () => void }) {
           <TreeNode
             key={node.type === "dir" ? `d:${node.path}` : node.path}
             node={node}
-            current={url}
+            current={current}
             depth={0}
             expanded={expanded}
             toggle={toggle}

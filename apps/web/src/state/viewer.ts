@@ -1,16 +1,13 @@
 import { useStore as useZustandStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { applyHighlights, clearHighlights } from "@/cad/highlights";
-import {
-  fileLabel,
-  loadCadReview,
-  modelUrl,
-  syncFileQuery,
-} from "@/cad/loadCadReview";
+import { fileLabel, loadCadReview, modelUrl } from "@/cad/loadCadReview";
 import { type CadReview, isAncestor } from "@/cad/review";
+import { syncOpenDocument } from "@/lib/document-query";
 import { projectUrl } from "@/lib/project-query";
 import { invalidateSceneNow } from "@/scene/invalidate";
 import { prefsStore } from "@/state/prefs";
+import { worldStore } from "@/state/world";
 
 export type Tool = "select" | "measure" | "hide";
 export type MeasurePoint = { cadRef: string; point: [number, number, number] };
@@ -41,7 +38,12 @@ export type ViewerState = {
   measure: { a: MeasurePoint | null; b: MeasurePoint | null };
   /** True once the user has orbited; blocks the one-shot settled auto-fit. */
   cameraMoved: boolean;
-  loadModel: (url: string) => Promise<void>;
+  loadModel: (
+    url: string,
+    opts?: { history?: "push" | "replace" }
+  ) => Promise<void>;
+  /** Drop the CAD document without writing the URL. A world open uses this. */
+  clearForDocument: () => void;
   setCameraMoved: (moved: boolean) => void;
   select: (id: number | null, cadRef?: string) => void;
   selectByRef: (ref: string | null) => void;
@@ -83,10 +85,29 @@ export const viewerStore = createStore<ViewerState>()((set, get) => ({
   error: null,
   ...freshView(),
 
-  loadModel: async (next) => {
+  clearForDocument: () => {
+    loadToken += 1;
+    hoveredId = null;
+    clearHighlights();
+    set({
+      url: "",
+      title: fileLabel(""),
+      progress: null,
+      error: null,
+      review: null,
+      ...freshView(),
+    });
+  },
+
+  loadModel: async (next, opts) => {
     const token = ++loadToken;
     clearHighlights();
-    syncFileQuery(next);
+    hoveredId = null;
+    worldStore.getState().close();
+    syncOpenDocument(
+      next ? { kind: "file", path: next } : { kind: "none" },
+      opts?.history ?? "replace"
+    );
     if (!next) {
       set({
         url: "",

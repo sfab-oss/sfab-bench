@@ -159,6 +159,15 @@ function stampUser(last: UIMessage, snapshot: ViewerSnapshot): UIMessage {
   const bits = [`file=${snapshot.file || "(none)"}`];
   if (snapshot.empty) bits.push("empty");
   if (snapshot.selected) bits.push(`selected=${snapshot.selected}`);
+  if (typeof snapshot.playing === "boolean") {
+    bits.push(snapshot.playing ? "playing" : "paused");
+  }
+  if (
+    typeof snapshot.simTime === "number" &&
+    Number.isFinite(snapshot.simTime)
+  ) {
+    bits.push(`simTime=${snapshot.simTime.toFixed(3)}`);
+  }
   const stamp = `[viewer] ${bits.join(" ")}`;
   const parts = last.parts ?? [];
   const texts = parts.filter((p) => p.type === "text");
