@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button";
 import { sendBoardSerial } from "@/hooks/useWorldRun";
 import { apiFetch } from "@/lib/api";
 import { relFromWorldFile } from "@/lib/world-assets";
-import { type BoardConsoleEntry, useBoardConsole } from "@/state/board-console";
+import {
+  type BoardConsoleEntry,
+  clearBoardReject,
+  useBoardConsole,
+} from "@/state/board-console";
 import { useWorld } from "@/state/world";
 
 type BoardMeta = { id: string; source?: string };
@@ -147,6 +151,8 @@ export function BoardPanel() {
               title={selected}
               text={text}
               fault={live?.fault}
+              notice={consoleState.rejects[selected]}
+              onNoticeClear={() => clearBoardReject(selected)}
               onSend={(line) => sendBoardSerial(selected, line)}
             />
           )}

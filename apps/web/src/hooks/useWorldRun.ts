@@ -13,6 +13,7 @@ import { worldSocketKey } from "@/lib/world-socket";
 import { invalidateSceneNow } from "@/scene/invalidate";
 import {
   appendBoardSerial,
+  noteBoardReject,
   noteBoardSent,
   resetBoardConsole,
 } from "@/state/board-console";
@@ -30,6 +31,8 @@ const NOTICE_MS = 3200;
 let socket: WebSocket | null = null;
 /** Nonces this tab has sent and not yet seen echoed. */
 const sentNonces = new Set<string>();
+/** Serial writes this tab sent. A rejection with one of these is ours. */
+const sentSerialNonces = new Set<string>();
 
 export function sendWorldCommand(type: "play" | "pause") {
   if (socket?.readyState !== WebSocket.OPEN) return;
@@ -41,6 +44,7 @@ export function sendWorldCommand(type: "play" | "pause") {
 export function sendBoardSerial(board: string, text: string) {
   if (!board || !text || socket?.readyState !== WebSocket.OPEN) return;
   const nonce = worldCommandNonce();
+  sentSerialNonces.add(nonce);
   socket.send(JSON.stringify({ type: "serial-send", board, text, nonce }));
 }
 
@@ -148,10 +152,13 @@ export function useWorldRun(project: string, world: string) {
         noteBoardSent(message.board, message.text, senderLabel(message.by));
         return;
       }
+      if (message.type === "board-error") {
+        if (!isOwnCommandNonce(message.nonce, sentSerialNonces)) return;
+        if (message.nonce) sentSerialNonces.delete(message.nonce);
+        noteBoardReject(message.board, message.message);
+        return;
+      }
       if (message.type === "error") {
-        // One board's firmware fault leaves the run playing. The board
-        // snapshot on the next state carries the reason.
-        if (message.board) return;
         const live = worldLiveState();
         if (live) setWorldLiveState({ ...live, playing: false });
         worldStore.getState().setRunProblem(message.errors, message.message);
@@ -197,6 +204,7 @@ export function useWorldRun(project: string, world: string) {
     return () => {
       closed = true;
       sentNonces.clear();
+      sentSerialNonces.clear();
       if (retry) clearTimeout(retry);
       if (noticeTimer) clearTimeout(noticeTimer);
       clearAttach();

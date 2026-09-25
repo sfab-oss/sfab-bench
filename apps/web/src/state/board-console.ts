@@ -11,9 +11,11 @@ export type BoardTranscript = {
 
 export type BoardConsoleSnapshot = {
   boards: Record<string, BoardTranscript>;
+  /** Rejected send, shown only to the client that sent it. */
+  rejects: Record<string, string>;
 };
 
-const empty: BoardConsoleSnapshot = { boards: {} };
+const empty: BoardConsoleSnapshot = { boards: {}, rejects: {} };
 let snapshot: BoardConsoleSnapshot = empty;
 const listeners = new Set<() => void>();
 
@@ -36,6 +38,7 @@ export function appendBoardSerial(board: string, text: string, next: number) {
   if (next <= current.next) return;
   if (!text) {
     emit({
+      ...snapshot,
       boards: { ...snapshot.boards, [board]: { ...current, next } },
     });
     return;
@@ -48,6 +51,7 @@ export function appendBoardSerial(board: string, text: string, next: number) {
     entries.push({ kind: "out", text });
   }
   emit({
+    ...snapshot,
     boards: {
       ...snapshot.boards,
       [board]: { next, entries },
@@ -55,9 +59,24 @@ export function appendBoardSerial(board: string, text: string, next: number) {
   });
 }
 
+export function noteBoardReject(board: string, message: string) {
+  emit({
+    ...snapshot,
+    rejects: { ...snapshot.rejects, [board]: message },
+  });
+}
+
+export function clearBoardReject(board: string) {
+  if (!snapshot.rejects[board]) return;
+  const rejects = { ...snapshot.rejects };
+  delete rejects[board];
+  emit({ ...snapshot, rejects });
+}
+
 export function noteBoardSent(board: string, text: string, by: string) {
   const current = row(board);
   emit({
+    ...snapshot,
     boards: {
       ...snapshot.boards,
       [board]: {

@@ -322,10 +322,9 @@ function listen(doc: Doc, worker: Worker) {
     }
     if (message.type === "boardFault") {
       broadcast(doc, {
-        type: "error",
-        errors: [],
-        message: `Board "${message.board}": ${message.message}`,
+        type: "board-error",
         board: message.board,
+        message: message.message,
       });
       return;
     }
@@ -626,6 +625,21 @@ export async function attachWorld(
 
 const BOARD_ID = /^[A-Za-z_][A-Za-z0-9_-]{0,63}$/;
 
+function rejectSerial(
+  doc: Doc,
+  board: string,
+  message: string,
+  nonce?: string
+): { error: string } {
+  broadcast(doc, {
+    type: "board-error",
+    board,
+    message,
+    ...(nonce ? { nonce } : {}),
+  });
+  return { error: message };
+}
+
 function deliverSerial(
   doc: Doc,
   sender: WorldSender,
@@ -633,22 +647,21 @@ function deliverSerial(
   text: string,
   nonce?: string
 ): { ok: true } | { error: string } {
-  if (!doc.worker || !doc.lastState) return { error: "world is not running" };
+  const reject = (message: string) => rejectSerial(doc, board, message, nonce);
+  if (!doc.worker || !doc.lastState) return reject("world is not running");
   if (doc.errors && doc.errors.length > 0) {
-    return { error: doc.errorMessage ?? "world failed to load" };
+    return reject(doc.errorMessage ?? "world failed to load");
   }
-  if (!BOARD_ID.test(board)) return { error: "serial needs a board id" };
+  if (!BOARD_ID.test(board)) return reject("serial needs a board id");
   if (text.length > SERIAL_TEXT_MAX) {
-    return {
-      error: `serial text is longer than ${SERIAL_TEXT_MAX} characters`,
-    };
+    return reject(`serial text is longer than ${SERIAL_TEXT_MAX} characters`);
   }
-  if (text.length === 0) return { error: "serial text is empty" };
+  if (text.length === 0) return reject("serial text is empty");
   const info = doc.lastState.boards[board];
-  if (!info) return { error: `no board "${board}"` };
+  if (!info) return reject(`no board "${board}"`);
   if (!info.running) {
     const why = info.fault ? `: ${info.fault}` : "";
-    return { error: `board "${board}" is stopped${why}` };
+    return reject(`board "${board}" is stopped${why}`);
   }
   post(doc, {
     type: "serialIn",

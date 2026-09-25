@@ -993,8 +993,45 @@ try {
   console.log(
     `serial-send reached USART0 RX (hold.ino does not echo): accepted ${rx.accepted}, still queued ${rx.queued}`
   );
-  const unknown = serialHandle.sendSerial("missing", "x");
+  const beforeReject = serialEvents.length;
+  const playingAtReject = [...serialEvents]
+    .reverse()
+    .find((event) => event.type === "state");
+  const unknown = serialHandle.sendSerial("missing", "x", "nope");
   expect("error" in unknown, "unknown board is rejected");
+  const rejection = serialEvents
+    .slice(beforeReject)
+    .find((event) => event.type === "board-error");
+  expect(rejection?.type === "board-error", "rejection is a board-error");
+  if (rejection?.type === "board-error") {
+    expect(rejection.board === "missing", "rejection names the board");
+    expect(rejection.nonce === "nope", "rejection echoes the sender nonce");
+    expect(rejection.message.includes("no board"), rejection.message);
+  }
+  expect(
+    !serialEvents.slice(beforeReject).some((event) => event.type === "error"),
+    "a rejected send is not a world error"
+  );
+  const playingAfter = [...serialEvents]
+    .reverse()
+    .find((event) => event.type === "state");
+  expect(
+    playingAtReject?.type === "state" &&
+      playingAfter?.type === "state" &&
+      playingAfter.state.playing === playingAtReject.state.playing,
+    "a rejected send leaves play state alone"
+  );
+  const emptySend = serialHandle.sendSerial("uno", "", "empty");
+  expect("error" in emptySend, "empty serial is rejected");
+  expect(
+    serialEvents.some(
+      (event) =>
+        event.type === "board-error" &&
+        event.nonce === "empty" &&
+        event.message.includes("empty")
+    ),
+    "empty text is a board-error"
+  );
 } finally {
   serialHandle?.detach();
   await stopWorld(armDir, "arm.world.json");
@@ -1085,10 +1122,10 @@ try {
       () =>
         pairEvents.some(
           (event) =>
-            event.type === "error" &&
+            event.type === "board-error" &&
             event.board === "uno" &&
-            (event.message ?? "").includes("checksum")
-        ),
+            event.message.includes("checksum")
+        ) && !pairEvents.some((event) => event.type === "error"),
       "bad hex faults uno"
     ),
     10000,

@@ -71,16 +71,14 @@ export type WorldServerMessage =
       nonce?: string;
     }
   | { type: "reloaded" }
-  | {
-      type: "error";
-      errors: WorldError[];
-      message?: string;
-      /**
-       * Set when one board failed and the run continues. Absent on a
-       * world-level failure, which stops the document.
-       */
-      board?: string;
-    }
+  /** The document cannot run. A board fault is `board-error`, not this. */
+  | { type: "error"; errors: WorldError[]; message?: string }
+  /**
+   * One board failed, or this client's serial write was rejected.
+   * The run keeps its play state. `nonce` is set on a rejected send so
+   * only that sender shows the line.
+   */
+  | { type: "board-error"; board: string; message: string; nonce?: string }
   /** USART0 TX since the previous event. `next` is the ring offset after `text`. */
   | { type: "serial"; board: string; text: string; next: number }
   | {

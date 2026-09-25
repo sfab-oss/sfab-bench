@@ -10,11 +10,16 @@ export function SerialConsole({
   title,
   text,
   fault,
+  notice,
+  onNoticeClear,
   onSend,
 }: {
   title: string;
   text: string;
   fault?: string;
+  /** This tab's rejected send. Not a world failure. */
+  notice?: string;
+  onNoticeClear?: () => void;
   onSend: (line: string) => void;
 }) {
   const [line, setLine] = useState("");
@@ -53,7 +58,10 @@ export function SerialConsole({
           value={line}
           placeholder="Send a line"
           disabled={Boolean(fault)}
-          onChange={(event) => setLine(event.target.value)}
+          onChange={(event) => {
+            setLine(event.target.value);
+            if (notice) onNoticeClear?.();
+          }}
         />
         <Button
           type="submit"
@@ -64,6 +72,9 @@ export function SerialConsole({
           Send
         </Button>
       </form>
+      {notice ? (
+        <p className="shrink-0 px-3 pb-2 text-xs text-error">{notice}</p>
+      ) : null}
     </div>
   );
 }

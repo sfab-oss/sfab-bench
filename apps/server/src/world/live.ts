@@ -38,7 +38,28 @@ export function worldSender(principal: ClientPrincipal): WorldSender {
   throw new Error("an account principal cannot open a world socket");
 }
 
-function parseClient(raw: string): WorldClientMessage | { error: string } {
+type ParsedClient =
+  | WorldClientMessage
+  | { error: string }
+  | { error: string; kind: "board"; board: string; nonce?: string };
+
+function boardParseError(
+  message: string,
+  board: unknown,
+  nonce: unknown
+): ParsedClient {
+  const id = typeof board === "string" ? board : "";
+  if (
+    typeof nonce === "string" &&
+    nonce.length > 0 &&
+    nonce.length <= WORLD_NONCE_MAX
+  ) {
+    return { error: message, kind: "board", board: id, nonce };
+  }
+  return { error: message, kind: "board", board: id };
+}
+
+function parseClient(raw: string): ParsedClient {
   let value: unknown;
   try {
     value = JSON.parse(raw) as unknown;
@@ -70,22 +91,24 @@ function parseClient(raw: string): WorldClientMessage | { error: string } {
   if (type === "serial-send") {
     const board = (value as { board?: unknown }).board;
     const text = (value as { text?: unknown }).text;
+    const nonce = (value as { nonce?: unknown }).nonce;
     if (typeof board !== "string" || board.length < 1 || board.length > 64) {
-      return { error: "serial needs a board id" };
+      return boardParseError("serial needs a board id", board, nonce);
     }
     if (typeof text !== "string" || text.length > SERIAL_TEXT_MAX) {
-      return {
-        error: `serial text must be a string of at most ${SERIAL_TEXT_MAX} characters`,
-      };
+      return boardParseError(
+        `serial text must be a string of at most ${SERIAL_TEXT_MAX} characters`,
+        board,
+        nonce
+      );
     }
-    const nonce = (value as { nonce?: unknown }).nonce;
     if (nonce === undefined) return { type: "serial-send", board, text };
     if (
       typeof nonce !== "string" ||
       nonce.length < 1 ||
       nonce.length > WORLD_NONCE_MAX
     ) {
-      return { error: "nonce must be a short string" };
+      return boardParseError("nonce must be a short string", board, nonce);
     }
     return { type: "serial-send", board, text, nonce };
   }
@@ -141,20 +164,23 @@ wss.on(
       ws.on("message", (data) => {
         const parsed = parseClient(String(data));
         if ("error" in parsed) {
-          send(ws, { type: "error", errors: [], message: parsed.error });
+          if ("kind" in parsed && parsed.kind === "board") {
+            send(ws, {
+              type: "board-error",
+              board: parsed.board,
+              message: parsed.error,
+              ...(parsed.nonce ? { nonce: parsed.nonce } : {}),
+            });
+          } else {
+            send(ws, { type: "error", errors: [], message: parsed.error });
+          }
           return;
         }
         if (parsed.type === "play") handle?.play(parsed.nonce);
         else if (parsed.type === "pause") handle?.pause(parsed.nonce);
         else if (parsed.type === "serial-send") {
-          const sent = handle?.sendSerial(
-            parsed.board,
-            parsed.text,
-            parsed.nonce
-          );
-          if (sent && "error" in sent) {
-            send(ws, { type: "error", errors: [], message: sent.error });
-          }
+          // A rejection is broadcast as board-error, including to this socket.
+          handle?.sendSerial(parsed.board, parsed.text, parsed.nonce);
         } else if (principal.kind !== "loopback") {
           send(ws, {
             type: "error",
