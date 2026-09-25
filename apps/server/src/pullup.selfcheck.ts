@@ -76,8 +76,8 @@ const nets = gpioInputNets({
 const d2 = nets.find((net) => net.bit === 2);
 const d3 = nets.find((net) => net.bit === 3);
 expect(
-  d2?.drivers.some((driver) => driver.bit === 3) &&
-    d3?.drivers.some((driver) => driver.bit === 2),
+  d2?.drivers.some((driver) => driver.kind === "gpio" && driver.bit === 3) &&
+    d3?.drivers.some((driver) => driver.kind === "gpio" && driver.bit === 2),
   `D2/D3 net ${JSON.stringify(nets)}`
 );
 console.log("pull-up nets: D2 and D3 can drive each other");
@@ -282,5 +282,47 @@ expect(
   "reboot kept a stale driven high before the first instruction"
 );
 console.log("pull-up: reboot clears driven");
+
+const grounded = loadProgram("uno", peerSource);
+bindNets(
+  [grounded],
+  {
+    boards: [{ id: "uno", board: "uno" }],
+    wires: [["uno.D2", "uno.GND"]],
+  } as WorldDocument,
+  () => {}
+);
+grounded.stepMillis();
+const groundedPins = grounded.peekPins();
+expect(
+  !maskHasPin(groundedPins.ddr, "D2") && !maskHasPin(groundedPins.level, "D2"),
+  "D2 pull-up won against GND"
+);
+console.log("pull-up: GND drives an input low");
+
+const idleSource = `
+loop:
+rjmp loop
+`;
+const supplied = loadProgram("uno", idleSource);
+const beforeSupply = supplied.peekPins();
+expect(
+  !maskHasPin(beforeSupply.level, "D2"),
+  "D2 was high before the supply wire"
+);
+applyGpioDrives(
+  gpioInputNets({
+    boards: [{ id: "uno", board: "uno" }],
+    supplies: [{ id: "usb" }],
+    wires: [["uno.D2", "usb.5V"]],
+  } as WorldDocument),
+  [supplied]
+);
+const suppliedPins = supplied.peekPins();
+expect(
+  !maskHasPin(suppliedPins.ddr, "D2") && maskHasPin(suppliedPins.level, "D2"),
+  "supply positive did not drive D2 high"
+);
+console.log("pull-up: a supply positive drives an input high");
 
 console.log("pullup.selfcheck ok");
