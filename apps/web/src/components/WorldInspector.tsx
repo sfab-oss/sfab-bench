@@ -249,7 +249,6 @@ function BoardBody({
       <Field label="Firmware" value={info?.firmware ?? "—"} />
       <Field label="Source" value={info?.source ?? "None"} />
       <Field label="Status" value={boardStatusLabel(live, playing) || "—"} />
-      <PinTable pins={pins} />
       <div className="mb-3 flex h-36 flex-col overflow-hidden rounded-md border border-border">
         <SerialConsole
           title={id}
@@ -260,6 +259,7 @@ function BoardBody({
           onSend={(line) => sendBoardSerial(id, line)}
         />
       </div>
+      <PinTable pins={pins} />
       <div className="text-[11px] text-muted-foreground">Source</div>
       <div className="mt-1 flex h-40 flex-col overflow-hidden rounded-md border border-border">
         {sourceRel ? (
