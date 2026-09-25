@@ -11,7 +11,8 @@ import {
   catalogSections,
   catalogTree,
 } from "@/lib/viewer-snapshot";
-import { useStore } from "@/state/store";
+import { usePrefs } from "@/state/prefs";
+import { useViewer } from "@/state/viewer";
 import { FeedbackContext } from "@/xr/ui/ToolBtn";
 import { useXrTheme } from "@/xr/ui/theme";
 import { asciiSafe } from "@/xr/ui/UikitMarkdown";
@@ -163,8 +164,8 @@ function TreeNode({
 }
 
 export function FilesList({ onPick }: { onPick?: () => void }) {
-  const url = useStore((s) => s.url);
-  const recents = useStore((s) => s.recentFiles);
+  const url = useViewer((s) => s.url);
+  const recents = usePrefs((s) => s.recentFiles);
   const projectPath = useProjectSession().project.path;
   const { files, error, ready } = useCatalog(Boolean(projectPath));
   const theme = useXrTheme();

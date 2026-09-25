@@ -14,7 +14,10 @@ import { CadModel } from "@/scene/CadModel";
 import { bindSceneInvalidate } from "@/scene/invalidate";
 import { RecenterOnReset } from "@/scene/RecenterOnReset";
 import { SpawnInFront } from "@/scene/SpawnInFront";
-import { store, useStore } from "@/state/store";
+import { prefsStore } from "@/state/prefs";
+import { sceneStore, useScene } from "@/state/scene";
+import { useViewer, viewerStore } from "@/state/viewer";
+import { xrUiStore } from "@/state/xr";
 import { HandRig } from "@/xr/hands/HandRig";
 import { HandSkeletons } from "@/xr/hands/HandSkeleton";
 import { HandTools } from "@/xr/hands/HandTools";
@@ -41,9 +44,10 @@ function DemandBridge() {
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
     bindSceneInvalidate(invalidate);
-    const unsub = store.subscribe(() => invalidate());
+    const stores = [viewerStore, sceneStore, prefsStore, xrUiStore];
+    const unsubs = stores.map((s) => s.subscribe(() => invalidate()));
     return () => {
-      unsub();
+      for (const unsub of unsubs) unsub();
       bindSceneInvalidate(null);
     };
   }, [invalidate]);
@@ -58,7 +62,7 @@ function FitBridge() {
     target: THREE.Vector3;
     update: () => void;
   } | null;
-  const setFit = useStore((s) => s.setFit);
+  const setFit = useScene((s) => s.setFit);
 
   useLayoutEffect(() => {
     setFit((obj, dir) => {
@@ -121,7 +125,7 @@ function SceneCrashBridge({
   error: unknown;
   reset: () => void;
 }) {
-  const setSceneCrash = useStore((s) => s.setSceneCrash);
+  const setSceneCrash = useScene((s) => s.setSceneCrash);
   useEffect(() => {
     setSceneCrash({ error, reset });
     return () => setSceneCrash(null);
@@ -131,13 +135,13 @@ function SceneCrashBridge({
 
 export function ViewerCanvas() {
   const studio = useStudioColor();
-  const url = useStore((s) => s.url);
-  const setPlaced = useStore((s) => s.setPlaced);
+  const url = useViewer((s) => s.url);
+  const setPlaced = useScene((s) => s.setPlaced);
   const xrSession = useXrSession();
   const reduceMotion = usePrefersReducedMotion();
   const onFit = useCallback((obj: THREE.Object3D) => {
     if (xrStore.getState().session) return;
-    store.getState().fit?.(obj, homeFitDirection());
+    sceneStore.getState().fit?.(obj, homeFitDirection());
   }, []);
 
   return (
@@ -193,7 +197,7 @@ export function ViewerCanvas() {
           <OrbitControls
             makeDefault
             enableDamping={orbitDampingEnabled(reduceMotion)}
-            onStart={() => store.getState().setCameraMoved(true)}
+            onStart={() => viewerStore.getState().setCameraMoved(true)}
           />
           <CornerAxes />
         </IfInSessionMode>

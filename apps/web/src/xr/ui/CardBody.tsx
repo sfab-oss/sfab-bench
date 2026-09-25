@@ -11,7 +11,9 @@ import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { treeTops } from "@/cad/tree";
-import { useStore } from "@/state/store";
+import { useScene } from "@/state/scene";
+import { useViewer } from "@/state/viewer";
+import { useXrUi } from "@/state/xr";
 import { ToolBtn } from "@/xr/ui/ToolBtn";
 import { TreeRow } from "@/xr/ui/TreeRow";
 import { useXrTheme } from "@/xr/ui/theme";
@@ -28,25 +30,22 @@ export function CardBody({
   filesOpen?: boolean;
   onToggleFiles?: () => void;
 }) {
-  const {
-    review,
-    title,
-    url,
-    showAll,
-    page,
-    setPage,
-    bumpScale,
-    resetScale,
-    modelScale,
-    recenter,
-  } = useStore(
+  const { review, title, url, showAll } = useViewer(
     useShallow((s) => ({
       review: s.review,
       title: s.title,
       url: s.url,
       showAll: s.showAll,
+    }))
+  );
+  const { page, setPage } = useXrUi(
+    useShallow((s) => ({
       page: s.page,
       setPage: s.setPage,
+    }))
+  );
+  const { bumpScale, resetScale, modelScale, recenter } = useScene(
+    useShallow((s) => ({
       bumpScale: s.bumpScale,
       resetScale: s.resetScale,
       modelScale: s.modelScale,

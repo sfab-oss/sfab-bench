@@ -58,7 +58,7 @@ import {
 import { showNetworkErrorToast } from "@/components/ui/toast";
 import { jsonApi } from "@/lib/api";
 import { copyText } from "@/lib/settings";
-import { useStore } from "@/state/store";
+import { useViewer } from "@/state/viewer";
 
 export async function copyConversationJson(conversation: {
   id: string | null;
@@ -152,8 +152,8 @@ export function ChatSession({
   composerRef: RefObject<GalleryChatHandle | null>;
 }) {
   const turnErrorRef = useRef<string | null>(null);
-  const progress = useStore((s) => s.progress);
-  const url = useStore((s) => s.url);
+  const progress = useViewer((s) => s.progress);
+  const url = useViewer((s) => s.url);
   const {
     messages,
     sendMessage,

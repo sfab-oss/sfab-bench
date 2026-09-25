@@ -14,7 +14,7 @@ import {
   type HarnessId,
   harnessSupportsEffort,
 } from "@/lib/harness";
-import { useStore } from "@/state/store";
+import { usePrefs } from "@/state/prefs";
 import { FeedbackContext, ToolBtn } from "@/xr/ui/ToolBtn";
 import { useXrTheme } from "@/xr/ui/theme";
 import { asciiSafe } from "@/xr/ui/UikitMarkdown";
@@ -22,11 +22,11 @@ import { XrProviderMark } from "@/xr/ui/XrProviderMark";
 import { XR_CHAT_OVERLAY_H, XR_CHAT_OVERLAY_W } from "@/xr/ui/xrChatChrome";
 
 export function ChatModelCard({ onClose }: { onClose: () => void }) {
-  const chatHarness = useStore((s) => s.chatHarness);
-  const chatModel = useStore((s) => s.chatModel);
-  const chatEffort = useStore((s) => s.chatEffort);
-  const setChatSelection = useStore((s) => s.setChatSelection);
-  const setChatEffort = useStore((s) => s.setChatEffort);
+  const chatHarness = usePrefs((s) => s.chatHarness);
+  const chatModel = usePrefs((s) => s.chatModel);
+  const chatEffort = usePrefs((s) => s.chatEffort);
+  const setChatSelection = usePrefs((s) => s.setChatSelection);
+  const setChatEffort = usePrefs((s) => s.setChatEffort);
   const { harnesses, ready, error } = useHarnesses();
   const [rail, setRail] = useState<HarnessId>(chatHarness);
   const [query, setQuery] = useState("");
@@ -258,8 +258,8 @@ export function ChatModelChip({
   active: boolean;
   onClick: () => void;
 }) {
-  const chatHarness = useStore((s) => s.chatHarness);
-  const chatModel = useStore((s) => s.chatModel);
+  const chatHarness = usePrefs((s) => s.chatHarness);
+  const chatModel = usePrefs((s) => s.chatModel);
   const { harnesses } = useHarnesses();
   const name = asciiSafe(harnessModelName(harnesses, chatHarness, chatModel));
   const feedback = useContext(FeedbackContext);
