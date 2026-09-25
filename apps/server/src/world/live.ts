@@ -5,6 +5,7 @@ import {
   WORLD_NONCE_MAX,
   type WorldClientMessage,
   type WorldSender,
+  type WorldServerMessage,
 } from "@sfab-bench/contract";
 import type { WebSocket } from "ws";
 import { WebSocketServer } from "ws";
@@ -59,7 +60,18 @@ function boardParseError(
   return { error: message, kind: "board", board: id };
 }
 
-function parseClient(raw: string): ParsedClient {
+/** A failed seek or timeline read. Not a world `error`: the run stays up. */
+export function scrubReadError(
+  kind: "seek" | "timeline",
+  message: string,
+  nonce?: string
+): Extract<WorldServerMessage, { type: "timeline-error" }> {
+  if (kind === "seek" && nonce)
+    return { type: "timeline-error", message, nonce };
+  return { type: "timeline-error", message };
+}
+
+export function parseWorldClient(raw: string): ParsedClient {
   let value: unknown;
   try {
     value = JSON.parse(raw) as unknown;
@@ -116,7 +128,7 @@ function parseClient(raw: string): ParsedClient {
     const from = (value as { from?: unknown }).from;
     const to = (value as { to?: unknown }).to;
     const maxPoints = (value as { maxPoints?: unknown }).maxPoints;
-    if (typeof from !== "number" || !Number.isFinite(from)) {
+    if (typeof from !== "number" || !Number.isFinite(from) || from < 0) {
       return { error: "timeline needs a start time" };
     }
     if (typeof to !== "number" || !Number.isFinite(to) || to < from) {
@@ -134,7 +146,7 @@ function parseClient(raw: string): ParsedClient {
   if (type === "seek") {
     const t = (value as { t?: unknown }).t;
     const nonce = (value as { nonce?: unknown }).nonce;
-    if (typeof t !== "number" || !Number.isFinite(t)) {
+    if (typeof t !== "number" || !Number.isFinite(t) || t < 0) {
       return { error: "seek needs a time" };
     }
     if (
@@ -196,7 +208,7 @@ wss.on(
       }
       handle = attached;
       ws.on("message", (data) => {
-        const parsed = parseClient(String(data));
+        const parsed = parseWorldClient(String(data));
         if ("error" in parsed) {
           if ("kind" in parsed && parsed.kind === "board") {
             send(ws, {
@@ -219,7 +231,7 @@ wss.on(
           // Loopback and paired clients both scrub. The reply stays on this socket.
           void handle?.timeline(parsed)?.then((result) => {
             if ("error" in result) {
-              send(ws, { type: "error", errors: [], message: result.error });
+              send(ws, scrubReadError("timeline", result.error));
               return;
             }
             send(ws, result);
@@ -227,7 +239,7 @@ wss.on(
         } else if (parsed.type === "seek") {
           void handle?.seek(parsed.t, parsed.nonce)?.then((result) => {
             if ("error" in result) {
-              send(ws, { type: "error", errors: [], message: result.error });
+              send(ws, scrubReadError("seek", result.error, parsed.nonce));
               return;
             }
             send(ws, result);

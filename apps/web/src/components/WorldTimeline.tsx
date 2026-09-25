@@ -7,7 +7,13 @@ import {
   matchesShortcut,
   shortcutTooltip,
 } from "@/lib/shortcuts";
-import { sparkline, tracksForSelection } from "@/lib/timeline";
+import {
+  minSpan,
+  seriesRange,
+  seriesValues,
+  sparkline,
+  tracksForSelection,
+} from "@/lib/timeline";
 import { formatSimTime } from "@/lib/world-issues";
 import { useWorld } from "@/state/world";
 import { goLive, scrubTo, useWorldTimeline } from "@/state/world-timeline";
@@ -47,6 +53,31 @@ export function WorldTimeline() {
   const from = recording.from;
   const to = Math.max(recording.to, from);
   const chosen = tracksForSelection(data?.tracks ?? [], selection, outline);
+  const primaryField = chosen.primary?.unit === "V" ? "lo" : "v";
+  const sharedUnit =
+    chosen.primary !== null &&
+    chosen.secondary !== null &&
+    chosen.primary.unit === chosen.secondary.unit;
+  const primaryRange = chosen.primary
+    ? seriesRange(
+        [
+          seriesValues(chosen.primary, primaryField),
+          ...(sharedUnit && chosen.secondary
+            ? [seriesValues(chosen.secondary, "v")]
+            : []),
+        ],
+        minSpan(chosen.primary.unit)
+      )
+    : null;
+  const secondaryRange =
+    chosen.secondary === null
+      ? null
+      : sharedUnit
+        ? primaryRange
+        : seriesRange(
+            [seriesValues(chosen.secondary, "v")],
+            minSpan(chosen.secondary.unit)
+          );
   const head = playhead ?? to;
   const span = Math.max(to - from, 1e-9);
   const headX = ((head - from) / span) * 100;
@@ -82,21 +113,23 @@ export function WorldTimeline() {
           className="h-9 w-full"
           aria-hidden="true"
         >
-          {chosen.primary ? (
+          {chosen.primary && primaryRange ? (
             <Spark
               track={chosen.primary}
               from={from}
               to={to}
-              field={chosen.primary.unit === "V" ? "lo" : "v"}
+              field={primaryField}
+              range={primaryRange}
               className="stroke-foreground"
             />
           ) : null}
-          {chosen.secondary ? (
+          {chosen.secondary && secondaryRange ? (
             <Spark
               track={chosen.secondary}
               from={from}
               to={to}
               field="v"
+              range={secondaryRange}
               className="stroke-muted-foreground"
             />
           ) : null}
@@ -147,15 +180,17 @@ function Spark({
   from,
   to,
   field,
+  range,
   className,
 }: {
   track: TimelineTrack;
   from: number;
   to: number;
   field: "v" | "lo";
+  range: { min: number; max: number };
   className: string;
 }) {
-  const d = sparkline(track, from, to, field);
+  const d = sparkline(track, from, to, field, range);
   if (!d) return null;
   return (
     <path

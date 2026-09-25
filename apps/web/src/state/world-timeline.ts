@@ -7,7 +7,7 @@ import type {
   WorldServerMessage,
 } from "@sfab-bench/contract";
 import { useSyncExternalStore } from "react";
-import { seekTimeFor } from "@/lib/timeline";
+import { followLiveEdge, seekTimeFor } from "@/lib/timeline";
 import { worldCommandNonce } from "@/lib/world-nonce";
 import { invalidateSceneNow } from "@/scene/invalidate";
 
@@ -68,6 +68,10 @@ export function useWorldTimeline(): TimelineSnapshot {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
+export function worldTimelineSnapshot(): TimelineSnapshot {
+  return snapshot;
+}
+
 export function worldViewPoses(): RecordedFrame["poses"] | null {
   if (playhead === null || !frame) return null;
   return frame.poses;
@@ -80,7 +84,10 @@ export function bindWorldSocket(
   if (!next) goLive();
 }
 
-export function noteLiveRecording(summary: RecordingSummary | undefined) {
+export function noteLiveRecording(
+  summary: RecordingSummary | undefined,
+  playing: boolean
+) {
   if (!summary) return;
   const prev = recording;
   const idChanged = !prev || prev.id !== summary.id;
@@ -97,12 +104,17 @@ export function noteLiveRecording(summary: RecordingSummary | undefined) {
     scheduleTimeline(0);
     return;
   }
-  const edge =
-    summary.from !== prev.from || Math.abs(summary.to - shownTo) >= 0.2;
-  if (!edge) return;
+  const edge = followLiveEdge({
+    shownTo,
+    prevFrom: prev.from,
+    from: summary.from,
+    to: summary.to,
+    playing,
+  });
+  if (!edge.publish) return;
   shownTo = summary.to;
   emit();
-  scheduleTimeline(200);
+  scheduleTimeline(edge.immediate ? 0 : 200);
 }
 
 export function takeTimeline(
@@ -133,11 +145,25 @@ export function takeFrame(
     emit();
     invalidateSceneNow();
   }
-  if (queued !== null && playhead !== null) {
-    const next = queued;
-    queued = null;
-    sendSeek(next);
+  flushQueuedSeek();
+}
+
+/** A failed read. Does not touch the shared run. A matching seek nonce is retired. */
+export function takeTimelineError(
+  message: Extract<WorldServerMessage, { type: "timeline-error" }>
+) {
+  if (message.nonce !== undefined) {
+    if (inflight !== message.nonce) return;
+    inflight = null;
   }
+  flushQueuedSeek();
+}
+
+function flushQueuedSeek() {
+  if (queued === null || playhead === null || inflight !== null) return;
+  const next = queued;
+  queued = null;
+  sendSeek(next);
 }
 
 export function scrubTo(t: number) {

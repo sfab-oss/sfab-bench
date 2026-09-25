@@ -441,9 +441,12 @@ export class RunRecorder {
     const oldest = this.oldestMs();
     this.keptFromMs = oldest ?? cutoffMs;
     const from = this.keptFromMs;
+    // The oldest frame still covers (from − frame, from]. An event in
+    // that window stays, or the dip remains and its reset does not.
+    const keepAfter = from - RECORD_FRAME_MS;
     while (this.eventStart < this.events.length) {
       const event = this.events[this.eventStart];
-      if (!event || event.timeMs >= from) break;
+      if (!event || event.timeMs > keepAfter) break;
       this.eventStart += 1;
     }
     if (this.eventStart > 1024) {
@@ -849,7 +852,6 @@ export function timelineFromRead(read: RecordingRead): {
       t: read.frames.map((frame) => frame.t),
       v: read.frames.map((frame) => frame.supplies[id]?.voltage ?? null),
       lo: read.frames.map((frame) => frame.supplies[id]?.minVoltage ?? 0),
-      hi: read.frames.map((frame) => frame.supplies[id]?.voltage ?? 0),
     });
   }
   for (const id of partIds) {

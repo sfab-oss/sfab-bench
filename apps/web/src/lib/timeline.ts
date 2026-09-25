@@ -172,24 +172,72 @@ export function tracksForSelection(
   };
 }
 
+/** Smallest vertical span, so a flat or jittering trace does not fill the strip. */
+export function minSpan(unit: TimelineTrack["unit"]): number {
+  return unit === "deg" ? 1 : 0.1;
+}
+
+export function seriesValues(
+  track: TimelineTrack,
+  field: "v" | "lo"
+): (number | null)[] {
+  return field === "lo" ? (track.lo ?? track.v) : track.v;
+}
+
+/** Pad a flat series out to `span` around its midpoint. */
+export function seriesRange(
+  samples: readonly (readonly (number | null | undefined)[])[],
+  span: number
+): { min: number; max: number } | null {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const series of samples) {
+    for (const value of series) {
+      if (value === null || value === undefined || !Number.isFinite(value)) {
+        continue;
+      }
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  if (max - min >= span) return { min, max };
+  const mid = (min + max) / 2;
+  const half = span / 2;
+  return { min: mid - half, max: mid + half };
+}
+
+/**
+ * Whether the strip should publish a newer live edge.
+ * A pause or a finished step catches up immediately. While playing, the
+ * edge waits until it has moved 0.2 s.
+ */
+export function followLiveEdge(input: {
+  shownTo: number;
+  prevFrom: number;
+  from: number;
+  to: number;
+  playing: boolean;
+}): { publish: boolean; immediate: boolean } {
+  const caughtUp = !input.playing && input.to !== input.shownTo;
+  const moved =
+    input.from !== input.prevFrom || Math.abs(input.to - input.shownTo) >= 0.2;
+  if (!caughtUp && !moved) return { publish: false, immediate: false };
+  return { publish: true, immediate: caughtUp };
+}
+
 /** SVG polyline in a 0..100 by 0..100 box. Null samples break the line. */
 export function sparkline(
   track: TimelineTrack,
   from: number,
   to: number,
-  field: "v" | "lo"
+  field: "v" | "lo",
+  range: { min: number; max: number }
 ): string {
-  const values = field === "lo" ? (track.lo ?? track.v) : track.v;
-  let min = Number.POSITIVE_INFINITY;
-  let max = Number.NEGATIVE_INFINITY;
-  for (const value of values) {
-    if (value === null || !Number.isFinite(value)) continue;
-    if (value < min) min = value;
-    if (value > max) max = value;
-  }
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return "";
+  const values = seriesValues(track, field);
   const spanT = Math.max(to - from, 1e-9);
-  const spanV = Math.max(max - min, 1e-9);
+  const spanV = range.max - range.min;
+  if (!(spanV > 0)) return "";
   let points = "";
   let pen = false;
   for (let i = 0; i < track.t.length; i++) {
@@ -205,7 +253,7 @@ export function sparkline(
       continue;
     }
     const x = ((t - from) / spanT) * 100;
-    const y = 100 - ((value - min) / spanV) * 100;
+    const y = 100 - ((value - range.min) / spanV) * 100;
     points += `${pen ? " " : "M "}${x.toFixed(2)} ${y.toFixed(2)}`;
     pen = true;
   }

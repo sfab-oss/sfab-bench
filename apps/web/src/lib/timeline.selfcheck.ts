@@ -7,9 +7,13 @@ import {
 } from "@sfab-bench/contract";
 import {
   faultUntil,
+  followLiveEdge,
+  minSpan,
   resetsUntil,
   seekTimeFor,
   serialUntil,
+  seriesRange,
+  seriesValues,
   sparkline,
   timeAtPointer,
   tracksForSelection,
@@ -158,15 +162,101 @@ expect(
   "a board plots the supply that feeds it"
 );
 
-const line = sparkline(supply, 0, 0.01, "lo");
+const loRange = seriesRange([seriesValues(supply, "lo")], minSpan("V"));
+const vRange = seriesRange([seriesValues(supply, "v")], minSpan("V"));
+expect(loRange !== null && vRange !== null, "voltage ranges");
+if (!loRange || !vRange) throw new Error("unreachable");
+const line = sparkline(supply, 0, 0.01, "lo", loRange);
 expect(
   line.includes("M ") && line.includes("100.00"),
   "the dip line reaches the frame"
 );
 expect(
-  sparkline(supply, 0, 0.01, "lo") !== sparkline(supply, 0, 0.01, "v") ||
-    supply.lo?.[1] === supply.v[1],
+  sparkline(supply, 0, 0.01, "lo", loRange) !==
+    sparkline(supply, 0, 0.01, "v", vRange),
   "min voltage is its own series"
 );
+
+const jitter: TimelineTrack = {
+  id: partTrackId("servo"),
+  unit: "deg",
+  t: [0, 0.5, 1],
+  v: [180, 180.0000002, 179.9999998],
+};
+const alone = seriesRange([seriesValues(jitter, "v")], minSpan("deg"));
+expect(
+  alone !== null && Math.abs(alone.max - alone.min - 1) < 1e-9,
+  "a flat command spans 1°"
+);
+if (!alone) throw new Error("unreachable");
+const flatYs = ys(sparkline(jitter, 0, 1, "v", alone));
+expect(
+  flatYs.length === 3 && flatYs.every((y) => y === flatYs[0]),
+  `a flat command draws flat, saw ${flatYs.join(",")}`
+);
+
+const swing: TimelineTrack = {
+  id: jointTrackId("arm", "shoulder"),
+  unit: "deg",
+  t: [0, 1],
+  v: [10, 90],
+};
+const shared = seriesRange(
+  [seriesValues(swing, "v"), seriesValues(jitter, "v")],
+  minSpan("deg")
+);
+expect(
+  shared !== null && shared.min <= 10 && shared.max >= 180,
+  "shared degree range"
+);
+if (!shared) throw new Error("unreachable");
+const sharedYs = ys(sparkline(jitter, 0, 1, "v", shared));
+expect(
+  sharedYs.length === 3 && sharedYs.every((y) => y === sharedYs[0]),
+  `a shared scale keeps the command flat, saw ${sharedYs.join(",")}`
+);
+
+expect(
+  followLiveEdge({
+    shownTo: 1,
+    prevFrom: 0,
+    from: 0,
+    to: 1.05,
+    playing: true,
+  }).publish === false,
+  "a short step while playing does not move the strip"
+);
+const paused = followLiveEdge({
+  shownTo: 1,
+  prevFrom: 0,
+  from: 0,
+  to: 1.05,
+  playing: false,
+});
+expect(
+  paused.publish && paused.immediate,
+  "a pause catches the tail immediately"
+);
+const playing = followLiveEdge({
+  shownTo: 1,
+  prevFrom: 0,
+  from: 0,
+  to: 1.25,
+  playing: true,
+});
+expect(
+  playing.publish && !playing.immediate,
+  "a longer step while playing is debounced"
+);
+
+function ys(path: string): number[] {
+  const parts = path.split(/\s+/).filter((part) => part !== "" && part !== "M");
+  const out: number[] = [];
+  for (let i = 1; i < parts.length; i += 2) {
+    const y = Number(parts[i]);
+    if (Number.isFinite(y)) out.push(y);
+  }
+  return out;
+}
 
 console.log("timeline.selfcheck ok");

@@ -31,6 +31,7 @@ import {
   noteLiveRecording,
   takeFrame,
   takeTimeline,
+  takeTimelineError,
 } from "@/state/world-timeline";
 
 const SIM_TIME_MS = 200;
@@ -178,7 +179,7 @@ export function useWorldRun(project: string, world: string) {
           }, ATTACH_COMMAND_MS);
         }
         worldStore.getState().clearRunProblem();
-        noteLiveRecording(message.state.recording);
+        noteLiveRecording(message.state.recording, message.state.playing);
         publish(message.state);
         return;
       }
@@ -188,6 +189,10 @@ export function useWorldRun(project: string, world: string) {
       }
       if (message.type === "frame") {
         takeFrame(message);
+        return;
+      }
+      if (message.type === "timeline-error") {
+        takeTimelineError(message);
         return;
       }
       if (message.type === "command") {

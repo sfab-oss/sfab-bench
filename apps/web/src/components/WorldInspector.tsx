@@ -10,7 +10,7 @@ import { SerialConsole } from "@/components/SerialConsole";
 import { SourceView } from "@/components/SourceView";
 import { Button } from "@/components/ui/button";
 import { sendBoardSerial } from "@/hooks/useWorldRun";
-import { boardStatusLabel } from "@/lib/board-status";
+import { boardStatusLabel, scrubbedBoardStatus } from "@/lib/board-status";
 import { overlayMaxHeight } from "@/lib/layout";
 import {
   activeEscLayer,
@@ -552,7 +552,11 @@ function BoardBody({
       <Field label="Source" value={info?.source ?? "None"} />
       <Field
         label="Status"
-        value={boardStatusLabel(statusBoard, playing) || "—"}
+        value={
+          (recorded
+            ? scrubbedBoardStatus(statusBoard)
+            : boardStatusLabel(statusBoard, playing)) || "—"
+        }
       />
       <Field label="Resets" value={resets} />
       <div className="mb-3 flex h-36 flex-col overflow-hidden rounded-md border border-border">

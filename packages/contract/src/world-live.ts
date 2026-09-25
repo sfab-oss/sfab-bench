@@ -236,7 +236,12 @@ export type WorldServerMessage =
       t: number;
       frame: RecordedFrame | null;
       nonce: string;
-    };
+    }
+  /**
+   * The seek or timeline read failed. The shared run is unchanged.
+   * `nonce` is set for a failed seek so that client can retire it.
+   */
+  | { type: "timeline-error"; message: string; nonce?: string };
 
 /** One frame every 10 ms of sim time. The name is the unit. */
 export const RECORD_FRAME_MS = 10;
@@ -375,8 +380,6 @@ export type TimelineTrack = {
   v: (number | null)[];
   /** Window minimum, when the series has one (supply voltage). */
   lo?: number[];
-  /** Window maximum, when the series has one. */
-  hi?: number[];
 };
 
 /** Resets, reloads, faults, and serial lines. Times are seconds. */

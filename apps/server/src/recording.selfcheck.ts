@@ -177,6 +177,12 @@ console.log("recorder: downsample picks frames and keeps extremes");
 
 const bounded = unitRecorder(30);
 bounded.noteEvent({ timeMs: 0, kind: "reset", board: "uno" });
+bounded.noteEvent({
+  timeMs: 5,
+  kind: "fault",
+  board: "uno",
+  message: "dip",
+});
 bounded.noteEvent({ timeMs: 10, kind: "reload", board: "uno" });
 for (let ms = 0; ms <= 40; ms++) {
   fill(bounded, {});
@@ -195,6 +201,10 @@ expect(
 expect(
   kept.events.some((event) => event.kind === "reload"),
   "the event on the new front stays"
+);
+expect(
+  kept.events.some((event) => event.kind === "fault"),
+  "an event inside the kept frame's window stays"
 );
 console.log(`recorder: bound reports from ${info.from} s`);
 
