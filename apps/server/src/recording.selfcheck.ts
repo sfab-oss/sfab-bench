@@ -90,6 +90,16 @@ function unitRecorder(boundMs?: number): RunRecorder {
   return new Recorder({
     id: "unit",
     ...(boundMs !== undefined ? { boundMs } : {}),
+    manifest: {
+      mujoco: "3.14.0",
+      avr8js: "0.21.1",
+      timestep: 0.001,
+      integrator: "implicitfast",
+      frameMs: 10,
+      worldSha256: "0".repeat(64),
+      boards: [],
+      parts: {},
+    },
     joints: [{ robot: "arm", joint: "shoulder" }],
     bodies: [{ robot: "arm", link: "base" }],
     parts: ["servo"],

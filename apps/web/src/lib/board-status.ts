@@ -1,3 +1,9 @@
+import {
+  ATMEGA328P_16MHZ_MIN_V,
+  atmega328pSoaWarning,
+  chipModels,
+} from "@sfab-bench/contract";
+
 type BoardStatusInput = {
   running: boolean;
   fault?: string;
@@ -30,4 +36,35 @@ export function scrubbedBoardStatus(
   if (board.brownout) return "brownout";
   if (!board.running || board.fault) return "stopped";
   return "running";
+}
+
+/** One line under the board status. Empty when the supply is in spec. */
+export function boardWarningLine(
+  warnings: readonly { message: string }[] | undefined
+): string {
+  return warnings?.[0]?.message ?? "";
+}
+
+/**
+ * The same line for a scrubbed frame. `belowSoa` is the window flag.
+ * `supplyId` is this board's feed from `powerFeeds`; another rail in
+ * the band is not this board's voltage.
+ */
+export function recordedSoaLine(
+  belowSoa: boolean | undefined,
+  supplies: Record<string, { voltage: number; minVoltage: number }> | undefined,
+  supplyId: string | null | undefined
+): string {
+  if (!belowSoa) return "";
+  const brownout = chipModels.atmega328p.brownoutVoltage;
+  const row = supplyId ? supplies?.[supplyId] : undefined;
+  if (row) {
+    const voltage =
+      row.minVoltage > brownout && row.minVoltage < ATMEGA328P_16MHZ_MIN_V
+        ? row.minVoltage
+        : row.voltage;
+    const warning = atmega328pSoaWarning(voltage, brownout);
+    if (warning) return warning.message;
+  }
+  return "supply was below the 3.78 V the ATmega328P needs at 16 MHz";
 }

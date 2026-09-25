@@ -1,12 +1,19 @@
 import {
   ARDUINO_PINS,
+  ATMEGA328P_16MHZ_MIN_V,
+  atmega328pSoaWarning,
   boardTrackId,
+  chipModels,
   extractUrdfJointsAndMeshes,
+  type JointLimitKind,
+  jointLimitWarning,
   maskHasPin,
   partTrackId,
+  pastLimitAmount,
   powerFeeds,
   RECORD_FRAME_MS,
   type RecordingEvent,
+  type RecordingManifest,
   type RecordingRead,
   type RecordingTracks,
   supplyTrackId,
@@ -165,6 +172,121 @@ async function openRun(world: string): Promise<Loaded | { error: string }> {
   return found;
 }
 
+function jointLimits(root: string, world: string, doc: WorldDocument) {
+  const limits = new Map<string, { lower: number; upper: number }>();
+  const files = readerFor(root, world);
+  for (const robot of doc.robots) {
+    const bytes = files.read(robot.urdf);
+    if (!bytes) continue;
+    const info = extractUrdfJointsAndMeshes(new TextDecoder().decode(bytes));
+    for (const joint of info.jointInfo) {
+      if (joint.lower === null || joint.upper === null) continue;
+      limits.set(`${robot.id}/${joint.name}`, {
+        lower: joint.lower,
+        upper: joint.upper,
+      });
+    }
+  }
+  return limits;
+}
+
+function documentWarnings(loaded: Loaded): string[] {
+  const validation = validateWorld(
+    loaded.doc,
+    validateCtx(loaded.root, loaded.world)
+  );
+  return validation.warnings.map((issue) => issue.message);
+}
+
+function liveWarnings(
+  loaded: Loaded,
+  state: WorldState,
+  documentMessages: readonly string[]
+): string[] {
+  const out: string[] = [];
+  for (const [id, board] of Object.entries(state.boards)) {
+    for (const warning of board.warnings ?? []) {
+      out.push(`${id}: ${warning.message}`);
+    }
+  }
+  const limits = jointLimits(loaded.root, loaded.world, loaded.doc);
+  const units = jointUnits(loaded.root, loaded.world, loaded.doc);
+  for (const [robot, names] of Object.entries(state.joints)) {
+    for (const [joint, qpos] of Object.entries(names)) {
+      const key = `${robot}/${joint}`;
+      const limit = limits.get(key);
+      if (!limit) continue;
+      const kind = limitKind(units.get(key));
+      const text = jointLimitWarning(
+        key,
+        pastLimitAmount(qpos, limit.lower, limit.upper, kind),
+        kind
+      );
+      if (text) out.push(text);
+    }
+  }
+  out.push(...documentMessages);
+  return out;
+}
+
+function rangeWarnings(
+  loaded: Loaded,
+  frames: RecordingRead["frames"]
+): string[] {
+  const out: string[] = [];
+  const brownout = chipModels.atmega328p.brownoutVoltage;
+  const feeds = powerFeeds(loaded.doc);
+  const soaVoltage = new Map<string, number>();
+  const soaSeen = new Set<string>();
+  const units = jointUnits(loaded.root, loaded.world, loaded.doc);
+  const past = new Map<string, number>();
+  for (const frame of frames) {
+    for (const [id, board] of Object.entries(frame.boards)) {
+      if (!board.belowSoa) continue;
+      soaSeen.add(id);
+      const supplyId = feeds.boards[id];
+      const row = supplyId ? frame.supplies[supplyId] : undefined;
+      if (!row) continue;
+      const candidate =
+        row.minVoltage > brownout && row.minVoltage < ATMEGA328P_16MHZ_MIN_V
+          ? row.minVoltage
+          : row.voltage;
+      const warning = atmega328pSoaWarning(candidate, brownout);
+      if (!warning) continue;
+      const prev = soaVoltage.get(id);
+      if (prev === undefined || candidate < prev) soaVoltage.set(id, candidate);
+    }
+    for (const [robot, joints] of Object.entries(frame.limitDeg ?? {})) {
+      for (const [joint, deg] of Object.entries(joints)) {
+        const key = `${robot}/${joint}`;
+        const prev = past.get(key) ?? 0;
+        if (deg > prev) past.set(key, deg);
+      }
+    }
+  }
+  for (const id of soaSeen) {
+    const voltage = soaVoltage.get(id);
+    const warning =
+      voltage === undefined ? null : atmega328pSoaWarning(voltage, brownout);
+    out.push(
+      warning
+        ? `${id}: ${warning.message}`
+        : `${id}: supply was below the 3.78 V the ATmega328P needs at 16 MHz`
+    );
+  }
+  for (const [joint, amount] of past) {
+    const kind = limitKind(units.get(joint));
+    const text = jointLimitWarning(joint, amount, kind);
+    if (text) out.push(text);
+  }
+  out.push(...documentWarnings(loaded));
+  return out;
+}
+
+function limitKind(unit: "deg" | "m" | undefined): JointLimitKind {
+  return unit === "m" ? "slide" : "hinge";
+}
+
 function jointUnits(root: string, world: string, doc: WorldDocument) {
   const units = new Map<string, "deg" | "m">();
   const files = readerFor(root, world);
@@ -290,6 +412,11 @@ function statusOf(loaded: Loaded, stateOverride?: WorldState) {
         }
       : null,
     ...(diagnostics.length > 0 ? { diagnostics } : {}),
+    warnings: liveWarnings(
+      loaded,
+      state,
+      validation.warnings.map((issue) => issue.message)
+    ),
   };
 }
 
@@ -606,6 +733,8 @@ async function readWindow(
       raw: RecordingRead;
       events: AgentEvent[];
       truncated: boolean;
+      manifest: RecordingManifest;
+      warnings: string[];
     }
   | { error: string }
 > {
@@ -638,6 +767,8 @@ async function readWindow(
     raw: read,
     events: events.items,
     truncated: serial.truncated || events.truncated,
+    manifest: info.manifest,
+    warnings: rangeWarnings(loaded, read.frames),
   };
 }
 
@@ -703,7 +834,7 @@ function commandAck(view: {
 export const worldTools = {
   world_status: tool({
     description:
-      'Read a world\'s shared run. world is the project-relative .world.json path from get_viewer. Returns sim time, who last played or paused, each board (running, fault, resets, brownout, driven pins such as "D9: out H"), each part (pulseUs, commandDeg, state, current, board, pin), each supply, each joint in degrees or metres, the recording extent, and validator diagnostics when the document has any. A board no supply reaches has fault "unpowered".',
+      'Read a world\'s shared run. world is the project-relative .world.json path from get_viewer. Returns sim time, who last played or paused, each board (running, fault, resets, brownout, driven pins such as "D9: out H"), each part (pulseUs, commandDeg, state, current, board, pin), each supply, each joint in degrees or metres, the recording extent, validator diagnostics when the document has any, and warnings (empty when none). warnings names a board whose supply is below the 16 MHz minimum, a joint more than 1° past its limit, and validator warnings. A board no supply reaches has fault "unpowered".',
     inputSchema: z.object({ world: z.string() }),
     execute: async ({ world }) => {
       const found = await openRun(world);
@@ -758,7 +889,7 @@ export const worldTools = {
   }),
   read_recording: tool({
     description:
-      "Read a world's recording for an agent. world is the project-relative .world.json path from get_viewer. Tracks look like joint:shoulder, joint:arm/shoulder, part:servo.pulseUs, supply:usb.voltage, and board:uno.pins. An unknown track is an error. Defaults to the last 5 seconds and 50 frames (max 500). Returns those tracks, plus resets, reloads, faults, and serial lines (at most 200). Serial text is the last 4000 characters. truncated is set when either cap drops data.",
+      "Read a world's recording for an agent. world is the project-relative .world.json path from get_viewer. Tracks look like joint:shoulder, joint:arm/shoulder, part:servo.pulseUs, supply:usb.voltage, and board:uno.pins. An unknown track is an error. Defaults to the last 5 seconds and 50 frames (max 500). Returns those tracks, plus resets, reloads, faults, and serial lines (at most 200), a provenance manifest, and warnings (empty when none). warnings cover the range: a board in the 16 MHz out-of-SOA band, a joint whose furthest limit violation is more than 1°, and validator warnings. Serial text is the last 4000 characters. truncated is set when either cap drops data.",
     inputSchema: z.object({
       world: z.string(),
       from: z.number().optional(),
@@ -783,6 +914,8 @@ export const worldTools = {
         frames: read.frames,
         events: read.events,
         truncated: read.truncated,
+        manifest: read.manifest,
+        warnings: read.warnings,
       };
     },
   }),

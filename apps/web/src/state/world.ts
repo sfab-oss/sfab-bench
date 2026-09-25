@@ -293,7 +293,8 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
           next.fault === old.fault &&
           next.unpowered === old.unpowered &&
           next.brownout === old.brownout &&
-          next.resets === old.resets
+          next.resets === old.resets &&
+          next.warnings?.[0]?.message === old.warnings?.[0]?.message
         );
       })
     ) {
