@@ -63,7 +63,10 @@ import { folderName } from "@/lib/project";
 import { isMacPlatform } from "@/lib/shortcuts";
 import { documentTitle, emptySceneKind, PRODUCT_TITLE } from "@/lib/welcome";
 import { ViewerCanvas } from "@/scene/ViewerCanvas";
-import { useStore } from "@/state/store";
+import { usePrefs } from "@/state/prefs";
+import { useScene } from "@/state/scene";
+import { useViewer } from "@/state/viewer";
+import { useXrUi } from "@/state/xr";
 import { enterAR, enterVR } from "@/xrStore";
 
 const BOOT_ME_TIMEOUT_MS = 4_000;
@@ -89,8 +92,8 @@ function ChatToggle({
   buttonRef: RefObject<HTMLButtonElement | null>;
   hidden?: boolean;
 }) {
-  const setChatOpen = useStore((s) => s.setChatOpen);
-  const setCompactChatOpen = useStore((s) => s.setCompactChatOpen);
+  const setChatOpen = usePrefs((s) => s.setChatOpen);
+  const setCompactChatOpen = usePrefs((s) => s.setCompactChatOpen);
   const { tabStreaming, stopTabTurn } = useViewerChat();
   const show = () => (compact ? setCompactChatOpen(true) : setChatOpen(true));
   if (tabStreaming) {
@@ -183,40 +186,35 @@ function Overlay({
   compactChat: boolean;
   chatToggleRef: RefObject<HTMLButtonElement | null>;
 }) {
-  const {
-    review,
-    progress,
-    error,
-    selectedId,
-    fit,
-    url,
-    title,
-    loadModel,
-    sceneCrash,
-  } = useStore(
+  const { review, progress, error, selectedId, url, title, loadModel } =
+    useViewer(
+      useShallow((s) => ({
+        review: s.review,
+        progress: s.progress,
+        error: s.error,
+        selectedId: s.selectedId,
+        url: s.url,
+        title: s.title,
+        loadModel: s.loadModel,
+      }))
+    );
+  const { fit, sceneCrash } = useScene(
     useShallow((s) => ({
-      review: s.review,
-      progress: s.progress,
-      error: s.error,
-      selectedId: s.selectedId,
       fit: s.fit,
-      url: s.url,
-      title: s.title,
-      loadModel: s.loadModel,
       sceneCrash: s.sceneCrash,
     }))
   );
   const session = useXrSession();
   const { project } = useProjectSession();
   const { files, ready: catalogReady, error: catalogError } = catalog;
-  const treeOpen = useStore((s) => s.treeOpen);
-  const chatOpen = useStore((s) => s.chatOpen);
-  const compactChatOpen = useStore((s) => s.compactChatOpen);
-  const partsOpen = useStore((s) => s.partsOpen);
-  const setPartsOpen = useStore((s) => s.setPartsOpen);
-  const tool = useStore((s) => s.tool);
-  const pickedRef = useStore((s) => s.pickedRef);
-  const switching = useStore((s) => s.switching);
+  const treeOpen = usePrefs((s) => s.treeOpen);
+  const chatOpen = usePrefs((s) => s.chatOpen);
+  const compactChatOpen = usePrefs((s) => s.compactChatOpen);
+  const partsOpen = usePrefs((s) => s.partsOpen);
+  const setPartsOpen = usePrefs((s) => s.setPartsOpen);
+  const tool = useViewer((s) => s.tool);
+  const pickedRef = useViewer((s) => s.pickedRef);
+  const switching = useXrUi((s) => s.switching);
   const folderGone = isUnavailableFolder(catalogError);
   const load =
     progress !== null ? loadCardCopy({ title, url, progress }) : null;
@@ -261,7 +259,7 @@ function Overlay({
     showChatToggle && tabStreaming
   );
   const toolbar = toolbarLayout({ canvasWidth, leftReserve, rightReserve });
-  const cameraMoved = useStore((s) => s.cameraMoved);
+  const cameraMoved = useViewer((s) => s.cameraMoved);
   const { setPartsCard, setDetailCard } = useCanvasFit({
     xrActive: Boolean(session),
     review,
@@ -422,17 +420,17 @@ function Overlay({
 
 function ViewerShell({ host }: { host: boolean }) {
   const session = useXrSession();
-  const treeOpen = useStore((s) => s.treeOpen);
-  const setTreeOpen = useStore((s) => s.setTreeOpen);
-  const url = useStore((s) => s.url);
+  const treeOpen = usePrefs((s) => s.treeOpen);
+  const setTreeOpen = usePrefs((s) => s.setTreeOpen);
+  const url = useViewer((s) => s.url);
   const folder = useOpenFolder(host);
   const projectPath = useProjectSession().project.path;
   const hasProject = Boolean(projectPath);
-  const chatWidth = useStore((s) => s.chatWidth);
-  const chatOpen = useStore((s) => s.chatOpen);
-  const setChatOpen = useStore((s) => s.setChatOpen);
-  const compactChatOpen = useStore((s) => s.compactChatOpen);
-  const setCompactChatOpen = useStore((s) => s.setCompactChatOpen);
+  const chatWidth = usePrefs((s) => s.chatWidth);
+  const chatOpen = usePrefs((s) => s.chatOpen);
+  const setChatOpen = usePrefs((s) => s.setChatOpen);
+  const compactChatOpen = usePrefs((s) => s.compactChatOpen);
+  const setCompactChatOpen = usePrefs((s) => s.setCompactChatOpen);
   const windowWidth = useWindowWidth();
   const compactChat = isCompactChat(windowWidth, treeOpen);
   const layoutWidth = chatLayoutWidth(chatWidth, windowWidth, treeOpen);

@@ -26,7 +26,7 @@ import {
 } from "@/components/chat/useViewerChat";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { jsonApi } from "@/lib/api";
-import { setXrChatChars, store, useStore } from "@/state/store";
+import { setXrChatChars, useXrUi, xrUiStore } from "@/state/xr";
 
 type Voice = ReturnType<typeof useVoiceInput>;
 
@@ -66,7 +66,7 @@ function XrChatSessionRuntime({
   onPersist: () => void;
   children: ReactNode;
 }) {
-  const xrChatOpen = useStore((s) => s.xrChatOpen);
+  const xrChatOpen = useXrUi((s) => s.xrChatOpen);
   const openRef = useRef(xrChatOpen);
   openRef.current = xrChatOpen;
   const [draft, setDraft] = useState("");
@@ -179,8 +179,8 @@ function XrChatSessionRuntime({
         ? "streaming"
         : "submitted"
       : "idle";
-    store.getState().setXrChatPhase(phase);
-    return () => store.getState().setXrChatPhase("idle");
+    xrUiStore.getState().setXrChatPhase(phase);
+    return () => xrUiStore.getState().setXrChatPhase("idle");
   }, [busy, pendingViewer, status]);
   useEffect(() => {
     const last = [...messages].reverse().find((m) => m.role === "assistant");

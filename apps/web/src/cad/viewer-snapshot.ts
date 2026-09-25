@@ -1,10 +1,10 @@
 import { treeTops } from "@/cad/tree";
 import type { ViewerSnapshot } from "@/lib/viewer-snapshot";
 import { emptySnapshot } from "@/lib/viewer-snapshot";
-import { store } from "@/state/store";
+import { viewerStore } from "@/state/viewer";
 
 export function viewerSnapshot(): ViewerSnapshot {
-  const s = store.getState();
+  const s = viewerStore.getState();
   const file = s.url;
   if (!file || !s.review) return emptySnapshot(file);
   const review = s.review;

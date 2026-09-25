@@ -10,7 +10,7 @@ import {
   viewerIsReady,
 } from "@/chat/get-viewer";
 import type { GalleryChatMessage } from "@/components/chat/mock-chat-messages";
-import { store } from "@/state/store";
+import { viewerStore } from "@/state/viewer";
 
 function lastAssistantHasPendingTools(messages: GalleryChatMessage[]) {
   const last = messages.at(-1);
@@ -32,16 +32,16 @@ function waitUntilReady(
   target: string | null,
   isCancelled: () => boolean
 ): Promise<void> {
-  if (isCancelled() || viewerIsReady(store.getState(), target))
+  if (isCancelled() || viewerIsReady(viewerStore.getState(), target))
     return Promise.resolve();
   return new Promise((resolve) => {
-    const unsub = store.subscribe((state) => {
+    const unsub = viewerStore.subscribe((state) => {
       if (isCancelled() || viewerIsReady(state, target)) {
         unsub();
         resolve();
       }
     });
-    if (isCancelled() || viewerIsReady(store.getState(), target)) {
+    if (isCancelled() || viewerIsReady(viewerStore.getState(), target)) {
       unsub();
       resolve();
     }
@@ -72,7 +72,7 @@ export function useLiveViewerTools(
           );
           if (!shown || seen.current.has(shown.key)) return;
           seen.current.add(shown.key);
-          void store.getState().loadModel(shown.file);
+          void viewerStore.getState().loadModel(shown.file);
         });
       }
     }
@@ -81,8 +81,8 @@ export function useLiveViewerTools(
     if (!pending) return;
 
     const target = latestShownArtifact(messages);
-    if (target && store.getState().url !== target) {
-      void store.getState().loadModel(target);
+    if (target && viewerStore.getState().url !== target) {
+      void viewerStore.getState().loadModel(target);
     }
 
     if (inFlight.current === pending.toolCallId) return;

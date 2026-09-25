@@ -31,7 +31,8 @@ import { folderName, shortPath } from "@/lib/project";
 import { isMacPlatform, matchesShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import type { CatalogEntry } from "@/lib/viewer-snapshot";
-import { store, useStore } from "@/state/store";
+import { prefsStore, usePrefs } from "@/state/prefs";
+import { useViewer } from "@/state/viewer";
 
 const EMPTY_COMMANDS: PaletteCommand[] = [];
 
@@ -58,9 +59,9 @@ export function CommandPalette({
   const activeRowRef = useRef<HTMLButtonElement | null>(null);
   const { setTheme } = useTheme();
   const { project, setDoc } = useProjectSession();
-  const { url, treeOpen, chatOpen, compactChatOpen } = useStore(
+  const url = useViewer((s) => s.url);
+  const { treeOpen, chatOpen, compactChatOpen } = usePrefs(
     useShallow((s) => ({
-      url: s.url,
       treeOpen: s.treeOpen,
       chatOpen: s.chatOpen,
       compactChatOpen: s.compactChatOpen,
@@ -127,7 +128,7 @@ export function CommandPalette({
 
   const execute = useCallback(
     (cmd: PaletteCommand) => {
-      const s = store.getState();
+      const s = prefsStore.getState();
       const compact = isCompactChat(window.innerWidth, s.treeOpen);
       if (cmd.id === "action:open-folder") {
         void folder.requestOpen();

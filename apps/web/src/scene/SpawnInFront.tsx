@@ -4,7 +4,8 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useShallow } from "zustand/react/shallow";
 
-import { useStore } from "@/state/store";
+import { useScene } from "@/state/scene";
+import { useViewer } from "@/state/viewer";
 
 const pos = new THREE.Vector3();
 const quat = new THREE.Quaternion();
@@ -95,10 +96,14 @@ export function forgetCadSpawnKey(
 export function SpawnInFront() {
   const session = useXR((s) => s.session);
   const camera = useThree((s) => s.camera);
-  const { url, review, placed, setRecenter, setModelScale } = useStore(
+  const { url, review } = useViewer(
     useShallow((s) => ({
       url: s.url,
       review: s.review,
+    }))
+  );
+  const { placed, setRecenter, setModelScale } = useScene(
+    useShallow((s) => ({
       placed: s.placed,
       setRecenter: s.setRecenter,
       setModelScale: s.setModelScale,

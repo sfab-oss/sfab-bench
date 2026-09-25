@@ -34,7 +34,8 @@ import type {
   SessionSnapshot,
 } from "@/lib/session";
 import { emitFolderError } from "@/lib/welcome";
-import { store } from "@/state/store";
+import { prefsStore } from "@/state/prefs";
+import { viewerStore } from "@/state/viewer";
 
 type SessionValue = {
   ready: boolean;
@@ -78,16 +79,16 @@ export function ProjectSessionProvider({
   const applyLibrary = useCallback((path: string, recents: string[]) => {
     const pathChanged = lastPath.current !== path;
     if (pathChanged) {
-      const { url, error, progress } = store.getState();
+      const { url, error, progress } = viewerStore.getState();
       // Clear a leftover ?file=-only boot, or the previous folder's document.
       if (lastPath.current || url || error || progress !== null) {
-        void store.getState().loadModel("");
+        void viewerStore.getState().loadModel("");
       }
     }
     lastPath.current = path;
     setProject({ path });
     setFileRecents(recents);
-    store.getState().setRecentFiles(recents);
+    prefsStore.getState().setRecentFiles(recents);
     window.dispatchEvent(new Event(LIBRARY_FILES_EVENT));
   }, []);
 
@@ -97,17 +98,17 @@ export function ProjectSessionProvider({
       if (!path) {
         if (
           modelUrl() ||
-          store.getState().url ||
-          store.getState().progress !== null
+          viewerStore.getState().url ||
+          viewerStore.getState().progress !== null
         ) {
-          void store.getState().loadModel("");
+          void viewerStore.getState().loadModel("");
         }
         return;
       }
       if (!appliedDeepLink.current) {
         appliedDeepLink.current = true;
         const deep = modelUrl();
-        if (deep) void store.getState().loadModel(deep);
+        if (deep) void viewerStore.getState().loadModel(deep);
       }
     },
     [applyLibrary]
@@ -280,7 +281,7 @@ export function ProjectSessionProvider({
   }, [applySnapshot, adoptTab]);
 
   const setDoc = useCallback(async (file: string | null, reload = false) => {
-    const { url, error, loadModel } = store.getState();
+    const { url, error, loadModel } = viewerStore.getState();
     const next = file ?? "";
     if (!reload && next && !shouldReloadOpenFile(next, url, Boolean(error)))
       return;
