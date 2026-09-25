@@ -9,10 +9,27 @@
  * directory.
  */
 
+export type UrdfJointInfo = {
+  name: string;
+  /** URDF `type`. Empty when the attribute is missing. */
+  type: string;
+  parent: string;
+  /** The link this joint moves. */
+  child: string;
+  axis: [number, number, number] | null;
+  /** Radians from `<limit>`. Null when that attribute is absent. */
+  lower: number | null;
+  upper: number | null;
+};
+
 export type UrdfInfo = {
   links: string[];
   joints: string[];
   meshes: string[];
+  /** Named joints, in document order. */
+  jointInfo: UrdfJointInfo[];
+  /** Every `<mesh>` filename under that link, in document order. */
+  linkMeshes: Record<string, string[]>;
 };
 
 export function decodeXml(text: string): string {
@@ -32,26 +49,108 @@ export function attr(attrs: string, name: string): string | undefined {
   return decodeXml(match[1] ?? match[2] ?? "");
 }
 
+function finiteNum(text: string | undefined): number | null {
+  if (text === undefined || text.trim() === "") return null;
+  const n = Number(text);
+  return Number.isFinite(n) ? n : null;
+}
+
+function axisOf(text: string | undefined): [number, number, number] | null {
+  if (!text) return null;
+  const parts = text
+    .trim()
+    .split(/\s+/)
+    .map((part) => Number(part));
+  if (parts.length < 3 || parts.slice(0, 3).some((n) => !Number.isFinite(n))) {
+    return null;
+  }
+  return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0];
+}
+
+function blankJoint(name: string, type: string): UrdfJointInfo {
+  return {
+    name,
+    type,
+    parent: "",
+    child: "",
+    axis: null,
+    lower: null,
+    upper: null,
+  };
+}
+
 export function extractUrdfJointsAndMeshes(xml: string): UrdfInfo {
   const stripped = xml.replace(/<!--[\s\S]*?-->/g, "");
   const links: string[] = [];
   const joints: string[] = [];
   const meshes: string[] = [];
-  for (const tag of stripped.matchAll(/<([A-Za-z][\w:-]*)\b([^>]*)>/g)) {
-    const element = tag[1];
-    const attrs = tag[2] ?? "";
+  const jointInfo: UrdfJointInfo[] = [];
+  const linkMeshes: Record<string, string[]> = {};
+  let link: string | null = null;
+  let joint: UrdfJointInfo | null = null;
+
+  for (const tag of stripped.matchAll(
+    /<(\/)?([A-Za-z][\w:.-]*)\b([^>]*?)(\/)?>/g
+  )) {
+    const closing = Boolean(tag[1]);
+    const element = tag[2] ?? "";
+    const attrs = tag[3] ?? "";
+    const selfClosing = Boolean(tag[4]);
+
+    if (closing) {
+      if (element === "link") link = null;
+      if (element === "joint" && joint) {
+        jointInfo.push(joint);
+        joint = null;
+      }
+      continue;
+    }
+
     if (element === "link") {
       const name = attr(attrs, "name");
-      if (name) links.push(name);
+      link = name ?? null;
+      if (name) {
+        links.push(name);
+        if (!linkMeshes[name]) linkMeshes[name] = [];
+      }
     } else if (element === "joint") {
       const name = attr(attrs, "name");
-      if (name) joints.push(name);
+      if (name) {
+        joints.push(name);
+        joint = blankJoint(name, attr(attrs, "type") ?? "");
+      } else {
+        joint = null;
+      }
+    } else if (element === "parent" && joint) {
+      joint.parent = attr(attrs, "link") ?? "";
+    } else if (element === "child" && joint) {
+      joint.child = attr(attrs, "link") ?? "";
+    } else if (element === "axis" && joint) {
+      joint.axis = axisOf(attr(attrs, "xyz"));
+    } else if (element === "limit" && joint) {
+      joint.lower = finiteNum(attr(attrs, "lower"));
+      joint.upper = finiteNum(attr(attrs, "upper"));
     } else if (element === "mesh") {
       const filename = attr(attrs, "filename");
-      if (filename !== undefined) meshes.push(filename);
+      if (filename !== undefined) {
+        meshes.push(filename);
+        if (link) {
+          const list = linkMeshes[link] ?? [];
+          list.push(filename);
+          linkMeshes[link] = list;
+        }
+      }
+    }
+
+    if (selfClosing && element === "link") link = null;
+    if (selfClosing && element === "joint" && joint) {
+      jointInfo.push(joint);
+      joint = null;
     }
   }
-  return { links, joints, meshes };
+
+  if (joint) jointInfo.push(joint);
+  return { links, joints, meshes, jointInfo, linkMeshes };
 }
 
 /**

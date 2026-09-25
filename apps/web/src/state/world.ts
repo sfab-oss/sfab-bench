@@ -1,6 +1,7 @@
 import type {
   WorldBoardState,
   WorldError,
+  WorldPinState,
   WorldSender,
   WorldState,
 } from "@sfab-bench/contract";
@@ -10,12 +11,61 @@ import { createStore } from "zustand/vanilla";
 import { readOpenDocument } from "@/lib/document-query";
 import { projectUrl } from "@/lib/project-query";
 import type { AssetIssue } from "@/lib/world-issues";
+import { outlineItems, type WorldOutline } from "@/lib/world-outline";
 
 /**
  * The open world document and the low-rate HUD. Poses live in
  * `worldLiveState`, not here: a 30 Hz state must not render React.
  */
 export type WorldConnection = "idle" | "connecting" | "live" | "reconnecting";
+
+/** Per client. The shared run does not carry this (D-015). */
+export type WorldSelection =
+  | { kind: "link"; robot: string; link: string }
+  | { kind: "board"; board: string }
+  | null;
+
+export type WorldSelectionAction =
+  | { type: "select"; selection: WorldSelection }
+  | { type: "close" }
+  | {
+      type: "reload";
+      links: readonly { robot: string; link: string }[];
+      boards: readonly string[];
+    };
+
+export function sameWorldSelection(
+  a: WorldSelection,
+  b: WorldSelection
+): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.kind !== b.kind) return false;
+  if (a.kind === "board" && b.kind === "board") return a.board === b.board;
+  return a.kind === "link" && b.kind === "link"
+    ? a.robot === b.robot && a.link === b.link
+    : false;
+}
+
+/** Select, drop on close, or keep a selection only when the reload still has it. */
+export function reduceWorldSelection(
+  selection: WorldSelection,
+  action: WorldSelectionAction
+): WorldSelection {
+  if (action.type === "close") return null;
+  if (action.type === "select") {
+    return sameWorldSelection(selection, action.selection)
+      ? selection
+      : action.selection;
+  }
+  if (!selection) return null;
+  if (selection.kind === "board") {
+    return action.boards.includes(selection.board) ? selection : null;
+  }
+  const kept = action.links.some(
+    (item) => item.robot === selection.robot && item.link === selection.link
+  );
+  return kept ? selection : null;
+}
 
 export type WorldHudState = {
   path: string;
@@ -35,8 +85,23 @@ export type WorldHudState = {
   /** True once a scene has been built. A later error keeps that scene. */
   sceneReady: boolean;
   assets: "idle" | "loading" | "ready" | "error";
+  /** This client's pick. Not part of the shared run. */
+  selection: WorldSelection;
+  /** Links, joints, and boards for the inspector. Null until the file loads. */
+  outline: WorldOutline | null;
+  /** Joint positions in radians, copied at the HUD rate. */
+  joints: Record<string, Record<string, number>>;
+  /** Pin masks, copied at the HUD rate. */
+  pins: Record<string, WorldPinState>;
   open: (path: string, opts?: { force?: boolean }) => void;
   close: () => void;
+  select: (selection: WorldSelection) => void;
+  /** Replace the outline and drop a selection the new document no longer has. */
+  setOutline: (outline: WorldOutline) => void;
+  setSignals: (
+    joints: Record<string, Record<string, number>>,
+    pins: Record<string, WorldPinState>
+  ) => void;
   noteReload: () => void;
   setConnection: (connection: WorldConnection) => void;
   setRun: (playing: boolean, simTime: number) => void;
@@ -81,6 +146,10 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
   assetIssues: [],
   sceneReady: false,
   assets: path ? "loading" : "idle",
+  selection: null,
+  outline: null,
+  joints: {},
+  pins: {},
 
   open: (next, opts) => {
     const current = get();
@@ -91,6 +160,7 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
     ) {
       return;
     }
+    const sameDocument = current.path === next && next !== "";
     live = null;
     set({
       path: next,
@@ -105,6 +175,12 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
       assetIssues: [],
       sceneReady: false,
       assets: "loading",
+      selection: sameDocument
+        ? current.selection
+        : reduceWorldSelection(current.selection, { type: "close" }),
+      outline: sameDocument ? current.outline : null,
+      joints: {},
+      pins: {},
     });
   },
   close: () => {
@@ -122,7 +198,37 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
       assetIssues: [],
       sceneReady: false,
       assets: "idle",
+      selection: reduceWorldSelection(get().selection, { type: "close" }),
+      outline: null,
+      joints: {},
+      pins: {},
     });
+  },
+  select: (selection) => {
+    const next = reduceWorldSelection(get().selection, {
+      type: "select",
+      selection,
+    });
+    if (next === get().selection) return;
+    set({ selection: next });
+  },
+  setOutline: (outline) => {
+    const items = outlineItems(outline);
+    set({
+      outline,
+      selection: reduceWorldSelection(get().selection, {
+        type: "reload",
+        links: items.links,
+        boards: items.boards,
+      }),
+    });
+  },
+  setSignals: (joints, pins) => {
+    const current = get();
+    if (sameJoints(current.joints, joints) && samePins(current.pins, pins)) {
+      return;
+    }
+    set({ joints, pins });
   },
   noteReload: () => set((s) => ({ revision: s.revision + 1 })),
   setConnection: (connection) => {
@@ -195,6 +301,47 @@ export const worldStore = createStore<WorldHudState>()((set, get) => ({
       sceneReady: sceneReady ?? s.sceneReady,
     })),
 }));
+
+function sameJoints(
+  a: Record<string, Record<string, number>>,
+  b: Record<string, Record<string, number>>
+): boolean {
+  const aKeys = Object.keys(a);
+  if (aKeys.length !== Object.keys(b).length) return false;
+  for (const robot of aKeys) {
+    const left = a[robot];
+    const right = b[robot];
+    if (!left || !right) return false;
+    const names = Object.keys(left);
+    if (names.length !== Object.keys(right).length) return false;
+    for (const name of names) {
+      if (left[name] !== right[name]) return false;
+    }
+  }
+  return true;
+}
+
+function samePins(
+  a: Record<string, WorldPinState>,
+  b: Record<string, WorldPinState>
+): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  for (const id of keys) {
+    const left = a[id];
+    const right = b[id];
+    if (
+      !left ||
+      !right ||
+      left.ddr !== right.ddr ||
+      left.level !== right.level ||
+      left.toggled !== right.toggled
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
 
 export function useWorld<T>(selector: (state: WorldHudState) => T): T {
   return useZustandStore(worldStore, selector);

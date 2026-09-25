@@ -18,7 +18,7 @@ import { WorldScene } from "@/scene/WorldScene";
 import { prefsStore } from "@/state/prefs";
 import { sceneStore, useScene } from "@/state/scene";
 import { useViewer, viewerStore } from "@/state/viewer";
-import { useWorld } from "@/state/world";
+import { useWorld, worldStore } from "@/state/world";
 import { xrUiStore } from "@/state/xr";
 import { HandRig } from "@/xr/hands/HandRig";
 import { HandSkeletons } from "@/xr/hands/HandSkeleton";
@@ -46,7 +46,7 @@ function DemandBridge() {
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
     bindSceneInvalidate(invalidate);
-    const stores = [viewerStore, sceneStore, prefsStore, xrUiStore];
+    const stores = [viewerStore, sceneStore, prefsStore, xrUiStore, worldStore];
     const unsubs = stores.map((s) => s.subscribe(() => invalidate()));
     return () => {
       for (const unsub of unsubs) unsub();
@@ -153,6 +153,12 @@ export function ViewerCanvas() {
       camera={{ position: [0.42, 0.32, 0.5], fov: 50, near: 0.01, far: 50 }}
       frameloop={viewerFrameloop(Boolean(xrSession))}
       gl={{ antialias: true, alpha: true, localClippingEnabled: true }}
+      onPointerMissed={() => {
+        if (xrStore.getState().session) return;
+        if (!worldStore.getState().path) return;
+        if (!worldStore.getState().selection) return;
+        worldStore.getState().select(null);
+      }}
     >
       <XR store={xrStore}>
         <DemandBridge />

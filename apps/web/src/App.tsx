@@ -13,7 +13,6 @@ import {
   frameFitObject,
   homeFitDirection,
 } from "@/cad/review";
-import { BoardPanel } from "@/components/BoardPanel";
 import { LiveDot } from "@/components/brand/LiveDot";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CloseFolderDialog } from "@/components/CloseFolderDialog";
@@ -40,6 +39,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { ToastProvider, Toasts } from "@/components/ui/toast";
 import { WorldControls, WorldProblemCard } from "@/components/WorldChrome";
+import { WorldInspector } from "@/components/WorldInspector";
 import { useCanvasFit } from "@/hooks/useCanvasFit";
 import { type CatalogState, useCatalog } from "@/hooks/useCatalog";
 import { useMotionReady } from "@/hooks/useMotionReady";
@@ -251,9 +251,11 @@ function Overlay({
     (!overlays.autoCollapseParts || partsForceExpand);
   const partsChip = Boolean(review) && !partsExpanded;
   const part = selectedId !== null ? review?.parts[selectedId] : undefined;
+  const worldOpen = Boolean(worldPath);
   const detailVisible =
-    Boolean(review) &&
-    (tool === "measure" || Boolean(part) || Boolean(pickedRef));
+    worldOpen ||
+    (Boolean(review) &&
+      (tool === "measure" || Boolean(part) || Boolean(pickedRef)));
   const detailWidth = detailVisible
     ? detailPanelWidth(canvasWidth, overlays.detailCompact, partsChip)
     : 0;
@@ -358,12 +360,21 @@ function Overlay({
               setPartsForceExpand(true);
             }}
           />
-          <DetailPanel
-            canvasHeight={canvasHeight}
-            cardRef={setDetailCard}
-            compact={overlays.detailCompact}
-            width={detailWidth}
-          />
+          {worldOpen ? (
+            <WorldInspector
+              canvasHeight={canvasHeight}
+              cardRef={setDetailCard}
+              compact={overlays.detailCompact}
+              width={detailWidth}
+            />
+          ) : (
+            <DetailPanel
+              canvasHeight={canvasHeight}
+              cardRef={setDetailCard}
+              compact={overlays.detailCompact}
+              width={detailWidth}
+            />
+          )}
           <div className="pointer-events-none absolute top-4 right-3 z-10 flex items-start gap-2">
             <EnterXr />
             {project.path ? (
@@ -429,7 +440,6 @@ function Overlay({
         </div>
       )}
       {!session ? <WorldProblemCard /> : null}
-      {!session && worldPath ? <BoardPanel /> : null}
       {sceneCrash ? (
         <div className="pointer-events-auto absolute inset-x-4 top-1/2 z-30 mx-auto flex max-w-80 justify-center">
           <CrashCard error={sceneCrash.error} onRetry={sceneCrash.reset} />

@@ -2,7 +2,19 @@ import { treeTops } from "@/cad/tree";
 import type { ViewerSnapshot } from "@/lib/viewer-snapshot";
 import { emptySnapshot } from "@/lib/viewer-snapshot";
 import { viewerStore } from "@/state/viewer";
-import { worldLiveState, worldStore } from "@/state/world";
+import { type WorldSelection, worldLiveState, worldStore } from "@/state/world";
+
+/**
+ * What get_viewer reports for this client's world selection.
+ * Undefined when no world is open, so a CAD snapshot stays unchanged.
+ */
+export function worldViewerSelection(
+  worldOpen: boolean,
+  selection: WorldSelection
+): WorldSelection | undefined {
+  if (!worldOpen) return undefined;
+  return selection;
+}
 
 export function viewerSnapshot(): ViewerSnapshot {
   const world = worldStore.getState();
@@ -17,6 +29,7 @@ export function viewerSnapshot(): ViewerSnapshot {
       partCount: 0,
       playing: live?.playing ?? world.playing,
       simTime: live?.simTime ?? world.simTime,
+      selection: worldViewerSelection(true, world.selection),
     };
   }
   const s = viewerStore.getState();

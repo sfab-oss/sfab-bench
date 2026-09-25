@@ -1,3 +1,5 @@
+import type { WorldPinState } from "@sfab-bench/contract";
+import { arduinoPinMask } from "@sfab-bench/contract";
 import {
   AVRIOPort,
   AVRTimer,
@@ -43,6 +45,14 @@ export class AvrBoard {
   private usart: AVRUSART | null = null;
   /** Held so the port and timer hooks stay attached for the life of the CPU. */
   private peripherals: unknown[] = [];
+  private portB: AVRIOPort | null = null;
+  private portC: AVRIOPort | null = null;
+  private portD: AVRIOPort | null = null;
+  /**
+   * Bits that changed since the last `takePins`. Port listeners OR these
+   * in; the state tick is the only place that reads the registers.
+   */
+  private toggled = 0;
   private rx: number[] = [];
   private tx = "";
 
@@ -66,10 +76,20 @@ export class AvrBoard {
       words[i] = lo | (hi << 8);
     }
     const cpu = new CPU(words, SRAM_BYTES);
+    const portB = new AVRIOPort(cpu, portBConfig);
+    const portC = new AVRIOPort(cpu, portCConfig);
+    const portD = new AVRIOPort(cpu, portDConfig);
+    this.watchPort(portD, 0, 8);
+    this.watchPort(portB, 8, 6);
+    this.watchPort(portC, 14, 6);
+    this.portB = portB;
+    this.portC = portC;
+    this.portD = portD;
+    this.toggled = 0;
     const peripherals = [
-      new AVRIOPort(cpu, portBConfig),
-      new AVRIOPort(cpu, portCConfig),
-      new AVRIOPort(cpu, portDConfig),
+      portB,
+      portC,
+      portD,
       new AVRTimer(cpu, timer0Config),
       new AVRTimer(cpu, timer1Config),
       new AVRTimer(cpu, timer2Config),
@@ -100,8 +120,45 @@ export class AvrBoard {
     this.cpu = null;
     this.usart = null;
     this.peripherals = [];
+    this.portB = null;
+    this.portC = null;
+    this.portD = null;
+    this.toggled = 0;
     this.rx = [];
     this.overshoot = 0;
+  }
+
+  /**
+   * DDR, level, and toggles for D0–D13 and A0–A5. Clears the toggle mask.
+   * Call once per state tick. A stopped board reports zeros.
+   */
+  takePins(): WorldPinState {
+    const toggled = this.toggled;
+    this.toggled = 0;
+    const cpu = this.cpu;
+    const portB = this.portB;
+    const portC = this.portC;
+    const portD = this.portD;
+    if (!cpu || !portB || !portC || !portD) {
+      return { ddr: 0, level: 0, toggled: 0 };
+    }
+    const d = portRegs(cpu, portD);
+    const b = portRegs(cpu, portB);
+    const c = portRegs(cpu, portC);
+    return {
+      ddr: arduinoPinMask(d.ddr, b.ddr, c.ddr),
+      level: arduinoPinMask(d.level, b.level, c.level),
+      toggled,
+    };
+  }
+
+  /** OR changed pin bits. Runs only when avr8js already noticed a port write. */
+  private watchPort(port: AVRIOPort, shift: number, width: number) {
+    const mask = (1 << width) - 1;
+    port.addListener((value, oldValue) => {
+      const changed = (value ^ oldValue) & mask;
+      if (changed !== 0) this.toggled |= changed << shift;
+    });
   }
 
   takeTx(): string {
@@ -156,4 +213,13 @@ export class AvrBoard {
       this.rxAccepted += 1;
     }
   }
+}
+
+/** PORT for output bits, PIN for input bits. Width is applied by the mask packer. */
+function portRegs(cpu: CPU, port: AVRIOPort): { ddr: number; level: number } {
+  const ddr = cpu.data[port.portConfig.DDR] ?? 0;
+  const written = cpu.data[port.portConfig.PORT] ?? 0;
+  const pin = cpu.data[port.portConfig.PIN] ?? 0;
+  const level = (ddr & written) | (~ddr & pin);
+  return { ddr, level };
 }
