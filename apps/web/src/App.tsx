@@ -8,7 +8,11 @@ import {
 } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { fileLabel } from "@/cad/loadCadReview";
-import { fitDirectionFor, frameFitObject } from "@/cad/review";
+import {
+  fitDirectionFor,
+  frameFitObject,
+  homeFitDirection,
+} from "@/cad/review";
 import { LiveDot } from "@/components/brand/LiveDot";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CloseFolderDialog } from "@/components/CloseFolderDialog";
@@ -34,6 +38,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { ToastProvider, Toasts } from "@/components/ui/toast";
+import { WorldControls, WorldProblemCard } from "@/components/WorldChrome";
 import { useCanvasFit } from "@/hooks/useCanvasFit";
 import { type CatalogState, useCatalog } from "@/hooks/useCatalog";
 import { useMotionReady } from "@/hooks/useMotionReady";
@@ -41,6 +46,7 @@ import {
   ProjectSessionProvider,
   useProjectSession,
 } from "@/hooks/useProjectSession";
+import { useWorldRun } from "@/hooks/useWorldRun";
 import { useXrSession } from "@/hooks/useXrSession";
 import { useXrSupport } from "@/hooks/useXrSupport";
 import { fetchMe, jsonApi, type MePrincipal } from "@/lib/api";
@@ -63,9 +69,11 @@ import { folderName } from "@/lib/project";
 import { isMacPlatform } from "@/lib/shortcuts";
 import { documentTitle, emptySceneKind, PRODUCT_TITLE } from "@/lib/welcome";
 import { ViewerCanvas } from "@/scene/ViewerCanvas";
+import { worldFitTarget } from "@/scene/world-fit";
 import { usePrefs } from "@/state/prefs";
 import { useScene } from "@/state/scene";
 import { useViewer } from "@/state/viewer";
+import { useWorld } from "@/state/world";
 import { useXrUi } from "@/state/xr";
 import { enterAR, enterVR } from "@/xrStore";
 
@@ -206,6 +214,7 @@ function Overlay({
   );
   const session = useXrSession();
   const { project } = useProjectSession();
+  const worldPath = useWorld((s) => s.path);
   const { files, ready: catalogReady, error: catalogError } = catalog;
   const treeOpen = usePrefs((s) => s.treeOpen);
   const chatOpen = usePrefs((s) => s.chatOpen);
@@ -219,7 +228,7 @@ function Overlay({
   const load =
     progress !== null ? loadCardCopy({ title, url, progress }) : null;
   const scene = emptySceneKind({
-    hasReview: Boolean(review),
+    hasReview: Boolean(review) || Boolean(worldPath),
     progress,
     loadError: Boolean(error),
     sceneCrash: Boolean(sceneCrash),
@@ -312,7 +321,16 @@ function Overlay({
               ) : null}
             </div>
           ) : null}
-          {toolbarVisible ? (
+          {worldPath ? (
+            <WorldControls
+              left={toolbar.left}
+              top={toolbar.top}
+              onHome={() => {
+                const obj = worldFitTarget();
+                if (obj) fit?.(obj, homeFitDirection());
+              }}
+            />
+          ) : toolbarVisible ? (
             <Toolbar
               left={toolbar.left}
               top={toolbar.top}
@@ -409,6 +427,7 @@ function Overlay({
           </div>
         </div>
       )}
+      <WorldProblemCard />
       {sceneCrash ? (
         <div className="pointer-events-auto absolute inset-x-4 top-1/2 z-30 mx-auto flex max-w-80 justify-center">
           <CrashCard error={sceneCrash.error} onRetry={sceneCrash.reset} />
@@ -423,8 +442,10 @@ function ViewerShell({ host }: { host: boolean }) {
   const treeOpen = usePrefs((s) => s.treeOpen);
   const setTreeOpen = usePrefs((s) => s.setTreeOpen);
   const url = useViewer((s) => s.url);
+  const worldPath = useWorld((s) => s.path);
   const folder = useOpenFolder(host);
   const projectPath = useProjectSession().project.path;
+  useWorldRun(projectPath, worldPath);
   const hasProject = Boolean(projectPath);
   const chatWidth = usePrefs((s) => s.chatWidth);
   const chatOpen = usePrefs((s) => s.chatOpen);
@@ -457,7 +478,8 @@ function ViewerShell({ host }: { host: boolean }) {
   }, []);
 
   useEffect(() => {
-    const file = url ? fileLabel(url) : "";
+    const shown = worldPath || url;
+    const file = shown ? fileLabel(shown) : "";
     document.title = documentTitle({
       folderName: projectPath ? folderName(projectPath) : null,
       fileName: file && file !== "No model" ? file : null,
@@ -465,7 +487,7 @@ function ViewerShell({ host }: { host: boolean }) {
     return () => {
       document.title = PRODUCT_TITLE;
     };
-  }, [projectPath, url]);
+  }, [projectPath, url, worldPath]);
   return (
     <SidebarProvider
       className="h-dvh min-h-0 overflow-hidden"

@@ -1,0 +1,164 @@
+import type { WorldServerMessage, WorldState } from "@sfab-bench/contract";
+import { useEffect } from "react";
+
+import { getDeviceToken } from "@/lib/api";
+import { commandNotice } from "@/lib/world-issues";
+import { worldLiveSocketUrl } from "@/lib/world-live-url";
+import { invalidateSceneNow } from "@/scene/invalidate";
+import { setWorldLiveState, worldLiveState, worldStore } from "@/state/world";
+
+const SIM_TIME_MS = 200;
+const ATTACH_COMMAND_MS = 300;
+const NOTICE_MS = 3200;
+
+let socket: WebSocket | null = null;
+/** When this tab last sent play or pause. Two Mac tabs share one principal. */
+let sentCommandAt = 0;
+
+export function sendWorldCommand(type: "play" | "pause") {
+  if (socket?.readyState !== WebSocket.OPEN) return;
+  sentCommandAt = performance.now();
+  socket.send(JSON.stringify({ type }));
+}
+
+function backoff(attempt: number): number {
+  return Math.min(8_000, 400 * 2 ** attempt);
+}
+
+/**
+ * One socket for the open world. Poses stay in a ref. React hears
+ * play state, a throttled sim time, the last remote command, and errors.
+ */
+export function useWorldRun(project: string, world: string) {
+  useEffect(() => {
+    if (!project || !world) return;
+    let closed = false;
+    let attempt = 0;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    let noticeTimer: ReturnType<typeof setTimeout> | null = null;
+    let attachTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastHud = 0;
+    let sawState = false;
+    let attachCommand = false;
+    const hud = worldStore.getState();
+
+    const clearAttach = () => {
+      if (attachTimer) clearTimeout(attachTimer);
+      attachTimer = null;
+      attachCommand = false;
+    };
+
+    const publish = (state: WorldState) => {
+      setWorldLiveState(state);
+      invalidateSceneNow();
+      const now = performance.now();
+      const current = worldStore.getState();
+      const playingChanged = current.playing !== state.playing;
+      const due = now - lastHud >= SIM_TIME_MS || current.connection !== "live";
+      if (!playingChanged && !due) return;
+      lastHud = now;
+      current.setRun(state.playing, due ? state.simTime : current.simTime);
+    };
+
+    const showNotice = (text: string) => {
+      worldStore.getState().setNotice(text);
+      if (noticeTimer) clearTimeout(noticeTimer);
+      noticeTimer = setTimeout(() => {
+        worldStore.getState().setNotice(null);
+      }, NOTICE_MS);
+    };
+
+    const onMessage = (raw: string) => {
+      let message: WorldServerMessage;
+      try {
+        message = JSON.parse(raw) as WorldServerMessage;
+      } catch {
+        return;
+      }
+      if (message.type === "state") {
+        if (!sawState) {
+          sawState = true;
+          attachCommand = true;
+          if (attachTimer) clearTimeout(attachTimer);
+          // The attach snapshot's `command` follows `state` immediately.
+          // A later command is someone acting, and every client shows it.
+          attachTimer = setTimeout(() => {
+            attachCommand = false;
+          }, ATTACH_COMMAND_MS);
+        }
+        worldStore.getState().clearRunProblem();
+        publish(message.state);
+        return;
+      }
+      if (message.type === "command") {
+        const duringAttach = attachCommand;
+        if (duringAttach) clearAttach();
+        const playing = message.command === "play";
+        const live = worldLiveState();
+        if (live) setWorldLiveState({ ...live, playing });
+        worldStore.getState().setRun(playing, worldStore.getState().simTime);
+        if (duringAttach) return;
+        // The echo of this tab's own click is not a notice. Every other
+        // client, including another tab on this Mac, shows who sent it.
+        if (performance.now() - sentCommandAt > 500) {
+          showNotice(commandNotice(message.command, message.by));
+        }
+        return;
+      }
+      if (message.type === "reloaded") {
+        worldStore.getState().noteReload();
+        return;
+      }
+      if (message.type === "error") {
+        const live = worldLiveState();
+        if (live) setWorldLiveState({ ...live, playing: false });
+        worldStore.getState().setRunProblem(message.errors, message.message);
+        invalidateSceneNow();
+      }
+    };
+
+    const connect = () => {
+      if (closed) return;
+      sawState = false;
+      clearAttach();
+      const url = worldLiveSocketUrl({
+        pageProtocol: window.location.protocol,
+        host: window.location.host,
+        project,
+        world,
+        token: getDeviceToken(),
+      });
+      const ws = new WebSocket(url);
+      socket = ws;
+      ws.onmessage = (ev) => {
+        if (closed || socket !== ws) return;
+        onMessage(String(ev.data));
+      };
+      ws.onopen = () => {
+        attempt = 0;
+      };
+      ws.onclose = () => {
+        if (socket === ws) socket = null;
+        if (closed) return;
+        worldStore.getState().setConnection("reconnecting");
+        const wait = backoff(attempt);
+        attempt += 1;
+        retry = setTimeout(connect, wait);
+      };
+    };
+
+    hud.setConnection(
+      hud.connection === "live" ? "reconnecting" : "connecting"
+    );
+    connect();
+
+    return () => {
+      closed = true;
+      if (retry) clearTimeout(retry);
+      if (noticeTimer) clearTimeout(noticeTimer);
+      clearAttach();
+      socket?.close();
+      socket = null;
+    };
+  }, [project, world]);
+}
