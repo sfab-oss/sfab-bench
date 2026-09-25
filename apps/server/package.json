@@ -16,7 +16,7 @@
     "serve": "tsx src/cli.ts serve",
     "dev": "tsx src/cli.ts dev",
     "typecheck": "tsc --noEmit",
-    "test": "tsx src/world.selfcheck.ts && tsx src/auth.selfcheck.ts && tsx src/project.selfcheck.ts && tsx src/cad-pkg.selfcheck.ts && tsx src/session.selfcheck.ts && tsx src/cli.selfcheck.ts && tsx src/config.selfcheck.ts && tsx src/models.selfcheck.ts && tsx src/provisioning.selfcheck.ts && tsx src/viewer-context.selfcheck.ts && tsx src/local-sandbox.selfcheck.ts && tsx src/thread-sessions.selfcheck.ts && tsx src/chat-stream.selfcheck.ts && tsx src/chat-continuation.selfcheck.ts && tsx src/chat-persist.selfcheck.ts && tsx src/stt.selfcheck.ts && tsx src/occt.selfcheck.ts && tsx src/occt.corpus.selfcheck.ts",
+    "test": "tsx src/world.selfcheck.ts && tsx src/world-runtime.selfcheck.ts && tsx src/auth.selfcheck.ts && tsx src/project.selfcheck.ts && tsx src/cad-pkg.selfcheck.ts && tsx src/session.selfcheck.ts && tsx src/cli.selfcheck.ts && tsx src/config.selfcheck.ts && tsx src/models.selfcheck.ts && tsx src/provisioning.selfcheck.ts && tsx src/viewer-context.selfcheck.ts && tsx src/local-sandbox.selfcheck.ts && tsx src/thread-sessions.selfcheck.ts && tsx src/chat-stream.selfcheck.ts && tsx src/chat-continuation.selfcheck.ts && tsx src/chat-persist.selfcheck.ts && tsx src/stt.selfcheck.ts && tsx src/occt.selfcheck.ts && tsx src/occt.corpus.selfcheck.ts",
     "test:cad-pkg": "tsx src/cad-pkg.selfcheck.ts",
     "test:cli": "tsx src/cli.selfcheck.ts",
     "test:auth": "tsx src/auth.selfcheck.ts",
