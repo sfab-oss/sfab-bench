@@ -3,3 +3,6 @@ export * from "./principal";
 export * from "./session";
 export * from "./snapshot";
 export * from "./step-package";
+export * from "./urdf";
+export * from "./validate-world";
+export * from "./world";
