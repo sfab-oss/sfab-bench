@@ -1,4 +1,4 @@
-import { boardStatusLabel } from "./board-status";
+import { boardStatusLabel, scrubbedBoardStatus } from "./board-status";
 
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
@@ -30,5 +30,18 @@ expect(
   boardStatusLabel({ running: true, brownout: false }, false) === "paused",
   "a board that is not in brownout stays paused"
 );
+expect(
+  scrubbedBoardStatus({ running: true, brownout: false }) === "running",
+  "a recorded running board is not paused"
+);
+expect(
+  scrubbedBoardStatus({ running: false, brownout: true }) === "brownout",
+  "a recorded brownout stays brownout"
+);
+expect(
+  scrubbedBoardStatus({ running: false, fault: "bad checksum" }) === "stopped",
+  "a recorded fault stays stopped"
+);
+expect(scrubbedBoardStatus(undefined) === "", "no recorded board yet");
 
 console.log("board-status.selfcheck ok");

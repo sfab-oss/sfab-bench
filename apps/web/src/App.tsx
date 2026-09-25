@@ -40,6 +40,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ToastProvider, Toasts } from "@/components/ui/toast";
 import { WorldControls, WorldProblemCard } from "@/components/WorldChrome";
 import { WorldInspector } from "@/components/WorldInspector";
+import { WorldTimeline } from "@/components/WorldTimeline";
 import { useCanvasFit } from "@/hooks/useCanvasFit";
 import { type CatalogState, useCatalog } from "@/hooks/useCatalog";
 import { useMotionReady } from "@/hooks/useMotionReady";
@@ -181,6 +182,7 @@ function EnterXr() {
 }
 
 function Overlay({
+  host,
   folder,
   catalog,
   canvasWidth,
@@ -188,6 +190,7 @@ function Overlay({
   compactChat,
   chatToggleRef,
 }: {
+  host: boolean;
   folder: ReturnType<typeof useOpenFolder>;
   catalog: CatalogState;
   canvasWidth: number;
@@ -439,6 +442,7 @@ function Overlay({
           </div>
         </div>
       )}
+      {!session && host && worldPath ? <WorldTimeline /> : null}
       {!session ? <WorldProblemCard /> : null}
       {sceneCrash ? (
         <div className="pointer-events-auto absolute inset-x-4 top-1/2 z-30 mx-auto flex max-w-80 justify-center">
@@ -532,6 +536,7 @@ function ViewerShell({ host }: { host: boolean }) {
             chatToggleRef={chatToggleRef}
             compactChat={compactChat}
             folder={folder}
+            host={host}
           />
         </div>
       </SidebarInset>

@@ -25,6 +25,14 @@ import {
   worldLiveState,
   worldStore,
 } from "@/state/world";
+import {
+  bindWorldSocket,
+  goLive,
+  noteLiveRecording,
+  takeFrame,
+  takeTimeline,
+  takeTimelineError,
+} from "@/state/world-timeline";
 
 const SIM_TIME_MS = 200;
 const ATTACH_COMMAND_MS = 300;
@@ -37,6 +45,7 @@ const sentNonces = new Set<string>();
 const sentSerialNonces = new Set<string>();
 
 export function sendWorldCommand(type: "play" | "pause") {
+  if (type === "play") goLive();
   if (socket?.readyState !== WebSocket.OPEN) return;
   const nonce = worldCommandNonce();
   sentNonces.add(nonce);
@@ -170,7 +179,20 @@ export function useWorldRun(project: string, world: string) {
           }, ATTACH_COMMAND_MS);
         }
         worldStore.getState().clearRunProblem();
+        noteLiveRecording(message.state.recording, message.state.playing);
         publish(message.state);
+        return;
+      }
+      if (message.type === "timeline-data") {
+        takeTimeline(message);
+        return;
+      }
+      if (message.type === "frame") {
+        takeFrame(message);
+        return;
+      }
+      if (message.type === "timeline-error") {
+        takeTimelineError(message);
         return;
       }
       if (message.type === "command") {
@@ -226,6 +248,9 @@ export function useWorldRun(project: string, world: string) {
       });
       const ws = new WebSocket(url);
       socket = ws;
+      bindWorldSocket((message) => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+      });
       ws.onmessage = (ev) => {
         if (closed || socket !== ws) return;
         onMessage(String(ev.data));
@@ -250,6 +275,7 @@ export function useWorldRun(project: string, world: string) {
 
     return () => {
       closed = true;
+      bindWorldSocket(null);
       sentNonces.clear();
       sentSerialNonces.clear();
       if (retry) clearTimeout(retry);

@@ -5,6 +5,7 @@ import {
   WORLD_NONCE_MAX,
   type WorldClientMessage,
   type WorldSender,
+  type WorldServerMessage,
 } from "@sfab-bench/contract";
 import type { WebSocket } from "ws";
 import { WebSocketServer } from "ws";
@@ -59,7 +60,18 @@ function boardParseError(
   return { error: message, kind: "board", board: id };
 }
 
-function parseClient(raw: string): ParsedClient {
+/** A failed seek or timeline read. Not a world `error`: the run stays up. */
+export function scrubReadError(
+  kind: "seek" | "timeline",
+  message: string,
+  nonce?: string
+): Extract<WorldServerMessage, { type: "timeline-error" }> {
+  if (kind === "seek" && nonce)
+    return { type: "timeline-error", message, nonce };
+  return { type: "timeline-error", message };
+}
+
+export function parseWorldClient(raw: string): ParsedClient {
   let value: unknown;
   try {
     value = JSON.parse(raw) as unknown;
@@ -112,6 +124,40 @@ function parseClient(raw: string): ParsedClient {
     }
     return { type: "serial-send", board, text, nonce };
   }
+  if (type === "timeline") {
+    const from = (value as { from?: unknown }).from;
+    const to = (value as { to?: unknown }).to;
+    const maxPoints = (value as { maxPoints?: unknown }).maxPoints;
+    if (typeof from !== "number" || !Number.isFinite(from) || from < 0) {
+      return { error: "timeline needs a start time" };
+    }
+    if (typeof to !== "number" || !Number.isFinite(to) || to < from) {
+      return { error: "timeline needs an end time" };
+    }
+    if (
+      typeof maxPoints !== "number" ||
+      !Number.isInteger(maxPoints) ||
+      maxPoints < 1
+    ) {
+      return { error: "timeline needs a point count" };
+    }
+    return { type: "timeline", from, to, maxPoints };
+  }
+  if (type === "seek") {
+    const t = (value as { t?: unknown }).t;
+    const nonce = (value as { nonce?: unknown }).nonce;
+    if (typeof t !== "number" || !Number.isFinite(t) || t < 0) {
+      return { error: "seek needs a time" };
+    }
+    if (
+      typeof nonce !== "string" ||
+      nonce.length < 1 ||
+      nonce.length > WORLD_NONCE_MAX
+    ) {
+      return { error: "nonce must be a short string" };
+    }
+    return { type: "seek", t, nonce };
+  }
   return { error: "unknown world message" };
 }
 
@@ -162,7 +208,7 @@ wss.on(
       }
       handle = attached;
       ws.on("message", (data) => {
-        const parsed = parseClient(String(data));
+        const parsed = parseWorldClient(String(data));
         if ("error" in parsed) {
           if ("kind" in parsed && parsed.kind === "board") {
             send(ws, {
@@ -181,6 +227,23 @@ wss.on(
         else if (parsed.type === "serial-send") {
           // A rejection is broadcast as board-error, including to this socket.
           handle?.sendSerial(parsed.board, parsed.text, parsed.nonce);
+        } else if (parsed.type === "timeline") {
+          // Loopback and paired clients both scrub. The reply stays on this socket.
+          void handle?.timeline(parsed)?.then((result) => {
+            if ("error" in result) {
+              send(ws, scrubReadError("timeline", result.error));
+              return;
+            }
+            send(ws, result);
+          });
+        } else if (parsed.type === "seek") {
+          void handle?.seek(parsed.t, parsed.nonce)?.then((result) => {
+            if ("error" in result) {
+              send(ws, scrubReadError("seek", result.error, parsed.nonce));
+              return;
+            }
+            send(ws, result);
+          });
         } else if (principal.kind !== "loopback") {
           send(ws, {
             type: "error",

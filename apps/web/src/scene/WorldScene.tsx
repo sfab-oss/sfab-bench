@@ -36,6 +36,7 @@ import {
   worldLiveState,
   worldStore,
 } from "@/state/world";
+import { worldViewPoses } from "@/state/world-timeline";
 import { useXrTheme } from "@/xr/ui/theme";
 
 const ROBOT_COLORS = [0xc4b8a5, 0x8fa3b0, 0xb7a0c4, 0xa3b59a, 0xc4a090];
@@ -418,9 +419,10 @@ export function WorldScene({
       };
 
   useFrame(() => {
-    const state = worldLiveState();
-    if (!state) return;
-    for (const [robotId, links] of Object.entries(state.poses)) {
+    const poses = sessionRef.current ? null : worldViewPoses();
+    const live = poses ?? worldLiveState()?.poses;
+    if (!live) return;
+    for (const [robotId, links] of Object.entries(live)) {
       for (const [name, pose] of Object.entries(links)) {
         const group = linkGroups.current.get(linkKey(robotId, name));
         if (!group) continue;

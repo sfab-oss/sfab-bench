@@ -10,7 +10,7 @@ import { SerialConsole } from "@/components/SerialConsole";
 import { SourceView } from "@/components/SourceView";
 import { Button } from "@/components/ui/button";
 import { sendBoardSerial } from "@/hooks/useWorldRun";
-import { boardStatusLabel } from "@/lib/board-status";
+import { boardStatusLabel, scrubbedBoardStatus } from "@/lib/board-status";
 import { overlayMaxHeight } from "@/lib/layout";
 import {
   activeEscLayer,
@@ -18,7 +18,9 @@ import {
   isEditableTarget,
   probeEscLayers,
 } from "@/lib/shortcuts";
+import { faultUntil, resetsUntil, serialUntil } from "@/lib/timeline";
 import { relFromWorldFile } from "@/lib/world-assets";
+import { formatSimTime } from "@/lib/world-issues";
 import {
   formatJointReadout,
   formatLiveDegrees,
@@ -37,6 +39,7 @@ import {
   useBoardConsole,
 } from "@/state/board-console";
 import { useWorld, type WorldSelection, worldStore } from "@/state/world";
+import { useWorldTimeline } from "@/state/world-timeline";
 
 function useWorldSelectionEsc() {
   useEffect(() => {
@@ -186,9 +189,14 @@ function LinkBody({
   pending: boolean;
 }) {
   const jointName = info?.joint?.name;
-  const qpos = useWorld((s) =>
+  const scrub = useWorldTimeline();
+  const liveQ = useWorld((s) =>
     jointName ? s.joints[robot]?.[jointName] : undefined
   );
+  const qpos =
+    scrub.playhead !== null && jointName
+      ? scrub.frame?.joints[robot]?.[jointName]
+      : liveQ;
   const joint = info?.joint ?? null;
   const meshes = info?.meshes ?? [];
   if (pending) {
@@ -350,9 +358,15 @@ function PartBody({
   const outline = useWorld((s) => s.outline);
   const live = useWorld((s) => s.parts[id]);
   const drives = info?.drives ?? null;
-  const qpos = useWorld((s) =>
+  const liveQ = useWorld((s) =>
     drives ? s.joints[drives.robot]?.[drives.joint] : undefined
   );
+  const scrub = useWorldTimeline();
+  const recorded = scrub.playhead !== null ? scrub.frame?.parts[id] : undefined;
+  const qpos =
+    scrub.playhead !== null && drives
+      ? scrub.frame?.joints[drives.robot]?.[drives.joint]
+      : liveQ;
   if (pending) {
     return (
       <p className="text-[12px] text-muted-foreground">Reading the world…</p>
@@ -385,12 +399,39 @@ function PartBody({
           ))
         )}
       </div>
-      <Field label="Pulse" value={pulseText(live?.pulseUs ?? null)} />
-      <Field label="Command" value={commandText(live?.commandDeg ?? null)} />
-      <Field label="State" value={motionText(live?.state)} />
+      <Field
+        label="Pulse"
+        value={pulseText(
+          scrub.playhead !== null
+            ? (recorded?.pulseUs ?? null)
+            : (live?.pulseUs ?? null)
+        )}
+      />
+      <Field
+        label="Command"
+        value={commandText(
+          scrub.playhead !== null
+            ? (recorded?.commandDeg ?? null)
+            : (live?.commandDeg ?? null)
+        )}
+      />
+      <Field
+        label="State"
+        value={motionText(
+          scrub.playhead !== null ? recorded?.worst : live?.state
+        )}
+      />
       <Field
         label="Current"
-        value={live?.current === undefined ? "—" : ampsText(live.current)}
+        value={
+          scrub.playhead !== null
+            ? recorded
+              ? ampsText(recorded.maxCurrent)
+              : "—"
+            : live?.current === undefined
+              ? "—"
+              : ampsText(live.current)
+        }
       />
       {drives ? (
         <>
@@ -417,6 +458,10 @@ function SupplyBody({
   pending: boolean;
 }) {
   const live = useWorld((s) => s.supplies[id]);
+  const scrub = useWorldTimeline();
+  const recorded =
+    scrub.playhead !== null ? scrub.frame?.supplies[id] : undefined;
+  const voltage = recorded ? recorded.minVoltage : live?.voltage;
   if (pending) {
     return (
       <p className="text-[12px] text-muted-foreground">Reading the world…</p>
@@ -427,9 +472,22 @@ function SupplyBody({
       <Field label="Supply" value={id} />
       <Field
         label="Voltage"
-        value={voltsText(live?.voltage ?? info?.voltage ?? 0)}
+        value={
+          scrub.playhead !== null && voltage === undefined
+            ? "—"
+            : voltsText(voltage ?? info?.voltage ?? 0)
+        }
       />
-      <Field label="Current" value={live ? ampsText(live.current) : "—"} />
+      <Field
+        label="Current"
+        value={
+          recorded
+            ? ampsText(recorded.maxCurrent)
+            : live
+              ? ampsText(live.current)
+              : "—"
+        }
+      />
       <Field label="Limit" value={info ? ampsText(info.currentLimit) : "—"} />
       <Field label="Droop" value={info ? `${info.rDroop} Ω` : "—"} />
       <Field label="Feeds" value={feedText(info)} />
@@ -449,13 +507,38 @@ function BoardBody({
   const path = useWorld((s) => s.path);
   const playing = useWorld((s) => s.playing);
   const live = useWorld((s) => s.boards[id]);
-  const pins = useWorld((s) => s.pins[id]);
+  const livePins = useWorld((s) => s.pins[id]);
   const liveParts = useWorld((s) => s.parts);
+  const scrub = useWorldTimeline();
+  const recorded =
+    scrub.playhead !== null ? scrub.frame?.boards[id] : undefined;
+  const markers = scrub.data?.markers ?? [];
+  const pins = recorded?.pins ?? livePins;
+  const pastFault =
+    scrub.playhead !== null
+      ? faultUntil(markers, id, scrub.playhead)
+      : undefined;
+  const statusBoard = recorded
+    ? {
+        running: recorded.running,
+        brownout: recorded.brownout || recorded.brownoutAny,
+        ...(pastFault ? { fault: pastFault } : {}),
+      }
+    : live;
+  const serialText =
+    scrub.playhead !== null ? serialUntil(markers, id, scrub.playhead) : null;
   const outlineParts = useWorld((s) => s.outline?.parts ?? EMPTY_PARTS);
   const consoleState = useBoardConsole();
   const sourceRel =
     path && info?.source ? relFromWorldFile(path, info.source) : undefined;
-  const text = transcriptText(consoleState.boards[id]?.entries ?? []);
+  const text =
+    serialText ?? transcriptText(consoleState.boards[id]?.entries ?? []);
+  const resets =
+    scrub.playhead !== null
+      ? String(resetsUntil(markers, id, scrub.playhead))
+      : live?.resets === undefined
+        ? "—"
+        : String(live.resets);
   if (pending) {
     return (
       <p className="text-[12px] text-muted-foreground">Reading the world…</p>
@@ -467,16 +550,20 @@ function BoardBody({
       <Field label="Chip" value={info?.chip ?? "—"} />
       <Field label="Firmware" value={info?.firmware ?? "—"} />
       <Field label="Source" value={info?.source ?? "None"} />
-      <Field label="Status" value={boardStatusLabel(live, playing) || "—"} />
       <Field
-        label="Resets"
-        value={live?.resets === undefined ? "—" : String(live.resets)}
+        label="Status"
+        value={
+          (recorded
+            ? scrubbedBoardStatus(statusBoard)
+            : boardStatusLabel(statusBoard, playing)) || "—"
+        }
       />
+      <Field label="Resets" value={resets} />
       <div className="mb-3 flex h-36 flex-col overflow-hidden rounded-md border border-border">
         <SerialConsole
           title={id}
           text={text}
-          fault={live?.fault}
+          fault={statusBoard?.fault}
           notice={consoleState.rejects[id]}
           onNoticeClear={() => clearBoardReject(id)}
           onSend={(line) => sendBoardSerial(id, line)}
@@ -486,7 +573,16 @@ function BoardBody({
         pins={pins}
         boardId={id}
         parts={outlineParts}
-        live={liveParts}
+        live={
+          scrub.frame && scrub.playhead !== null
+            ? Object.fromEntries(
+                Object.entries(scrub.frame.parts).map(([partId, part]) => [
+                  partId,
+                  { pulseUs: part.pulseUs },
+                ])
+              )
+            : liveParts
+        }
       />
       <div className="text-[11px] text-muted-foreground">Source</div>
       <div className="mt-1 flex h-40 flex-col overflow-hidden rounded-md border border-border">
@@ -516,6 +612,7 @@ export function WorldInspector({
   useWorldSelectionEsc();
   const selection = useWorld((s) => s.selection);
   const outline = useWorld((s) => s.outline);
+  const playhead = useWorldTimeline().playhead;
   if (width <= 0) return null;
 
   const link =
@@ -563,6 +660,11 @@ export function WorldInspector({
           </Button>
         ) : null}
       </header>
+      {playhead !== null ? (
+        <p className="mb-2 text-[11px] text-muted-foreground">
+          Recorded at {formatSimTime(playhead)}
+        </p>
+      ) : null}
       {selection?.kind === "link" ? (
         <LinkBody
           robot={selection.robot}

@@ -194,8 +194,25 @@ export class AvrBoard {
    * Call once per state tick. A stopped board reports zeros.
    */
   takePins(): WorldPinState {
+    return this.readPins(true);
+  }
+
+  /**
+   * Same snapshot as `takePins` without clearing toggles, so a recording
+   * frame can sample pins and the state tick still sees every change.
+   */
+  peekPins(): WorldPinState {
+    return this.readPins(false);
+  }
+
+  /** USART0 TX not yet taken. The recording reads the growth between flushes. */
+  peekTx(): string {
+    return this.tx;
+  }
+
+  private readPins(clear: boolean): WorldPinState {
     const toggled = this.toggled;
-    this.toggled = 0;
+    if (clear) this.toggled = 0;
     const cpu = this.cpu;
     const portB = this.portB;
     const portC = this.portC;
