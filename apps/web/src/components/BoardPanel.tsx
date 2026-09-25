@@ -7,6 +7,7 @@ import { SourceView } from "@/components/SourceView";
 import { Button } from "@/components/ui/button";
 import { sendBoardSerial } from "@/hooks/useWorldRun";
 import { apiFetch } from "@/lib/api";
+import { boardStatusLabel } from "@/lib/board-status";
 import { relFromWorldFile } from "@/lib/world-assets";
 import {
   type BoardConsoleEntry,
@@ -37,6 +38,7 @@ function transcriptText(entries: readonly BoardConsoleEntry[]): string {
 export function BoardPanel() {
   const path = useWorld((s) => s.path);
   const revision = useWorld((s) => s.revision);
+  const playing = useWorld((s) => s.playing);
   const boards = useWorld((s) => s.boards);
   const consoleState = useBoardConsole();
   const [open, setOpen] = useState(true);
@@ -114,7 +116,7 @@ export function BoardPanel() {
           </span>
         )}
         <span className="text-muted-foreground">
-          {live?.fault ? "stopped" : live?.running ? "running" : ""}
+          {boardStatusLabel(live, playing)}
         </span>
         <span className="min-w-0 flex-1" />
         <Button
