@@ -263,10 +263,33 @@ function applyServoTorqueClamp(
 }
 
 /**
- * `solreflimit` on a joint's `<mujoco>` child. MuJoCo's URDF compiler
- * does not read it. Keys are URDF joint names.
+ * A negative time constant is MuJoCo's direct stiffness form and is
+ * kept. Zero and any smaller positive value are not a stable time
+ * constant at this timestep, so they become `minTimeconst` (2× timestep).
  */
-function urdfSolrefLimits(xml: string): Map<string, [number, number]> {
+export function clampSolrefTimeconst(
+  timeconst: number,
+  minTimeconst: number
+): number {
+  if (timeconst < 0) return timeconst;
+  if (!(timeconst >= minTimeconst)) return minTimeconst;
+  return timeconst;
+}
+
+/** The joint's own `<mujoco>` element, attributes and children. */
+function mujocoRegion(body: string): string | null {
+  const paired = /<mujoco\b([^>]*)>([\s\S]*?)<\/mujoco>/i.exec(body);
+  if (paired) return `${paired[1] ?? ""} ${paired[2] ?? ""}`;
+  const empty = /<mujoco\b([^>]*)\/>/i.exec(body);
+  return empty?.[1] ?? null;
+}
+
+/**
+ * `solreflimit` inside a joint's own `<mujoco>` element. An attribute
+ * elsewhere in the joint is ignored. MuJoCo's URDF compiler does not
+ * read this. Keys are URDF joint names.
+ */
+export function urdfSolrefLimits(xml: string): Map<string, [number, number]> {
   const out = new Map<string, [number, number]>();
   const stripped = xml.replace(/<!--[\s\S]*?-->/g, "");
   const jointRe = /<joint\b([^>]*)>([\s\S]*?)<\/joint>/gi;
@@ -274,8 +297,11 @@ function urdfSolrefLimits(xml: string): Map<string, [number, number]> {
     const attrs = match[1] ?? "";
     const body = match[2] ?? "";
     const name = /(?:^|\s)name\s*=\s*"([^"]+)"/i.exec(attrs)?.[1];
-    const sol = /solreflimit\s*=\s*"([^"]+)"/i.exec(body)?.[1];
-    if (!name || !sol || !/<mujoco\b/i.test(body)) continue;
+    const region = mujocoRegion(body);
+    const sol = region
+      ? /solreflimit\s*=\s*"([^"]+)"/i.exec(region)?.[1]
+      : undefined;
+    if (!name || !sol) continue;
     const nums = sol.trim().split(/\s+/).map(Number);
     const timeconst = nums[0];
     const dampratio = nums[1];
@@ -327,9 +353,7 @@ function applyLimitSolref(
     const name = mj.mj_id2name(model, jointType, joint) ?? "";
     const fromUrdf = authored.get(name);
     if (fromUrdf) {
-      const timeconst = fromUrdf[0];
-      solref[base] =
-        timeconst > 0 ? Math.max(timeconst, minTimeconst) : timeconst;
+      solref[base] = clampSolrefTimeconst(fromUrdf[0], minTimeconst);
       solref[base + 1] = fromUrdf[1];
       continue;
     }
