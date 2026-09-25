@@ -73,3 +73,16 @@ transforms; the tree carries the structure.
 version. Occurrence ids and face ordinals are refs that leave the server,
 so a cache from an older format is rebuilt rather than served with refs
 that no longer mean what they did.
+
+## World runtime (planned, ADR 0009)
+
+[ADR 0009](decisions/0009-world-simulation.md) adds a world document,
+`<name>.world.json`, and a server-side runtime, one per document. That
+runtime is not in this tree. When it lands it steps MuJoCo and an avr8js
+board and streams one shared run — play state, sim time, poses, signals —
+to every client of that document. Camera, selection, lens, and timeline
+scrub stay per client. That amends the per-browser viewport rule above
+for worlds only. A STEP or GLB viewport stays per browser, as the Model
+section says. Bench still does not author the CAD or compile the firmware.
+rp2040js, `micro-emulator`, 3MF/GLB meshes, `package://`, and RL export
+are later. Sensors and ground contact are demo 2, later.
