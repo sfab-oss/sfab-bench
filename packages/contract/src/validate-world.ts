@@ -13,6 +13,7 @@
 
 import {
   wireAdjacency as adjacency,
+  powerFeeds,
   reachableEndpoints as reachable,
 } from "./power-feeds";
 import { resolveUrdfMesh, type UrdfInfo } from "./urdf";
@@ -63,6 +64,7 @@ export const WORLD_WARNING_CODES = [
   "servo-pwm-conflict",
   "servo-signal-direct",
   "duplicate-mesh-basename",
+  "no-supply",
 ] as const;
 
 export type WorldErrorCode = (typeof WORLD_ERROR_CODES)[number];
@@ -1649,6 +1651,26 @@ function suppliesReached(
   return found;
 }
 
+/**
+ * A board with no supply never boots. The runtime then reports it as
+ * unpowered rather than as a stopped CPU that once ran.
+ */
+function checkBoardSupply(doc: WorldDocument, warnings: WorldWarning[]) {
+  const feeds = powerFeeds(doc);
+  for (let i = 0; i < doc.boards.length; i++) {
+    const board = doc.boards[i];
+    if (!board || feeds.boards[board.id]) continue;
+    const pin = boardModel(board.board)?.voltagePin ?? "5V";
+    warnings.push(
+      warn(
+        "no-supply",
+        `boards[${i}]`,
+        `board ${board.id}: no supply reaches its ${pin} pin. Hint: wire a supply's ${pin} pin to ${board.id}.${pin}.`
+      )
+    );
+  }
+}
+
 function checkPower(doc: WorldDocument, errors: WorldError[]) {
   const nodes = supplyNodes(doc);
   const power = adjacency(doc, "power");
@@ -1699,5 +1721,6 @@ export function validateWorld(
   checkDirectServoSignal(parsed, warnings);
   checkDrivePins(parsed, errors, warnings);
   checkPower(parsed, errors);
+  checkBoardSupply(parsed, warnings);
   return { ok: errors.length === 0, errors, warnings };
 }

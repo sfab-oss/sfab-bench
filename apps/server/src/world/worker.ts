@@ -297,10 +297,12 @@ function sample(): WorldState | null {
   for (const board of boards) {
     const pins = board.takePins();
     const power = boardPower.get(board.id);
+    const unpowered = !power?.supplyId;
     boardState[board.id] = {
       ...(board.fault
         ? { running: false as const, fault: board.fault, pins }
         : { running: board.running, pins }),
+      ...(unpowered ? { unpowered: true as const } : {}),
       resets: power?.resets ?? 0,
       brownout: board.brownout,
     };

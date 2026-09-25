@@ -337,7 +337,8 @@ assertIssues(
     holdCtx
   ),
   "outputs joined through servo.signal",
-  ["two-outputs"]
+  ["two-outputs"],
+  ["no-supply"]
 );
 
 assertIssues(
@@ -369,7 +370,8 @@ assertIssues(
     holdCtx
   ),
   "supplies joined through servo.V+",
-  ["two-outputs", "missing-ground", "missing-ground"]
+  ["two-outputs", "missing-ground", "missing-ground"],
+  ["no-supply"]
 );
 
 function signalOn(pin: string): WorldFile {
@@ -463,13 +465,15 @@ assertIssues(
     holdCtx
   ),
   "power and ground swapped",
-  ["pin-kind", "pin-kind"]
+  ["pin-kind", "pin-kind"],
+  ["no-supply"]
 );
 
 assertIssues(
   validateWorld(worldWith([["usb.5V", "usb.GND"]]), holdCtx),
   "supply short",
-  ["pin-kind"]
+  ["pin-kind"],
+  ["no-supply"]
 );
 
 function withLed(doc: WorldFile, pin: string): WorldFile {
@@ -648,6 +652,21 @@ assertIssues(
   "duplicate basename",
   [],
   ["duplicate-mesh-basename"]
+);
+
+const unpoweredBoard = clone(hold);
+unpoweredBoard.wires = unpoweredBoard.wires.filter(
+  (wire) =>
+    !(wire[0] === "usb.5V" && wire[1] === "uno.5V") &&
+    !(wire[0] === "uno.5V" && wire[1] === "usb.5V")
+);
+const unpoweredResult = validateWorld(unpoweredBoard, holdCtx);
+assertIssues(unpoweredResult, "board with no supply", [], ["no-supply"]);
+expect(
+  unpoweredResult.warnings[0]?.message.includes(
+    "board uno: no supply reaches its 5V pin"
+  ) === true,
+  `unpowered warning ${unpoweredResult.warnings[0]?.message ?? ""}`
 );
 
 console.log("world.selfcheck ok");

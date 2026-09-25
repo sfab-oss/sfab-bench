@@ -21,6 +21,7 @@ import {
   type FirmwareWatch,
   firmwareWatch,
   projectReal,
+  resolveInside,
 } from "./files";
 import { type SerialPage, SerialRing } from "./serial-ring";
 import type { FromWorker, RecordBody, RecordQuery, ToWorker } from "./worker";
@@ -76,6 +77,8 @@ type Doc = {
   worker: Worker | null;
   generation: number;
   lastState: WorldState | null;
+  /** How many state snapshots this document has applied. Steps wait on it. */
+  stateEpoch: number;
   /** Last play or pause, so a subscriber who attaches later can show who sent it. */
   lastCommand: {
     command: "play" | "pause";
@@ -337,6 +340,7 @@ function listen(doc: Doc, worker: Worker) {
     }
     if (message.type === "state") {
       doc.lastState = message.state;
+      doc.stateEpoch += 1;
       doc.errors = null;
       // A caught step fault stays until the run is playing again. The
       // paused state posted right after the fault must not clear it.
@@ -507,13 +511,19 @@ async function reload(doc: Doc): Promise<void> {
  * sim is left playing. `change` announces `reloaded` either way, because
  * the previous run is no longer the one on disk.
  */
-async function load(doc: Doc, reason: "attach" | "change"): Promise<void> {
+async function load(
+  doc: Doc,
+  reason: "attach" | "change" | "restart"
+): Promise<void> {
   const before = doc.stamp;
   refreshDeps(doc);
   if (reason === "change" && doc.stamp === before) return;
-  if (reason === "change") {
+  // `restart` is a file-edit reload with no write: same broadcast, and the
+  // stamp check does not skip it.
+  if (reason === "change" || reason === "restart") {
     doc.lastCommand = null;
     doc.errorMessage = undefined;
+    doc.errors = null;
     broadcast(doc, { type: "reloaded" });
   }
   if (!doc.worker) await spawn(doc);
@@ -527,7 +537,10 @@ function refreshFirmware(doc: Doc) {
   doc.firmware = firmwareWatch(doc.project, doc.world);
 }
 
-function startLoad(doc: Doc, reason: "attach" | "change"): Promise<void> {
+function startLoad(
+  doc: Doc,
+  reason: "attach" | "change" | "restart"
+): Promise<void> {
   if (doc.busy) {
     return doc.busy.then(() => {
       if (!docs.has(doc.key)) return;
@@ -604,6 +617,7 @@ function ensure(project: string, worldRel: string): Doc | { error: string } {
       worker: null,
       generation: 0,
       lastState: null,
+      stateEpoch: 0,
       lastCommand: null,
       errors: null,
       ready: false,
@@ -1023,4 +1037,245 @@ async function stopKey(key: string): Promise<void> {
   for (const sub of doc.subs) sub.detached = true;
   doc.subs.clear();
   await killWorker(doc);
+}
+
+const STEP_WAIT_MS = 45_000;
+const COMMAND_WAIT_MS = 10_000;
+
+/** Path check only. Does not load the document or start a worker. */
+export function resolveWorldFile(
+  project: string,
+  worldRel: string
+): { project: string; world: string } | { error: string } {
+  const named = docKey(project, worldRel);
+  if ("error" in named) return named;
+  if (!resolveInside(named.project, named.world)) {
+    return { error: `world "${named.world}" does not exist` };
+  }
+  return { project: named.project, world: named.world };
+}
+
+/** Test-only. True after `ensure` has created this document. */
+export function worldDocumentOpen(project: string, worldRel: string): boolean {
+  const named = docKey(project, worldRel);
+  if ("error" in named) return false;
+  return docs.has(named.key);
+}
+
+/** Reject a `world_step` span before any run starts. */
+export function rejectWorldStep(ms: number): { error: string } | null {
+  if (!Number.isInteger(ms) || ms < 1 || ms > 10_000) {
+    return { error: "ms must be a whole number from 1 to 10000" };
+  }
+  return null;
+}
+
+export type WorldRunView = {
+  state: WorldState;
+  lastCommand: {
+    command: "play" | "pause";
+    by: WorldSender;
+  } | null;
+};
+
+export function worldRunView(
+  project: string,
+  worldRel: string
+): WorldRunView | { error: string } {
+  const doc = runningDoc(project, worldRel);
+  if ("error" in doc) return doc;
+  if (!doc.lastState) return { error: "world is not running" };
+  return {
+    state: structuredClone(doc.lastState),
+    lastCommand: doc.lastCommand
+      ? {
+          command: doc.lastCommand.command,
+          by: structuredClone(doc.lastCommand.by),
+        }
+      : null,
+  };
+}
+
+function hold(doc: Doc) {
+  if (doc.idle) {
+    clearTimeout(doc.idle);
+    doc.idle = null;
+  }
+}
+
+function release(doc: Doc) {
+  if (!docs.has(doc.key)) return;
+  if (doc.subs.size === 0) armIdle(doc);
+}
+
+function simMs(simTime: number): number {
+  return Math.round(simTime * 1000);
+}
+
+function waitForEpoch(
+  doc: Doc,
+  epoch: number,
+  pred: (state: WorldState) => boolean,
+  timeoutMs: number
+): Promise<WorldState | { error: string }> {
+  const ready = (): WorldState | null => {
+    const state = doc.lastState;
+    if (doc.stateEpoch > epoch && state && pred(state)) return state;
+    return null;
+  };
+  const immediate = ready();
+  if (immediate) return Promise.resolve(immediate);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve({ error: "timed out waiting for the world" });
+    }, timeoutMs);
+    const poll = setInterval(() => {
+      if (!docs.has(doc.key)) {
+        cleanup();
+        resolve({ error: "world is not running" });
+        return;
+      }
+      const state = ready();
+      if (!state) return;
+      cleanup();
+      resolve(state);
+    }, 10);
+    const cleanup = () => {
+      clearInterval(poll);
+      clearTimeout(timer);
+    };
+  });
+}
+
+async function commandWorld(
+  project: string,
+  worldRel: string,
+  command: "play" | "pause",
+  sender: WorldSender
+): Promise<{ ok: true } | { error: string }> {
+  const doc = runningDoc(project, worldRel);
+  if ("error" in doc) return doc;
+  hold(doc);
+  try {
+    const epoch = doc.stateEpoch;
+    announce(doc, command, sender);
+    post(doc, {
+      type: command,
+      generation: doc.generation,
+      by: sender,
+    });
+    const state = await waitForEpoch(
+      doc,
+      epoch,
+      (next) => (command === "play" ? next.playing : !next.playing),
+      COMMAND_WAIT_MS
+    );
+    if ("error" in state) return state;
+    return { ok: true };
+  } finally {
+    release(doc);
+  }
+}
+
+export function playWorld(
+  project: string,
+  worldRel: string,
+  sender: WorldSender
+): Promise<{ ok: true } | { error: string }> {
+  return commandWorld(project, worldRel, "play", sender);
+}
+
+export function pauseWorld(
+  project: string,
+  worldRel: string,
+  sender: WorldSender
+): Promise<{ ok: true } | { error: string }> {
+  return commandWorld(project, worldRel, "pause", sender);
+}
+
+/**
+ * Pause when the run is playing, then advance exactly `ms` of sim time.
+ * Resolves on the state whose sim time is the paused time plus `ms`.
+ */
+export async function stepWorld(
+  project: string,
+  worldRel: string,
+  ms: number,
+  sender: WorldSender
+): Promise<{ ok: true } | { error: string }> {
+  const bad = rejectWorldStep(ms);
+  if (bad) return bad;
+  const doc = runningDoc(project, worldRel);
+  if ("error" in doc) return doc;
+  hold(doc);
+  try {
+    let origin = simMs(doc.lastState?.simTime ?? 0);
+    if (doc.lastState?.playing) {
+      const epoch = doc.stateEpoch;
+      announce(doc, "pause", sender);
+      post(doc, { type: "pause", generation: doc.generation, by: sender });
+      const paused = await waitForEpoch(
+        doc,
+        epoch,
+        (next) => !next.playing,
+        COMMAND_WAIT_MS
+      );
+      if ("error" in paused) return paused;
+      origin = simMs(paused.simTime);
+    }
+    const target = origin + ms;
+    const epoch = doc.stateEpoch;
+    post(doc, { type: "step", n: ms, generation: doc.generation });
+    const landed = await waitForEpoch(
+      doc,
+      epoch,
+      (next) => !next.playing && simMs(next.simTime) === target,
+      STEP_WAIT_MS
+    );
+    if ("error" in landed) return landed;
+    return { ok: true };
+  } finally {
+    release(doc);
+  }
+}
+
+/**
+ * Reload the document the way a file edit does, without writing it.
+ * Sim time returns to 0, paused, on a new recording.
+ */
+export async function restartWorld(
+  project: string,
+  worldRel: string
+): Promise<{ ok: true } | { error: string }> {
+  const found = ensure(project, worldRel);
+  if ("error" in found) return found;
+  const doc = found;
+  hold(doc);
+  try {
+    if (doc.busy) await doc.busy;
+    if (!docs.has(doc.key)) return { error: "world is not running" };
+    if (!doc.ready || !doc.worker) await startLoad(doc, "attach");
+    if (!docs.has(doc.key)) return { error: "world is not running" };
+    if (doc.errors && doc.errors.length > 0) {
+      return { error: doc.errorMessage ?? "world failed to load" };
+    }
+    const previous = doc.lastState?.recording?.id;
+    await startLoad(doc, "restart");
+    if (!docs.has(doc.key)) return { error: "world is not running" };
+    if (doc.errors && doc.errors.length > 0) {
+      return { error: doc.errorMessage ?? "world failed to load" };
+    }
+    const state = doc.lastState;
+    if (!state || state.playing || simMs(state.simTime) !== 0) {
+      return { error: "world did not return to sim time 0" };
+    }
+    const id = state.recording?.id;
+    if (!id || (previous !== undefined && id === previous)) {
+      return { error: "recording did not restart" };
+    }
+    return { ok: true };
+  } finally {
+    release(doc);
+  }
 }
