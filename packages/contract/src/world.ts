@@ -150,7 +150,7 @@ export type WorldPinKind = "gpio" | "power" | "ground" | "signal";
 
 export type WorldPin = {
   kind: WorldPinKind;
-  /** Drives a wire. Two of these on one wire is `two-outputs`. */
+  /** Drives a net. Two or more on one connected wire net is `two-outputs`. */
   output: boolean;
   /** A servo may attach here. Digital GPIO, including A0–A5. */
   digital: boolean;
@@ -180,7 +180,10 @@ export type BoardModel = {
    * On the Uno they are the Timer1 PWM pins Servo.h takes over.
    */
   servoConflictPins: readonly string[];
-  /** Pins through which a supply can power the board. */
+  /**
+   * Pins through which a supply powers the board. Milestone 1 is `5V`.
+   * `VIN` stays a named pin and is not an input: there is no regulator.
+   */
   powerInputs: readonly string[];
   /** The pin whose connected supply is checked against `supply`. */
   voltagePin: string;
@@ -287,7 +290,9 @@ function unoPins(): Record<string, WorldPin> {
   for (let i = 0; i <= 13; i++) pins[`D${i}`] = GPIO(pwm.has(`D${i}`));
   for (let i = 0; i <= 5; i++) pins[`A${i}`] = GPIO(false);
   pins["5V"] = POWER(false);
-  pins["3V3"] = POWER(false);
+  // Regulator output. A supply positive tied here is two outputs.
+  pins["3V3"] = POWER(true);
+  // Named so a wire to it resolves. Not a power input in milestone 1.
   pins.VIN = POWER(false);
   pins.GND = GROUND;
   return pins;
@@ -302,7 +307,7 @@ export const boardModels: Record<BoardId, BoardModel> = {
     pins: unoPins(),
     pwmPins: UNO_PWM_PINS,
     servoConflictPins: UNO_SERVO_CONFLICT_PINS,
-    powerInputs: ["5V", "VIN"],
+    powerInputs: ["5V"],
     voltagePin: "5V",
     groundPin: "GND",
   },

@@ -4,9 +4,9 @@
  * URDF it has read, the joint names and mesh filenames from
  * `extractUrdfJointsAndMeshes`.
  *
- * Power and ground are separate graphs. A wire counts as a power edge
- * only when both ends are power pins, and as a ground edge only when
- * both ends are ground pins. A signal wire does not complete either.
+ * Two-outputs, pin-kind, and signal-pin use the full wire net. Voltage
+ * and missing-ground still walk only edges whose ends share a kind, so
+ * a signal wire does not feed a supply.
  */
 
 import type { UrdfInfo } from "./urdf";
@@ -47,6 +47,9 @@ export const WORLD_ERROR_CODES = [
   "missing-ground",
   "voltage-mismatch",
   "two-outputs",
+  "pin-kind",
+  "signal-pin",
+  "power-input",
   "pwm-pin",
 ] as const;
 
@@ -1134,11 +1137,14 @@ function isAbsoluteMesh(filename: string): boolean {
 
 function meshMessage(filename: string): string | undefined {
   const trimmed = filename.trim();
-  if (trimmed.startsWith("package://")) {
+  if (trimmed.toLowerCase().startsWith("package://")) {
     return `Mesh "${filename}" uses a package:// path. Hint: ${MESH_HINT}.`;
   }
   if (isAbsoluteMesh(trimmed)) {
     return `Mesh "${filename}" is an absolute path. Hint: ${MESH_HINT}.`;
+  }
+  if (trimmed.includes("\\") || trimmed.split("/").includes("..")) {
+    return `Mesh "${filename}" leaves the URDF directory. Hint: ${MESH_HINT}.`;
   }
   const base = basename(trimmed).toLowerCase();
   if (base.endsWith(".stl") || base.endsWith(".obj")) return undefined;
@@ -1294,17 +1300,122 @@ function checkWires(doc: WorldDocument, errors: WorldError[]) {
     const right = resolveEndpoint(doc, wire[1]);
     if ("fail" in left) errors.push(unknownPin(left, path, wire[0]));
     if ("fail" in right) errors.push(unknownPin(right, path, wire[1]));
-    if ("fail" in left || "fail" in right) return;
-    if (left.spec.output && right.spec.output) {
+  });
+}
+
+function linkEnds(map: Map<string, string[]>, from: string, to: string) {
+  const list = map.get(from);
+  if (list) list.push(to);
+  else map.set(from, [to]);
+}
+
+/** One connected component per set of endpoints joined by any wire. */
+function wireNets(doc: WorldDocument): Resolved[][] {
+  const nodes = new Map<string, Resolved>();
+  const adjacent = new Map<string, string[]>();
+  for (const wire of doc.wires) {
+    const left = resolveEndpoint(doc, wire[0]);
+    const right = resolveEndpoint(doc, wire[1]);
+    if ("fail" in left || "fail" in right) continue;
+    nodes.set(left.endpoint, left);
+    nodes.set(right.endpoint, right);
+    linkEnds(adjacent, left.endpoint, right.endpoint);
+    linkEnds(adjacent, right.endpoint, left.endpoint);
+  }
+  const seen = new Set<string>();
+  const nets: Resolved[][] = [];
+  for (const start of nodes.keys()) {
+    if (seen.has(start)) continue;
+    const members: Resolved[] = [];
+    const stack = [start];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (current === undefined || seen.has(current)) continue;
+      seen.add(current);
+      const node = nodes.get(current);
+      if (node) members.push(node);
+      for (const next of adjacent.get(current) ?? []) {
+        if (!seen.has(next)) stack.push(next);
+      }
+    }
+    nets.push(members);
+  }
+  return nets;
+}
+
+function pinKindMessage(net: Resolved[]): string | undefined {
+  const power = net.find((node) => node.spec.kind === "power");
+  const ground = net.find((node) => node.spec.kind === "ground");
+  const other = net.find(
+    (node) => node.spec.kind !== "power" && node.spec.kind !== "ground"
+  );
+  if (power && (ground || other)) {
+    const mate = ground ?? other;
+    return `Power pin "${power.endpoint}" shares a net with "${mate?.endpoint}". Hint: tie power only to power. A power-to-ground wire is a short.`;
+  }
+  if (ground && other) {
+    return `Ground pin "${ground.endpoint}" shares a net with "${other.endpoint}". Hint: tie ground only to ground.`;
+  }
+  return undefined;
+}
+
+function checkNets(doc: WorldDocument, errors: WorldError[]) {
+  const nets = wireNets(doc);
+  for (const net of nets) {
+    const outputs = net.filter((node) => node.spec.output);
+    if (outputs.length >= 2) {
+      const names = outputs.map((node) => node.endpoint).join(", ");
       errors.push(
         err(
           "two-outputs",
-          path,
-          `"${wire[0]}" and "${wire[1]}" are both outputs. Hint: a board GPIO drives an input, and two supply positives stay apart.`
+          "wires",
+          `Wire net has outputs ${names}. Hint: one net can have one driving pin.`
         )
       );
     }
-  });
+    const clash = pinKindMessage(net);
+    if (clash) errors.push(err("pin-kind", "wires", clash));
+    const positives = net.filter(
+      (node) => node.owner === "supply" && node.spec.output
+    );
+    for (const node of net) {
+      if (node.owner !== "board" || !node.board) continue;
+      if (node.spec.kind !== "power" || node.spec.output) continue;
+      if (node.board.powerInputs.includes(node.pin)) continue;
+      if (positives.length === 0) continue;
+      const from = positives.map((pin) => pin.endpoint).join(", ");
+      errors.push(
+        err(
+          "power-input",
+          "wires",
+          `Supply ${from} reaches "${node.endpoint}", which does not power the board. Hint: milestone 1 has no regulator model. Power the board through its 5V pin, not ${node.pin}.`
+        )
+      );
+    }
+  }
+
+  for (let i = 0; i < doc.parts.length; i++) {
+    const part = doc.parts[i];
+    if (!part) continue;
+    const model = partModel(part.model);
+    if (model?.drive.kind !== "servo") continue;
+    const endpoint = `${part.id}.${model.drive.pin}`;
+    const net = nets.find((members) =>
+      members.some((node) => node.endpoint === endpoint)
+    );
+    if (!net) continue;
+    const digital = net.some(
+      (node) => node.owner === "board" && node.spec.digital
+    );
+    if (digital) continue;
+    errors.push(
+      err(
+        "signal-pin",
+        `parts[${i}]`,
+        `Servo "${part.id}" signal does not reach a digital board pin. Hint: Servo.h may use any digital pin, including A0–A5. 5V, 3V3, VIN, and GND are not digital pins.`
+      )
+    );
+  }
 }
 
 function servoSignalWired(doc: WorldDocument): boolean {
@@ -1431,91 +1542,120 @@ function suppliesOn(nodes: SupplyNode[], reached: Set<string>): SupplyNode[] {
   return found;
 }
 
+type FedDevice = {
+  path: string;
+  name: string;
+  /** "Board" or "Part", used in messages. */
+  noun: "Board" | "Part";
+  /** Endpoints a supply may power this device through. */
+  powerEndpoints: string[];
+  voltageChecks: {
+    endpoint: string;
+    pin: string;
+    range: { min: number; max: number };
+  }[];
+  groundEndpoints: string[];
+};
+
+function fedDevices(doc: WorldDocument): FedDevice[] {
+  const devices: FedDevice[] = [];
+  for (let i = 0; i < doc.boards.length; i++) {
+    const board = doc.boards[i];
+    if (!board) continue;
+    const model = boardModel(board.board);
+    if (!model) continue;
+    devices.push({
+      path: `boards[${i}]`,
+      name: board.id,
+      noun: "Board",
+      powerEndpoints: model.powerInputs.map((pin) => `${board.id}.${pin}`),
+      voltageChecks: [
+        {
+          endpoint: `${board.id}.${model.voltagePin}`,
+          pin: model.voltagePin,
+          range: model.supply,
+        },
+      ],
+      groundEndpoints: [`${board.id}.${model.groundPin}`],
+    });
+  }
+  for (let i = 0; i < doc.parts.length; i++) {
+    const part = doc.parts[i];
+    if (!part) continue;
+    const model = partModel(part.model);
+    if (!model) continue;
+    const powerPins = Object.entries(model.pins).filter(
+      ([, pin]) => pin.kind === "power"
+    );
+    if (powerPins.length === 0) continue;
+    const range = model.supply;
+    devices.push({
+      path: `parts[${i}]`,
+      name: part.id,
+      noun: "Part",
+      powerEndpoints: powerPins.map(([pin]) => `${part.id}.${pin}`),
+      voltageChecks: range
+        ? powerPins.map(([pin]) => ({
+            endpoint: `${part.id}.${pin}`,
+            pin,
+            range,
+          }))
+        : [],
+      groundEndpoints: Object.entries(model.pins)
+        .filter(([, pin]) => pin.kind === "ground")
+        .map(([pin]) => `${part.id}.${pin}`),
+    });
+  }
+  return devices;
+}
+
+function suppliesReached(
+  endpoints: string[],
+  nodes: SupplyNode[],
+  adjacent: Map<string, string[]>
+): SupplyNode[] {
+  const found: SupplyNode[] = [];
+  for (const endpoint of endpoints) {
+    for (const node of suppliesOn(nodes, reachable(endpoint, adjacent))) {
+      if (!found.includes(node)) found.push(node);
+    }
+  }
+  return found;
+}
+
 function checkPower(doc: WorldDocument, errors: WorldError[]) {
   const nodes = supplyNodes(doc);
   const power = adjacency(doc, "power");
   const ground = adjacency(doc, "ground");
-
-  doc.boards.forEach((board, i) => {
-    const model = boardModel(board.board);
-    if (!model) return;
-    const powering: SupplyNode[] = [];
-    for (const pin of model.powerInputs) {
-      const reached = reachable(`${board.id}.${pin}`, power);
-      for (const node of suppliesOn(nodes, reached)) {
-        if (!powering.includes(node)) powering.push(node);
-      }
-    }
-    const onRail = suppliesOn(
-      nodes,
-      reachable(`${board.id}.${model.voltagePin}`, power)
-    );
-    for (const node of onRail) {
-      if (!outOfRange(node.voltage, model.supply)) continue;
-      errors.push(
-        err(
-          "voltage-mismatch",
-          `boards[${i}]`,
-          `Board "${board.id}" ${model.voltagePin} is wired to supply "${node.id}" at ${node.voltage} V, outside ${rangeText(model.supply)}. Hint: use a supply inside the board's range.`
-        )
-      );
-    }
-    const grounds = reachable(`${board.id}.${model.groundPin}`, ground);
-    for (const node of powering) {
-      if (grounds.has(node.ground)) continue;
-      errors.push(
-        err(
-          "missing-ground",
-          `boards[${i}]`,
-          `Board "${board.id}" is powered by "${node.id}" but its GND does not reach that supply's GND. Hint: wire the grounds together. Power and ground are both explicit.`
-        )
-      );
-    }
-  });
-
-  doc.parts.forEach((part, i) => {
-    const model = partModel(part.model);
-    if (!model) return;
-    const powerPins = Object.entries(model.pins).filter(
-      ([, pin]) => pin.kind === "power"
-    );
-    if (powerPins.length === 0) return;
-    const groundPins = Object.entries(model.pins).filter(
-      ([, pin]) => pin.kind === "ground"
-    );
-    const powering: SupplyNode[] = [];
-    for (const [pin] of powerPins) {
-      const reached = reachable(`${part.id}.${pin}`, power);
-      for (const node of suppliesOn(nodes, reached)) {
-        if (!powering.includes(node)) powering.push(node);
-      }
-    }
-    if (model.supply) {
-      for (const node of powering) {
-        if (!outOfRange(node.voltage, model.supply)) continue;
+  for (const device of fedDevices(doc)) {
+    const powering = suppliesReached(device.powerEndpoints, nodes, power);
+    for (const check of device.voltageChecks) {
+      for (const node of suppliesOn(nodes, reachable(check.endpoint, power))) {
+        if (!outOfRange(node.voltage, check.range)) continue;
+        const whose = device.noun === "Board" ? "board" : "part";
         errors.push(
           err(
             "voltage-mismatch",
-            `parts[${i}]`,
-            `Part "${part.id}" V+ is wired to supply "${node.id}" at ${node.voltage} V, outside ${rangeText(model.supply)}. Hint: use a supply inside the part's range.`
+            device.path,
+            `${device.noun} "${device.name}" ${check.pin} is wired to supply "${node.id}" at ${node.voltage} V, outside ${rangeText(check.range)}. Hint: use a supply inside the ${whose}'s range.`
           )
         );
       }
     }
     for (const node of powering) {
-      const grounded = groundPins.some(([pin]) =>
-        reachable(`${part.id}.${pin}`, ground).has(node.ground)
+      const grounded = device.groundEndpoints.some((pin) =>
+        reachable(pin, ground).has(node.ground)
       );
       if (grounded) continue;
       errors.push(
         err(
           "missing-ground",
-          `parts[${i}]`,
-          `Part "${part.id}" is powered by "${node.id}" but its GND does not reach that supply's GND. Hint: wire the grounds together. Power and ground are both explicit.`
+          device.path,
+          `${device.noun} "${device.name}" is powered by "${node.id}" but its GND does not reach that supply's GND. Hint: wire the grounds together. Power and ground are both explicit.`
         )
       );
     }
-  });
+  }
 }
 
 export function validateWorld(
@@ -1529,6 +1669,7 @@ export function validateWorld(
   checkFiles(parsed, ctx, errors);
   checkRobots(parsed, ctx, errors, warnings);
   checkWires(parsed, errors);
+  checkNets(parsed, errors);
   checkDrivePins(parsed, errors, warnings);
   checkPower(parsed, errors);
   return { ok: errors.length === 0, errors, warnings };

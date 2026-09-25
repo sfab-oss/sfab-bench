@@ -150,6 +150,9 @@ expect(chip.brownoutVoltage === 2.7, "brownout");
 expect(chip.extendedFuse === "0xFD", "extended fuse");
 expect(uno.pwmPins.join(",") === "D3,D5,D6,D9,D10,D11", "pwm pins");
 expect(uno.servoConflictPins.join(",") === "D9,D10", "timer1 pins");
+expect(uno.powerInputs.join(",") === "5V", "VIN is not a power input");
+expect(uno.pins["3V3"]?.output === true, "3V3 is the regulator output");
+expect(uno.pins.VIN?.output === false, "VIN does not drive a net");
 expect(Object.keys(uno.pins).length === 24, "uno pin count");
 
 const sg90 = partModels.sg90;
@@ -303,6 +306,137 @@ assertIssues(validateWorld(supplyOutputs, holdCtx), "supply two-outputs", [
   "two-outputs",
 ]);
 
+const auxSupply = {
+  id: "aux",
+  voltage: 5,
+  currentLimit: 0.5,
+  rDroop: 10,
+};
+
+function worldWith(
+  wires: [string, string][],
+  supplies?: WorldFile["supplies"]
+): WorldFile {
+  const doc = clone(hold);
+  doc.wires = wires;
+  if (supplies) doc.supplies = supplies;
+  return doc;
+}
+
+assertIssues(
+  validateWorld(
+    worldWith([
+      ["uno.D9", "servo.signal"],
+      ["uno.D10", "servo.signal"],
+    ]),
+    holdCtx
+  ),
+  "outputs joined through servo.signal",
+  ["two-outputs"]
+);
+
+assertIssues(
+  validateWorld(
+    worldWith(
+      [
+        ["usb.5V", "uno.5V"],
+        ["aux.5V", "uno.5V"],
+        ["usb.GND", "uno.GND"],
+        ["aux.GND", "uno.GND"],
+      ],
+      [...hold.supplies, auxSupply]
+    ),
+    holdCtx
+  ),
+  "supplies joined through uno.5V",
+  ["two-outputs"]
+);
+
+assertIssues(
+  validateWorld(
+    worldWith(
+      [
+        ["usb.5V", "servo.V+"],
+        ["aux.5V", "servo.V+"],
+      ],
+      [...hold.supplies, auxSupply]
+    ),
+    holdCtx
+  ),
+  "supplies joined through servo.V+",
+  ["two-outputs", "missing-ground", "missing-ground"]
+);
+
+function signalOn(pin: string): WorldFile {
+  const doc = clone(hold);
+  doc.wires = doc.wires.map((wire) =>
+    wire[0] === "uno.D9" && wire[1] === "servo.signal"
+      ? [`uno.${pin}`, "servo.signal"]
+      : wire
+  );
+  return doc;
+}
+
+for (const pin of ["5V", "3V3", "VIN", "GND"]) {
+  const result = validateWorld(signalOn(pin), holdCtx);
+  const codes = result.errors.map((issue) => issue.code);
+  expect(!result.ok, `servo signal on ${pin} passed`);
+  expect(
+    codes.includes("signal-pin"),
+    `servo signal on ${pin}: ${codes.join(",") || "(none)"}`
+  );
+}
+assertOk(validateWorld(signalOn("D2"), holdCtx), "servo on D2 via signalOn");
+assertOk(validateWorld(signalOn("D9"), holdCtx), "servo on D9");
+assertOk(validateWorld(signalOn("A0"), holdCtx), "servo on A0");
+
+const toRegulator = clone(hold);
+toRegulator.wires.push(["usb.5V", "uno.3V3"]);
+assertIssues(validateWorld(toRegulator, holdCtx), "supply on 3V3", [
+  "two-outputs",
+]);
+
+function barrelOnVin(voltage: number): WorldFile {
+  const doc = clone(hold);
+  doc.supplies = [{ id: "barrel", voltage, currentLimit: 1, rDroop: 1 }];
+  doc.wires = [
+    ["barrel.5V", "uno.VIN"],
+    ["barrel.GND", "uno.GND"],
+    ["uno.D9", "servo.signal"],
+    ["uno.5V", "servo.V+"],
+    ["uno.GND", "servo.GND"],
+  ];
+  return doc;
+}
+
+for (const voltage of [9, 12]) {
+  const result = validateWorld(barrelOnVin(voltage), holdCtx);
+  const codes = result.errors.map((issue) => issue.code);
+  expect(!result.ok, `${voltage} V barrel on VIN passed`);
+  expect(
+    codes.includes("power-input") && !codes.includes("voltage-mismatch"),
+    `${voltage} V barrel on VIN: ${codes.join(",") || "(none)"}`
+  );
+}
+
+assertIssues(
+  validateWorld(
+    worldWith([
+      ["uno.GND", "servo.V+"],
+      ["uno.5V", "servo.GND"],
+    ]),
+    holdCtx
+  ),
+  "power and ground swapped",
+  ["pin-kind", "pin-kind"]
+);
+
+assertIssues(
+  validateWorld(worldWith([["usb.5V", "usb.GND"]]), holdCtx),
+  "supply short",
+  ["pin-kind"]
+);
+
 function withLed(doc: WorldFile, pin: string): WorldFile {
   doc.parts.push({ id: "led", model: "led-pwm" });
   doc.wires.push([`uno.${pin}`, "led.signal"]);
@@ -412,6 +546,29 @@ expect(
   packageMesh.errors[0]?.message.includes("package://"),
   "package message"
 );
+
+const parentMesh = validateWorld(
+  hold,
+  ctxFor(
+    urdfWith(
+      urdfText.replace('filename="meshes/base.stl"', 'filename="../secret.stl"')
+    )
+  )
+);
+assertIssues(parentMesh, "parent mesh", ["mesh-format"]);
+
+const packageCase = validateWorld(
+  hold,
+  ctxFor(
+    urdfWith(
+      urdfText.replace(
+        'filename="meshes/base.stl"',
+        'filename="Package://arm/base.stl"'
+      )
+    )
+  )
+);
+assertIssues(packageCase, "Package:// mesh", ["mesh-format"]);
 
 const absoluteMesh = validateWorld(
   hold,
