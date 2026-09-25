@@ -198,7 +198,11 @@ function documentWarnings(loaded: Loaded): string[] {
   return validation.warnings.map((issue) => issue.message);
 }
 
-function liveWarnings(loaded: Loaded, state: WorldState): string[] {
+function liveWarnings(
+  loaded: Loaded,
+  state: WorldState,
+  documentMessages: readonly string[]
+): string[] {
   const out: string[] = [];
   for (const [id, board] of Object.entries(state.boards)) {
     for (const warning of board.warnings ?? []) {
@@ -221,7 +225,7 @@ function liveWarnings(loaded: Loaded, state: WorldState): string[] {
       if (text) out.push(text);
     }
   }
-  out.push(...documentWarnings(loaded));
+  out.push(...documentMessages);
   return out;
 }
 
@@ -408,7 +412,11 @@ function statusOf(loaded: Loaded, stateOverride?: WorldState) {
         }
       : null,
     ...(diagnostics.length > 0 ? { diagnostics } : {}),
-    warnings: liveWarnings(loaded, state),
+    warnings: liveWarnings(
+      loaded,
+      state,
+      validation.warnings.map((issue) => issue.message)
+    ),
   };
 }
 

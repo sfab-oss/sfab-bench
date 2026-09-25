@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { parentPort } from "node:worker_threads";
 
 import {
+  ATMEGA328P_16MHZ_MIN_V,
   arduinoPinBit,
   atmega328pSoaWarning,
   boardModel,
@@ -310,6 +311,7 @@ type RecLayout = {
     lower: number;
     upper: number;
     kind: JointLimitKind;
+    qposadr: number;
   }[];
   bodies: { robot: string; link: string; mj: string }[];
   parts: Load[];
@@ -447,7 +449,7 @@ function fillRecorder(full: boolean) {
   for (let i = 0; i < lay.joints.length; i++) {
     const spec = lay.joints[i];
     if (!spec) continue;
-    const qpos = scalar(sim.data.jnt(spec.mj).qpos as Float64Array);
+    const qpos = (sim.data.qpos as Float64Array)[spec.qposadr] ?? 0;
     rec.pastLimit[i] = pastLimitAmount(qpos, spec.lower, spec.upper, spec.kind);
     if (full) rec.joint[i] = qpos;
   }
@@ -507,10 +509,8 @@ function boardInSoa(board: AvrBoard): boolean {
   if (spec?.chip !== "atmega328p") return false;
   const power = boardPower.get(board.id);
   if (!power?.supplyId) return false;
-  return (
-    atmega328pSoaWarning(supplyOf(power.supplyId), power.brownoutVoltage) !==
-    null
-  );
+  const voltage = supplyOf(power.supplyId);
+  return voltage > power.brownoutVoltage && voltage < ATMEGA328P_16MHZ_MIN_V;
 }
 
 function openRecorder() {
@@ -522,6 +522,7 @@ function openRecorder() {
   const joints: RecLayout["joints"] = [];
   const jointType = sim.mj.mjtObj.mjOBJ_JOINT.value;
   const limits = sim.model.jnt_range as Float64Array;
+  const qposadr = sim.model.jnt_qposadr as Int32Array;
   const jntType = sim.model.jnt_type as Int32Array;
   const slide = sim.mj.mjtJoint.mjJNT_SLIDE.value;
   const ball = sim.mj.mjtJoint.mjJNT_BALL.value;
@@ -538,6 +539,7 @@ function openRecorder() {
         lower: limits[id * 2] ?? 0,
         upper: limits[id * 2 + 1] ?? 0,
         kind,
+        qposadr: qposadr[id] ?? 0,
       });
     }
   }
