@@ -2,7 +2,9 @@
  * `validateWorld` checks a `.world.json` document. It does no file IO.
  * The caller reports whether a relative path exists and, for each robot
  * URDF it has read, the joint names and mesh filenames from
- * `extractUrdfJointsAndMeshes`.
+ * `extractUrdfJointsAndMeshes`. Mesh filenames are resolved relative to
+ * that URDF and checked with `fileExists` too: a missing STL is
+ * `missing-file` before MuJoCo opens it.
  *
  * Two-outputs, pin-kind, and signal-pin use the full wire net. Voltage
  * and missing-ground still walk only edges whose ends share a kind, so
@@ -1126,6 +1128,23 @@ function basename(filename: string): string {
   return parts[parts.length - 1] ?? filename;
 }
 
+/**
+ * A mesh path that `meshMessage` has already accepted, joined onto the
+ * URDF's directory. Both are relative to the world file. `..` cannot
+ * appear here: the mesh check rejects it, and URDF paths do too.
+ */
+function resolveUrdfMesh(urdfRel: string, mesh: string): string | undefined {
+  const slash = urdfRel.lastIndexOf("/");
+  const dir = slash === -1 ? "" : urdfRel.slice(0, slash);
+  const parts: string[] = [];
+  for (const part of `${dir}/${mesh}`.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") return undefined;
+    parts.push(part);
+  }
+  return parts.join("/");
+}
+
 function isAbsoluteMesh(filename: string): boolean {
   return (
     filename.startsWith("/") ||
@@ -1180,7 +1199,20 @@ function checkRobots(
     const counts = new Map<string, number>();
     for (const mesh of info.meshes) {
       const problem = meshMessage(mesh);
-      if (problem) errors.push(err("mesh-format", path, problem));
+      if (problem) {
+        errors.push(err("mesh-format", path, problem));
+      } else {
+        const resolved = resolveUrdfMesh(robot.urdf, mesh);
+        if (!resolved || !ctx.fileExists(resolved)) {
+          errors.push(
+            err(
+              "missing-file",
+              path,
+              `Mesh "${mesh}" does not exist. Hint: the path is relative to the URDF.`
+            )
+          );
+        }
+      }
       const base = basename(mesh).toLowerCase();
       counts.set(base, (counts.get(base) ?? 0) + 1);
     }

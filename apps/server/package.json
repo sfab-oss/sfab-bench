@@ -34,6 +34,7 @@
     "@ai-sdk/provider-utils": "5.0.40",
     "@hono/node-server": "^2.1.1",
     "@hono/zod-validator": "^0.9.1",
+    "@mujoco/mujoco": "3.14.0",
     "@sfab-bench/contract": "workspace:*",
     "@vitejs/plugin-basic-ssl": "^2.1.0",
     "ai": "^7.0.101",

@@ -530,6 +530,23 @@ const meshFormat = validateWorld(
 assertIssues(meshFormat, "3mf mesh", ["mesh-format"]);
 expect(meshFormat.errors[0]?.message.includes("cadgen stl build"), "mesh hint");
 
+const missingMesh = validateWorld(
+  hold,
+  ctxFor(
+    urdfWith(
+      urdfText.replace(
+        'filename="meshes/upper_arm.stl"',
+        'filename="meshes/missing.stl"'
+      )
+    )
+  )
+);
+assertIssues(missingMesh, "missing mesh", ["missing-file"]);
+expect(
+  missingMesh.errors[0]?.message.includes("meshes/missing.stl"),
+  "missing mesh names the file"
+);
+
 const packageMesh = validateWorld(
   hold,
   ctxFor(
@@ -586,7 +603,7 @@ const duplicateMesh = validateWorld(
     urdfWith(
       urdfText.replace(
         'filename="meshes/upper_arm.stl"',
-        'filename="copied/base.stl"'
+        'filename="meshes/base.stl"'
       )
     )
   )

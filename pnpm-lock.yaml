@@ -157,6 +157,9 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.9.1
         version: 0.9.1(hono@4.13.7)(zod@4.6.5)
+      '@mujoco/mujoco':
+        specifier: 3.14.0
+        version: 3.14.0
       '@sfab-bench/contract':
         specifier: workspace:*
         version: link:../../packages/contract
@@ -1278,6 +1281,9 @@ packages:
     resolution: {integrity: sha512-2Z0FATFHaoYJ8b+Y4y4Hgfn3FRFwuU5zRrk+9dFWp4uGAdHGqVEdP7HP+gLA3X469KXHmfupJaUbKo1b/aDKIg==}
     peerDependencies:
       three: '>= 0.159.0'
+
+  '@mujoco/mujoco@3.14.0':
+    resolution: {integrity: sha512-WPUYidu4Fx8+uM4hQv80SOA0ifpWGrsNJguKs8JBV8SCTxjKQ2/rqsh880nUH0/Vwa8vuefghvCQkkoed3bkUg==}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -6007,6 +6013,8 @@ snapshots:
     dependencies:
       promise-worker-transferable: 1.0.4
       three: 0.178.0
+
+  '@mujoco/mujoco@3.14.0': {}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
