@@ -29,12 +29,52 @@ export type LoadedWorld = {
   problems: string[];
 };
 
-type CacheEntry = {
+type CacheEntry<T> = {
   refs: number;
-  promise: Promise<WorldMesh>;
+  promise: Promise<T>;
 };
 
-const cache = new Map<string, CacheEntry>();
+/** Path alone would reuse bytes after `reloaded`. The revision makes a new entry. */
+export function meshCacheKey(rel: string, revision: number): string {
+  return `${revision}\0${rel}`;
+}
+
+/**
+ * `load` runs once per path+revision. Releasing the last ref disposes that
+ * entry only, so a newer revision can be on screen before the old one goes.
+ */
+export function createMeshCache<T>(
+  load: (rel: string) => Promise<T>,
+  dispose: (value: T) => void
+) {
+  const cache = new Map<string, CacheEntry<T>>();
+  return {
+    acquire(rel: string, revision: number): Promise<T> {
+      const key = meshCacheKey(rel, revision);
+      let entry = cache.get(key);
+      if (!entry) {
+        let promise: Promise<T>;
+        promise = load(rel).catch((err: unknown) => {
+          const current = cache.get(key);
+          if (current?.promise === promise) cache.delete(key);
+          throw err;
+        });
+        entry = { refs: 0, promise };
+        cache.set(key, entry);
+      }
+      entry.refs += 1;
+      return entry.promise;
+    },
+    release(key: string) {
+      const entry = cache.get(key);
+      if (!entry) return;
+      entry.refs -= 1;
+      if (entry.refs > 0) return;
+      cache.delete(key);
+      void entry.promise.then(dispose).catch(() => {});
+    },
+  };
+}
 
 function disposeMesh(mesh: WorldMesh) {
   if (mesh.kind === "stl") {
@@ -92,29 +132,14 @@ function fetchMesh(rel: string): Promise<WorldMesh> {
   return Promise.reject(new Error(`${rel} is not an STL or OBJ mesh`));
 }
 
-export function acquireMesh(rel: string): Promise<WorldMesh> {
-  let entry = cache.get(rel);
-  if (!entry) {
-    let promise: Promise<WorldMesh>;
-    promise = fetchMesh(rel).catch((err: unknown) => {
-      const current = cache.get(rel);
-      if (current?.promise === promise) cache.delete(rel);
-      throw err;
-    });
-    entry = { refs: 0, promise };
-    cache.set(rel, entry);
-  }
-  entry.refs += 1;
-  return entry.promise;
+const meshes = createMeshCache(fetchMesh, disposeMesh);
+
+export function acquireMesh(rel: string, revision: number): Promise<WorldMesh> {
+  return meshes.acquire(rel, revision);
 }
 
-export function releaseMesh(rel: string) {
-  const entry = cache.get(rel);
-  if (!entry) return;
-  entry.refs -= 1;
-  if (entry.refs > 0) return;
-  cache.delete(rel);
-  void entry.promise.then(disposeMesh).catch(() => {});
+export function releaseMesh(key: string) {
+  meshes.release(key);
 }
 
 export function releaseMeshes(keys: readonly string[]) {
@@ -146,7 +171,10 @@ function asDocument(value: unknown): WorldDocument | null {
   };
 }
 
-export async function loadWorldAssets(worldRel: string): Promise<LoadedWorld> {
+export async function loadWorldAssets(
+  worldRel: string,
+  revision: number
+): Promise<LoadedWorld> {
   const res = await readFile(worldRel);
   let parsed: unknown;
   try {
@@ -187,8 +215,8 @@ export async function loadWorldAssets(worldRel: string): Promise<LoadedWorld> {
         continue;
       }
       try {
-        const mesh = await acquireMesh(meshRel);
-        meshKeys.push(meshRel);
+        const mesh = await acquireMesh(meshRel, revision);
+        meshKeys.push(meshCacheKey(meshRel, revision));
         visuals.push({
           robotId: robot.id,
           link: visual.link,

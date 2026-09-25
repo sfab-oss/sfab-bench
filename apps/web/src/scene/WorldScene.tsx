@@ -223,7 +223,7 @@ export function WorldScene({
     if (!worldStore.getState().sceneReady) {
       worldStore.getState().setAssets("loading");
     }
-    void loadWorldAssets(path)
+    void loadWorldAssets(path, revision)
       .then((next) => {
         if (cancelled) {
           releaseMeshes(next.meshKeys);
