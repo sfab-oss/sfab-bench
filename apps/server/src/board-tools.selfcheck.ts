@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { emptySnapshot, type WorldServerMessage } from "@sfab-bench/contract";
 
 import { boardTools } from "./board-tools";
+import { closeRootWatches } from "./projects";
 import { runViewerContext } from "./viewer-context";
 import {
   attachWorld,
@@ -190,6 +191,7 @@ try {
 } finally {
   held.handle?.detach();
   await stopWorld(root, "arm.world.json");
+  closeRootWatches();
   rmSync(root, { recursive: true, force: true });
 }
 

@@ -256,6 +256,20 @@ export function subscribeRootWatch(
   };
 }
 
+/**
+ * Test-only. Close every project watcher so the process can exit. On Linux,
+ * Node 22 builds a recursive watch from one child watcher per subdirectory,
+ * and `unref()` on the parent does not reach them.
+ */
+export function closeRootWatches(): void {
+  for (const slot of live.values()) {
+    if (slot.watchTimer) clearTimeout(slot.watchTimer);
+    slot.watchTimer = null;
+    slot.watcher?.close();
+    slot.watcher = null;
+  }
+}
+
 export function projectRow(root: string): ProjectRow {
   return readRow(root) ?? rowFrom(root, null, Date.now());
 }

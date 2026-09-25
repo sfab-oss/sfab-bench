@@ -13,7 +13,7 @@ import { Worker } from "node:worker_threads";
 import type { WorldServerMessage } from "@sfab-bench/contract";
 
 import { handleProjectFile } from "./cad-pkg";
-import { listProjectFiles } from "./projects";
+import { closeRootWatches, listProjectFiles } from "./projects";
 import { RX_BACKLOG } from "./world/board";
 import { projectReal, readerFor } from "./world/files";
 import {
@@ -1140,6 +1140,14 @@ try {
     !stallPage.text.includes("90\r\n"),
     "stall ring is not the hold firmware"
   );
+  // Serial can land before the state tick that closes the step.
+  const atSim = (at: string) => () => {
+    const last = [...pairEvents]
+      .reverse()
+      .find((event) => event.type === "state");
+    return last?.type === "state" && last.state.simTime.toFixed(3) === at;
+  };
+  await waitUntil(atSim("3.500"), "two-board state at 3.5 s");
   const simBefore =
     [...pairEvents].reverse().find((event) => event.type === "state") ?? null;
   expect(simBefore?.type === "state", "two-board state");
@@ -1256,6 +1264,7 @@ try {
     !stallAfter.text.includes("firmware reloaded"),
     "reload marker is only on the board whose hex changed"
   );
+  await waitUntil(atSim("4.700"), "two-board state at 4.7 s");
   const moved = [...pairEvents]
     .reverse()
     .find((event) => event.type === "state");
@@ -1273,4 +1282,5 @@ try {
   rmSync(pairRoot, { recursive: true, force: true });
 }
 
+closeRootWatches();
 console.log("world-runtime.selfcheck ok");
