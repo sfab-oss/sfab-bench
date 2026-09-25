@@ -287,11 +287,11 @@ export async function compileWorld(
         addBuffer(vfs, mesh.vfs, bytes);
       }
       const spec = mj.parseXMLString(retargeted.xml, vfs);
+      // Register before the parse-error return so `finally` frees it.
       robotSpecs.push(spec);
       const parseError = mj.mjs_getError(spec);
       if (parseError) return { ok: false, errors: [schemaError(parseError)] };
       forceCompiler(spec);
-      robotSpecs.push(spec);
     }
 
     const scene = mj.parseXMLString(worldXml(worldDoc));
