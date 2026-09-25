@@ -115,11 +115,7 @@ function snapshot(doc: Doc): WorldServerMessage | null {
   return null;
 }
 
-function announce(
-  doc: Doc,
-  command: "play" | "pause",
-  by: WorldSender
-) {
+function announce(doc: Doc, command: "play" | "pause", by: WorldSender) {
   doc.lastCommand = { command, by };
   broadcast(doc, { type: "command", command, by });
 }
