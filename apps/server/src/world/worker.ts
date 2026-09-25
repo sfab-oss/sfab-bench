@@ -1,13 +1,21 @@
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { parentPort } from "node:worker_threads";
 
 import {
   arduinoPinBit,
+  atmega328pSoaWarning,
   boardModel,
   chipModel,
+  degreesPastLimit,
   partModel,
   RECORD_FRAME_MS,
   type RecordedFrame,
   type RecordingInfo,
+  type RecordingManifest,
+  type RecordingPartCatalog,
   type RecordingRead,
   type TimelineMarker,
   type TimelineTrack,
@@ -15,12 +23,13 @@ import {
   type WorldError,
   type WorldPartMotion,
   type WorldPartState,
+  type WorldPinState,
   type WorldSender,
   type WorldState,
   type WorldSupplyState,
 } from "@sfab-bench/contract";
 
-import { AvrBoard, FIRMWARE_RELOADED } from "./board";
+import { AvrBoard, type CpuResetRegs, FIRMWARE_RELOADED } from "./board";
 import { projectReal, readerFor, readInside, type WorldBytes } from "./files";
 import { parseIntelHex } from "./ihex";
 import {
@@ -31,7 +40,51 @@ import {
 import { scaleWithVoltage, stepPartMotion, supplyVoltage } from "./power";
 import { motionRank, RunRecorder, timelineFromRead } from "./record";
 import { blankTrack, type ServoTrack, trackServo } from "./servo";
-import { type PowerFeeds, powerFeeds, servoSignalDrives } from "./wiring";
+import {
+  gpioInputNets,
+  type PowerFeeds,
+  powerFeeds,
+  servoSignalDrives,
+} from "./wiring";
+
+const require = createRequire(import.meta.url);
+
+function packageVersion(name: string): string {
+  try {
+    let dir = dirname(require.resolve(name));
+    for (let hop = 0; hop < 6; hop++) {
+      const pkgPath = join(dir, "package.json");
+      if (existsSync(pkgPath)) {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as {
+          name?: string;
+          version?: string;
+        };
+        if (pkg.name === name) return pkg.version ?? "unknown";
+      }
+      const parent = dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  } catch {
+    /* the manifest says unknown rather than failing the run */
+  }
+  return "unknown";
+}
+
+const MUJOCO_VERSION = packageVersion("@mujoco/mujoco");
+const AVR8JS_VERSION = packageVersion("avr8js");
+
+const INTEGRATORS = [
+  "euler",
+  "rk4",
+  "implicit",
+  "implicitfast",
+  "discrete",
+] as const;
+
+function sha256(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
 
 /**
  * One world, off the API thread. The host starts one of these per open
@@ -125,7 +178,13 @@ export type FromWorker =
       chunks: { board: string; text: string }[];
     }
   | { type: "boardReset"; generation: number; board: string; marker: string }
-  | { type: "brownoutBoot"; generation: number; board: string }
+  | {
+      type: "brownoutBoot";
+      generation: number;
+      board: string;
+      regs: CpuResetRegs;
+      pins: WorldPinState;
+    }
   | { type: "boardFault"; generation: number; board: string; message: string }
   | {
       type: "rx";
@@ -161,6 +220,8 @@ type ServoDrive = {
   board: AvrBoard;
   pinBit: number;
   actuatorId: number;
+  /** Joint whose `jnt_actfrcrange` is this servo's torque clamp. */
+  jointId: number;
   jointName: string;
   speedRadPerSec: number;
   torqueNm: number;
@@ -231,11 +292,22 @@ let throwOnStep = false;
 
 let recorder: RunRecorder | null = null;
 let recordingSeq = 0;
+let worldSha256 = "";
+let worldDoc: WorldDocument | null = null;
+const firmwareSha = new Map<string, string>();
+let inputNets: ReturnType<typeof gpioInputNets> = [];
+let applyingInputs = false;
 const txSeen = new Map<string, number>();
 const pendingNotes: { kind: "reset" | "reboot"; board: string }[] = [];
 
 type RecLayout = {
-  joints: { robot: string; joint: string; mj: string }[];
+  joints: {
+    robot: string;
+    joint: string;
+    mj: string;
+    lower: number;
+    upper: number;
+  }[];
   bodies: { robot: string; link: string; mj: string }[];
   parts: Load[];
   supplies: SupplySpec[];
@@ -311,6 +383,16 @@ function sample(): WorldState | null {
     const pins = board.takePins();
     const power = boardPower.get(board.id);
     const unpowered = !power?.supplyId;
+    const voltage = power?.supplyId ? supplyOf(power.supplyId) : 0;
+    const chip = specs.find((item) => item.id === board.id)?.chip;
+    const soa =
+      chip === "atmega328p" &&
+      board.running &&
+      !board.brownout &&
+      !board.fault &&
+      !unpowered
+        ? atmega328pSoaWarning(voltage, power?.brownoutVoltage ?? 2.7)
+        : null;
     boardState[board.id] = {
       ...(board.fault
         ? { running: false as const, fault: board.fault, pins }
@@ -318,6 +400,7 @@ function sample(): WorldState | null {
       ...(unpowered ? { unpowered: true as const } : {}),
       resets: power?.resets ?? 0,
       brownout: board.brownout,
+      ...(soa ? { warnings: [soa] } : {}),
     };
   }
   const parts: Record<string, WorldPartState> = {};
@@ -358,12 +441,14 @@ function fillRecorder(full: boolean) {
   const rec = recorder;
   const lay = layout;
   if (!rec || !lay || !sim) return;
+  for (let i = 0; i < lay.joints.length; i++) {
+    const spec = lay.joints[i];
+    if (!spec) continue;
+    const qpos = scalar(sim.data.jnt(spec.mj).qpos as Float64Array);
+    rec.pastLimit[i] = degreesPastLimit(qpos, spec.lower, spec.upper);
+    if (full) rec.joint[i] = qpos;
+  }
   if (full) {
-    for (let i = 0; i < lay.joints.length; i++) {
-      const spec = lay.joints[i];
-      if (!spec) continue;
-      rec.joint[i] = scalar(sim.data.jnt(spec.mj).qpos as Float64Array);
-    }
     let pose = 0;
     for (const spec of lay.bodies) {
       const body = sim.data.body(spec.mj);
@@ -409,7 +494,20 @@ function fillRecorder(full: boolean) {
     const id = lay.boards[i];
     const board = boards.find((item) => item.id === id);
     rec.brownout[i] = board?.brownout ? 1 : 0;
+    rec.belowSoa[i] = board && boardInSoa(board) ? 1 : 0;
   }
+}
+
+function boardInSoa(board: AvrBoard): boolean {
+  if (!board.running || board.brownout || board.fault) return false;
+  const spec = specs.find((item) => item.id === board.id);
+  if (spec?.chip !== "atmega328p") return false;
+  const power = boardPower.get(board.id);
+  if (!power?.supplyId) return false;
+  return (
+    atmega328pSoaWarning(supplyOf(power.supplyId), power.brownoutVoltage) !==
+    null
+  );
 }
 
 function openRecorder() {
@@ -419,9 +517,18 @@ function openRecorder() {
   pendingNotes.length = 0;
   if (!sim) return;
   const joints: RecLayout["joints"] = [];
+  const jointType = sim.mj.mjtObj.mjOBJ_JOINT.value;
+  const limits = sim.model.jnt_range as Float64Array;
   for (const [robot, names] of Object.entries(sim.index.jointNamesByRobot)) {
-    for (const [joint, mj] of Object.entries(names)) {
-      joints.push({ robot, joint, mj });
+    for (const [joint, mjName] of Object.entries(names)) {
+      const id = sim.mj.mj_name2id(sim.model, jointType, mjName);
+      joints.push({
+        robot,
+        joint,
+        mj: mjName,
+        lower: limits[id * 2] ?? 0,
+        upper: limits[id * 2 + 1] ?? 0,
+      });
     }
   }
   const bodies: RecLayout["bodies"] = [];
@@ -436,6 +543,7 @@ function openRecorder() {
   recordingSeq += 1;
   recorder = new RunRecorder({
     id: `r${recordingSeq}`,
+    manifest: manifestOf(),
     joints: joints.map(({ robot, joint }) => ({ robot, joint })),
     bodies: bodies.map(({ robot, link }) => ({ robot, link })),
     parts: parts.map((load) => load.partId),
@@ -453,6 +561,47 @@ function openRecorder() {
       message: board.fault,
     });
   }
+}
+
+function catalogOf(
+  model: NonNullable<ReturnType<typeof partModel>>
+): RecordingPartCatalog {
+  return {
+    ...(model.torqueNm !== undefined ? { torqueNm: model.torqueNm } : {}),
+    ...(model.speedDegPerSec !== undefined
+      ? { speedDegPerSec: model.speedDegPerSec }
+      : {}),
+    ...(model.voltageScale ? { voltageScale: model.voltageScale } : {}),
+    ...(model.supply ? { supply: model.supply } : {}),
+    ...(model.current ? { current: model.current } : {}),
+    ...(model.stall ? { stall: model.stall } : {}),
+  };
+}
+
+function manifestOf(): RecordingManifest {
+  const timestep = sim?.model.opt.timestep ?? 0.001;
+  const which = sim?.model.opt.integrator ?? 3;
+  const parts: RecordingManifest["parts"] = {};
+  for (const part of worldDoc?.parts ?? []) {
+    if (parts[part.model]) continue;
+    const model = partModel(part.model);
+    if (!model) continue;
+    parts[part.model] = catalogOf(model);
+  }
+  return {
+    mujoco: MUJOCO_VERSION,
+    avr8js: AVR8JS_VERSION,
+    timestep,
+    integrator: INTEGRATORS[which] ?? String(which),
+    frameMs: RECORD_FRAME_MS,
+    worldSha256,
+    boards: specs.map((spec) => ({
+      id: spec.id,
+      firmware: spec.firmware,
+      sha256: firmwareSha.get(spec.id) ?? "",
+    })),
+    parts,
+  };
 }
 
 function recordStep() {
@@ -561,6 +710,7 @@ function bootBoard(spec: BoardSpec): AvrBoard {
     board.stop(`firmware "${spec.firmware}" does not exist`);
     return board;
   }
+  firmwareSha.set(spec.id, sha256(bytes));
   const parsed = parseIntelHex(new TextDecoder().decode(bytes));
   if (!parsed.ok) {
     board.stop(parsed.error);
@@ -571,6 +721,7 @@ function bootBoard(spec: BoardSpec): AvrBoard {
 }
 
 function loadBoards(parsed: unknown) {
+  firmwareSha.clear();
   specs = boardSpecsOf(parsed);
   boards = specs.map((spec) => bootBoard(spec));
   faulted.clear();
@@ -578,12 +729,24 @@ function loadBoards(parsed: unknown) {
   for (const board of boards) noteFault(board);
 }
 
-function setActuatorTorque(id: number, torque: number) {
+/**
+ * Both clamps. `actuator_forcerange` does not bind on its own: MuJoCo
+ * then clips `qfrc_actuator` to the joint's `jnt_actfrcrange`, which the
+ * URDF `effort` had set wider than the catalog. Scaling the joint range
+ * with the actuator range is what makes V / V_nom, and a limp zero, the
+ * torque the joint actually sees.
+ */
+function setActuatorTorque(id: number, jointId: number, torque: number) {
   if (!sim) return;
   const range = sim.model.actuator_forcerange as Float64Array;
   const base = id * 2;
   range[base] = -torque;
   range[base + 1] = torque;
+  if (jointId < 0) return;
+  const joint = sim.model.jnt_actfrcrange as Float64Array;
+  const at = jointId * 2;
+  joint[at] = -torque;
+  joint[at + 1] = torque;
 }
 
 function restingCurrent(load: Load): number {
@@ -622,6 +785,37 @@ function fillBoardPower(doc: WorldDocument) {
  * Wire each servo signal. An unwired V+ draws nothing. Speed and torque
  * start at the part-model numbers; each step scales them by V / V_nom.
  */
+function applyInputNets() {
+  if (applyingInputs || inputNets.length === 0) return;
+  applyingInputs = true;
+  try {
+    for (const net of inputNets) {
+      const board = boards.find((item) => item.id === net.boardId);
+      if (!board) continue;
+      let level: boolean | null = null;
+      for (const driver of net.drivers) {
+        const other = boards.find((item) => item.id === driver.boardId);
+        const driven = other?.outputLevel(driver.bit);
+        if (driven === null || driven === undefined) continue;
+        level = driven;
+        break;
+      }
+      board.setDriven(net.bit, level);
+    }
+  } finally {
+    applyingInputs = false;
+  }
+}
+
+function bindInputNets(doc: WorldDocument) {
+  inputNets = gpioInputNets(doc);
+  const refresh = () => applyInputNets();
+  for (const board of boards) {
+    board.onPinsChanged = inputNets.length > 0 ? refresh : null;
+  }
+  applyInputNets();
+}
+
 function bindPower(doc: WorldDocument) {
   loads = [];
   if (!sim) return;
@@ -638,6 +832,9 @@ function bindPower(doc: WorldDocument) {
       const speed = model.speedDegPerSec;
       const torque = model.torqueNm;
       const board = boards.find((item) => item.id === signal.boardId);
+      const trnid = sim.model.actuator_trnid as Int32Array;
+      const jointId =
+        actuatorId === undefined ? -1 : (trnid[actuatorId * 2] ?? -1);
       if (
         board &&
         bit !== undefined &&
@@ -646,11 +843,12 @@ function bindPower(doc: WorldDocument) {
         torque !== undefined
       ) {
         board.watchEdge(bit);
-        setActuatorTorque(actuatorId, 0);
+        setActuatorTorque(actuatorId, jointId, 0);
         drive = {
           board,
           pinBit: bit,
           actuatorId,
+          jointId,
           jointName: `${part.drives.robot}/${part.drives.joint}`,
           speedRadPerSec: (speed * Math.PI) / 180,
           torqueNm: torque,
@@ -690,7 +888,7 @@ function rearmServos(boardId: string, board: AvrBoard) {
     load.holdMs = 0;
     load.state = "idle";
     load.current = restingCurrent(load);
-    setActuatorTorque(drive.actuatorId, 0);
+    setActuatorTorque(drive.actuatorId, drive.jointId, 0);
   }
 }
 
@@ -759,6 +957,9 @@ function reloadBoard(id: string) {
   }
   rxSent.delete(id);
   faulted.delete(id);
+  if (worldDoc) bindInputNets(worldDoc);
+  const recorded = recorder?.manifest.boards.find((item) => item.id === id);
+  if (recorded) recorded.sha256 = firmwareSha.get(id) ?? recorded.sha256;
   if (next.running) {
     const ms = simMs();
     recorder?.noteEvent({ timeMs: ms, kind: "reload", board: id });
@@ -861,7 +1062,7 @@ function applyServos() {
       stepped.track.setpoint !== null &&
       Math.abs(stepped.track.setpoint - target) > 1e-9;
     const torque = stepped.limp ? 0 : drive.torqueNm * factor;
-    setActuatorTorque(drive.actuatorId, torque);
+    setActuatorTorque(drive.actuatorId, drive.jointId, torque);
     if (!stepped.limp && stepped.ctrl !== null) {
       sim.data.actuator(load.partId).ctrl = stepped.ctrl;
     }
@@ -925,10 +1126,20 @@ function advanceOne() {
     }
     if (board.brownout) {
       if (!board.reboot()) continue;
+      const regs = board.peekRegs();
+      const pins = board.peekPins();
       power.resets += 1;
       pendingNotes.push({ kind: "reset", board: board.id });
       pendingNotes.push({ kind: "reboot", board: board.id });
-      post({ type: "brownoutBoot", generation, board: board.id });
+      if (regs) {
+        post({
+          type: "brownoutBoot",
+          generation,
+          board: board.id,
+          regs,
+          pins,
+        });
+      }
       rearmServos(board.id, board);
     }
     if (!board.running) continue;
@@ -954,6 +1165,8 @@ function dispose() {
   pendingNotes.length = 0;
   boards = [];
   loads = [];
+  inputNets = [];
+  worldDoc = null;
   boardPower = new Map();
   supplySpecs = [];
   partFeeds = {};
@@ -1012,6 +1225,7 @@ async function build(): Promise<boolean> {
     ]);
     return false;
   }
+  worldSha256 = sha256(bytes);
   let parsed: unknown;
   try {
     parsed = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
@@ -1037,9 +1251,11 @@ async function build(): Promise<boolean> {
   files = bytesReader;
   playing = false;
   // Feeds are known before boot: an unwired board does not run.
-  fillBoardPower(parsed as WorldDocument);
+  worldDoc = parsed as WorldDocument;
+  fillBoardPower(worldDoc);
   loadBoards(parsed);
-  bindPower(parsed as WorldDocument);
+  bindPower(worldDoc);
+  bindInputNets(worldDoc);
   openRecorder();
   post({ type: "ready", generation, counts: countsOf(compiled) });
   postState();

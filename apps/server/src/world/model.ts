@@ -19,12 +19,26 @@ import type { WorldBytes } from "./files";
  * No control filter: the part-model slew is already the rate limit.
  * Hold sketch, the 10° → 90° move: overshoot 0.054°, within 1° at
  * 101 ms after the slew ended. Torque starts at the part model's
- * 0.176 N·m. Each step replaces that range with V / V_nom.
+ * 0.176 N·m, on both the actuator range and the joint actuator-force
+ * range. Each step replaces both with V / V_nom.
  */
 const SERVO_KP = 0.8;
 const SERVO_KV = 0.03;
 
 const TIMESTEP_S = 0.001;
+
+/**
+ * MuJoCo's default limit solref is `[0.02, 1]`. At the 1 ms step that
+ * rests about 1.4° past a stop and peaks about 5° when the servo hits it
+ * at full torque. `[0.002, 1]` is the stiffest pair the solver allows
+ * (timeconst ≥ 2 × timestep) and measured 0.025° at rest, 0.70° at the
+ * peak. MuJoCo 3.14's URDF reader ignores a joint `<mujoco>`
+ * `solreflimit`, so this pass applies that attribute when the URDF
+ * has one and otherwise writes this pair. The time constant is never
+ * set below 2 × timestep.
+ */
+export const JOINT_LIMIT_SOLREF: readonly [number, number] = [0.002, 1];
+const MUJOCO_LIMIT_SOLREF: readonly [number, number] = [0.02, 1];
 
 export type WorldModelCounts = {
   nbody: number;
@@ -220,6 +234,118 @@ function readNum(value: Int32Array, index: number): number {
   return value[index] ?? Number.NaN;
 }
 
+/**
+ * The catalog `torqueNm` is the joint's actuator-force clamp. MuJoCo
+ * clips `qfrc_actuator` to `jnt_actfrcrange` after the actuator range,
+ * and the URDF `effort` placeholder is what was binding (0.18 N·m on
+ * the fixture arm, above the SG90's 0.176).
+ */
+function applyServoTorqueClamp(
+  mj: MainModule,
+  model: MjModel,
+  doc: WorldDocument
+) {
+  const range = model.jnt_actfrcrange as Float64Array;
+  const trnid = model.actuator_trnid as Int32Array;
+  const actuatorType = mj.mjtObj.mjOBJ_ACTUATOR.value;
+  for (const part of doc.parts) {
+    if (!part.drives) continue;
+    const spec = partModel(part.model);
+    const torque = spec?.drive.kind === "servo" ? spec.torqueNm : undefined;
+    if (torque === undefined || !(torque > 0)) continue;
+    const actId = mj.mj_name2id(model, actuatorType, part.id);
+    if (actId < 0) continue;
+    const jointId = trnid[actId * 2] ?? -1;
+    if (jointId < 0) continue;
+    range[jointId * 2] = -torque;
+    range[jointId * 2 + 1] = torque;
+  }
+}
+
+/**
+ * `solreflimit` on a joint's `<mujoco>` child. MuJoCo's URDF compiler
+ * does not read it. Keys are URDF joint names.
+ */
+function urdfSolrefLimits(xml: string): Map<string, [number, number]> {
+  const out = new Map<string, [number, number]>();
+  const stripped = xml.replace(/<!--[\s\S]*?-->/g, "");
+  const jointRe = /<joint\b([^>]*)>([\s\S]*?)<\/joint>/gi;
+  for (const match of stripped.matchAll(jointRe)) {
+    const attrs = match[1] ?? "";
+    const body = match[2] ?? "";
+    const name = /(?:^|\s)name\s*=\s*"([^"]+)"/i.exec(attrs)?.[1];
+    const sol = /solreflimit\s*=\s*"([^"]+)"/i.exec(body)?.[1];
+    if (!name || !sol || !/<mujoco\b/i.test(body)) continue;
+    const nums = sol.trim().split(/\s+/).map(Number);
+    const timeconst = nums[0];
+    const dampratio = nums[1];
+    if (
+      timeconst === undefined ||
+      dampratio === undefined ||
+      !Number.isFinite(timeconst) ||
+      !Number.isFinite(dampratio)
+    ) {
+      continue;
+    }
+    out.set(name, [timeconst, dampratio]);
+  }
+  return out;
+}
+
+function urdfLimitSolref(
+  doc: WorldDocument,
+  files: WorldBytes
+): Map<string, [number, number]> {
+  const out = new Map<string, [number, number]>();
+  for (const robot of doc.robots) {
+    const raw = files.read(robot.urdf);
+    if (!raw) continue;
+    for (const [name, pair] of urdfSolrefLimits(decode(raw))) {
+      out.set(`${robot.id}/${name}`, pair);
+    }
+  }
+  return out;
+}
+
+/** Stiffen limited joints. An authored URDF `solreflimit` wins. */
+function applyLimitSolref(
+  mj: MainModule,
+  model: MjModel,
+  authored: Map<string, [number, number]>
+) {
+  const solref = model.jnt_solref as Float64Array;
+  const limits = model.jnt_range as Float64Array;
+  const stride = model.njnt > 0 ? solref.length / model.njnt : 0;
+  if (stride < 2) return;
+  const jointType = mj.mjtObj.mjOBJ_JOINT.value;
+  const minTimeconst = 2 * TIMESTEP_S;
+  for (let joint = 0; joint < model.njnt; joint++) {
+    const lower = limits[joint * 2] ?? 0;
+    const upper = limits[joint * 2 + 1] ?? 0;
+    if (!(upper > lower)) continue;
+    const base = joint * stride;
+    const name = mj.mj_id2name(model, jointType, joint) ?? "";
+    const fromUrdf = authored.get(name);
+    if (fromUrdf) {
+      const timeconst = fromUrdf[0];
+      solref[base] =
+        timeconst > 0 ? Math.max(timeconst, minTimeconst) : timeconst;
+      solref[base + 1] = fromUrdf[1];
+      continue;
+    }
+    const timeconst = solref[base] ?? 0;
+    const dampratio = solref[base + 1] ?? 0;
+    if (
+      Math.abs(timeconst - MUJOCO_LIMIT_SOLREF[0]) > 1e-9 ||
+      Math.abs(dampratio - MUJOCO_LIMIT_SOLREF[1]) > 1e-9
+    ) {
+      continue;
+    }
+    solref[base] = JOINT_LIMIT_SOLREF[0];
+    solref[base + 1] = JOINT_LIMIT_SOLREF[1];
+  }
+}
+
 function addBuffer(vfs: MjVFS, name: string, bytes: Uint8Array) {
   vfs.addBuffer(name, Array.from(bytes));
 }
@@ -375,6 +501,11 @@ export async function compileWorld(
         errors: [schemaError(mj.mjs_getError(scene) || "mj_compile failed")],
       };
     }
+    // URDF `effort` becomes `jnt_actfrcrange` and that clamp binds above
+    // the actuator's own forcerange. A servo joint uses the catalog
+    // torque instead. The step loop then scales the same range by V/V_nom.
+    applyServoTorqueClamp(mj, model, worldDoc);
+    applyLimitSolref(mj, model, urdfLimitSolref(worldDoc, files));
 
     const bodyType = mj.mjtObj.mjOBJ_BODY.value;
     const jointType = mj.mjtObj.mjOBJ_JOINT.value;

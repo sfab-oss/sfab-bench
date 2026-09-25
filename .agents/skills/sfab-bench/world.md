@@ -101,7 +101,17 @@ The same widths are on the `part:servo.pulseUs` track.
 
 `world_status` lists driven pins only (`D9: out H`), joint positions in
 degrees (metres for a prismatic joint), and each part's own board and pin
-when several robots share a folder.
+when several robots share a folder. `warnings` is an array of short
+strings, empty when nothing is wrong: a board whose supply is above
+brownout and below the 3.78 V an ATmega328P needs at 16 MHz, a joint more
+than 1° past its limit, and any validator warning on the document.
+`read_recording` uses the same array for the range you asked for (the
+worst limit violation in that range, and a 1 ms out-of-SOA dip kept the
+way brownout is). It also returns `manifest`: MuJoCo and avr8js versions,
+timestep, integrator, frame period, the world file's SHA-256, each
+board's firmware path and the SHA-256 of the loaded `.hex`, and the
+part-model catalog values in use. The manifest is fixed when the run is
+built.
 
 ## A reset
 

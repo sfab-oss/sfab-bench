@@ -1,4 +1,5 @@
 import {
+  arduinoPinBit,
   boardModel,
   partModel,
   type WorldDocument,
@@ -57,4 +58,69 @@ export function servoSignalDrives(doc: WorldDocument): ServoSignalDrive[] {
     if (found) drives.push(found);
   }
   return drives;
+}
+
+export type GpioDriver = { boardId: string; bit: number };
+
+/**
+ * Board GPIO pins that share a wire net with another board GPIO.
+ * The other pin is a driver only while its DDR says output; this list
+ * is the candidates. Catalog `output` is not consulted: a GPIO is an
+ * output at runtime when the firmware sets DDR.
+ */
+export function gpioInputNets(doc: WorldDocument): {
+  boardId: string;
+  bit: number;
+  drivers: GpioDriver[];
+}[] {
+  const boards = Array.isArray(doc.boards) ? doc.boards : [];
+  const wires = Array.isArray(doc.wires) ? doc.wires : [];
+  const gpio = new Map<string, GpioDriver>();
+  for (const board of boards) {
+    const pins = boardModel(board.board)?.pins;
+    if (!pins) continue;
+    for (const pin of Object.keys(pins)) {
+      if (!pins[pin]?.digital) continue;
+      const bit = arduinoPinBit(pin);
+      if (bit === undefined) continue;
+      gpio.set(`${board.id}.${pin}`, { boardId: board.id, bit });
+    }
+  }
+  const adjacent = new Map<string, string[]>();
+  const link = (from: string, to: string) => {
+    const list = adjacent.get(from);
+    if (list) list.push(to);
+    else adjacent.set(from, [to]);
+  };
+  for (const wire of wires) {
+    link(wire[0], wire[1]);
+    link(wire[1], wire[0]);
+  }
+  const out: { boardId: string; bit: number; drivers: GpioDriver[] }[] = [];
+  for (const [endpoint, self] of gpio) {
+    const seen = new Set<string>();
+    const stack = [endpoint];
+    const drivers: GpioDriver[] = [];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (current === undefined || seen.has(current)) continue;
+      seen.add(current);
+      if (current !== endpoint) {
+        const other = gpio.get(current);
+        if (
+          other &&
+          (other.boardId !== self.boardId || other.bit !== self.bit)
+        ) {
+          drivers.push(other);
+        }
+      }
+      for (const next of adjacent.get(current) ?? []) {
+        if (!seen.has(next)) stack.push(next);
+      }
+    }
+    if (drivers.length > 0) {
+      out.push({ boardId: self.boardId, bit: self.bit, drivers });
+    }
+  }
+  return out;
 }

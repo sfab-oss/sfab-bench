@@ -23,6 +23,28 @@ export const CYCLES_PER_MS = 16_000;
 /** ATmega328P SRAM, not counting the 256-byte register/IO space. */
 const SRAM_BYTES = 2048;
 
+/** I/O data-space addresses on the ATmega328P. */
+const IO = {
+  DDRB: 0x24,
+  PORTB: 0x25,
+  SREG: 0x5f,
+  TCCR1A: 0x80,
+  TCCR1B: 0x81,
+  UCSR0A: 0xc0,
+  UCSR0C: 0xc2,
+} as const;
+
+/** Registers a fresh CPU has before the first instruction. */
+export type CpuResetRegs = {
+  DDRB: number;
+  PORTB: number;
+  SREG: number;
+  TCCR1A: number;
+  TCCR1B: number;
+  UCSR0A: number;
+  UCSR0C: number;
+};
+
 /** Written into that board's ring when its `.hex` is loaded again. */
 export const FIRMWARE_RELOADED = "— firmware reloaded —\n";
 
@@ -70,6 +92,16 @@ export class AvrBoard {
   private pulses: { bit: number; us: number }[] = [];
   private rx: number[] = [];
   private tx = "";
+  /**
+   * Per Arduino bit: 0 = nothing else drives the wire, 1 = driven low,
+   * 2 = driven high. A driven level wins over the pin's pull-up.
+   */
+  private driven = new Uint8Array(20);
+  /**
+   * The wiring layer fills `driven` when another output on the net
+   * changes. Pull-ups themselves are applied here.
+   */
+  onPinsChanged: (() => void) | null = null;
 
   constructor(id: string) {
     this.id = id;
@@ -169,6 +201,7 @@ export class AvrBoard {
     this.fault = undefined;
     this.brownout = false;
     this.running = true;
+    this.applyInputLevels();
   }
 
   stop(fault: string) {
@@ -253,10 +286,58 @@ export class AvrBoard {
     const mask = (1 << width) - 1;
     port.addListener((value, oldValue) => {
       const changed = (value ^ oldValue) & mask;
-      if (changed === 0) return;
-      this.toggled |= changed << shift;
-      this.noteEdges(changed, shift, value);
+      if (changed !== 0) {
+        this.toggled |= changed << shift;
+        this.noteEdges(changed, shift, value);
+      }
+      // A wired output is updated first, then this pin's pull-up, so
+      // the next instruction's digitalRead sees the winner.
+      this.onPinsChanged?.();
+      this.applyInputLevels();
     });
+  }
+
+  /**
+   * avr8js leaves pull-ups to the host. An input with PORT set and
+   * nothing else driving the wire reads high. A wired output wins.
+   */
+  private applyInputLevels() {
+    const cpu = this.cpu;
+    const portB = this.portB;
+    const portC = this.portC;
+    const portD = this.portD;
+    if (!cpu || !portB || !portC || !portD) return;
+    this.applyPort(portD, 0, 8);
+    this.applyPort(portB, 8, 6);
+    this.applyPort(portC, 14, 6);
+  }
+
+  private applyPort(port: AVRIOPort, shift: number, width: number) {
+    const cpu = this.cpu;
+    if (!cpu) return;
+    const ddr = cpu.data[port.portConfig.DDR] ?? 0;
+    const written = cpu.data[port.portConfig.PORT] ?? 0;
+    for (let index = 0; index < width; index++) {
+      const mask = 1 << index;
+      if ((ddr & mask) !== 0) continue;
+      const external = this.driven[shift + index] ?? 0;
+      const pullup = (written & mask) !== 0;
+      const high = external === 2 ? true : external === 1 ? false : pullup;
+      port.setPin(index, high);
+    }
+  }
+
+  private pinIndex(bit: number): { port: AVRIOPort; index: number } | null {
+    if (bit >= 0 && bit <= 7 && this.portD) {
+      return { port: this.portD, index: bit };
+    }
+    if (bit >= 8 && bit <= 13 && this.portB) {
+      return { port: this.portB, index: bit - 8 };
+    }
+    if (bit >= 14 && bit <= 19 && this.portC) {
+      return { port: this.portC, index: bit - 14 };
+    }
+    return null;
   }
 
   /**
@@ -297,6 +378,55 @@ export class AvrBoard {
     if (this.rx.length + bytes.length > RX_BACKLOG) return false;
     for (const byte of bytes) this.rx.push(byte);
     return true;
+  }
+
+  /**
+   * A wire's output level, or null to leave the pin to its pull-up.
+   * Ignored while this pin is itself an output.
+   */
+  setDriven(bit: number, level: boolean | null) {
+    if (bit < 0 || bit > 19) return;
+    const next = level === null ? 0 : level ? 2 : 1;
+    if (this.driven[bit] === next) return;
+    this.driven[bit] = next;
+    this.applyInputLevels();
+  }
+
+  /** Null while the CPU is down, including brownout reset. */
+  peekRegs(): CpuResetRegs | null {
+    const cpu = this.cpu;
+    if (!cpu) return null;
+    return {
+      DDRB: cpu.data[IO.DDRB] ?? 0,
+      PORTB: cpu.data[IO.PORTB] ?? 0,
+      SREG: cpu.data[IO.SREG] ?? 0,
+      TCCR1A: cpu.data[IO.TCCR1A] ?? 0,
+      TCCR1B: cpu.data[IO.TCCR1B] ?? 0,
+      UCSR0A: cpu.data[IO.UCSR0A] ?? 0,
+      UCSR0C: cpu.data[IO.UCSR0C] ?? 0,
+    };
+  }
+
+  /** One data-space byte. Registers are addresses 0–31. Null if the CPU is down. */
+  peekByte(addr: number): number | null {
+    const cpu = this.cpu;
+    if (!cpu || addr < 0) return null;
+    return cpu.data[addr] ?? 0;
+  }
+
+  /**
+   * Output level of an Arduino bit, or null when the pin is an input
+   * or the CPU is down. The level is the pin the wire actually sees.
+   */
+  outputLevel(bit: number): boolean | null {
+    const found = this.pinIndex(bit);
+    const cpu = this.cpu;
+    if (!found || !cpu) return null;
+    const ddr = cpu.data[found.port.portConfig.DDR] ?? 0;
+    const mask = 1 << found.index;
+    if ((ddr & mask) === 0) return null;
+    const pin = cpu.data[found.port.portConfig.PIN] ?? 0;
+    return (pin & mask) !== 0;
   }
 
   stepMillis() {

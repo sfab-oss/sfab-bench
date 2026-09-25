@@ -140,7 +140,64 @@ export type WorldBoardState = {
   resets?: number;
   /** True while the supply is under the chip's brownout voltage. */
   brownout?: boolean;
+  /**
+   * Set while a running ATmega328P supply is above brownout and below
+   * 3.78 V. Reporting only: the step does not change.
+   */
+  warnings?: WorldBoardWarning[];
 };
+
+/** 16 MHz ATmega328P is specified only above this supply voltage. */
+export const ATMEGA328P_16MHZ_MIN_V = 3.78;
+
+export type WorldBoardWarning = {
+  code: "below-16mhz-soa";
+  message: string;
+};
+
+/**
+ * Warning while `voltage` is above the chip's brownout level and below
+ * the 16 MHz minimum. Null outside that band, including brownout itself.
+ */
+export function atmega328pSoaWarning(
+  voltage: number,
+  brownoutVoltage: number
+): WorldBoardWarning | null {
+  if (!(voltage > brownoutVoltage) || !(voltage < ATMEGA328P_16MHZ_MIN_V)) {
+    return null;
+  }
+  return {
+    code: "below-16mhz-soa",
+    message: `supply ${voltage.toFixed(2)} V is below the 3.78 V the ATmega328P needs at 16 MHz; real boards may misbehave`,
+  };
+}
+
+/** Radians past `[lower, upper]`. 0 when the joint is not limited. */
+export function radiansPastLimit(
+  qpos: number,
+  lower: number,
+  upper: number
+): number {
+  if (!(upper > lower)) return 0;
+  return Math.max(0, lower - qpos, qpos - upper);
+}
+
+export function degreesPastLimit(
+  qpos: number,
+  lower: number,
+  upper: number
+): number {
+  return (radiansPastLimit(qpos, lower, upper) * 180) / Math.PI;
+}
+
+/** Null at 1° or under. The text is the agent warning. */
+export function jointLimitWarning(
+  joint: string,
+  pastDeg: number
+): string | null {
+  if (!(pastDeg > 1)) return null;
+  return `${joint} is ${pastDeg.toFixed(2)}° past its limit`;
+}
 
 export type WorldState = {
   /** Seconds of simulation since the run was loaded or reloaded. */
@@ -272,9 +329,42 @@ export type RecordingTracks = {
   boards: string[];
 };
 
+/**
+ * Identity of one recording, computed when the run is built or restarted.
+ * Not sampled per frame.
+ */
+export type RecordingManifest = {
+  mujoco: string;
+  avr8js: string;
+  /** Seconds. */
+  timestep: number;
+  integrator: string;
+  /** Milliseconds between frames. */
+  frameMs: number;
+  /** SHA-256 of the world file bytes loaded for this run. */
+  worldSha256: string;
+  boards: { id: string; firmware: string; sha256: string }[];
+  /** Catalog rows for each part kind used by this document. */
+  parts: Record<string, RecordingPartCatalog>;
+};
+
+export type RecordingPartCatalog = {
+  torqueNm?: number;
+  speedDegPerSec?: number;
+  voltageScale?: "V/V_nom";
+  supply?: { nominal: number; min: number; max: number };
+  current?: { idle: number; moving: number; stall: number };
+  stall?: {
+    minAngleErrorDeg: number;
+    maxVelocityDegPerSec: number;
+    holdMs: number;
+  };
+};
+
 export type RecordingInfo = RecordingSummary & {
   frameMs: number;
   tracks: RecordingTracks;
+  manifest: RecordingManifest;
 };
 
 export function jointTrackId(robot: string, joint: string): string {
@@ -306,6 +396,11 @@ export type RecordedFrame = {
   /** Seconds of sim time. */
   t: number;
   joints: Record<string, Record<string, number>>;
+  /**
+   * Max degrees past each joint's limit in the window. 0 when the joint
+   * stayed inside. Folded like `minVoltage`, so a 1 ms spike is kept.
+   */
+  limitDeg: Record<string, Record<string, number>>;
   poses: Record<string, Record<string, WorldLinkPose>>;
   parts: Record<
     string,
@@ -338,6 +433,8 @@ export type RecordedFrame = {
       brownout: boolean;
       /** In brownout at any step of the window. */
       brownoutAny: boolean;
+      /** Supply was in the 16 MHz out-of-SOA band at any step of the window. */
+      belowSoa: boolean;
     }
   >;
 };

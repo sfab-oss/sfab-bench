@@ -10,7 +10,12 @@ import { SerialConsole } from "@/components/SerialConsole";
 import { SourceView } from "@/components/SourceView";
 import { Button } from "@/components/ui/button";
 import { sendBoardSerial } from "@/hooks/useWorldRun";
-import { boardStatusLabel, scrubbedBoardStatus } from "@/lib/board-status";
+import {
+  boardStatusLabel,
+  boardWarningLine,
+  recordedSoaLine,
+  scrubbedBoardStatus,
+} from "@/lib/board-status";
 import { overlayMaxHeight } from "@/lib/layout";
 import {
   activeEscLayer,
@@ -72,6 +77,15 @@ function transcriptText(entries: readonly BoardConsoleEntry[]): string {
     text += `‹ sent by ${entry.by} › ${line}`;
   }
   return text;
+}
+
+function SoaLine({ text }: { text: string }) {
+  if (!text) return null;
+  return (
+    <p className="mb-1.5 truncate font-mono text-[12px]" title={text}>
+      {text}
+    </p>
+  );
 }
 
 function Field({ label, value }: { label: string; value: string }) {
@@ -557,6 +571,13 @@ function BoardBody({
           (recorded
             ? scrubbedBoardStatus(statusBoard)
             : boardStatusLabel(statusBoard, playing)) || "—"
+        }
+      />
+      <SoaLine
+        text={
+          recorded
+            ? recordedSoaLine(recorded.belowSoa, scrub.frame?.supplies)
+            : boardWarningLine(live?.warnings)
         }
       />
       <Field label="Resets" value={resets} />

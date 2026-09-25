@@ -312,6 +312,10 @@ try {
         msOf(Number(stepped.simTime)) === 3500,
         `step landed at ${String(stepped.simTime)}`
       );
+      expect(
+        Array.isArray(stepped.warnings) && stepped.warnings.length === 0,
+        `hold warnings ${JSON.stringify(stepped.warnings)}`
+      );
       const unoBoard = isRecord(stepped.boards) ? stepped.boards.uno : null;
       expect(
         isRecord(unoBoard) &&
@@ -377,6 +381,52 @@ try {
       expect(hasWidth(recordedWidths, 647), "recording missed 647");
       expect(hasWidth(recordedWidths, 1472), "recording missed 1472");
       expect(hasWidth(recordedWidths, 1781), "recording missed 1781");
+      expect(
+        Array.isArray(recorded.warnings) && recorded.warnings.length === 0,
+        `recording warnings ${JSON.stringify(recorded.warnings)}`
+      );
+      const manifest = recorded.manifest;
+      expect(isRecord(manifest), "recording has no manifest");
+      if (isRecord(manifest)) {
+        expect(manifest.integrator === "implicitfast", "integrator");
+        expect(
+          manifest.mujoco === "3.14.0",
+          `mujoco ${String(manifest.mujoco)}`
+        );
+        expect(
+          manifest.avr8js === "0.21.1",
+          `avr8js ${String(manifest.avr8js)}`
+        );
+        expect(manifest.timestep === 0.001, "timestep");
+        expect(manifest.frameMs === 10, "frame period");
+        expect(
+          typeof manifest.worldSha256 === "string" &&
+            manifest.worldSha256.length === 64,
+          "world sha256"
+        );
+        const boards = manifest.boards;
+        expect(
+          Array.isArray(boards) &&
+            boards.some(
+              (board) =>
+                isRecord(board) &&
+                board.firmware === "firmware/hold/hold.hex" &&
+                typeof board.sha256 === "string" &&
+                board.sha256.length === 64
+            ),
+          `firmware ${JSON.stringify(boards)}`
+        );
+        const parts = manifest.parts;
+        expect(
+          isRecord(parts) &&
+            isRecord(parts.sg90) &&
+            parts.sg90.torqueNm === 0.176,
+          `catalog ${JSON.stringify(parts)}`
+        );
+        console.log(
+          `manifest: mujoco ${String(manifest.mujoco)} avr8js ${String(manifest.avr8js)} sha ${String(manifest.worldSha256).slice(0, 12)}`
+        );
+      }
 
       const beforePlay = events.length;
       const played = await call(worldTools.world_play, {

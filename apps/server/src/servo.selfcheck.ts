@@ -19,7 +19,7 @@ import {
 import { closeRootWatches } from "./projects";
 import { projectReal, readerFor } from "./world/files";
 import { attachWorld, stopWorld } from "./world/host";
-import { compileWorld } from "./world/model";
+import { compileWorld, JOINT_LIMIT_SOLREF } from "./world/model";
 import {
   blankTrack,
   commandDegFromPulse,
@@ -203,9 +203,80 @@ expect(
   biasType[0] === 1 && gainType[0] === 0 && dynType[0] === 0,
   `actuator types bias ${biasType[0]} gain ${gainType[0]} dyn ${dynType[0]}`
 );
+const jointRange = compiled.model.jnt_actfrcrange as Float64Array;
+expect(
+  Math.abs((jointRange[0] ?? Number.NaN) + 0.176) < 1e-6 &&
+    Math.abs((jointRange[1] ?? Number.NaN) - 0.176) < 1e-6,
+  `joint torque clamp ${jointRange[0]}, ${jointRange[1]}`
+);
+const solref = compiled.model.jnt_solref as Float64Array;
+expect(
+  Math.abs((solref[0] ?? Number.NaN) - JOINT_LIMIT_SOLREF[0]) < 1e-12 &&
+    Math.abs((solref[1] ?? Number.NaN) - JOINT_LIMIT_SOLREF[1]) < 1e-12,
+  `limit solref ${solref[0]} ${solref[1]}`
+);
+const data = new compiled.mj.MjData(compiled.model);
+compiled.mj.mj_resetData(compiled.model, data);
+const ctrl = data.ctrl as Float64Array;
+const qfrc = data.qfrc_actuator as Float64Array;
+const qpos = data.qpos as Float64Array;
+const upper = (compiled.model.jnt_range as Float64Array)[1] ?? 0;
+let maxTorque = 0;
+let peakPast = 0;
+let restPast = 0;
+for (let step = 0; step < 600; step++) {
+  ctrl[0] = Math.PI;
+  compiled.mj.mj_step(compiled.model, data);
+  maxTorque = Math.max(maxTorque, Math.abs(qfrc[0] ?? 0));
+  const past = (((qpos[0] ?? 0) - upper) * 180) / Math.PI;
+  if (past > peakPast) peakPast = past;
+  restPast = past;
+}
+data.delete();
+expect(maxTorque <= 0.176 + 1e-6, `stop torque ${maxTorque}`);
+expect(restPast < 0.2, `resting penetration ${restPast}°`);
+expect(peakPast < 1, `peak penetration ${peakPast}°`);
+console.log(
+  `stop: ${maxTorque.toFixed(4)} N·m, rest ${restPast.toFixed(3)}°, peak ${peakPast.toFixed(3)}° solref [${JOINT_LIMIT_SOLREF.join(", ")}]`
+);
 compiled.model.delete();
 compiled.vfs.delete();
 console.log("sg90 torque clamp ±0.176 N·m");
+
+const solRoot = mkdtempSync(join(tmpdir(), "sfab-solref-"));
+try {
+  cpSync(armDir, solRoot, { recursive: true });
+  const urdfPath = join(solRoot, "robot/arm.urdf");
+  const urdf = readFileSync(urdfPath, "utf8").replace(
+    "</joint>",
+    '<mujoco><joint solreflimit="0.01 1"/></mujoco></joint>'
+  );
+  writeFileSync(urdfPath, urdf);
+  const rooted = projectReal(solRoot);
+  expect(rooted, "temp root resolves");
+  if (!rooted) throw new Error("unreachable");
+  const authored = await compileWorld(
+    hold,
+    readerFor(rooted, "arm.world.json")
+  );
+  expect(
+    authored.ok,
+    `authored solref compiles: ${authored.ok ? "" : authored.errors.map((item) => item.message).join(" | ")}`
+  );
+  if (authored.ok) {
+    const authoredRef = authored.model.jnt_solref as Float64Array;
+    expect(
+      Math.abs((authoredRef[0] ?? Number.NaN) - 0.01) < 1e-9 &&
+        Math.abs((authoredRef[1] ?? Number.NaN) - 1) < 1e-9,
+      `URDF solreflimit kept ${authoredRef[0]} ${authoredRef[1]}`
+    );
+    authored.model.delete();
+    authored.vfs.delete();
+    console.log("URDF solreflimit 0.01 1 overrides the default");
+  }
+} finally {
+  rmSync(solRoot, { recursive: true, force: true });
+}
 
 type Waiter = {
   seconds: number;

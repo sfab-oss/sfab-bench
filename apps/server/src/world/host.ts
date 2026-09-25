@@ -8,13 +8,14 @@ import {
   type RecordingRead,
   SERIAL_TEXT_MAX,
   type WorldError,
+  type WorldPinState,
   type WorldSender,
   type WorldServerMessage,
   type WorldState,
 } from "@sfab-bench/contract";
 
 import { subscribeRootWatch } from "../projects";
-import { RX_BACKLOG } from "./board";
+import { type CpuResetRegs, RX_BACKLOG } from "./board";
 import {
   dependencyRels,
   dependencyStamp,
@@ -110,6 +111,8 @@ type Doc = {
   /** `world_step` waits on the state its own step message produces. */
   stepSeq: number;
   stepWaiters: Map<number, StepWaiter>;
+  /** Registers and pins captured at brownout reboot, before the first instruction. */
+  bootSnap: Map<string, { regs: CpuResetRegs; pins: WorldPinState }>;
 };
 
 type StepWaiter = {
@@ -399,6 +402,10 @@ function listen(doc: Doc, worker: Worker) {
       return;
     }
     if (message.type === "brownoutBoot") {
+      doc.bootSnap.set(message.board, {
+        regs: message.regs,
+        pins: message.pins,
+      });
       // The marker is already in the serial stream. Keep the ring text.
       clearRxBook(doc, message.board);
       return;
@@ -672,6 +679,7 @@ function ensure(project: string, worldRel: string): Doc | { error: string } {
       pending: new Map(),
       stepSeq: 0,
       stepWaiters: new Map(),
+      bootSnap: new Map(),
     };
     doc.stamp = dependencyStamp(doc.project, doc.deps);
     docs.set(named.key, doc);
@@ -967,6 +975,20 @@ async function timelineDoc(
     tracks: body.tracks,
     markers: body.markers,
   };
+}
+
+/**
+ * Registers and pin levels taken at the latest brownout reboot, before
+ * that CPU executed an instruction. Null when this board has not rebooted.
+ */
+export function brownoutBootSnapshot(
+  project: string,
+  worldRel: string,
+  board: string
+): { regs: CpuResetRegs; pins: WorldPinState } | null {
+  const named = docKey(project, worldRel);
+  if ("error" in named) return null;
+  return docs.get(named.key)?.bootSnap.get(board) ?? null;
 }
 
 /** What this document is recording. W6 reads this; the socket does too. */

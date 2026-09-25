@@ -1,4 +1,9 @@
-import { boardStatusLabel, scrubbedBoardStatus } from "./board-status";
+import {
+  boardStatusLabel,
+  boardWarningLine,
+  recordedSoaLine,
+  scrubbedBoardStatus,
+} from "./board-status";
 
 function expect(cond: boolean, label: string) {
   if (!cond) throw new Error(label);
@@ -37,6 +42,21 @@ expect(
 expect(
   scrubbedBoardStatus({ running: false, brownout: true }) === "brownout",
   "a recorded brownout stays brownout"
+);
+const soa =
+  "supply 3.20 V is below the 3.78 V the ATmega328P needs at 16 MHz; real boards may misbehave";
+expect(
+  boardWarningLine([{ message: soa }]) === soa,
+  "the board status line is the SOA warning"
+);
+expect(boardWarningLine(undefined) === "", "no warning is a blank line");
+expect(
+  recordedSoaLine(true, { usb: { voltage: 3.2, minVoltage: 3.2 } }) === soa,
+  "a scrubbed frame in the band uses the same sentence"
+);
+expect(
+  recordedSoaLine(false, { usb: { voltage: 3.2, minVoltage: 3.2 } }) === "",
+  "a frame outside the band has no line"
 );
 expect(
   scrubbedBoardStatus({ running: false, fault: "bad checksum" }) === "stopped",

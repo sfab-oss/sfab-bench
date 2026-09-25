@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  atmega328pSoaWarning,
   boardModels,
   chipModels,
   partModels,
@@ -21,7 +22,12 @@ import {
 
 import { closeRootWatches } from "./projects";
 import { BROWNOUT_RESET } from "./world/board";
-import { attachWorld, stopWorld } from "./world/host";
+import {
+  attachWorld,
+  brownoutBootSnapshot,
+  readRecording,
+  stopWorld,
+} from "./world/host";
 import { scaleWithVoltage, stepPartMotion, supplyVoltage } from "./world/power";
 import { powerFeeds } from "./world/wiring";
 
@@ -197,6 +203,23 @@ expect(
 );
 console.log(`voltage scale: 4 V slew is ${at4} deg/s, 0.8× ${speed}`);
 
+const brownoutV = chipModels.atmega328p.brownoutVoltage;
+const inBand = atmega328pSoaWarning(3.2, brownoutV);
+expect(
+  inBand?.code === "below-16mhz-soa" &&
+    inBand.message ===
+      "supply 3.20 V is below the 3.78 V the ATmega328P needs at 16 MHz; real boards may misbehave",
+  `soa message ${inBand?.message}`
+);
+expect(atmega328pSoaWarning(3.78, brownoutV) === null, "3.78 V is in spec");
+expect(atmega328pSoaWarning(5, brownoutV) === null, "5 V is in spec");
+expect(
+  atmega328pSoaWarning(2.7, brownoutV) === null,
+  "brownout edge is not SOA"
+);
+expect(atmega328pSoaWarning(2.5, brownoutV) === null, "brownout is not SOA");
+console.log("soa: 3.20 V warns, 2.70 V and 3.78 V do not");
+
 expect(
   BROWNOUT_RESET === "— brownout reset —\n",
   `marker ${JSON.stringify(BROWNOUT_RESET)}`
@@ -294,7 +317,8 @@ async function sample(
   worldRel: string,
   totalMs: number,
   stepMs: number,
-  boards: readonly string[]
+  boards: readonly string[],
+  beforeStop?: () => void
 ): Promise<Row[]> {
   const trace = openTrace(project, worldRel);
   const attached = await trace.attached;
@@ -309,6 +333,7 @@ async function sample(
         serial[board] = serialText(trace.events, board);
       rows.push({ state, serial });
     }
+    beforeStop?.();
     return rows;
   } finally {
     attached.detach();
@@ -362,9 +387,37 @@ for (const row of holdRows) {
 }
 console.log(`hold minimum voltage ${holdMin.toFixed(3)} V`);
 
-const stallRows = await sample(armDir, "arm-stall.world.json", 2000, 1, [
-  "uno",
-]);
+const stallRows = await sample(
+  armDir,
+  "arm-stall.world.json",
+  2000,
+  1,
+  ["uno"],
+  () => {
+    const snap = brownoutBootSnapshot(armDir, "arm-stall.world.json", "uno");
+    expect(snap, "brownout reboot did not snapshot registers");
+    if (!snap) return;
+    expect(
+      snap.regs.DDRB === 0 &&
+        snap.regs.PORTB === 0 &&
+        snap.regs.SREG === 0 &&
+        snap.regs.TCCR1A === 0 &&
+        snap.regs.TCCR1B === 0,
+      `reset regs ${JSON.stringify(snap.regs)}`
+    );
+    expect(
+      snap.regs.UCSR0A === 0x20 && snap.regs.UCSR0C === 0x06,
+      `usart ${snap.regs.UCSR0A.toString(16)} ${snap.regs.UCSR0C.toString(16)}`
+    );
+    expect(
+      snap.pins.ddr === 0 && snap.pins.level === 0,
+      `pins before the first instruction ddr ${snap.pins.ddr} level ${snap.pins.level}`
+    );
+    console.log(
+      "brownout reboot: DDRB=PORTB=SREG=TCCR1A=TCCR1B=0, UCSR0A=0x20, UCSR0C=0x06, pins undriven"
+    );
+  }
+);
 const stallAt = stallRows.find(
   (row) => row.state.parts?.servo?.state === "stall"
 );
@@ -390,6 +443,11 @@ expect(
   `sag voltage ${sagAt?.state.supplies?.usb?.voltage}`
 );
 expect(resetAt, "board never entered brownout");
+expect(
+  resetAt?.state.boards.uno?.pins?.ddr === 0 &&
+    resetAt.state.boards.uno.pins.level === 0,
+  `pins while held ddr ${resetAt?.state.boards.uno?.pins?.ddr} level ${resetAt?.state.boards.uno?.pins?.level}`
+);
 expect(rebootAt, "board never counted a reset");
 expect(
   rebootAt?.serial.uno?.includes("— brownout reset —"),
@@ -558,8 +616,17 @@ try {
     const attached = await trace.attached;
     if ("error" in attached) throw new Error(attached.error);
     try {
-      attached.step(524);
-      const browned = await trace.at(0.524);
+      let browned: WorldState | undefined;
+      for (let ms = 1; ms <= 2000; ms++) {
+        attached.step(1);
+        const state = await trace.at(ms / 1000);
+        if (state.boards.uno?.brownout === true) {
+          browned = state;
+          break;
+        }
+      }
+      expect(browned, "never saw a brownout to reload during");
+      if (!browned) throw new Error("unreachable");
       const brownedRail = browned.supplies?.usb;
       const brownedPart = browned.parts?.servo;
       expect(
@@ -579,7 +646,7 @@ try {
       const idle = partModels.sg90.current?.idle ?? 0;
       const draw = boardModels.uno.current + idle;
       expect(
-        published.simTime.toFixed(3) === "0.524",
+        published.simTime.toFixed(3) === browned.simTime.toFixed(3),
         `reload moved sim to ${published.simTime}`
       );
       expect(rail, "reload dropped the supply");
@@ -616,6 +683,66 @@ try {
     }
   } finally {
     rmSync(reloadRoot, { recursive: true, force: true });
+  }
+  const soaRoot = mkdtempSync(join(tmpdir(), "sfab-soa-"));
+  try {
+    cpSync(join(armDir, "firmware/hold/hold.hex"), join(soaRoot, "idle.hex"));
+    const soaWorld = {
+      version: 1,
+      robots: [],
+      environment: { ground: { plane: true } },
+      boards: [
+        {
+          id: "uno",
+          chip: "atmega328p",
+          board: "uno",
+          firmware: "idle.hex",
+          pose: { position: [0, 0, 0], rotation: [1, 0, 0, 0] },
+          size: [0.07, 0.05, 0.01],
+        },
+      ],
+      supplies: [{ id: "usb", voltage: 5, currentLimit: 0, rDroop: 36 }],
+      parts: [],
+      wires: [
+        ["usb.5V", "uno.5V"],
+        ["usb.GND", "uno.GND"],
+      ],
+    };
+    writeFileSync(join(soaRoot, "soa.world.json"), JSON.stringify(soaWorld));
+    const trace = openTrace(soaRoot, "soa.world.json");
+    const attached = await trace.attached;
+    if ("error" in attached) throw new Error(attached.error);
+    try {
+      attached.step(20);
+      const state = await trace.at(0.02);
+      const voltage = state.supplies?.usb?.voltage ?? Number.NaN;
+      const warning = state.boards.uno?.warnings?.[0];
+      expect(Math.abs(voltage - 3.2) < 1e-9, `soa rail ${voltage}`);
+      expect(state.boards.uno?.running === true, "soa board stopped");
+      expect(state.boards.uno?.brownout !== true, "soa board browned out");
+      expect(
+        warning?.code === "below-16mhz-soa" &&
+          warning.message.includes("3.20 V"),
+        `soa warning ${JSON.stringify(warning)}`
+      );
+      const read = await readRecording(soaRoot, "soa.world.json", {
+        from: 0,
+        to: 0.02,
+      });
+      if ("error" in read) throw new Error(read.error);
+      expect(
+        read.frames.some((frame) => frame.boards.uno?.belowSoa === true),
+        "recording dropped the out-of-SOA window"
+      );
+      console.log(
+        `soa runtime: ${voltage.toFixed(2)} V, ${warning?.code}, recorded`
+      );
+    } finally {
+      attached.detach();
+      await stopWorld(soaRoot, "soa.world.json");
+    }
+  } finally {
+    rmSync(soaRoot, { recursive: true, force: true });
   }
 } finally {
   rmSync(splitRoot, { recursive: true, force: true });

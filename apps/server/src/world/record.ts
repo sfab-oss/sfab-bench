@@ -2,8 +2,9 @@
  * Columnar recording of one world run. The worker calls `commit` once per
  * simulated millisecond. A frame is written every 10 ms and covers (t−10 ms, t]:
  * the value at t, plus the minimum voltage, maximum current, worst part
- * state, and any brownout in that window. A 1 ms dip therefore lands on
- * the frame that closes the window.
+ * state, any brownout, any out-of-SOA supply, and the furthest a joint
+ * passed its limit in that window. A 1 ms dip therefore lands on the
+ * frame that closes the window.
  *
  * Storage is typed-array chunks. Queries copy out plain objects. Downsampling
  * picks real frames and widens those window fields across the frames it skips.
@@ -20,6 +21,7 @@ import {
   type RecordedFrame,
   type RecordingEvent,
   type RecordingInfo,
+  type RecordingManifest,
   type RecordingRead,
   type RecordingSummary,
   type RecordingTracks,
@@ -59,11 +61,11 @@ export function recordingFootprint(counts: {
 }): { bytesPerFrame: number; bytesPerMinute: number } {
   const bytesPerFrame =
     4 +
-    counts.joints * 4 +
+    counts.joints * 8 +
     counts.bodies * 28 +
     counts.parts * 18 +
     counts.supplies * 16 +
-    counts.boards * 15;
+    counts.boards * 16;
   const framesPerMinute = 60_000 / RECORD_FRAME_MS;
   return {
     bytesPerFrame,
@@ -74,6 +76,7 @@ export function recordingFootprint(counts: {
 export type RecordSpec = {
   id: string;
   boundMs?: number;
+  manifest: RecordingManifest;
   joints: { robot: string; joint: string }[];
   bodies: { robot: string; link: string }[];
   parts: string[];
@@ -86,6 +89,7 @@ type Chunk = {
   count: number;
   tMs: Uint32Array;
   joint: Float32Array;
+  limitDeg: Float32Array;
   pose: Float32Array;
   pulse: Float32Array;
   command: Float32Array;
@@ -103,6 +107,7 @@ type Chunk = {
   running: Uint8Array;
   brownout: Uint8Array;
   brownoutAny: Uint8Array;
+  belowSoa: Uint8Array;
 };
 
 type StoredEvent = {
@@ -146,8 +151,13 @@ export class RunRecorder {
   readonly toggled: Uint32Array;
   readonly running: Uint8Array;
   readonly brownout: Uint8Array;
+  /** 1 when this step's supply is in the 16 MHz out-of-SOA band. */
+  readonly belowSoa: Uint8Array;
+  /** Degrees past the joint limit at this step. The frame keeps the max. */
+  readonly pastLimit: Float64Array;
 
   private boundMs: number;
+  readonly manifest: RecordingManifest;
   private readonly joints: { robot: string; joint: string; id: string }[];
   private readonly bodies: { robot: string; link: string; id: string }[];
   private readonly parts: { id: string; track: string }[];
@@ -158,6 +168,8 @@ export class RunRecorder {
   private readonly worst: Uint8Array;
   private readonly partMax: Float64Array;
   private readonly brownAny: Uint8Array;
+  private readonly soaAny: Uint8Array;
+  private readonly pastMax: Float64Array;
   private readonly chunks: Chunk[] = [];
   private readonly events: StoredEvent[] = [];
   private eventStart = 0;
@@ -168,6 +180,7 @@ export class RunRecorder {
 
   constructor(spec: RecordSpec) {
     this.id = spec.id;
+    this.manifest = spec.manifest;
     this.boundMs = spec.boundMs ?? RECORD_BOUND_MS;
     this.joints = spec.joints.map((item) => ({
       ...item,
@@ -189,6 +202,8 @@ export class RunRecorder {
     const nS = this.supplies.length;
     const nD = this.boards.length;
     this.joint = new Float64Array(nJ);
+    this.pastLimit = new Float64Array(nJ);
+    this.pastMax = new Float64Array(nJ);
     this.pose = new Float64Array(nB * 7);
     this.pulse = new Float64Array(nP);
     this.command = new Float64Array(nP);
@@ -201,6 +216,8 @@ export class RunRecorder {
     this.toggled = new Uint32Array(nD);
     this.running = new Uint8Array(nD);
     this.brownout = new Uint8Array(nD);
+    this.belowSoa = new Uint8Array(nD);
+    this.soaAny = new Uint8Array(nD);
     this.minV = new Float64Array(nS);
     this.maxSupply = new Float64Array(nS);
     this.worst = new Uint8Array(nP);
@@ -264,6 +281,7 @@ export class RunRecorder {
       ...this.summary(simTimeS),
       frameMs: RECORD_FRAME_MS,
       tracks: this.tracks(),
+      manifest: this.manifest,
     };
   }
 
@@ -346,6 +364,11 @@ export class RunRecorder {
     }
     for (let i = 0; i < this.boards.length; i++) {
       if ((this.brownout[i] ?? 0) !== 0) this.brownAny[i] = 1;
+      if ((this.belowSoa[i] ?? 0) !== 0) this.soaAny[i] = 1;
+    }
+    for (let i = 0; i < this.joints.length; i++) {
+      const past = this.pastLimit[i] ?? 0;
+      if (past > (this.pastMax[i] ?? 0)) this.pastMax[i] = past;
     }
   }
 
@@ -355,6 +378,8 @@ export class RunRecorder {
     this.worst.fill(0);
     this.partMax.fill(Number.NEGATIVE_INFINITY);
     this.brownAny.fill(0);
+    this.soaAny.fill(0);
+    this.pastMax.fill(0);
   }
 
   private write(timeMs: number) {
@@ -367,6 +392,7 @@ export class RunRecorder {
     chunk.tMs[slot] = timeMs;
     for (let i = 0; i < this.joints.length; i++) {
       chunk.joint[channel(i, slot)] = this.joint[i] ?? 0;
+      chunk.limitDeg[channel(i, slot)] = this.pastMax[i] ?? 0;
     }
     for (let i = 0; i < this.pose.length; i++) {
       chunk.pose[channel(i, slot)] = this.pose[i] ?? 0;
@@ -392,6 +418,7 @@ export class RunRecorder {
       chunk.running[channel(i, slot)] = this.running[i] ?? 0;
       chunk.brownout[channel(i, slot)] = this.brownout[i] ?? 0;
       chunk.brownoutAny[channel(i, slot)] = this.brownAny[i] ?? 0;
+      chunk.belowSoa[channel(i, slot)] = this.soaAny[i] ?? 0;
     }
     chunk.count += 1;
   }
@@ -546,6 +573,12 @@ export class RunRecorder {
       (_item, i) =>
         (chosen.chunk.brownoutAny[channel(i, chosen.slot)] ?? 0) !== 0
     );
+    const soa = this.boards.map(
+      (_item, i) => (chosen.chunk.belowSoa[channel(i, chosen.slot)] ?? 0) !== 0
+    );
+    const past = this.joints.map(
+      (_item, i) => chosen.chunk.limitDeg[channel(i, chosen.slot)] ?? 0
+    );
     for (let index = start; index <= end; index++) {
       if (index === pick) continue;
       const slot = this.locate(index);
@@ -566,6 +599,13 @@ export class RunRecorder {
         if ((slot.chunk.brownoutAny[channel(i, slot.slot)] ?? 0) !== 0) {
           brown[i] = true;
         }
+        if ((slot.chunk.belowSoa[channel(i, slot.slot)] ?? 0) !== 0) {
+          soa[i] = true;
+        }
+      }
+      for (let i = 0; i < this.joints.length; i++) {
+        const deg = slot.chunk.limitDeg[channel(i, slot.slot)] ?? 0;
+        if (deg > (past[i] ?? 0)) past[i] = deg;
       }
     }
     for (let i = 0; i < this.supplies.length; i++) {
@@ -587,6 +627,13 @@ export class RunRecorder {
       const row = board ? frame.boards[board.id] : undefined;
       if (!row) continue;
       row.brownoutAny = brown[i] ?? row.brownoutAny;
+      row.belowSoa = soa[i] ?? row.belowSoa;
+    }
+    for (let i = 0; i < this.joints.length; i++) {
+      const spec = this.joints[i];
+      const row = spec ? frame.limitDeg[spec.robot] : undefined;
+      if (!spec || !row) continue;
+      row[spec.joint] = past[i] ?? row[spec.joint] ?? 0;
     }
     return { frame };
   }
@@ -597,16 +644,21 @@ export class RunRecorder {
   ): RecordedFrame {
     const want = (id: string) => tracks === null || tracks.has(id);
     const joints: RecordedFrame["joints"] = {};
+    const limitDeg: RecordedFrame["limitDeg"] = {};
     const poses: RecordedFrame["poses"] = {};
     const parts: RecordedFrame["parts"] = {};
     const supplies: RecordedFrame["supplies"] = {};
     const boards: RecordedFrame["boards"] = {};
     if (!slot) {
-      return { t: 0, joints, poses, parts, supplies, boards };
+      return { t: 0, joints, limitDeg, poses, parts, supplies, boards };
     }
     for (let i = 0; i < this.joints.length; i++) {
       const spec = this.joints[i];
-      if (!spec || !want(spec.id)) continue;
+      if (!spec) continue;
+      const pastRobot = limitDeg[spec.robot] ?? {};
+      pastRobot[spec.joint] = slot.chunk.limitDeg[channel(i, slot.slot)] ?? 0;
+      limitDeg[spec.robot] = pastRobot;
+      if (!want(spec.id)) continue;
       const robot = joints[spec.robot] ?? {};
       robot[spec.joint] = slot.chunk.joint[channel(i, slot.slot)] ?? 0;
       joints[spec.robot] = robot;
@@ -667,11 +719,26 @@ export class RunRecorder {
         running: (slot.chunk.running[channel(i, slot.slot)] ?? 0) !== 0,
         brownout: (slot.chunk.brownout[channel(i, slot.slot)] ?? 0) !== 0,
         brownoutAny: (slot.chunk.brownoutAny[channel(i, slot.slot)] ?? 0) !== 0,
+        belowSoa: (slot.chunk.belowSoa[channel(i, slot.slot)] ?? 0) !== 0,
+      };
+    }
+    // Envelope flags survive a track filter. A pulse-only read still
+    // reports a joint that left its stop and a board in the SOA band.
+    for (let i = 0; i < this.boards.length; i++) {
+      const spec = this.boards[i];
+      if (!spec || boards[spec.id]) continue;
+      boards[spec.id] = {
+        pins: { ddr: 0, level: 0, toggled: 0 },
+        running: false,
+        brownout: false,
+        brownoutAny: false,
+        belowSoa: (slot.chunk.belowSoa[channel(i, slot.slot)] ?? 0) !== 0,
       };
     }
     return {
       t: slot.timeMs / 1000,
       joints,
+      limitDeg,
       poses,
       parts,
       supplies,
@@ -772,6 +839,7 @@ function createChunk(counts: {
     count: 0,
     tMs: new Uint32Array(CHUNK),
     joint: new Float32Array(counts.joints * CHUNK),
+    limitDeg: new Float32Array(counts.joints * CHUNK),
     pose: new Float32Array(counts.bodies * 7 * CHUNK),
     pulse: new Float32Array(counts.parts * CHUNK),
     command: new Float32Array(counts.parts * CHUNK),
@@ -789,6 +857,7 @@ function createChunk(counts: {
     running: new Uint8Array(counts.boards * CHUNK),
     brownout: new Uint8Array(counts.boards * CHUNK),
     brownoutAny: new Uint8Array(counts.boards * CHUNK),
+    belowSoa: new Uint8Array(counts.boards * CHUNK),
   };
 }
 
