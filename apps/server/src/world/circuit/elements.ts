@@ -565,22 +565,39 @@ export class Switch implements Element {
   }
 }
 
+type LoadRegion = "full" | "knee";
+
 /**
  * Constant draw from `p` to `m`, amperes. Board current and servo quiescent.
  * `amps` is updated in place so a rail step does not allocate a waveform.
+ * `knee` of 0 is that ideal source, including below 0 V. A positive knee
+ * keeps the set current at or above that voltage and stamps
+ * `I = amps · V / knee` below it, so the node is not pulled through 0 V.
  */
 export class CurrentLoad implements Element {
   readonly form = "ideal-current@1";
-  readonly nonlinear = false;
+  readonly nonlinear: boolean;
+  /** Volts. 0 disables the compliance knee. */
+  readonly knee: number;
   ip = -1;
   im = -1;
-  /** Amperes leaving `p` toward `m`. */
+  /** Amperes leaving `p` toward `m` while `V >= knee`. */
   amps = 0;
+  private region: LoadRegion = "full";
+  /** Region written into the factored matrix. */
+  factoredRegion: LoadRegion | null = null;
+  /** `amps` the knee conductance was factored with. */
+  factoredAmps = Number.NaN;
   constructor(
     readonly id: string,
     readonly pName: string,
-    readonly mName: string
-  ) {}
+    readonly mName: string,
+    knee = 0
+  ) {
+    if (knee < 0) throw new Error(`${id}: knee must be >= 0`);
+    this.knee = knee;
+    this.nonlinear = knee > 0;
+  }
   nodes(): readonly string[] {
     return [this.pName, this.mName];
   }
@@ -594,15 +611,51 @@ export class CurrentLoad implements Element {
   signature(): string {
     return "";
   }
+  private voltage(ctx: StampCtx): number {
+    return volt(ctx, this.ip) - volt(ctx, this.im);
+  }
+  /** Full current at or above the knee. The two laws meet at the knee. */
+  desired(ctx: StampCtx): LoadRegion {
+    if (!(this.knee > 0)) return "full";
+    return this.voltage(ctx) + 1e-9 >= this.knee ? "full" : "knee";
+  }
+  private draw(ctx: StampCtx): number {
+    if (!(this.knee > 0) || this.region === "full") return this.amps;
+    return (this.amps / this.knee) * this.voltage(ctx);
+  }
   stamp(ctx: StampCtx): void {
-    const i = this.amps;
-    if (this.ip >= 0) ctx.z[this.ip] = (ctx.z[this.ip] as number) - i;
-    if (this.im >= 0) ctx.z[this.im] = (ctx.z[this.im] as number) + i;
+    if (!(this.knee > 0)) {
+      const i = this.amps;
+      if (this.ip >= 0) ctx.z[this.ip] = (ctx.z[this.ip] as number) - i;
+      if (this.im >= 0) ctx.z[this.im] = (ctx.z[this.im] as number) + i;
+      return;
+    }
+    const region =
+      ctx.freezeNonlinear && this.factoredRegion !== null
+        ? this.factoredRegion
+        : this.desired(ctx);
+    this.region = region;
+    if (!ctx.rhsOnly) {
+      this.factoredRegion = region;
+      this.factoredAmps = this.amps;
+    }
+    if (region === "full") {
+      const i = this.amps;
+      if (this.ip >= 0) ctx.z[this.ip] = (ctx.z[this.ip] as number) - i;
+      if (this.im >= 0) ctx.z[this.im] = (ctx.z[this.im] as number) + i;
+      return;
+    }
+    const amps = ctx.freezeNonlinear ? this.factoredAmps : this.amps;
+    gStamp(ctx, this.ip, this.im, amps / this.knee);
   }
   commit(): void {}
+  accepted(ctx: StampCtx): boolean {
+    if (!(this.knee > 0)) return true;
+    return this.desired(ctx) === this.region;
+  }
   power(ctx: StampCtx): PowerSplit {
-    const v = volt(ctx, this.ip) - volt(ctx, this.im);
-    const absorbed = v * this.amps;
+    const v = this.voltage(ctx);
+    const absorbed = v * this.draw(ctx);
     return {
       absorbed,
       delivered: -absorbed,
@@ -611,10 +664,11 @@ export class CurrentLoad implements Element {
       mechanical: 0,
     };
   }
-  leaving(): ReadonlyArray<readonly [number, number]> {
+  leaving(ctx: StampCtx): ReadonlyArray<readonly [number, number]> {
+    const i = this.draw(ctx);
     return [
-      [this.ip, this.amps],
-      [this.im, -this.amps],
+      [this.ip, i],
+      [this.im, -i],
     ];
   }
 }

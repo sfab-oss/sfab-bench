@@ -5,6 +5,7 @@ import {
   addSplit,
   BridgeMotor,
   Capacitor,
+  CurrentLoad,
   Diode,
   Inductor,
   Switch,
@@ -80,6 +81,8 @@ export class Engine {
   private readonly diodes: Diode[];
   private readonly bridges: BridgeMotor[];
   private readonly thevenins: TheveninLimit[];
+  /** Board-node loads with a compliance knee. Ideal current sources are absent. */
+  private readonly knees: CurrentLoad[];
   private readonly nonlinear: boolean;
   private readonly xSave: Float64Array;
   private readonly diodeLimit: Float64Array;
@@ -156,6 +159,9 @@ export class Engine {
     this.thevenins = elements.filter(
       (el): el is TheveninLimit => el instanceof TheveninLimit
     );
+    this.knees = elements.filter(
+      (el): el is CurrentLoad => el instanceof CurrentLoad && el.knee > 0
+    );
     this.nonlinear = elements.some((el) => el.nonlinear);
     this.xSave = new Float64Array(n);
     this.diodeLimit = new Float64Array(this.diodes.length);
@@ -206,6 +212,7 @@ export class Engine {
     }
     if (!this.sameStructure(this.ctx.t)) return false;
     if (!this.bridgesStable()) return false;
+    if (!this.kneesStable()) return false;
     const diodes = this.diodes;
     for (let i = 0; i < diodes.length; i++) {
       if (!diodes[i]!.companionClose(this.ctx, this.bypassEps)) return false;
@@ -282,6 +289,21 @@ export class Engine {
     for (let i = 0; i < els.length; i++) els[i]!.commit(this.ctx);
   }
 
+  /**
+   * A knee-region conductance is `amps / knee`. A new set current there
+   * needs a new factor. Above the knee the current is only on the right-hand side.
+   */
+  private kneesStable(): boolean {
+    const knees = this.knees;
+    for (let i = 0; i < knees.length; i++) {
+      const load = knees[i]!;
+      if (load.factoredRegion === "knee" && load.amps !== load.factoredAmps) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /** Bridge ratio and open/closed state are inputs. A change rebuilds the factor. */
   private bridgesStable(): boolean {
     const bridges = this.bridges;
@@ -307,6 +329,9 @@ export class Engine {
     }
     for (let i = 0; i < this.bridges.length; i++) {
       if (!this.bridges[i]!.accepted(ctx)) return false;
+    }
+    for (let i = 0; i < this.knees.length; i++) {
+      if (!this.knees[i]!.accepted(ctx)) return false;
     }
     return true;
   }

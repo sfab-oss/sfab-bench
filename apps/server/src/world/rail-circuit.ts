@@ -21,6 +21,7 @@ import {
 } from "./circuit/elements";
 import { Engine } from "./circuit/engine";
 import {
+  BOARD_LOAD_KNEE_V,
   createUnoUsbPath,
   type PtcFuse,
   UNO_BOARD_NODE,
@@ -106,7 +107,12 @@ export class RailCircuit {
     }
     this.motors = motors;
     this.substeps = inductive || board ? SUBSTEPS : 1;
-    this.load = new CurrentLoad("load", this.boardNode, "0");
+    this.load = new CurrentLoad(
+      "load",
+      this.boardNode,
+      "0",
+      board ? BOARD_LOAD_KNEE_V : 0
+    );
     const supply = new TheveninLimit(
       "src",
       this.termNode,

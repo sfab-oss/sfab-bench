@@ -49,9 +49,11 @@ import {
   UNO_T1_RDS,
   unoUsbPathFor,
 } from "./world/power-path";
-import { createRailCircuit } from "./world/rail-circuit";
+import { createRailCircuit, type RailCircuit } from "./world/rail-circuit";
 
 const LINE = 0.005;
+/** Board node and recorded rail may sit this far under 0 V. */
+const FLOOR_V = -1e-9;
 const armDir = fileURLToPath(
   new URL("../../../examples/arm/", import.meta.url)
 );
@@ -133,6 +135,32 @@ function loadCsv(name: string): { t: number[]; v: number[] } {
   return { t, v };
 }
 
+function expectBoard(circuit: RailCircuit, label: string): void {
+  expect(
+    circuit.boardMinVoltage >= FLOOR_V,
+    `${label} board min ${circuit.boardMinVoltage} V`
+  );
+  expect(
+    circuit.boardVoltage >= FLOOR_V,
+    `${label} board ${circuit.boardVoltage} V`
+  );
+}
+
+function expectRecorded(read: RecordingRead, label: string): void {
+  for (const frame of read.frames) {
+    for (const [id, supply] of Object.entries(frame.supplies)) {
+      expect(
+        supply.voltage >= FLOOR_V,
+        `${label} ${id} ${frame.t} s at ${supply.voltage} V`
+      );
+      expect(
+        supply.minVoltage >= FLOOR_V,
+        `${label} ${id} min ${frame.t} s at ${supply.minVoltage} V`
+      );
+    }
+  }
+}
+
 function msUntilTrip(amps: number, limitMs: number): number {
   const fuse = new PtcFuse();
   let ms = 0;
@@ -158,6 +186,10 @@ const trace = loadCsv("uno-usb.csv");
   );
   const err = rangeError(ours, trace.v);
   expect(err <= LINE, `uno-usb ${pct(err)} of span exceeds 0.5%`);
+  for (const sample of samples) {
+    const v = sample.v.v5 ?? 0;
+    expect(v >= FLOOR_V, `uno-usb ${sample.t} s at ${v} V`);
+  }
   console.log(`circuit uno-usb: ${pct(err)} of span`);
 }
 
@@ -179,7 +211,9 @@ const stall = createRailCircuit({
 stall.setFixed(fixedStall);
 stall.setMotor(0, 1, 0, true);
 stall.solve();
+expectBoard(stall, "usb stall");
 stall.solve();
+expectBoard(stall, "usb stall");
 const stallDrop = stall.current * (UNO_F1_R + UNO_T1_RDS);
 expect(stall.boardVoltage < closedStall.voltage, "path did not sag the board");
 expect(
@@ -219,6 +253,7 @@ expect(
   bench.setFixed(fixedStall);
   bench.setMotor(0, 1, 0, true);
   bench.solve();
+  expectBoard(bench, "bench");
   expect(
     Math.abs(bench.voltage - benchClosed.voltage) <= 1e-9,
     `bench path ${bench.voltage} vs solveRail ${benchClosed.voltage}`
@@ -247,6 +282,7 @@ expect(
   const matched = new PtcFuse();
   for (let ms = 0; ms < 100; ms++) {
     onRail.solve();
+    expectBoard(onRail, "fuse hold");
     matched.advance(UNO_F1_IHOLD, 0.001);
   }
   expect(
@@ -286,6 +322,7 @@ expect(
   let dropped = false;
   for (let ms = 1; ms <= 30_000 && rebootAt < 0; ms++) {
     trip.solve();
+    expectBoard(trip, "fuse trip");
     if (trip.tripped && trippedAt < 0) trippedAt = ms;
     if (trippedAt > 0 && assertAt > 0 && !dropped) {
       trip.setFixed(RECOVER_A);
@@ -347,9 +384,13 @@ expect(
   cost.setFixed(boardA + 12 * law.quiescent);
   for (let i = 0; i < motors.length; i++) cost.setMotor(i, 0.5, 1, true);
   cost.solve();
+  expectBoard(cost, "twelve servos");
   const n = 200;
   const t0 = performance.now();
-  for (let i = 0; i < n; i++) cost.solve();
+  for (let i = 0; i < n; i++) {
+    cost.solve();
+    expectBoard(cost, "twelve servos");
+  }
   const us = ((performance.now() - t0) * 1000) / n;
   console.log(
     `INFO uno usb path, 12 servos: ${us.toFixed(1)} µs per 1 ms step`
@@ -407,6 +448,15 @@ async function runWorld(
       to: ms / 1000,
     });
     if ("error" in read) throw new Error(read.error);
+    expectRecorded(read, world);
+    if (state.supplies) {
+      for (const [id, supply] of Object.entries(state.supplies)) {
+        expect(
+          supply.voltage >= FLOOR_V,
+          `${world} live ${id} at ${supply.voltage} V`
+        );
+      }
+    }
     return { state, read };
   } finally {
     attached.detach();

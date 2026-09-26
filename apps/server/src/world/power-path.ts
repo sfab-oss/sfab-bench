@@ -39,6 +39,8 @@ export const UNO_TERM_NODE = "term";
 export const UNO_SW_NODE = "sw";
 /** The Uno +5V net. Motors and the board load sit here. */
 export const UNO_BOARD_NODE = "v5";
+/** 1 V: a 5 V board's idle draw falls off here and cannot sink its own rail through 0 V. */
+export const BOARD_LOAD_KNEE_V = 1;
 const PC2_NODE = "pc2";
 
 /**
