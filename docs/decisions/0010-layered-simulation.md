@@ -1,6 +1,6 @@
 # ADR-0010: Layered simulation
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-26
 **Deciders:** Alwurts
 

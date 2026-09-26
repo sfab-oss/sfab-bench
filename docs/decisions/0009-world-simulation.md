@@ -1,6 +1,6 @@
 # ADR-0009: The world is the document
 
-**Status:** Accepted
+**Status:** Accepted. Amended by [0010](0010-layered-simulation.md) for analog circuits and part levels
 **Date:** 2026-09-24
 **Deciders:** Alwurts
 
