@@ -61,8 +61,7 @@
               "examples/arm/robot/meshes/base.stl",
               "examples/arm/robot/meshes/upper_arm.stl"
             ],
-            "omits": ["cutaway"],
-            "placeholder": true
+            "omits": ["cutaway"]
           }
         }
       }
