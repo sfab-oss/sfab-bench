@@ -30,10 +30,11 @@ the Uno and the arm example at `b5ce591`:
 | E2 | Can motor and rail solve together and drive MuJoCo? | Pass. Stall matches the closed form exactly (USB rail 4.643 V); no-load 517 °/s; a stiff motor is stable with implicit damping or MuJoCo sub-steps; 12 servos on one rail cost about 14 µs per 1 ms |
 | E3 | Can avr8js pins drive circuits edge by edge? | Pass. PWM into RC within 0.05% of ngspice; the ADC exact against a sagging AVCC; 9× real time with every edge; digital nets skip the circuit |
 | E8 | Is compiled Modelica (OpenModelica → WASM) practical? | Runs and matches, but a causal FMU owns its inertia, which fights one MuJoCo body per joint. Offline only |
+| E5 | Can MuJoCo run a deep servo body? | Pass for one gear constraint (rotor + output at 260.8:1): stable at 1 ms, collapses exactly to the lumped hinge, 1.3× its cost. Four live meshes match but cost 2.1–2.3×, so they are a capture source. Backlash drifts; offline |
+| E6 | What does scale cost? | Pass. One scheduler: 12 servos + 1 Uno at 4.8× real time on avr8js, 46× with scripted firmware; 4 Unos 1.3×, 10 Unos 0.5×. The emulated chip is ~90% of the cost. 260 simulated seconds per second on 8 workers |
 
-E5 (deep servo bodies), E6 (scale and firmware rungs), E9 (foreign FMUs)
-and E10 (a measured SG90 on a real Nano) are still open. They can amend
-this record; they do not block it.
+E9 (foreign FMUs) and E10 (a measured SG90 on a real Nano) are still
+open. They can amend this record; they do not block it.
 
 ## Decision
 
@@ -68,6 +69,9 @@ equations to a few shared engines that Bench owns or borrows.**
   never linked (D-013, D-018).
 - **Chips:** avr8js, with pin edges stamped in cycles. A net is digital
   when every port on it is a logic port, and analog otherwise (D-006).
+  When the firmware is not under test, a chip runs a cheaper behaviour
+  level: scripted pins, or the sketch compiled natively against a host
+  HAL (E6).
 - **Snapshots:** evaluated by form (`table@1`, `dc-motor@1`, …) and
   contributing like any part.
 - **Compiled Modelica** stays offline, as a reference and a snapshot
@@ -174,15 +178,17 @@ run, Bench never compiles firmware, and avr8js is the board.
   toolchain, and must validate each part itself.
 - Nonlinear circuits cost more: 50 nodes with diodes were 82–126 µs per
   step before the frozen-Jacobian bypass (about 12 µs after it).
-- avr8js is the main cost: 100–160 µs per simulated millisecond per chip.
+- avr8js is the main cost: 100–190 µs per simulated millisecond per chip,
+  so about four emulated chips fit in real time on one core.
 - World v2 is a new format, and today's worlds need conversion.
 
 ### Mitigations
 
 - ngspice, MuJoCo's closed forms and a real bench are the references.
   Every deep part is checked against something outside Bench (D-001).
-- Digital nets skip the circuit; averaged PWM is a cheaper level; the
-  scale experiment (E6) decides the firmware rungs below avr8js.
+- Digital nets skip the circuit; averaged PWM is a cheaper level; a chip
+  whose firmware is not under test runs scripted pins at ~46× real time
+  (E6).
 - A stiff motor on a light joint uses implicit damping in MuJoCo, and the
   run report carries a passivity sum at each circuit/body cut.
 

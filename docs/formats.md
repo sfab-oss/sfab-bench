@@ -310,6 +310,8 @@ These came out of the motor/rail and pin experiments. They are proposals, not ye
 - **Braking current** returns to the rail (`I_rail = s·I` may be negative). Today's closed form clips it at 0; the measured bench (E10) decides which the SG90 part keeps.
 - **Pin element `avr-pin@1`**: Thevenin source to the rail node (`Roh`, `Rol`), Hi-Z as an input, and the pull-up stored as its datasheet **range** (20–50 kΩ, default the midpoint) until a measured snapshot replaces it. Pin changes land at their cycle timestamp.
 - **ADC**: the reference is the **AVCC node**, never a constant 5 V, and the conversion is the datasheet's `floor(V/Vref·1024)`, clamped to 1023. The sample-and-hold is a closed form, not a live 14 pF node.
+- **`gear-train` body kind** beside `mjcf`: shafts `{ name, inertia, damping, friction }` and meshes `{ driver, driven, teethDriver, teethDriven }`, so the body-axis snapshot `collapse()` (armature `N²·J` plus reflected idlers, friction scaled by the speed ratio) is data. A catalog armature that was fitted, not reflected, says so.
+- **Current-limit floor**: a `thevenin-limit@1` rail feeding regenerating motors needs a clamp (the bridge's body diodes) so the terminal voltage cannot go negative.
 - **Run report** adds the **passivity sum** at each circuit/body cut (joules injected by the coupling) and flags it when it grows.
 
 ## Open for v2
