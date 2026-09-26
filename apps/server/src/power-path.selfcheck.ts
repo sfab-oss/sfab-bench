@@ -1,6 +1,6 @@
 /**
- * Uno USB path (ADR 0010, D-020). Circuit mode only. The closed form is
- * covered by power.selfcheck.ts and is not asked for the cable.
+ * Uno USB path (ADR 0010, D-020). The run uses this circuit. `solveRail`
+ * stays the reference for the bench supply, which takes no cable.
  */
 
 import {
@@ -405,7 +405,7 @@ async function runWorld(
   project: string,
   world: string,
   ms: number,
-  options: AttachWorldOptions
+  options?: AttachWorldOptions
 ): Promise<{ state: WorldState; read: RecordingRead }> {
   const seen: { state: WorldState | null; failed: string | null } = {
     state: null,
@@ -466,11 +466,7 @@ async function runWorld(
 }
 
 {
-  const closed = await runWorld(armDir, "arm.world.json", 200, {
-    railEngine: "closed-form",
-  });
   const opened = await runWorld(armDir, "arm.world.json", 200, {
-    railEngine: "circuit",
     fuseStart: "tripped",
   });
   expect(opened.state.supplies, "circuit supplies");
@@ -487,21 +483,14 @@ async function runWorld(
   );
   expect(amps < usb.currentLimit, `supply left CV at ${amps} A`);
   expect(terminal > BOD_RELEASE_V, `terminal ${terminal} V`);
-  expect(closed.state.boards.uno?.brownout !== true, "closed form reset");
-  expect(closed.state.supplies, "closed-form supplies");
-  const closedV = closed.state.supplies.usb?.voltage ?? Number.NaN;
-  expect(closedV > BOD_RELEASE_V, `closed form ${closedV} V`);
   console.log(
-    `brownout from the board node: circuit board ${boardV.toFixed(3)} V, ` +
-      `terminal ${terminal.toFixed(3)} V, reset; ` +
-      `closed form ${closedV.toFixed(3)} V, no reset`
+    `brownout from the board node: board ${boardV.toFixed(3)} V, ` +
+      `terminal ${terminal.toFixed(3)} V, reset`
   );
 }
 
 {
-  const bench = await runWorld(armDir, "arm-stall.world.json", 2000, {
-    railEngine: "circuit",
-  });
+  const bench = await runWorld(armDir, "arm-stall.world.json", 2000);
   const browned = bench.read.frames.some(
     (frame) => frame.boards.uno?.brownoutAny === true
   );
@@ -514,7 +503,7 @@ async function runWorld(
   expect(browned, "bench stall did not brown out");
   expect(benchMin < BOD_ASSERT_V, `bench stall minimum ${benchMin} V`);
   console.log(
-    `bench stall in circuit mode: minimum ${benchMin.toFixed(3)} V, brownout, no path`
+    `bench stall: minimum ${benchMin.toFixed(3)} V, brownout, no path`
   );
 }
 
@@ -535,9 +524,8 @@ try {
     wire[1].replace(/^bench\./, "usb."),
   ]);
   writeFileSync(join(usbRoot, "usb-stall.world.json"), JSON.stringify(world));
-  const options: AttachWorldOptions = { railEngine: "circuit" };
-  const first = await runWorld(usbRoot, "usb-stall.world.json", 3000, options);
-  const second = await runWorld(usbRoot, "usb-stall.world.json", 3000, options);
+  const first = await runWorld(usbRoot, "usb-stall.world.json", 3000);
+  const second = await runWorld(usbRoot, "usb-stall.world.json", 3000);
   expect(
     JSON.stringify(first.read) === JSON.stringify(second.read),
     "usb stall circuit runs are not byte-identical"

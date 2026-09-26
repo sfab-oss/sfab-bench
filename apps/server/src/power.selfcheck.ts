@@ -547,7 +547,10 @@ try {
       "usb stall counted a reset"
     );
   }
-  expect(usbMin >= 4.6 && usbMin <= 4.7, `usb stall minimum ${usbMin} V`);
+  // The recorded voltage is the board node. One stalled SG90 on the USB
+  // cable sits at 4.494 V: the class-1 terminal is 4.643 V, and the fuse
+  // plus the switch drop about I·(0.15 + 0.06) Ω. Still above brownout.
+  expect(Math.abs(usbMin - 4.494279) <= 1e-4, `usb stall minimum ${usbMin} V`);
   const blocked = usbRows.filter((row) => row.state.simTime >= 1.5);
   expect(blocked.length > 100, "usb stall tail");
   expect(
@@ -671,9 +674,11 @@ try {
     const board = row.state.boards.hold;
     expect(board?.resets === 0 && board.brownout !== true, "split hold reset");
   }
-  // A step from rest is the ω = 0 stall point on 0.5 Ω, about 4.64 V.
-  // 4.9 is the cruise rail and does not cover that sample.
-  expect(holdMin >= 4.6, `split hold rail ${holdMin} V`);
+  // A step from rest is the ω = 0 stall point on the USB cable, 4.509 V
+  // at the board node. The class-1 terminal is about 4.64 V; the fuse and
+  // the switch take the rest. 4.9 is the cruise rail and does not cover
+  // that sample.
+  expect(holdMin >= 4.5, `split hold rail ${holdMin} V`);
   const stallSide = split.find(
     (row) => (row.state.boards.stall?.resets ?? 0) >= 1
   );

@@ -1,7 +1,7 @@
 /**
- * Motor and rail stamps against today's closed form (ADR 0010).
- * The circuit engine is opt-in. These runs select it; the default stays
- * the closed form, which the other self-checks cover.
+ * Motor and rail stamps against the class-1 law (ADR 0010).
+ * `solveRail` is the reference. The equality checks call the circuit
+ * directly. The run is the circuit; two runs of one world are byte-identical.
  */
 
 import { fileURLToPath } from "node:url";
@@ -9,25 +9,15 @@ import { fileURLToPath } from "node:url";
 import {
   boardModels,
   partModels,
-  type RecordingEvent,
   type RecordingRead,
   supplyPresets,
   type WorldState,
 } from "@sfab-bench/contract";
 
 import { closeRootWatches } from "./projects";
-import {
-  type AttachWorldOptions,
-  attachWorld,
-  readRecording,
-  stopWorld,
-} from "./world/host";
+import { attachWorld, readRecording, stopWorld } from "./world/host";
 import { type RailMotor, solveRail } from "./world/power";
-import {
-  createRailCircuit,
-  type RailCircuit,
-  type RailEngine,
-} from "./world/rail-circuit";
+import { createRailCircuit, type RailCircuit } from "./world/rail-circuit";
 
 const armDir = fileURLToPath(
   new URL("../../../examples/arm/", import.meta.url)
@@ -449,94 +439,21 @@ const bench = supplyPresets.bench;
   );
 }
 
-function powerEvents(events: readonly RecordingEvent[]): RecordingEvent[] {
-  return events.filter(
-    (event) => event.kind === "reset" || event.kind === "reboot"
-  );
-}
-
-function framesClose(a: RecordingRead, b: RecordingRead, label: string): void {
-  expect(
-    a.frames.length === b.frames.length && a.frames.length > 100,
-    `${label} frames ${a.frames.length} vs ${b.frames.length}`
-  );
-  const last = a.frames[a.frames.length - 1]?.t ?? 0;
-  expect(last >= (SIM_MS - 10) / 1000, `${label} ended at ${last} s`);
-  for (let i = 0; i < a.frames.length; i++) {
-    const left = a.frames[i]!;
-    const right = b.frames[i]!;
-    expect(left.t === right.t, `${label} time ${left.t} vs ${right.t}`);
-    for (const robot of Object.keys(left.joints)) {
-      const joints = left.joints[robot] ?? {};
-      for (const joint of Object.keys(joints)) {
-        const da = joints[joint] ?? Number.NaN;
-        const db = right.joints[robot]?.[joint] ?? Number.NaN;
-        expect(
-          Math.abs(da - db) <= 1e-6,
-          `${label} ${robot}/${joint} at ${left.t} s: ${da} vs ${db}`
-        );
-      }
-    }
-    for (const id of Object.keys(left.supplies)) {
-      const sa = left.supplies[id];
-      const sb = right.supplies[id];
-      expect(sa && sb, `${label} missing supply ${id}`);
-      if (!sa || !sb) continue;
-      expect(
-        Math.abs(sa.voltage - sb.voltage) <= 1e-6,
-        `${label} ${id} voltage at ${left.t} s: ${sa.voltage} vs ${sb.voltage}`
-      );
-      expect(
-        Math.abs(sa.current - sb.current) <= 1e-6,
-        `${label} ${id} current at ${left.t} s: ${sa.current} vs ${sb.current}`
-      );
-    }
-    for (const id of Object.keys(left.boards)) {
-      expect(
-        left.boards[id]?.brownout === right.boards[id]?.brownout,
-        `${label} ${id} brownout at ${left.t} s`
-      );
-    }
-  }
-  expect(
-    JSON.stringify(powerEvents(a.events)) ===
-      JSON.stringify(powerEvents(b.events)),
-    `${label} brownout events differ`
-  );
-}
-
-async function runWorld(
-  world: string,
-  engine: RailEngine
-): Promise<RecordingRead> {
+async function runWorld(world: string): Promise<RecordingRead> {
   const seen: { state: WorldState | null; failed: string | null } = {
     state: null,
     failed: null,
   };
-  // Opt out of the Uno USB path. arm.world.json uses the USB preset, so the
-  // cable would sit between the terminal and the board node and this would
-  // no longer equal solveRail(). arm-stall is the bench preset, which never
-  // takes the path. The flag keeps both comparisons on the terminal.
-  const options: AttachWorldOptions | undefined =
-    engine === "circuit"
-      ? { railEngine: "circuit", boardPath: false }
-      : undefined;
-  const attached = await attachWorld(
-    armDir,
-    world,
-    {
-      sender: { kind: "loopback", label: "Mac" },
-      onEvent(event) {
-        if (event.type === "error") {
-          seen.failed =
-            event.message ??
-            event.errors.map((item) => item.message).join("; ");
-        }
-        if (event.type === "state") seen.state = event.state;
-      },
+  const attached = await attachWorld(armDir, world, {
+    sender: { kind: "loopback", label: "Mac" },
+    onEvent(event) {
+      if (event.type === "error") {
+        seen.failed =
+          event.message ?? event.errors.map((item) => item.message).join("; ");
+      }
+      if (event.type === "state") seen.state = event.state;
     },
-    options
-  );
+  });
   if ("error" in attached) throw new Error(attached.error);
   try {
     attached.step(SIM_MS);
@@ -550,7 +467,7 @@ async function runWorld(
     const simTime = seen.state?.simTime ?? -1;
     if (simTime < SIM_MS / 1000 - 1e-3) {
       throw new Error(
-        `${world} ${engine} timed out at ${seen.state ? simTime : "no state"} s`
+        `${world} timed out at ${seen.state ? simTime : "no state"} s`
       );
     }
     const read = await readRecording(armDir, world, {
@@ -568,15 +485,13 @@ async function runWorld(
 
 const worlds = ["arm.world.json", "arm-stall.world.json"] as const;
 for (const world of worlds) {
-  const closed = await runWorld(world, "closed-form");
-  const circuit = await runWorld(world, "circuit");
-  const again = await runWorld(world, "circuit");
-  framesClose(closed, circuit, world);
+  const circuit = await runWorld(world);
+  const again = await runWorld(world);
   expect(
     JSON.stringify(circuit) === JSON.stringify(again),
     `${world} circuit runs are not byte-identical`
   );
   console.log(
-    `coupling ${world}: ${circuit.frames.length} frames match within 1e-6, circuit runs identical`
+    `coupling ${world}: ${circuit.frames.length} frames, circuit runs identical`
   );
 }
