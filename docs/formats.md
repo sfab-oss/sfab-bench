@@ -314,6 +314,10 @@ These came out of the motor/rail and pin experiments. They are proposals, not ye
 - **`gear-train` body kind** beside `mjcf`: shafts `{ name, inertia, damping, friction }` and meshes `{ driver, driven, teethDriver, teethDriven }`, so the body-axis snapshot `collapse()` (armature `N²·J` plus reflected idlers, friction scaled by the speed ratio) is data. A catalog armature that was fitted, not reflected, says so.
 - **Current-limit floor**: a `thevenin-limit@1` rail feeding regenerating motors needs a clamp (the bridge's body diodes) so the terminal voltage cannot go negative.
 - **Run report** adds the **passivity sum** at each circuit/body cut (joules injected by the coupling) and flags it when it grows.
+- **`ptc-fuse@1`** (Uno F1, Bourns MF-MSMF050-2): cold resistance is Rmin 0.15 Ω. R1max 1.00 Ω is the post-trip ceiling, not the cold value. `Ihold` 0.50 A, `Itrip` 1.00 A. Thermal state `u` integrates `I²R` once per 1 ms master step, outside the circuit solve. At `u = 1` the branch goes to a high resistance and returns to the cold value once `u` falls.
+- **`pmos-switch@1`** (Uno T1, FDN340P): `Rds` in parallel with the body diode. On the USB path the gate stays on, so `Rds` is the −4.5 V figure, 60 mΩ typical. VIN and the barrel jack are not in this step.
+- **Board power path:** a `usb` preset wired to an Uno `5V` is the USB cable: fuse, switch, the +5V capacitors, the board's constant load, and every servo on that node. A `bench` preset on `5V` is the header, and there is no path. The supply record's `current` stays the terminal current. In circuit mode its `voltage` is the board node when a path is present.
+- **Brownout** reads the board node. In circuit mode the input is the lowest board-node voltage over that millisecond's sub-steps. The closed form still reads the supply terminal.
 
 ## Open for v2
 
