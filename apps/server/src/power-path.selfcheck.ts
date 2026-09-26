@@ -59,6 +59,8 @@ const fixtureDir = fileURLToPath(
   new URL("../fixtures/circuit/", import.meta.url)
 );
 const law = partModels.sg90.motor;
+expect(law, "sg90 motor law");
+if (!law) throw new Error("unreachable");
 const boardA = boardModels.uno.current;
 const fixedStall = boardA + law.quiescent;
 /**
@@ -421,6 +423,7 @@ async function runWorld(
     railEngine: "circuit",
     fuseStart: "tripped",
   });
+  expect(opened.state.supplies, "circuit supplies");
   const boardV = opened.state.supplies.usb?.voltage ?? Number.NaN;
   const amps = opened.state.supplies.usb?.current ?? Number.NaN;
   const terminal = usb.voltage - usb.rSeries * amps;
@@ -435,6 +438,7 @@ async function runWorld(
   expect(amps < usb.currentLimit, `supply left CV at ${amps} A`);
   expect(terminal > BOD_RELEASE_V, `terminal ${terminal} V`);
   expect(closed.state.boards.uno?.brownout !== true, "closed form reset");
+  expect(closed.state.supplies, "closed-form supplies");
   const closedV = closed.state.supplies.usb?.voltage ?? Number.NaN;
   expect(closedV > BOD_RELEASE_V, `closed form ${closedV} V`);
   console.log(
