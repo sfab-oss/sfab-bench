@@ -150,8 +150,8 @@ Amends [ADR 0009](0009-world-simulation.md):
   until a part needs them. The format change is World v2; World v1 files
   convert mechanically.
 - **D-017 (0009)'s closed-form rail** stays the SG90's class-1 law and the
-  reference the circuit is checked against. The circuit path is now the
-  run's rail (this commit) and the closed form is the reference only.
+  reference the circuit is checked against. Since 2026-09-26 the circuit, with
+  the Uno USB path, is the run's rail; the closed form is the reference only.
   Braking current stays clipped until the measured bench decides.
 - **Part models** become parts with levels. Today's SG90 and supplies are
   class-1 behaviour parts.
@@ -195,8 +195,9 @@ run, Bench never compiles firmware, and avr8js is the board.
 ## Implementation notes
 
 - The engine, the pin harness and the coupling exist as experiment code
-  (E1, E2, E3). Port them as new modules under `apps/server/src/world/`,
-  not into `worker.ts`'s closed form.
+  (E1, E2, E3). They are ported as new modules under `apps/server/src/world/`
+  (`circuit/`, `parts/`, `rail-circuit.ts`, `power-path.ts`), and the
+  worker calls them.
 - Order: types and World v2 loader with the checker; the circuit engine
   and pin element; the motor and rail stamps with MuJoCo coupling; then
   the Uno power path.
