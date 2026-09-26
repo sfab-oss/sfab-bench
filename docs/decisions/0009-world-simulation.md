@@ -87,9 +87,10 @@ including in reset. An SG90 is a voltage-mode DC motor
 plus `max(0, s·I_motor)`, where `s = V_drive / V_rail`. Braking current
 does not come from the supply. A rail that falls through the ATmega328P
 brown-out detector resets the board, and the recording shows that.
-Revised 2026-09-25 (fidelity): see D-017. The USB "500 mA" preset is
-5 V, `R_s = 0.5 Ω`, `I_limit = 0.9 A`, and one stalled SG90 sits near
-4.6 V without a reset. A bench preset is `R_s = 0.05 Ω` with the file's
+Revised 2026-09-25 (fidelity): see D-017. ADR 0010 makes the circuit the
+run's rail; the formulas here are the class-1 reference. The USB "500 mA"
+preset is 5 V, `R_s = 0.5 Ω`, `I_limit = 0.9 A`, and one stalled SG90
+sits near 4.6 V without a reset. A bench preset is `R_s = 0.05 Ω` with the file's
 voltage and current limit. At 5 V / 0.3 A the starting current at rest
 pulls the rail to about 1.70 V (0.3 A − 50 mA board − 10 mA quiescent
 leaves 0.24 A through 7.1 Ω). The board resets on the first pulse, holds

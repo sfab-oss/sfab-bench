@@ -150,9 +150,9 @@ Amends [ADR 0009](0009-world-simulation.md):
   until a part needs them. The format change is World v2; World v1 files
   convert mechanically.
 - **D-017 (0009)'s closed-form rail** stays the SG90's class-1 law and the
-  reference the circuit must match. The circuit path replaces it as the
-  default once the Uno power path lands. Braking current stays clipped
-  until the measured bench decides.
+  reference the circuit is checked against. The circuit path is now the
+  run's rail (this commit) and the closed form is the reference only.
+  Braking current stays clipped until the measured bench decides.
 - **Part models** become parts with levels. Today's SG90 and supplies are
   class-1 behaviour parts.
 
