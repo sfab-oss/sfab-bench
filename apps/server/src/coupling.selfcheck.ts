@@ -513,8 +513,14 @@ async function runWorld(
     state: null,
     failed: null,
   };
+  // Opt out of the Uno USB path. arm.world.json uses the USB preset, so the
+  // cable would sit between the terminal and the board node and this would
+  // no longer equal solveRail(). arm-stall is the bench preset, which never
+  // takes the path. The flag keeps both comparisons on the terminal.
   const options: AttachWorldOptions | undefined =
-    engine === "circuit" ? { railEngine: "circuit" } : undefined;
+    engine === "circuit"
+      ? { railEngine: "circuit", boardPath: false }
+      : undefined;
   const attached = await attachWorld(
     armDir,
     world,

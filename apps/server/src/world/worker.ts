@@ -50,6 +50,7 @@ import {
   solveRail,
   stepBrownout,
 } from "./power";
+import { unoUsbPathFor } from "./power-path";
 import {
   createRailCircuit,
   type RailCircuit,
@@ -154,6 +155,13 @@ export type ToWorker =
       generation: number;
       /** Absent is the closed form. Not a field of the world file. */
       railEngine?: RailEngine;
+      /**
+       * Circuit mode only. Absent leaves the Uno USB path on.
+       * Closed-form loads omit it.
+       */
+      boardPath?: boolean;
+      /** Circuit mode only. Absent is a cold fuse. */
+      fuseStart?: "cold" | "tripped";
     }
   | { type: "reload"; generation: number }
   | { type: "play"; generation: number; by?: WorldSender }
@@ -322,7 +330,17 @@ let partFeeds: PowerFeeds["parts"] = {};
 let supplyLive: Record<string, WorldSupplyState> = {};
 /** Closed form until a load message asks for the circuit. */
 let railEngine: RailEngine = "closed-form";
-type RailGroup = { circuit: RailCircuit; loads: Load[] };
+/** Circuit mode. False skips the Uno cable and keeps the terminal as the rail. */
+let boardPath = true;
+/** Circuit mode. A tripped fuse starts hot, before the first solve. */
+let fuseStart: "cold" | "tripped" = "cold";
+type RailGroup = {
+  circuit: RailCircuit;
+  loads: Load[];
+  path: boolean;
+  /** Sub-step minimum of the board node. Unused when `path` is false. */
+  boardMin: number;
+};
 let rails = new Map<string, RailGroup>();
 /** Reused each step. Cleared at the start of the voltage and pulse passes. */
 const stepPulses = new Map<string, { bit: number; us: number }[]>();
@@ -902,6 +920,7 @@ function bindRails() {
   }
   for (const supply of supplySpecs) {
     const members = groups.get(supply.id) ?? [];
+    const path = boardPath && unoUsbPathFor(supply, unoBoardOn(supply.id));
     const circuit = createRailCircuit({
       vNom: supply.voltage,
       rSeries: supply.rSeries,
@@ -914,21 +933,33 @@ function bindRails() {
           k: drive.law.k,
         };
       }),
+      ...(path ? { boardPath: "uno-usb" as const } : {}),
     });
+    if (path && fuseStart === "tripped") circuit.tripFuse();
     for (let i = 0; i < members.length; i++) {
       const load = members[i];
       if (load) load.railSlot = i;
     }
-    rails.set(supply.id, { circuit, loads: members });
+    rails.set(supply.id, { circuit, loads: members, path, boardMin: 0 });
   }
+}
+
+/** `"uno"` when an Uno is fed by this supply, otherwise null. */
+function unoBoardOn(supplyId: string): "uno" | null {
+  if (!worldDoc) return null;
+  for (const board of worldDoc.boards) {
+    if (board.board !== "uno") continue;
+    if (boardPower.get(board.id)?.supplyId === supplyId) return "uno";
+  }
+  return null;
 }
 
 function solveOneRail(
   supplyId: string,
   fixed: number
-): { voltage: number; current: number } {
+): { voltage: number; current: number; board: number; boardMin: number } {
   const group = rails.get(supplyId);
-  if (!group) return { voltage: 0, current: 0 };
+  if (!group) return { voltage: 0, current: 0, board: 0, boardMin: 0 };
   const { circuit, loads: members } = group;
   circuit.setFixed(fixed);
   for (let i = 0; i < members.length; i++) {
@@ -948,7 +979,13 @@ function solveOneRail(
     const load = members[i];
     if (load) load.winding = winding[i] ?? 0;
   }
-  return { voltage: circuit.voltage, current: circuit.current };
+  group.boardMin = circuit.boardMinVoltage;
+  return {
+    voltage: circuit.voltage,
+    current: circuit.current,
+    board: circuit.boardVoltage,
+    boardMin: circuit.boardMinVoltage,
+  };
 }
 
 function rearmServos(boardId: string, board: AvrBoard) {
@@ -1032,7 +1069,11 @@ function solveSupplies() {
             fixed,
             motors,
           });
-    next[supply.id] = solved;
+    const group = rails.get(supply.id);
+    // The recorded voltage is the board node when the cable is in the
+    // circuit. The current stays the supply terminal's.
+    const voltage = group?.path ? group.circuit.boardVoltage : solved.voltage;
+    next[supply.id] = { voltage, current: solved.current };
   }
   for (const load of loads) {
     const drive = load.drive;
@@ -1086,7 +1127,7 @@ function reloadBoard(id: string) {
   solveSupplies();
   const power = boardPower.get(id);
   if (power?.supplyId && !next.fault) {
-    const voltage = supplyOf(power.supplyId);
+    const voltage = brownoutOf(power.supplyId);
     if (voltage < power.assertVoltage) {
       next.holdInReset();
       power.brownout = { phase: "held", releaseAtMs: null };
@@ -1153,6 +1194,17 @@ function serialIn(id: string, text: string, by?: WorldSender) {
 function supplyOf(id: string | null): number {
   if (!id) return 0;
   return supplyLive[id]?.voltage ?? 0;
+}
+
+/**
+ * What `stepBrownout` sees. The board node, at its lowest sub-step, when
+ * the Uno cable is in the circuit. Otherwise the supply terminal, which
+ * is the voltage already stored for the step.
+ */
+function brownoutOf(id: string): number {
+  const group = rails.get(id);
+  if (group?.path) return group.boardMin;
+  return supplyOf(id);
 }
 
 /** Fold this step's completed pulses into the latched command. */
@@ -1289,7 +1341,7 @@ function advanceOne() {
   for (const board of boards) {
     const power = boardPower.get(board.id);
     if (!power?.supplyId || board.fault) continue;
-    const voltage = supplyOf(power.supplyId);
+    const voltage = brownoutOf(power.supplyId);
     const stepped = stepBrownout(power.brownout, voltage, stepEndMs);
     power.brownout = {
       phase: stepped.phase,
@@ -1640,6 +1692,8 @@ async function handle(message: ToWorker) {
     project = message.project;
     worldRel = message.world;
     railEngine = message.railEngine === "circuit" ? "circuit" : "closed-form";
+    boardPath = message.boardPath !== false;
+    fuseStart = message.fuseStart === "tripped" ? "tripped" : "cold";
     await build();
     return;
   }

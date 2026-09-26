@@ -1,4 +1,5 @@
 // Ported from layered-sim E1 src/circuits.ts @ 031dc5e and E3 src/circuits.ts @ fc7e8d3.
+import { unoUsbTrace } from "../power-path";
 import type { Element } from "./element";
 import {
   capacitor,
@@ -92,6 +93,13 @@ export const TRACE_CASES: readonly TraceCase[] = [
     steps: 30000,
     elements: nanoRail,
   },
+  {
+    id: "uno-usb",
+    probe: "v5",
+    h: 2e-8,
+    steps: 150000,
+    elements: unoUsbTrace,
+  },
 ];
 
 export function rcStep(): Element[] {
@@ -145,8 +153,9 @@ export function pinPwm(duty: number): Element[] {
 }
 
 /**
- * Nano USB path (D-024). Cable 0.2 Ω is assumed. Stall current steps at 1 ms.
- * 5 V, the SS14, 20 µF, 50 mA board load, 0.7 A stall.
+ * Nano USB path (D-024), the library function for a future Nano board.
+ * There is no Nano in World v1. Cable 0.2 Ω is assumed. Stall current
+ * steps at 1 ms. 5 V, the SS14, 20 µF, 50 mA board load, 0.7 A stall.
  */
 export function nanoRail(): Element[] {
   return [

@@ -43,9 +43,16 @@ export type WorldSubscription = {
   onEvent: (event: WorldServerMessage) => void;
 };
 
-/** Internal run options. `railEngine` is not stored in the world file. */
+/**
+ * Internal run options. None of these are stored in the world file.
+ * `boardPath` and `fuseStart` apply only when `railEngine` is `"circuit"`.
+ */
 export type AttachWorldOptions = {
   railEngine?: RailEngine;
+  /** Default true. False keeps the supply terminal as the rail. */
+  boardPath?: boolean;
+  /** Default cold. `"tripped"` opens the Uno fuse before the first solve. */
+  fuseStart?: "cold" | "tripped";
 };
 
 export type WorldHandle = {
@@ -82,6 +89,10 @@ type Doc = {
   world: string;
   /** Closed form unless an attach asked for the circuit before the worker started. */
   railEngine: RailEngine;
+  /** Circuit mode. False skips the Uno cable. */
+  boardPath: boolean;
+  /** Circuit mode. A tripped fuse starts hot. */
+  fuseStart: "cold" | "tripped";
   subs: Set<Sub>;
   worker: Worker | null;
   generation: number;
@@ -513,7 +524,15 @@ async function spawn(doc: Doc): Promise<void> {
     project: doc.project,
     world: doc.world,
     generation,
-    ...(doc.railEngine === "circuit" ? { railEngine: doc.railEngine } : {}),
+    ...(doc.railEngine === "circuit"
+      ? {
+          railEngine: doc.railEngine,
+          ...(doc.boardPath ? {} : { boardPath: false as const }),
+          ...(doc.fuseStart === "tripped"
+            ? { fuseStart: "tripped" as const }
+            : {}),
+        }
+      : {}),
   } satisfies ToWorker);
   tie(doc);
   try {
@@ -667,6 +686,8 @@ function ensure(project: string, worldRel: string): Doc | { error: string } {
       project: named.project,
       world: named.world,
       railEngine: "closed-form",
+      boardPath: true,
+      fuseStart: "cold",
       subs: new Set(),
       worker: null,
       generation: 0,
@@ -711,7 +732,11 @@ export async function attachWorld(
   const found = ensure(project, worldRel);
   if ("error" in found) return found;
   const doc = found;
-  if (options?.railEngine && !doc.worker) doc.railEngine = options.railEngine;
+  if (options?.railEngine && !doc.worker) {
+    doc.railEngine = options.railEngine;
+    doc.boardPath = options.boardPath !== false;
+    doc.fuseStart = options.fuseStart === "tripped" ? "tripped" : "cold";
+  }
   const sub: Sub = { ...subscription, delivered: false, detached: false };
   doc.subs.add(sub);
   tie(doc);
