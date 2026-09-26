@@ -1,4 +1,4 @@
-// Ported from layered-sim E1 src/mna/elements.ts @ 031dc5e; diode bypass from E2 @ 8731557.
+// Ported from layered-sim E1 src/mna/elements.ts @ 031dc5e; diode bypass, thevenin-limit, and bridge motor from E2 @ 8731557.
 import {
   gStamp,
   type PowerSplit,
@@ -565,6 +565,349 @@ export class Switch implements Element {
   }
 }
 
+/**
+ * Constant draw from `p` to `m`, amperes. Board current and servo quiescent.
+ * `amps` is updated in place so a rail step does not allocate a waveform.
+ */
+export class CurrentLoad implements Element {
+  readonly form = "ideal-current@1";
+  readonly nonlinear = false;
+  ip = -1;
+  im = -1;
+  /** Amperes leaving `p` toward `m`. */
+  amps = 0;
+  constructor(
+    readonly id: string,
+    readonly pName: string,
+    readonly mName: string
+  ) {}
+  nodes(): readonly string[] {
+    return [this.pName, this.mName];
+  }
+  branches(): readonly string[] {
+    return [];
+  }
+  bind(nodeOf: (name: string) => number): void {
+    this.ip = nodeOf(this.pName);
+    this.im = nodeOf(this.mName);
+  }
+  signature(): string {
+    return "";
+  }
+  stamp(ctx: StampCtx): void {
+    const i = this.amps;
+    if (this.ip >= 0) ctx.z[this.ip] = (ctx.z[this.ip] as number) - i;
+    if (this.im >= 0) ctx.z[this.im] = (ctx.z[this.im] as number) + i;
+  }
+  commit(): void {}
+  power(ctx: StampCtx): PowerSplit {
+    const v = volt(ctx, this.ip) - volt(ctx, this.im);
+    const absorbed = v * this.amps;
+    return {
+      absorbed,
+      delivered: -absorbed,
+      dissipated: 0,
+      storedDot: 0,
+      mechanical: 0,
+    };
+  }
+  leaving(): ReadonlyArray<readonly [number, number]> {
+    return [
+      [this.ip, this.amps],
+      [this.im, -this.amps],
+    ];
+  }
+}
+
+export type SupplyRegion = "cv" | "cc" | "floor";
+
+/**
+ * CV/CC supply. Branch current `i` leaves the positive node into the element,
+ * so the load current is `-i`.
+ * CV: `v(p) − v(m) − Rs·i = V`.
+ * CC: `i = −Ilim` while the terminal voltage stays non-negative.
+ * Floor: `v = 0` when CV or CC would drive the rail negative. A supply never
+ * sinks into a negative rail (E6). The current is then whatever the load draws.
+ */
+export class TheveninLimit implements Element {
+  readonly form = "thevenin-limit@1";
+  readonly nonlinear = true;
+  ip = -1;
+  im = -1;
+  ibr = -1;
+  private region: SupplyRegion = "cv";
+  /** Region written into the factored matrix. */
+  factoredRegion: SupplyRegion | null = null;
+  /**
+   * Set when a current-limit stamp is singular (the load cannot draw
+   * exactly Ilim). The next stamp holds the rail at 0 V, which is what
+   * `solveRail` returns in that case.
+   */
+  private holdFloor = false;
+  constructor(
+    readonly id: string,
+    readonly pName: string,
+    readonly mName: string,
+    readonly V: number,
+    readonly Rs: number,
+    readonly Ilim: number
+  ) {
+    if (Rs < 0 || !(Ilim > 0)) throw new Error(`${id}: Rs >= 0 and Ilim > 0`);
+  }
+  nodes(): readonly string[] {
+    return [this.pName, this.mName];
+  }
+  branches(): readonly string[] {
+    return [this.id];
+  }
+  bind(
+    nodeOf: (name: string) => number,
+    branchOf: (name: string) => number
+  ): void {
+    this.ip = nodeOf(this.pName);
+    this.im = nodeOf(this.mName);
+    this.ibr = branchOf(this.id);
+  }
+  signature(): string {
+    return "";
+  }
+  /** The current-limit row conflicted with the load. Hold 0 V next stamp. */
+  fallToFloor(): boolean {
+    if (this.region !== "cc") return false;
+    this.holdFloor = true;
+    return true;
+  }
+  desired(ctx: StampCtx): SupplyRegion {
+    if (this.holdFloor) {
+      this.holdFloor = false;
+      return "floor";
+    }
+    const iLoad = -((ctx.x[this.ibr] as number) ?? 0);
+    const vt = volt(ctx, this.ip) - volt(ctx, this.im);
+    const tol = 1e-9;
+    if (vt < -tol) return "floor";
+    if (this.region === "floor") {
+      const vCv = this.V - this.Rs * iLoad;
+      if (iLoad <= this.Ilim + tol && vCv > tol) return "cv";
+      return "floor";
+    }
+    if (this.region === "cv") {
+      return iLoad > this.Ilim + tol ? "cc" : "cv";
+    }
+    const iUnc =
+      this.Rs > 0
+        ? (this.V - vt) / this.Rs
+        : vt < this.V - tol
+          ? Number.POSITIVE_INFINITY
+          : 0;
+    return iUnc < this.Ilim - tol ? "cv" : "cc";
+  }
+  stamp(ctx: StampCtx): void {
+    const region =
+      ctx.freezeNonlinear && this.factoredRegion !== null
+        ? this.factoredRegion
+        : this.desired(ctx);
+    this.region = region;
+    if (!ctx.rhsOnly) this.factoredRegion = region;
+    if (region === "cv") {
+      vBranch(ctx, this.ip, this.im, this.ibr, this.Rs, this.V);
+      return;
+    }
+    if (region === "floor") {
+      vBranch(ctx, this.ip, this.im, this.ibr, 0, 0);
+      return;
+    }
+    if (!ctx.rhsOnly) {
+      vBranch(ctx, this.ip, this.im, this.ibr, 0, 0);
+      currentRow(ctx, this.ibr, -this.Ilim);
+    } else {
+      ctx.z[this.ibr] = -this.Ilim;
+    }
+  }
+  commit(): void {}
+  accepted(ctx: StampCtx): boolean {
+    return this.desired(ctx) === this.region;
+  }
+  power(ctx: StampCtx): PowerSplit {
+    const i = ctx.x[this.ibr] as number;
+    const vt = volt(ctx, this.ip) - volt(ctx, this.im);
+    const iLoad = -i;
+    const absorbed = vt * i;
+    const delivered = this.V * iLoad;
+    const dissipated = (this.V - vt) * iLoad;
+    return {
+      absorbed,
+      delivered,
+      dissipated,
+      storedDot: 0,
+      mechanical: 0,
+    };
+  }
+  leaving(ctx: StampCtx): ReadonlyArray<readonly [number, number]> {
+    const i = ctx.x[this.ibr] as number;
+    return [
+      [this.ip, i],
+      [this.im, -i],
+    ];
+  }
+}
+
+/** Replaces the branch row with `i = value`. The KCL column is left as stamped. */
+function currentRow(ctx: StampCtx, iCol: number, value: number): void {
+  const { A, z, n } = ctx;
+  const row = iCol * n;
+  for (let j = 0; j < n; j++) A[row + j] = 0;
+  A[row + iCol] = 1;
+  z[iCol] = value;
+}
+
+/** `clip` drops braking current. `return` puts `s·I` back on the rail. */
+export type Braking = "clip" | "return";
+
+/**
+ * Averaged H-bridge and `dc-motor@1` winding, one branch.
+ * `V_motor = s·V_rail`. The rail draws `s·I` while motoring.
+ * With `clip` (the default, ADR 0010) a negative `s·I` does not return.
+ * `L = 0` is the algebraic law. ω is an input, held across electrical sub-steps.
+ * Quiescent current is a `CurrentLoad` on the rail, not part of this branch.
+ */
+export class BridgeMotor implements Element {
+  readonly form = "dc-motor@1";
+  readonly nonlinear: boolean;
+  rail = -1;
+  ibr = -1;
+  /** Bridge ratio, held for the master step. */
+  s = 0;
+  omega = 0;
+  /** False opens the winding: no current and no rail draw. */
+  connected = true;
+  factoredS = Number.NaN;
+  factoredMotoring = true;
+  factoredConnected = true;
+  private stampedMotoring = true;
+  private iPrev = 0;
+  private vLPrev = 0;
+  constructor(
+    readonly id: string,
+    readonly railName: string,
+    readonly R: number,
+    readonly L: number,
+    readonly K: number,
+    readonly braking: Braking = "clip"
+  ) {
+    if (!(R > 0) || L < 0) throw new Error(`${id}: R > 0 and L >= 0`);
+    this.nonlinear = braking === "clip";
+  }
+  nodes(): readonly string[] {
+    return [this.railName];
+  }
+  branches(): readonly string[] {
+    return [this.id];
+  }
+  bind(
+    nodeOf: (name: string) => number,
+    branchOf: (name: string) => number
+  ): void {
+    this.rail = nodeOf(this.railName);
+    this.ibr = branchOf(this.id);
+  }
+  signature(): string {
+    return "";
+  }
+  private desiredMotoring(ctx: StampCtx): boolean {
+    if (this.braking === "return") return true;
+    const sI = this.s * ((ctx.x[this.ibr] as number) ?? 0);
+    if (sI > 1e-12) return true;
+    if (sI < -1e-12) return false;
+    return this.stampedMotoring;
+  }
+  stamp(ctx: StampCtx): void {
+    const connected = ctx.freezeNonlinear
+      ? this.factoredConnected
+      : this.connected;
+    if (!connected) {
+      this.stampedMotoring = false;
+      if (!ctx.rhsOnly) {
+        this.factoredConnected = false;
+        this.factoredS = this.s;
+        this.factoredMotoring = false;
+        currentRow(ctx, this.ibr, 0);
+      } else {
+        ctx.z[this.ibr] = 0;
+      }
+      return;
+    }
+    const motoring =
+      this.braking === "return"
+        ? true
+        : ctx.freezeNonlinear
+          ? this.factoredMotoring
+          : this.desiredMotoring(ctx);
+    this.stampedMotoring = motoring;
+    const s = ctx.freezeNonlinear ? this.factoredS : this.s;
+    const bemf = this.K * this.omega;
+    let g = 0;
+    let e = bemf;
+    if (!ctx.dc && this.L > 0) {
+      if (ctx.method === "trap") {
+        g = (2 * this.L) / ctx.h;
+        e = bemf - g * this.iPrev - this.vLPrev;
+      } else {
+        g = this.L / ctx.h;
+        e = bemf - g * this.iPrev;
+      }
+    }
+    if (!ctx.rhsOnly) {
+      const { A, n } = ctx;
+      const row = this.ibr;
+      if (this.rail >= 0) {
+        A[row * n + this.rail] = s;
+        A[this.rail * n + row] = motoring ? s : 0;
+      }
+      A[row * n + row] = -(this.R + g);
+      this.factoredS = this.s;
+      this.factoredMotoring = motoring;
+      this.factoredConnected = true;
+    }
+    ctx.z[this.ibr] = (ctx.z[this.ibr] as number) + e;
+  }
+  commit(ctx: StampCtx): void {
+    const i = this.connected ? (ctx.x[this.ibr] as number) : 0;
+    if (!this.connected || ctx.dc || this.L === 0) {
+      this.vLPrev = 0;
+      this.iPrev = i;
+      return;
+    }
+    const v = this.s * volt(ctx, this.rail);
+    this.vLPrev = v - this.R * i - this.K * this.omega;
+    this.iPrev = i;
+  }
+  accepted(ctx: StampCtx): boolean {
+    if (!this.connected || this.braking === "return") return true;
+    return this.desiredMotoring(ctx) === this.stampedMotoring;
+  }
+  power(ctx: StampCtx): PowerSplit {
+    const i = ctx.x[this.ibr] as number;
+    const vRail = volt(ctx, this.rail);
+    const vMot = this.s * vRail;
+    const elec = this.connected ? vMot * i : 0;
+    const copper = this.connected ? this.R * i * i : 0;
+    const mechanical = this.connected ? this.K * this.omega * i : 0;
+    return {
+      absorbed: elec,
+      delivered: 0,
+      dissipated: copper,
+      storedDot: elec - copper - mechanical,
+      mechanical,
+    };
+  }
+  leaving(ctx: StampCtx): ReadonlyArray<readonly [number, number]> {
+    if (!this.connected || !this.stampedMotoring) return [[this.rail, 0]];
+    const i = ctx.x[this.ibr] as number;
+    return [[this.rail, this.s * i]];
+  }
+}
+
 export function resistor(
   id: string,
   a: string,
@@ -622,4 +965,27 @@ export function sw(
   wave: Waveform
 ): Switch {
   return new Switch(id, a, b, Ron, Roff, wave);
+}
+export function currentLoad(id: string, p: string, m: string): CurrentLoad {
+  return new CurrentLoad(id, p, m);
+}
+export function thevenin(
+  id: string,
+  p: string,
+  m: string,
+  V: number,
+  Rs: number,
+  Ilim: number
+): TheveninLimit {
+  return new TheveninLimit(id, p, m, V, Rs, Ilim);
+}
+export function bridgeMotor(
+  id: string,
+  rail: string,
+  R: number,
+  L: number,
+  K: number,
+  braking: Braking = "clip"
+): BridgeMotor {
+  return new BridgeMotor(id, rail, R, L, K, braking);
 }

@@ -20,8 +20,13 @@ export {
 } from "./circuits";
 export type { Element } from "./element";
 export {
+  type Braking,
+  BridgeMotor,
+  bridgeMotor,
   Capacitor,
+  CurrentLoad,
   capacitor,
+  currentLoad,
   Diode,
   type DiodeParams,
   diode,
@@ -31,9 +36,12 @@ export {
   iSource,
   Resistor,
   resistor,
+  type SupplyRegion,
   Switch,
   sw,
+  TheveninLimit,
   thermalVoltage,
+  thevenin,
   VSource,
   vSource,
 } from "./elements";

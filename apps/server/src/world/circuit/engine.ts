@@ -1,7 +1,15 @@
 // Ported from layered-sim E1 src/mna/engine.ts @ 031dc5e, E2 diode bypass @ 8731557, E3 stepTo @ fc7e8d3.
 import type { StampCtx } from "./context";
 import type { Element } from "./element";
-import { addSplit, Capacitor, Diode, Inductor, Switch } from "./elements";
+import {
+  addSplit,
+  BridgeMotor,
+  Capacitor,
+  Diode,
+  Inductor,
+  Switch,
+  TheveninLimit,
+} from "./elements";
 import { luFactor, luSolve } from "./lu";
 
 export type Method = "be" | "trap";
@@ -70,6 +78,8 @@ export class Engine {
   private factoredDc = false;
   private readonly switches: Switch[];
   private readonly diodes: Diode[];
+  private readonly bridges: BridgeMotor[];
+  private readonly thevenins: TheveninLimit[];
   private readonly nonlinear: boolean;
   private readonly xSave: Float64Array;
   private readonly diodeLimit: Float64Array;
@@ -140,6 +150,12 @@ export class Engine {
     this.switches = elements.filter((el): el is Switch => el instanceof Switch);
     this.sigLU = new Uint8Array(this.switches.length);
     this.diodes = elements.filter((el): el is Diode => el instanceof Diode);
+    this.bridges = elements.filter(
+      (el): el is BridgeMotor => el instanceof BridgeMotor
+    );
+    this.thevenins = elements.filter(
+      (el): el is TheveninLimit => el instanceof TheveninLimit
+    );
     this.nonlinear = elements.some((el) => el.nonlinear);
     this.xSave = new Float64Array(n);
     this.diodeLimit = new Float64Array(this.diodes.length);
@@ -189,6 +205,7 @@ export class Engine {
       return false;
     }
     if (!this.sameStructure(this.ctx.t)) return false;
+    if (!this.bridgesStable()) return false;
     const diodes = this.diodes;
     for (let i = 0; i < diodes.length; i++) {
       if (!diodes[i]!.companionClose(this.ctx, this.bypassEps)) return false;
@@ -240,7 +257,8 @@ export class Engine {
       !this.ctx.dc &&
       !this.factoredDc &&
       this.factoredH === this.ctx.h &&
-      this.sameStructure(this.ctx.t);
+      this.sameStructure(this.ctx.t) &&
+      this.bridgesStable();
     this.z.fill(0);
     if (reuse) {
       this.ctx.rhsOnly = true;
@@ -264,10 +282,31 @@ export class Engine {
     for (let i = 0; i < els.length; i++) els[i]!.commit(this.ctx);
   }
 
+  /** Bridge ratio and open/closed state are inputs. A change rebuilds the factor. */
+  private bridgesStable(): boolean {
+    const bridges = this.bridges;
+    for (let i = 0; i < bridges.length; i++) {
+      const motor = bridges[i]!;
+      if (
+        motor.s !== motor.factoredS ||
+        motor.connected !== motor.factoredConnected
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   private devicesAccepted(): boolean {
     const ctx = this.ctx;
     for (let i = 0; i < this.diodes.length; i++) {
       if (!this.diodes[i]!.accepted(ctx)) return false;
+    }
+    for (let i = 0; i < this.thevenins.length; i++) {
+      if (!this.thevenins[i]!.accepted(ctx)) return false;
+    }
+    for (let i = 0; i < this.bridges.length; i++) {
+      if (!this.bridges[i]!.accepted(ctx)) return false;
     }
     return true;
   }
@@ -285,6 +324,7 @@ export class Engine {
   }
 
   private tryNewton(): boolean {
+    let dumped = 0;
     for (let iter = 0; iter < this.maxIter; iter++) {
       this.xOld.set(this.x);
       this.A.fill(0);
@@ -295,11 +335,24 @@ export class Engine {
         this.factor();
         luSolve(this.A, this.n, this.perm, this.z, this.x);
       } catch {
-        return false;
+        // A current limit with no conducting motor is two equations for
+        // one branch current. The rail belongs on the 0 V floor.
+        if (!this.fallSuppliesToFloor()) return false;
+        dumped += 1;
+        if (dumped > 4) return false;
+        continue;
       }
       if (this.converged() && this.devicesAccepted()) return true;
     }
     return false;
+  }
+
+  private fallSuppliesToFloor(): boolean {
+    let held = false;
+    for (let i = 0; i < this.thevenins.length; i++) {
+      if (this.thevenins[i]!.fallToFloor()) held = true;
+    }
+    return held;
   }
 
   private newton(): void {
