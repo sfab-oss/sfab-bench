@@ -130,8 +130,8 @@ export function isUsbPreset(supply: {
 }
 
 /**
- * True when this supply is the USB cable into an Uno. The caller still
- * has to be in circuit mode and not have opted out.
+ * True when this supply is the USB cable into an Uno. The run asks this
+ * for every supply; there is no other switch.
  */
 export function unoUsbPathFor(
   supply: { voltage: number; currentLimit: number; rSeries: number },

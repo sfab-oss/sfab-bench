@@ -44,18 +44,11 @@ import {
   DISPLAY_STALL_DEG_PER_SEC,
   displayMotion,
   type MotorLaw,
-  type RailMotor,
   runningBrownout,
-  servoElectrical,
-  solveRail,
   stepBrownout,
 } from "./power";
 import { unoUsbPathFor } from "./power-path";
-import {
-  createRailCircuit,
-  type RailCircuit,
-  type RailEngine,
-} from "./rail-circuit";
+import { createRailCircuit, type RailCircuit } from "./rail-circuit";
 import { motionRank, RunRecorder, timelineFromRead } from "./record";
 import { blankTrack, type ServoTrack, trackServo } from "./servo";
 import {
@@ -145,22 +138,16 @@ export type RecordBody =
   | { op: "ack" }
   | { op: "error"; message: string };
 
-export type { RailEngine };
-
 export type ToWorker =
   | {
       type: "load";
       project: string;
       world: string;
       generation: number;
-      /** Absent is the closed form. Not a field of the world file. */
-      railEngine?: RailEngine;
       /**
-       * Circuit mode only. Absent leaves the Uno USB path on.
-       * Closed-form loads omit it.
+       * Test only. Absent is a cold fuse. Not a field of the world file.
+       * `"tripped"` opens the Uno fuse before the first solve.
        */
-      boardPath?: boolean;
-      /** Circuit mode only. Absent is a cold fuse. */
       fuseStart?: "cold" | "tripped";
     }
   | { type: "reload"; generation: number }
@@ -292,12 +279,9 @@ type Load = {
   sample: ServoSample | null;
   /** Consecutive milliseconds the stall condition has held. */
   stallMs: number;
-  /**
-   * Winding current from the circuit engine, amperes.
-   * The closed form does not read this.
-   */
+  /** Winding current from the circuit, amperes. */
   winding: number;
-  /** Slot in the supply's rail circuit. −1 while the closed form is in use. */
+  /** Slot in the supply's rail circuit. −1 when this part is not on a rail. */
   railSlot: number;
 };
 
@@ -328,11 +312,7 @@ let partFeeds: PowerFeeds["parts"] = {};
  * previous step's part states before the CPUs and the joint move.
  */
 let supplyLive: Record<string, WorldSupplyState> = {};
-/** Closed form until a load message asks for the circuit. */
-let railEngine: RailEngine = "closed-form";
-/** Circuit mode. False skips the Uno cable and keeps the terminal as the rail. */
-let boardPath = true;
-/** Circuit mode. A tripped fuse starts hot, before the first solve. */
+/** Test only. A tripped fuse starts hot, before the first solve. */
 let fuseStart: "cold" | "tripped" = "cold";
 type RailGroup = {
   circuit: RailCircuit;
@@ -910,7 +890,6 @@ function bindPower(doc: WorldDocument) {
 function bindRails() {
   rails = new Map();
   for (const load of loads) load.railSlot = -1;
-  if (railEngine !== "circuit") return;
   const groups = new Map<string, Load[]>();
   for (const load of loads) {
     if (!load.drive || !load.supplyId) continue;
@@ -920,7 +899,7 @@ function bindRails() {
   }
   for (const supply of supplySpecs) {
     const members = groups.get(supply.id) ?? [];
-    const path = boardPath && unoUsbPathFor(supply, unoBoardOn(supply.id));
+    const path = unoUsbPathFor(supply, unoBoardOn(supply.id));
     const circuit = createRailCircuit({
       vNom: supply.voltage,
       rSeries: supply.rSeries,
@@ -1041,7 +1020,6 @@ function solveSupplies() {
   const next: Record<string, WorldSupplyState> = {};
   for (const supply of supplySpecs) {
     let fixed = 0;
-    const motors: RailMotor[] = [];
     for (const power of boardPower.values()) {
       if (power.supplyId !== supply.id) continue;
       fixed += power.draw;
@@ -1049,26 +1027,8 @@ function solveSupplies() {
     for (const load of loads) {
       if (load.supplyId !== supply.id) continue;
       fixed += load.quiescent;
-      const drive = load.drive;
-      const sample = load.sample;
-      if (!drive || !sample || sample.limp) continue;
-      motors.push({
-        fraction: sample.fraction,
-        omega: sample.omega,
-        k: drive.law.k,
-        resistance: drive.law.resistance,
-      });
     }
-    const solved =
-      railEngine === "circuit"
-        ? solveOneRail(supply.id, fixed)
-        : solveRail({
-            vNom: supply.voltage,
-            rSeries: supply.rSeries,
-            iLimit: supply.currentLimit,
-            fixed,
-            motors,
-          });
+    const solved = solveOneRail(supply.id, fixed);
     const group = rails.get(supply.id);
     // The recorded voltage is the board node when the cable is in the
     // circuit. The current stays the supply terminal's.
@@ -1082,24 +1042,12 @@ function solveSupplies() {
       load.current = 0;
       continue;
     }
-    if (railEngine === "circuit") {
-      if (sample.limp) {
-        load.current = load.quiescent;
-        continue;
-      }
-      load.current =
-        drive.law.quiescent + Math.max(0, sample.fraction * load.winding);
+    if (sample.limp) {
+      load.current = load.quiescent;
       continue;
     }
-    const voltage = next[load.supplyId]?.voltage ?? 0;
-    load.current = servoElectrical({
-      law: drive.law,
-      vRail: voltage,
-      errorRad: sample.errorRad,
-      omega: sample.omega,
-      limp: sample.limp,
-      torqueLimit: drive.torqueNm,
-    }).supplyCurrent;
+    load.current =
+      drive.law.quiescent + Math.max(0, sample.fraction * load.winding);
   }
   supplyLive = next;
 }
@@ -1197,14 +1145,11 @@ function supplyOf(id: string | null): number {
 }
 
 /**
- * What `stepBrownout` sees. The board node, at its lowest sub-step, when
- * the Uno cable is in the circuit. Otherwise the supply terminal, which
- * is the voltage already stored for the step.
+ * What `stepBrownout` sees: the board node at its lowest sub-step.
+ * With no Uno cable the board node is the supply terminal.
  */
 function brownoutOf(id: string): number {
-  const group = rails.get(id);
-  if (group?.path) return group.boardMin;
-  return supplyOf(id);
+  return rails.get(id)?.boardMin ?? 0;
 }
 
 /** Fold this step's completed pulses into the latched command. */
@@ -1250,30 +1195,17 @@ function applyTorque() {
     // The sample is the current already charged to the rail, including
     // the step that asserts reset. A board already in reset was latched
     // limp, so its sample carries no torque.
-    if (railEngine === "circuit") {
-      const limp = !powered || sample.limp;
-      let torque = 0;
-      if (!limp) {
-        torque = drive.law.efficiency * drive.law.k * load.winding;
-        const limit = drive.torqueNm;
-        if (limit > 0) {
-          if (torque > limit) torque = limit;
-          else if (torque < -limit) torque = -limit;
-        }
+    const limp = !powered || sample.limp;
+    let torque = 0;
+    if (!limp) {
+      torque = drive.law.efficiency * drive.law.k * load.winding;
+      const limit = drive.torqueNm;
+      if (limit > 0) {
+        if (torque > limit) torque = limit;
+        else if (torque < -limit) torque = -limit;
       }
-      sim.data.actuator(load.partId).ctrl = torque;
-      if (held) drive.track = blankTrack();
-      continue;
     }
-    const electrical = servoElectrical({
-      law: drive.law,
-      vRail: powered ? supplyOf(load.supplyId) : 0,
-      errorRad: sample.errorRad,
-      omega: sample.omega,
-      limp: !powered || sample.limp,
-      torqueLimit: drive.torqueNm,
-    });
-    sim.data.actuator(load.partId).ctrl = electrical.torque;
+    sim.data.actuator(load.partId).ctrl = torque;
     if (held) drive.track = blankTrack();
   }
 }
@@ -1691,8 +1623,6 @@ async function handle(message: ToWorker) {
     generation = message.generation;
     project = message.project;
     worldRel = message.world;
-    railEngine = message.railEngine === "circuit" ? "circuit" : "closed-form";
-    boardPath = message.boardPath !== false;
     fuseStart = message.fuseStart === "tripped" ? "tripped" : "cold";
     await build();
     return;

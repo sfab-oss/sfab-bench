@@ -24,7 +24,6 @@ import {
   projectReal,
   resolveInside,
 } from "./files";
-import type { RailEngine } from "./rail-circuit";
 import { type SerialPage, SerialRing } from "./serial-ring";
 import type { FromWorker, RecordBody, RecordQuery, ToWorker } from "./worker";
 
@@ -45,13 +44,12 @@ export type WorldSubscription = {
 
 /**
  * Internal run options. None of these are stored in the world file.
- * `boardPath` and `fuseStart` apply only when `railEngine` is `"circuit"`.
  */
 export type AttachWorldOptions = {
-  railEngine?: RailEngine;
-  /** Default true. False keeps the supply terminal as the rail. */
-  boardPath?: boolean;
-  /** Default cold. `"tripped"` opens the Uno fuse before the first solve. */
+  /**
+   * Test only. Default cold. `"tripped"` opens the Uno fuse before the
+   * first solve.
+   */
   fuseStart?: "cold" | "tripped";
 };
 
@@ -87,11 +85,7 @@ type Doc = {
   key: string;
   project: string;
   world: string;
-  /** Closed form unless an attach asked for the circuit before the worker started. */
-  railEngine: RailEngine;
-  /** Circuit mode. False skips the Uno cable. */
-  boardPath: boolean;
-  /** Circuit mode. A tripped fuse starts hot. */
+  /** Test only. A tripped fuse starts hot. */
   fuseStart: "cold" | "tripped";
   subs: Set<Sub>;
   worker: Worker | null;
@@ -524,15 +518,7 @@ async function spawn(doc: Doc): Promise<void> {
     project: doc.project,
     world: doc.world,
     generation,
-    ...(doc.railEngine === "circuit"
-      ? {
-          railEngine: doc.railEngine,
-          ...(doc.boardPath ? {} : { boardPath: false as const }),
-          ...(doc.fuseStart === "tripped"
-            ? { fuseStart: "tripped" as const }
-            : {}),
-        }
-      : {}),
+    ...(doc.fuseStart === "tripped" ? { fuseStart: "tripped" as const } : {}),
   } satisfies ToWorker);
   tie(doc);
   try {
@@ -685,8 +671,6 @@ function ensure(project: string, worldRel: string): Doc | { error: string } {
       key: named.key,
       project: named.project,
       world: named.world,
-      railEngine: "closed-form",
-      boardPath: true,
       fuseStart: "cold",
       subs: new Set(),
       worker: null,
@@ -732,9 +716,7 @@ export async function attachWorld(
   const found = ensure(project, worldRel);
   if ("error" in found) return found;
   const doc = found;
-  if (options?.railEngine && !doc.worker) {
-    doc.railEngine = options.railEngine;
-    doc.boardPath = options.boardPath !== false;
+  if (options?.fuseStart && !doc.worker) {
     doc.fuseStart = options.fuseStart === "tripped" ? "tripped" : "cold";
   }
   const sub: Sub = { ...subscription, delivered: false, detached: false };

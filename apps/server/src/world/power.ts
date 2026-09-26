@@ -2,9 +2,15 @@
  * Servo motor law and supply rail (ADR 0009, D-017 revised 2026-09-25).
  * Pure functions. This module does not step physics and does not read files.
  *
- * The rail is solved from this step's error and joint velocity. A servo's
- * motor current is affine in the rail for a fixed error and speed, and the
- * board is a constant draw, so the step has a closed form.
+ * `solveRail` and `servoElectrical` are the SG90's class-1 law and the
+ * reference the circuit is checked against (ADR 0010). The run does not
+ * call them. Display, brownout, and the other helpers are what the run
+ * still uses.
+ *
+ * The rail law is solved from this step's error and joint velocity. A
+ * servo's motor current is affine in the rail for a fixed error and
+ * speed, and the board is a constant draw, so the reference has a closed
+ * form.
  */
 
 import type { WorldPartMotion } from "@sfab-bench/contract";

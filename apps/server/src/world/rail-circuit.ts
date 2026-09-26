@@ -30,9 +30,6 @@ import {
 
 export type { Braking };
 
-/** Which rail law the worker runs. Not a World v1 field. */
-export type RailEngine = "closed-form" | "circuit";
-
 export type RailMotorLaw = {
   resistance: number;
   /** V·s/rad. */
