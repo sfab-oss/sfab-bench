@@ -426,34 +426,64 @@ try {
 
 const demo2 = await recordedRun(armDir, "arm-stall.world.json", 2000);
 try {
-  const stalled = demo2.read.frames.find(
-    (frame) => frame.parts.servo?.worst === "stall"
-  );
-  const sagged = demo2.read.frames.find(
-    (frame) => (frame.supplies.usb?.minVoltage ?? 5) < 2.7
-  );
   const resets = demo2.read.events.filter((event) => event.kind === "reset");
-  expect(stalled, "no recorded stall within 2 s");
-  expect(sagged, "no recorded sag within 2 s");
+  const reboots = demo2.read.events.filter((event) => event.kind === "reboot");
+  let minV = Infinity;
+  let minAt = 0;
+  const start = demo2.read.frames[0]?.joints.arm?.shoulder ?? 0;
+  for (const frame of demo2.read.frames) {
+    const voltage = frame.supplies.bench?.minVoltage ?? 5;
+    if (voltage < minV) {
+      minV = voltage;
+      minAt = frame.t;
+    }
+    const angle = frame.joints.arm?.shoulder ?? start;
+    expect(
+      Math.abs(deg(angle - start)) < 5,
+      `arm ${deg(angle).toFixed(3)}° at ${frame.t.toFixed(3)} s`
+    );
+  }
+  expect(Math.abs(minV - 1.7) <= 0.02, `recorded minimum ${minV} V`);
   expect(resets.length >= 1, "no recorded reset within 2 s");
+  expect(
+    reboots.length === resets.length,
+    `reboots ${reboots.length} resets ${resets.length}`
+  );
   const marker = serialOf(demo2.read.events, "uno");
   const markerCount = marker.split(BROWNOUT_RESET).length - 1;
   expect(
-    markerCount === resets.length,
-    `resets ${resets.length} markers ${markerCount}`
+    markerCount === reboots.length,
+    `reboots ${reboots.length} markers ${markerCount}`
   );
-  const first = resets[0];
+  const firstReboot = reboots[0];
   const markerEvent = demo2.read.events.find(
     (event) => event.kind === "serial" && event.text.includes("brownout reset")
   );
   expect(
-    first && markerEvent && msOf(first.t) === msOf(markerEvent.t),
-    "the reset and its serial line differ"
+    firstReboot && markerEvent && msOf(firstReboot.t) === msOf(markerEvent.t),
+    "the reboot and its serial line differ"
   );
+  const firstReset = resets[0];
+  expect(firstReset && firstReboot, "reset and reboot");
+  if (!firstReset || !firstReboot) throw new Error("unreachable");
+  // The rail recovers on the step after the assert, so the 66 ms hold
+  // is one millisecond less than the reset-to-reboot gap.
+  const gapMs = msOf(firstReboot.t) - msOf(firstReset.t);
+  expect(Math.abs(gapMs - 67) <= 1, `reset to reboot ${gapMs} ms`);
+  for (const frame of demo2.read.frames) {
+    if (frame.t <= firstReset.t || frame.t >= firstReboot.t) continue;
+    const board = frame.boards.uno;
+    expect(
+      board?.brownout === true &&
+        board.pins.ddr === 0 &&
+        board.pins.level === 0,
+      `driven at ${frame.t.toFixed(3)} s`
+    );
+  }
   console.log(
-    `demo 2 recording: stall ${stalled?.t.toFixed(3)} s, ` +
-      `min ${sagged?.supplies.usb?.minVoltage.toFixed(3)} V at ${sagged?.t.toFixed(3)} s, ` +
-      `reset ${first?.t.toFixed(3)} s (${resets.length})`
+    `demo 2 recording: min ${minV.toFixed(3)} V at ${minAt.toFixed(3)} s, ` +
+      `reset ${firstReset.t.toFixed(3)} s, reboot ${firstReboot.t.toFixed(3)} s ` +
+      `(${gapMs} ms, ${resets.length} cycles)`
   );
 } finally {
   demo2.attached.detach();
@@ -653,7 +683,13 @@ try {
   ];
   world.supplies = [
     { ...supply, id: "usb-hold" },
-    { ...supply, id: "usb-stall" },
+    {
+      ...supply,
+      id: "usb-stall",
+      voltage: 5,
+      currentLimit: 0.3,
+      rSeries: 0.05,
+    },
   ];
   world.wires = [
     ["usb-hold.5V", "hold.5V"],
@@ -691,7 +727,7 @@ try {
       expect(voltage >= 4.5, `hold rail ${voltage}`);
     }
     const stallSag = split.read.frames.some(
-      (frame) => (frame.supplies["usb-stall"]?.minVoltage ?? 5) < 2.7
+      (frame) => (frame.supplies["usb-stall"]?.minVoltage ?? 5) < 2.675
     );
     expect(stallSag, "the stall supply never sagged");
     const resets = split.read.events.filter((event) => event.kind === "reset");

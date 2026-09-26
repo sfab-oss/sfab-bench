@@ -71,7 +71,7 @@ const outline = buildWorldOutline(
       ["uno.5V", "servo.V+"],
       ["uno.GND", "servo.GND"],
     ],
-    supplies: [{ id: "usb", voltage: 5, currentLimit: 0.5, rDroop: 10 }],
+    supplies: [{ id: "usb", voltage: 5, currentLimit: 0.9, rSeries: 0.5 }],
   },
   { arm, gripper }
 );
@@ -182,7 +182,7 @@ expect(
 const usb = outline.supplies[0];
 expect(outline.supplies.length === 1 && usb?.id === "usb", "one supply");
 expect(
-  usb?.voltage === 5 && usb.currentLimit === 0.5 && usb.rDroop === 10,
+  usb?.voltage === 5 && usb.currentLimit === 0.9 && usb.rSeries === 0.5,
   "usb numbers"
 );
 expect(

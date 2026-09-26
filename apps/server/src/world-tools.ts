@@ -834,7 +834,7 @@ function commandAck(view: {
 export const worldTools = {
   world_status: tool({
     description:
-      'Read a world\'s shared run. world is the project-relative .world.json path from get_viewer. Returns sim time, who last played or paused, each board (running, fault, resets, brownout, driven pins such as "D9: out H"), each part (pulseUs, commandDeg, state, current, board, pin), each supply, each joint in degrees or metres, the recording extent, validator diagnostics when the document has any, and warnings (empty when none). warnings names a board whose supply is below the 16 MHz minimum, a joint more than 1° past its limit, and validator warnings. A board no supply reaches has fault "unpowered".',
+      'Read a world\'s shared run. world is the project-relative .world.json path from get_viewer. Returns sim time, who last played or paused, each board (running, fault, resets, brownout, driven pins such as "D9: out H"), each part (pulseUs, commandDeg, state, current, board, pin), each supply, each joint in degrees or metres, the recording extent, validator diagnostics when the document has any, and warnings (empty when none). warnings names a board whose supply is below the 16 MHz minimum, a hinge more than 1° or a slide more than 1 mm past its limit, and validator warnings. A board no supply reaches has fault "unpowered".',
     inputSchema: z.object({ world: z.string() }),
     execute: async ({ world }) => {
       const found = await openRun(world);
@@ -889,7 +889,7 @@ export const worldTools = {
   }),
   read_recording: tool({
     description:
-      "Read a world's recording for an agent. world is the project-relative .world.json path from get_viewer. Tracks look like joint:shoulder, joint:arm/shoulder, part:servo.pulseUs, supply:usb.voltage, and board:uno.pins. An unknown track is an error. Defaults to the last 5 seconds and 50 frames (max 500). Returns those tracks, plus resets, reloads, faults, and serial lines (at most 200), a provenance manifest, and warnings (empty when none). warnings cover the range: a board in the 16 MHz out-of-SOA band, a joint whose furthest limit violation is more than 1°, and validator warnings. Serial text is the last 4000 characters. truncated is set when either cap drops data.",
+      "Read a world's recording for an agent. world is the project-relative .world.json path from get_viewer. Tracks look like joint:shoulder, joint:arm/shoulder, part:servo.pulseUs, supply:usb.voltage, and board:uno.pins. An unknown track is an error. Defaults to the last 5 seconds and 50 frames (max 500). Returns those tracks, plus resets, reloads, faults, and serial lines (at most 200), a provenance manifest, and warnings (empty when none). warnings cover the range: a board in the 16 MHz out-of-SOA band, a hinge more than 1° or a slide more than 1 mm past its limit, and validator warnings. Serial text is the last 4000 characters. truncated is set when either cap drops data.",
     inputSchema: z.object({
       world: z.string(),
       from: z.number().optional(),

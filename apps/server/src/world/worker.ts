@@ -39,7 +39,17 @@ import {
   compileWorld,
   type WorldModelCounts,
 } from "./model";
-import { scaleWithVoltage, stepPartMotion, supplyVoltage } from "./power";
+import {
+  type BrownoutState,
+  DISPLAY_STALL_DEG_PER_SEC,
+  displayMotion,
+  type MotorLaw,
+  type RailMotor,
+  runningBrownout,
+  servoElectrical,
+  solveRail,
+  stepBrownout,
+} from "./power";
 import { motionRank, RunRecorder, timelineFromRead } from "./record";
 import { blankTrack, type ServoTrack, trackServo } from "./servo";
 import {
@@ -219,54 +229,65 @@ let specs: BoardSpec[] = [];
 let boards: AvrBoard[] = [];
 
 type ServoDrive = {
-  /** The live CPU. Replaced when that board's firmware reloads. */
-  board: AvrBoard;
+  /**
+   * The live CPU, or null when the servo has no signal wire.
+   * Replaced when that board's firmware reloads.
+   */
+  board: AvrBoard | null;
   pinBit: number;
   actuatorId: number;
   /** Joint whose `jnt_actfrcrange` is this servo's torque clamp. */
   jointId: number;
   jointName: string;
-  speedRadPerSec: number;
   torqueNm: number;
-  /** Part-model `supply.nominal`. Speed and torque scale by V / this. */
-  nominalVoltage: number;
-  scale: boolean;
+  law: MotorLaw;
   track: ServoTrack;
-  /** Setpoint has not reached the command after the latest track step. */
-  slewing: boolean;
+  /**
+   * Degrees from `setTarget`. The command only when there is no signal
+   * wire. A pulse owns a wired servo.
+   */
+  manualDeg: number | null;
+};
+
+/** Electrical sample the rail and the display state share this step. */
+type ServoSample = {
+  limp: boolean;
+  saturated: boolean;
+  errorRad: number;
+  omega: number;
+  fraction: number;
 };
 
 type Load = {
   partId: string;
   supplyId: string | null;
-  idleCurrent: number;
-  movingCurrent: number;
-  stallCurrent: number;
-  stall: {
-    minAngleErrorDeg: number;
-    maxVelocityDegPerSec: number;
-    holdMs: number;
-  } | null;
+  /** Electronics draw. Zero when V+ is unwired. */
+  quiescent: number;
   state: WorldPartMotion;
-  holdMs: number;
-  /** Amperes classified last step. The next voltage uses this. */
+  /** Amperes this part draws from its supply this step. */
   current: number;
   drive: ServoDrive | null;
+  sample: ServoSample | null;
+  /** Consecutive milliseconds the stall condition has held. */
+  stallMs: number;
 };
 
 type BoardPower = {
   supplyId: string | null;
-  /** Catalog amperes while a supply is connected, including during brownout. */
+  /** Catalog amperes while a supply is connected, including during reset. */
   draw: number;
+  /** Nominal BOD level, for the out-of-SOA warning. */
   brownoutVoltage: number;
+  assertVoltage: number;
   resets: number;
+  brownout: BrownoutState;
 };
 
 type SupplySpec = {
   id: string;
   voltage: number;
   currentLimit: number;
-  rDroop: number;
+  rSeries: number;
 };
 
 let loads: Load[] = [];
@@ -279,7 +300,6 @@ let partFeeds: PowerFeeds["parts"] = {};
  */
 let supplyLive: Record<string, WorldSupplyState> = {};
 /** Reused each step. Cleared at the start of the voltage and pulse passes. */
-const stepDraw = new Map<string, number>();
 const stepPulses = new Map<string, { bit: number; us: number }[]>();
 const faulted = new Set<string>();
 const rxSent = new Map<string, string>();
@@ -410,9 +430,9 @@ function sample(): WorldState | null {
   }
   const parts: Record<string, WorldPartState> = {};
   for (const load of loads) {
-    // Only a driven servo is on the wire. An unwired part still draws
-    // through `loads` when its V+ has a supply, and stays out of `parts`.
-    if (!load.drive) continue;
+    // Only a servo with a signal wire is on the wire. A setTarget
+    // command has no pulse. An unwired V+ still draws through `loads`.
+    if (!load.drive?.board) continue;
     parts[load.partId] = {
       pulseUs: load.drive?.track.pulseUs ?? null,
       commandDeg: load.drive?.track.commandDeg ?? null,
@@ -471,7 +491,9 @@ function fillRecorder(full: boolean) {
     for (let i = 0; i < lay.parts.length; i++) {
       const drive = lay.parts[i]?.drive;
       rec.pulse[i] = drive?.track.pulseUs ?? Number.NaN;
-      rec.command[i] = drive?.track.commandDeg ?? Number.NaN;
+      rec.command[i] =
+        (drive?.board ? drive.track.commandDeg : drive?.manualDeg) ??
+        Number.NaN;
     }
     for (let i = 0; i < lay.boards.length; i++) {
       const id = lay.boards[i];
@@ -525,13 +547,13 @@ function openRecorder() {
   const qposadr = sim.model.jnt_qposadr as Int32Array;
   const jntType = sim.model.jnt_type as Int32Array;
   const slide = sim.mj.mjtJoint.mjJNT_SLIDE.value;
-  const ball = sim.mj.mjtJoint.mjJNT_BALL.value;
   for (const [robot, names] of Object.entries(sim.index.jointNamesByRobot)) {
     for (const [joint, mjName] of Object.entries(names)) {
       const id = sim.mj.mj_name2id(sim.model, jointType, mjName);
       const type = jntType[id] ?? 0;
-      const kind: JointLimitKind =
-        type === slide ? "slide" : type === ball ? "ball" : "hinge";
+      // A ball joint's qpos is a quaternion. URDF has none; treat anything
+      // that is not a slide as a hinge angle.
+      const kind: JointLimitKind = type === slide ? "slide" : "hinge";
       joints.push({
         robot,
         joint,
@@ -580,13 +602,8 @@ function catalogOf(
 ): RecordingPartCatalog {
   return {
     ...(model.torqueNm !== undefined ? { torqueNm: model.torqueNm } : {}),
-    ...(model.speedDegPerSec !== undefined
-      ? { speedDegPerSec: model.speedDegPerSec }
-      : {}),
-    ...(model.voltageScale ? { voltageScale: model.voltageScale } : {}),
     ...(model.supply ? { supply: model.supply } : {}),
-    ...(model.current ? { current: model.current } : {}),
-    ...(model.stall ? { stall: model.stall } : {}),
+    ...(model.motor ? { motor: model.motor } : {}),
   };
 }
 
@@ -742,30 +759,6 @@ function loadBoards(parsed: unknown) {
 }
 
 /**
- * Both clamps. `actuator_forcerange` does not bind on its own: MuJoCo
- * then clips `qfrc_actuator` to the joint's `jnt_actfrcrange`, which the
- * URDF `effort` had set wider than the catalog. Scaling the joint range
- * with the actuator range is what makes V / V_nom, and a limp zero, the
- * torque the joint actually sees.
- */
-function setActuatorTorque(id: number, jointId: number, torque: number) {
-  if (!sim) return;
-  const range = sim.model.actuator_forcerange as Float64Array;
-  const base = id * 2;
-  range[base] = -torque;
-  range[base + 1] = torque;
-  if (jointId < 0) return;
-  const joint = sim.model.jnt_actfrcrange as Float64Array;
-  const at = jointId * 2;
-  joint[at] = -torque;
-  joint[at + 1] = torque;
-}
-
-function restingCurrent(load: Load): number {
-  return load.supplyId ? load.idleCurrent : 0;
-}
-
-/**
  * One power walk per load. `bootBoard` reads this map, so it is filled
  * before the CPUs start and not again when the servos are bound.
  */
@@ -776,7 +769,7 @@ function fillBoardPower(doc: WorldDocument) {
     id: supply.id,
     voltage: supply.voltage,
     currentLimit: supply.currentLimit,
-    rDroop: supply.rDroop,
+    rSeries: supply.rSeries,
   }));
   boardPower = new Map();
   for (const spec of boardSpecsOf(doc)) {
@@ -788,14 +781,15 @@ function fillBoardPower(doc: WorldDocument) {
       supplyId,
       draw: supplyId ? (model?.current ?? 0) : 0,
       brownoutVoltage: chip?.brownoutVoltage ?? Number.POSITIVE_INFINITY,
+      assertVoltage: chip?.brownoutAssertVoltage ?? Number.POSITIVE_INFINITY,
       resets: 0,
+      brownout: runningBrownout(),
     });
   }
 }
 
 /**
- * Wire each servo signal. An unwired V+ draws nothing. Speed and torque
- * start at the part-model numbers; each step scales them by V / V_nom.
+ * Wire each servo signal. An unwired V+ draws nothing.
  */
 function applyInputNets() {
   if (applyingInputs || inputNets.length === 0) return;
@@ -822,110 +816,146 @@ function bindPower(doc: WorldDocument) {
   const drives = servoSignalDrives(doc);
   for (const part of doc.parts) {
     const model = partModel(part.model);
-    if (!model?.current) continue;
+    if (!model?.motor || model.torqueNm === undefined) continue;
     const supplyId = partFeeds[part.id] ?? null;
     const signal = drives.find((item) => item.partId === part.id);
     let drive: ServoDrive | null = null;
-    if (signal && part.drives && sim) {
-      const bit = arduinoPinBit(signal.pin);
+    if (part.drives && sim) {
       const actuatorId = sim.index.parts[part.id];
-      const speed = model.speedDegPerSec;
-      const torque = model.torqueNm;
-      const board = boards.find((item) => item.id === signal.boardId);
       const trnid = sim.model.actuator_trnid as Int32Array;
       const jointId =
         actuatorId === undefined ? -1 : (trnid[actuatorId * 2] ?? -1);
-      if (
-        board &&
-        bit !== undefined &&
-        actuatorId !== undefined &&
-        speed !== undefined &&
-        torque !== undefined
-      ) {
-        board.watchEdge(bit);
-        setActuatorTorque(actuatorId, jointId, 0);
+      if (actuatorId !== undefined && jointId >= 0) {
+        const bit = signal ? arduinoPinBit(signal.pin) : undefined;
+        const board = signal
+          ? boards.find((item) => item.id === signal.boardId)
+          : undefined;
+        const wired = board !== undefined && bit !== undefined;
+        if (wired && board && bit !== undefined) board.watchEdge(bit);
         drive = {
-          board,
-          pinBit: bit,
+          board: wired && board ? board : null,
+          pinBit: wired && bit !== undefined ? bit : -1,
           actuatorId,
           jointId,
           jointName: `${part.drives.robot}/${part.drives.joint}`,
-          speedRadPerSec: (speed * Math.PI) / 180,
-          torqueNm: torque,
-          nominalVoltage: model.supply?.nominal ?? 0,
-          scale: model.voltageScale === "V/V_nom",
+          torqueNm: model.torqueNm,
+          law: model.motor,
           track: blankTrack(),
-          slewing: false,
+          manualDeg: null,
         };
       }
     }
     const load: Load = {
       partId: part.id,
       supplyId,
-      idleCurrent: model.current.idle,
-      movingCurrent: model.current.moving,
-      stallCurrent: model.current.stall,
-      stall: model.stall ?? null,
+      quiescent: supplyId ? model.motor.quiescent : 0,
       state: "idle",
-      holdMs: 0,
       current: 0,
       drive,
+      sample: null,
+      stallMs: 0,
     };
-    load.current = restingCurrent(load);
     loads.push(load);
   }
-  applySupplyVoltages();
+  solveSupplies();
 }
 
 function rearmServos(boardId: string, board: AvrBoard) {
   for (const load of loads) {
     const drive = load.drive;
-    if (!drive || drive.board.id !== boardId) continue;
+    if (!drive?.board || drive.board.id !== boardId) continue;
     drive.board = board;
     board.watchEdge(drive.pinBit);
     drive.track = blankTrack();
-    drive.slewing = false;
-    load.holdMs = 0;
     load.state = "idle";
-    load.current = restingCurrent(load);
-    setActuatorTorque(drive.actuatorId, drive.jointId, 0);
+    load.sample = null;
+    load.stallMs = 0;
   }
 }
 
+function jointNow(drive: ServoDrive): { qpos: number; omega: number } {
+  if (!sim) return { qpos: 0, omega: 0 };
+  const qpos = scalar(sim.data.jnt(drive.jointName).qpos as Float64Array);
+  const omega = scalar(sim.data.jnt(drive.jointName).qvel as Float64Array);
+  return { qpos, omega };
+}
+
+/** Command latched so far, measured against the joint, before this step's torque. */
+function sampleLoad(load: Load) {
+  const drive = load.drive;
+  if (!drive) {
+    load.sample = null;
+    return;
+  }
+  const { qpos, omega } = jointNow(drive);
+  const command = drive.board ? drive.track.commandDeg : drive.manualDeg;
+  const limp = command === null;
+  const errorRad = limp ? 0 : (command * Math.PI) / 180 - qpos;
+  const fraction =
+    limp || !(drive.law.eSat > 0) ? 0 : errorRad / drive.law.eSat;
+  const clamped = fraction > 1 ? 1 : fraction < -1 ? -1 : fraction;
+  load.sample = {
+    limp,
+    saturated: !limp && Math.abs(clamped) >= 1 - 1e-12,
+    errorRad,
+    omega,
+    fraction: limp ? 0 : clamped,
+  };
+}
+
 /**
- * Rail voltage for this step, from the currents `classifyLoads` stored
- * last step (and from each powered board's catalog draw). Part state is
- * not recomputed here, so a stall cannot sag the rail it is still using.
+ * Rail for this step, from the latched command and the joint velocity.
+ * A powered servo always contributes its quiescent current. A driven
+ * one also contributes `max(0, s·I_motor)`.
  */
-function applySupplyVoltages() {
-  stepDraw.clear();
-  for (const supply of supplySpecs) stepDraw.set(supply.id, 0);
-  for (const power of boardPower.values()) {
-    if (!power.supplyId) continue;
-    stepDraw.set(
-      power.supplyId,
-      (stepDraw.get(power.supplyId) ?? 0) + power.draw
-    );
-  }
-  for (const load of loads) {
-    if (!load.supplyId) continue;
-    stepDraw.set(
-      load.supplyId,
-      (stepDraw.get(load.supplyId) ?? 0) + load.current
-    );
-  }
+function solveSupplies() {
+  for (const load of loads) sampleLoad(load);
   const next: Record<string, WorldSupplyState> = {};
   for (const supply of supplySpecs) {
-    const current = stepDraw.get(supply.id) ?? 0;
-    next[supply.id] = {
-      current,
-      voltage: supplyVoltage(
-        supply.voltage,
-        supply.currentLimit,
-        supply.rDroop,
-        current
-      ),
-    };
+    let fixed = 0;
+    const motors: RailMotor[] = [];
+    for (const power of boardPower.values()) {
+      if (power.supplyId !== supply.id) continue;
+      fixed += power.draw;
+    }
+    for (const load of loads) {
+      if (load.supplyId !== supply.id) continue;
+      fixed += load.quiescent;
+      const drive = load.drive;
+      const sample = load.sample;
+      if (!drive || !sample || sample.limp) continue;
+      motors.push({
+        fraction: sample.fraction,
+        omega: sample.omega,
+        k: drive.law.k,
+        resistance: drive.law.resistance,
+      });
+    }
+    const solved = solveRail({
+      vNom: supply.voltage,
+      rSeries: supply.rSeries,
+      iLimit: supply.currentLimit,
+      fixed,
+      motors,
+    });
+    next[supply.id] = solved;
+  }
+  for (const load of loads) {
+    const drive = load.drive;
+    const sample = load.sample;
+    if (!load.supplyId || !drive || !sample) {
+      load.current = 0;
+      continue;
+    }
+    const voltage = next[load.supplyId]?.voltage ?? 0;
+    load.current = servoElectrical({
+      law: drive.law,
+      vRail: voltage,
+      errorRad: sample.errorRad,
+      omega: sample.omega,
+      limp: sample.limp,
+      torqueLimit: drive.torqueNm,
+    }).supplyCurrent;
   }
   supplyLive = next;
 }
@@ -947,15 +977,19 @@ function reloadBoard(id: string) {
   else boards.push(next);
   rearmServos(id, next);
   // The new image has not run, and this board's servos are idle. Publish
-  // the rail those currents actually draw. A sag that is still under the
-  // brownout voltage holds the new CPU in reset.
-  applySupplyVoltages();
+  // the rail those currents actually draw. A sag still under the assert
+  // threshold holds the new CPU in reset. A firmware reload is not a
+  // brown-out delay: once the rail is up, the image runs.
+  solveSupplies();
   const power = boardPower.get(id);
   if (power?.supplyId && !next.fault) {
     const voltage = supplyOf(power.supplyId);
-    if (voltage < power.brownoutVoltage) {
+    if (voltage < power.assertVoltage) {
       next.holdInReset();
+      power.brownout = { phase: "held", releaseAtMs: null };
       applyInputNets();
+    } else {
+      power.brownout = runningBrownout();
     }
   }
   rxSent.delete(id);
@@ -1018,8 +1052,8 @@ function supplyOf(id: string | null): number {
   return supplyLive[id]?.voltage ?? 0;
 }
 
-/** Apply this millisecond's pulses. Torque and slew use this step's voltage. */
-function applyServos() {
+/** Fold this step's completed pulses into the latched command. */
+function latchServos() {
   if (!sim) return;
   const simTime = sim.data.time;
   stepPulses.clear();
@@ -1029,7 +1063,7 @@ function applyServos() {
   }
   for (const load of loads) {
     const drive = load.drive;
-    if (!drive) continue;
+    if (!drive?.board) continue;
     const cpu = drive.board;
     const driven = Boolean(cpu.running && !cpu.brownout);
     const taken = driven ? stepPulses.get(cpu.id) : undefined;
@@ -1038,79 +1072,85 @@ function applyServos() {
           .filter((pulse) => pulse.bit === drive.pinBit)
           .map((pulse) => pulse.us)
       : [];
-    const voltage = supplyOf(load.supplyId);
-    const factor =
-      load.supplyId === null
-        ? 0
-        : drive.scale
-          ? scaleWithVoltage(1, voltage, drive.nominalVoltage)
-          : 1;
-    const qpos = scalar(sim.data.jnt(drive.jointName).qpos as Float64Array);
     const stepped = trackServo({
       track: drive.track,
       simTime,
       pulsesUs: widths,
-      qpos,
-      speedRadPerSec: drive.speedRadPerSec * factor,
       driven,
     });
     drive.track = stepped.track;
-    const target =
-      stepped.track.commandDeg === null
-        ? null
-        : (stepped.track.commandDeg * Math.PI) / 180;
-    drive.slewing =
-      !stepped.limp &&
-      target !== null &&
-      stepped.track.setpoint !== null &&
-      Math.abs(stepped.track.setpoint - target) > 1e-9;
-    const torque = stepped.limp ? 0 : drive.torqueNm * factor;
-    setActuatorTorque(drive.actuatorId, drive.jointId, torque);
-    if (!stepped.limp && stepped.ctrl !== null) {
-      sim.data.actuator(load.partId).ctrl = stepped.ctrl;
-    }
   }
 }
 
-/** Joint after `mj_step` decides idle, moving, or stall for the next rail. */
+/** Motor torque from the rail solved for the latched command. */
+function applyTorque() {
+  if (!sim) return;
+  for (const load of loads) {
+    const drive = load.drive;
+    const sample = load.sample;
+    if (!drive || !sample) continue;
+    const cpu = drive.board;
+    const powered = load.supplyId !== null;
+    const held = cpu !== null && (!cpu.running || cpu.brownout);
+    // The sample is the current already charged to the rail, including
+    // the step that asserts reset. A board already in reset was latched
+    // limp, so its sample carries no torque.
+    const electrical = servoElectrical({
+      law: drive.law,
+      vRail: powered ? supplyOf(load.supplyId) : 0,
+      errorRad: sample.errorRad,
+      omega: sample.omega,
+      limp: !powered || sample.limp,
+      torqueLimit: drive.torqueNm,
+    });
+    sim.data.actuator(load.partId).ctrl = electrical.torque;
+    if (held) drive.track = blankTrack();
+  }
+}
+
+/** Display state from the sample that solved the rail and the joint after the step. */
 function classifyLoads() {
   if (!sim) return;
   for (const load of loads) {
     const drive = load.drive;
-    if (!load.supplyId || !drive || !load.stall) {
+    const sample = load.sample;
+    if (!drive || !sample) {
       load.state = "idle";
-      load.holdMs = 0;
-      load.current = restingCurrent(load);
+      load.stallMs = 0;
       continue;
     }
-    const qpos = scalar(sim.data.jnt(drive.jointName).qpos as Float64Array);
-    const qvel = scalar(sim.data.jnt(drive.jointName).qvel as Float64Array);
-    const stepped = stepPartMotion({
-      holdMs: load.holdMs,
-      limp: drive.track.commandDeg === null,
-      slewing: drive.slewing,
-      commandDeg: drive.track.commandDeg,
-      measuredDeg: (qpos * 180) / Math.PI,
-      velocityDegPerSec: (qvel * 180) / Math.PI,
-      stall: load.stall,
-      current: {
-        idle: load.idleCurrent,
-        moving: load.movingCurrent,
-        stall: load.stallCurrent,
-      },
-      dtMs: 1,
+    const omega = scalar(sim.data.jnt(drive.jointName).qvel as Float64Array);
+    const stallOmega = (DISPLAY_STALL_DEG_PER_SEC * Math.PI) / 180;
+    const stalling =
+      !sample.limp && sample.saturated && Math.abs(omega) < stallOmega;
+    load.stallMs = stalling ? load.stallMs + 1 : 0;
+    load.state = displayMotion({
+      limp: sample.limp,
+      saturated: sample.saturated,
+      errorRad: sample.errorRad,
+      omega,
+      stallForMs: load.stallMs,
     });
-    load.state = stepped.state;
-    load.holdMs = stepped.holdMs;
-    load.current = stepped.current;
   }
 }
 
+function stepBoard(board: AvrBoard) {
+  if (!board.running || board.fault) return;
+  try {
+    board.stepMillis();
+  } catch (err: unknown) {
+    board.stop(thrownMessage(err));
+  }
+  noteFault(board);
+}
+
 /**
- * One millisecond. The rail is the previous step's currents. A board
- * under its brownout voltage does not execute, and its pins float, so
- * the servo goes limp. MuJoCo still steps. Voltage back at the brownout
- * threshold boots the same image from address 0.
+ * One millisecond. Boards that are already running execute first, so this
+ * step's pulses are the command. The rail is solved from that command and
+ * the joint velocity. A rail below 2.675 V asserts reset on this step.
+ * The torque still matches the current charged for the step; the pins
+ * are Hi-Z for the recording. After the rail rises above 2.725 V the
+ * CPU stays in reset for 66 ms, then the first instruction runs.
  */
 function advanceOne() {
   if (!sim) return;
@@ -1118,46 +1158,60 @@ function advanceOne() {
     throwOnStep = false;
     throw new Error("injected step fault");
   }
-  applySupplyVoltages();
+  const already = new Set<string>();
+  for (const board of boards) {
+    const power = boardPower.get(board.id);
+    if (!power?.supplyId || power.brownout.phase !== "run") continue;
+    stepBoard(board);
+    already.add(board.id);
+  }
+  latchServos();
+  solveSupplies();
+  const stepEndMs = simMs() + 1;
   for (const board of boards) {
     const power = boardPower.get(board.id);
     if (!power?.supplyId || board.fault) continue;
     const voltage = supplyOf(power.supplyId);
-    if (voltage < power.brownoutVoltage) {
-      if (!board.brownout) {
-        board.holdInReset();
-        applyInputNets();
-      }
+    const stepped = stepBrownout(power.brownout, voltage, stepEndMs);
+    power.brownout = {
+      phase: stepped.phase,
+      releaseAtMs: stepped.releaseAtMs,
+    };
+    if (stepped.assertReset) {
+      board.holdInReset();
+      applyInputNets();
+      pendingNotes.push({ kind: "reset", board: board.id });
       continue;
     }
-    if (board.brownout) {
-      if (!board.reboot()) continue;
-      applyInputNets();
-      const regs = board.peekRegs();
-      const pins = board.peekPins();
-      power.resets += 1;
-      pendingNotes.push({ kind: "reset", board: board.id });
-      pendingNotes.push({ kind: "reboot", board: board.id });
-      if (regs) {
-        post({
-          type: "brownoutBoot",
-          generation,
-          board: board.id,
-          regs,
-          pins,
-        });
-      }
-      rearmServos(board.id, board);
+    if (!stepped.reboot) continue;
+    if (!board.reboot()) continue;
+    applyInputNets();
+    const regs = board.peekRegs();
+    const pins = board.peekPins();
+    power.resets += 1;
+    pendingNotes.push({ kind: "reboot", board: board.id });
+    if (regs) {
+      post({
+        type: "brownoutBoot",
+        generation,
+        board: board.id,
+        regs,
+        pins,
+      });
     }
-    if (!board.running) continue;
-    try {
-      board.stepMillis();
-    } catch (err: unknown) {
-      board.stop(thrownMessage(err));
-    }
-    noteFault(board);
+    rearmServos(board.id, board);
   }
-  applyServos();
+  for (const board of boards) {
+    if (already.has(board.id)) continue;
+    const power = boardPower.get(board.id);
+    if (!power || power.brownout.phase !== "run") continue;
+    stepBoard(board);
+  }
+  // A reboot this step may have produced the first pulses. Latch them
+  // before the torque, without solving the rail again: the hold ended
+  // on a recovered rail.
+  latchServos();
+  applyTorque();
   sim.mj.mj_step(sim.model, sim.data);
   classifyLoads();
   recordStep();
@@ -1178,7 +1232,6 @@ function dispose() {
   supplySpecs = [];
   partFeeds = {};
   supplyLive = {};
-  stepDraw.clear();
   stepPulses.clear();
   specs = [];
   files = null;
@@ -1361,6 +1414,11 @@ function step(n: number, pauseBy?: WorldSender, request?: number) {
   }
 }
 
+/**
+ * Command a servo that has no signal wire. The angle is the motor-law
+ * command, the same input a pulse would be. A signal wire owns the
+ * servo, so this leaves that joint alone.
+ */
 function setTarget(partId: string, radians: number) {
   if (!sim) return;
   if (!Number.isFinite(radians)) {
@@ -1372,7 +1430,9 @@ function setTarget(partId: string, radians: number) {
     fail([], `no actuator for part "${partId}".`);
     return;
   }
-  sim.data.actuator(partId).ctrl = radians;
+  const drive = loads.find((item) => item.partId === partId)?.drive;
+  if (!drive || drive.board) return;
+  drive.manualDeg = (radians * 180) / Math.PI;
 }
 
 function answerRecord(message: Extract<ToWorker, { type: "record" }>) {

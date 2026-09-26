@@ -503,7 +503,7 @@ function SupplyBody({
         }
       />
       <Field label="Limit" value={info ? ampsText(info.currentLimit) : "—"} />
-      <Field label="Droop" value={info ? `${info.rDroop} Ω` : "—"} />
+      <Field label="Series" value={info ? `${info.rSeries} Ω` : "—"} />
       <Field label="Feeds" value={feedText(info)} />
     </>
   );

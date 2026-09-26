@@ -28,7 +28,19 @@ import {
   readRecording,
   stopWorld,
 } from "./world/host";
-import { scaleWithVoltage, stepPartMotion, supplyVoltage } from "./world/power";
+import {
+  BOD_ASSERT_V,
+  BOD_RELEASE_V,
+  displayMotion,
+  noLoadSpeedRad,
+  RESET_HOLD_MS,
+  runningBrownout,
+  servoElectrical,
+  solveRail,
+  stallCurrent,
+  stallTorque,
+  stepBrownout,
+} from "./world/power";
 import { powerFeeds } from "./world/wiring";
 
 /**
@@ -60,148 +72,154 @@ expect(lost.parts.servo === null, "an unwired V+ is unpowered");
 expect(lost.boards.uno === "usb", "the board stays on usb");
 console.log("power nets: usb feeds uno and servo; unwired V+ draws nothing");
 
-const usb = supplyPresets.usb;
+const law = partModels.sg90.motor;
+expect(law, "sg90 motor law");
+if (!law) throw new Error("unreachable");
+const iStall5 = stallCurrent(5, law.resistance);
 expect(
-  supplyVoltage(usb.voltage, usb.currentLimit, usb.rDroop, 0.3) === 5,
-  "300 mA stays at 5 V"
+  iStall5 >= 0.7 * 0.95 && iStall5 <= 0.7 * 1.05,
+  `stall current ${iStall5}`
 );
+const tau48 = stallTorque(4.8, law);
+expect(tau48 >= 0.177 * 0.95 && tau48 <= 0.177 * 1.05, `stall torque ${tau48}`);
+const noLoadDeg = (noLoadSpeedRad(4.8, law.k) * 180) / Math.PI;
 expect(
-  supplyVoltage(usb.voltage, usb.currentLimit, usb.rDroop, 0.75) === 2.5,
-  "750 mA sags to 2.5 V"
+  Math.abs(noLoadDeg - 600) < 1,
+  `ideal no-load speed ${noLoadDeg.toFixed(2)} °/s`
 );
-expect(
-  supplyVoltage(usb.voltage, usb.currentLimit, usb.rDroop, 1.2) === 0,
-  "1.2 A clamps at 0 V"
-);
-console.log("supply math: 300 mA → 5 V, 750 mA → 2.5 V, 1.2 A → 0 V");
 
-const rule = partModels.sg90.stall;
-const currents = partModels.sg90.current;
-expect(rule && currents, "sg90 publishes a stall rule and currents");
-if (!rule || !currents) throw new Error("unreachable");
+const fixed = boardModels.uno.current + law.quiescent;
+const stalled: {
+  fraction: number;
+  omega: number;
+  k: number;
+  resistance: number;
+}[] = [{ fraction: 1, omega: 0, k: law.k, resistance: law.resistance }];
+const usbRail = solveRail({
+  vNom: supplyPresets.usb.voltage,
+  rSeries: supplyPresets.usb.rSeries,
+  iLimit: supplyPresets.usb.currentLimit,
+  fixed,
+  motors: stalled,
+});
+expect(
+  usbRail.voltage >= 4.6 &&
+    usbRail.voltage <= 4.7 &&
+    usbRail.current < supplyPresets.usb.currentLimit,
+  `usb stall rail ${usbRail.voltage} V ${usbRail.current} A`
+);
+const light = solveRail({
+  vNom: supplyPresets.usb.voltage,
+  rSeries: supplyPresets.usb.rSeries,
+  iLimit: supplyPresets.usb.currentLimit,
+  fixed,
+  motors: [],
+});
+expect(
+  light.current === fixed &&
+    Math.abs(light.voltage - (5 - supplyPresets.usb.rSeries * fixed)) < 1e-9,
+  `usb under the limit ${light.voltage} V`
+);
+const benchRail = solveRail({
+  vNom: 5,
+  rSeries: supplyPresets.bench.rSeries,
+  iLimit: 0.3,
+  fixed,
+  motors: stalled,
+});
+expect(
+  Math.abs(benchRail.current - 0.3) < 1e-9 &&
+    benchRail.voltage > 1.6 &&
+    benchRail.voltage < 1.9,
+  `bench stall rail ${benchRail.voltage} V ${benchRail.current} A`
+);
+console.log(
+  `rail: usb stall ${usbRail.voltage.toFixed(3)} V at ${usbRail.current.toFixed(3)} A, ` +
+    `bench 0.3 A stall ${benchRail.voltage.toFixed(3)} V`
+);
 
-let holdMs = 0;
-let motion = stepPartMotion({
-  holdMs,
+const saturated = servoElectrical({
+  law,
+  vRail: 5,
+  errorRad: 1,
+  omega: 0,
   limp: false,
-  slewing: false,
-  commandDeg: 180,
-  measuredDeg: 151.4,
-  velocityDegPerSec: 0,
-  stall: rule,
-  current: currents,
-  dtMs: 1,
+  torqueLimit: 1,
 });
-for (let ms = 1; ms <= rule.holdMs; ms++) {
-  motion = stepPartMotion({
-    holdMs,
-    limp: false,
-    slewing: false,
-    commandDeg: 180,
-    measuredDeg: 151.4,
-    velocityDegPerSec: 0,
-    stall: rule,
-    current: currents,
-    dtMs: 1,
-  });
-  holdMs = motion.holdMs;
-  if (ms < rule.holdMs) {
-    expect(motion.state !== "stall", `stall fired at ${ms} ms`);
-    expect(motion.state === "moving", `buildup state ${motion.state}`);
-    expect(
-      motion.current === currents.moving,
-      "buildup draws the moving current"
-    );
-  }
-}
-expect(motion.state === "stall", `after ${rule.holdMs} ms: ${motion.state}`);
-expect(motion.current === currents.stall, "stall draws the stall current");
-expect(holdMs === rule.holdMs, `hold ${holdMs}`);
-
-const nudged = stepPartMotion({
-  holdMs: rule.holdMs - 1,
+expect(
+  Math.abs(saturated.supplyCurrent - (law.quiescent + 5 / law.resistance)) <
+    1e-9,
+  `stall supply ${saturated.supplyCurrent}`
+);
+const braking = servoElectrical({
+  law,
+  vRail: 5,
+  errorRad: 1,
+  omega: 20,
   limp: false,
-  slewing: false,
-  commandDeg: 180,
-  measuredDeg: 151.4,
-  velocityDegPerSec: rule.maxVelocityDegPerSec,
-  stall: rule,
-  current: currents,
-  dtMs: 1,
+  torqueLimit: 1,
 });
-expect(nudged.holdMs === 0, "velocity at the threshold clears the hold");
-expect(nudged.state !== "stall", "a cleared hold is not a stall");
-
-holdMs = 0;
-for (let ms = 1; ms <= rule.holdMs; ms++) {
-  motion = stepPartMotion({
-    holdMs,
-    limp: false,
-    slewing: false,
-    commandDeg: 180,
-    measuredDeg: 151.4,
-    velocityDegPerSec: 0,
-    stall: rule,
-    current: currents,
-    dtMs: 1,
-  });
-  holdMs = motion.holdMs;
-  if (ms < rule.holdMs)
-    expect(motion.state !== "stall", `rebuilt stall at ${ms}`);
-}
-expect(motion.state === "stall", "a fresh 50 ms hold stalls again");
-
-holdMs = 0;
-for (let ms = 0; ms < 200; ms++) {
-  motion = stepPartMotion({
-    holdMs,
-    limp: false,
-    slewing: false,
-    commandDeg: 90,
-    measuredDeg: 90 - rule.minAngleErrorDeg,
-    velocityDegPerSec: 0,
-    stall: rule,
-    current: currents,
-    dtMs: 1,
-  });
-  holdMs = motion.holdMs;
-  expect(
-    motion.state !== "stall",
-    `error of ${rule.minAngleErrorDeg}° stalled`
-  );
-  expect(motion.state === "idle", `small error state ${motion.state}`);
-  expect(
-    motion.current === currents.idle,
-    "a settled servo draws idle current"
-  );
-}
-
-const limp = stepPartMotion({
-  holdMs: 40,
-  limp: true,
-  slewing: false,
-  commandDeg: 180,
-  measuredDeg: 151.4,
-  velocityDegPerSec: 0,
-  stall: rule,
-  current: currents,
-  dtMs: 1,
+expect(braking.iMotor < 0, "back-EMF above the drive is braking");
+expect(
+  Math.abs(braking.supplyCurrent - law.quiescent) < 1e-9,
+  `braking still drew ${braking.supplyCurrent}`
+);
+const coast = solveRail({
+  vNom: 5,
+  rSeries: 0.5,
+  iLimit: 0.2,
+  fixed: 0.06,
+  motors: [{ fraction: 0, omega: 20, k: law.k, resistance: law.resistance }],
 });
 expect(
-  limp.state === "idle" && limp.holdMs === 0 && limp.current === currents.idle,
-  "no signal is idle and clears the hold"
+  Math.abs(coast.current - 0.06) < 1e-9 && coast.voltage > 4.9,
+  `zero fraction rail ${coast.voltage} V ${coast.current} A`
 );
-console.log("stall rule: 50 ms hold, a fast sample resets it, 5° never stalls");
-
-const speed = partModels.sg90.speedDegPerSec ?? 0;
-const nominal = partModels.sg90.supply?.nominal ?? 0;
-expect(speed > 0 && nominal > 0, "sg90 speed and nominal voltage");
-const at4 = scaleWithVoltage(speed, 4, nominal);
+const stallNow = {
+  limp: false,
+  saturated: true,
+  errorRad: 1,
+  omega: 0,
+};
 expect(
-  Math.abs(at4 / speed - 0.8) < 1e-12,
-  `4 V slew ${at4} is not 0.8× ${speed}`
+  displayMotion({ ...stallNow, stallForMs: 19 }) === "moving",
+  "19 ms of stall still shows moving"
 );
-console.log(`voltage scale: 4 V slew is ${at4} deg/s, 0.8× ${speed}`);
+expect(
+  displayMotion({ ...stallNow, stallForMs: 20 }) === "stall",
+  "20 ms of stall shows stall"
+);
+
+const reset = runningBrownout();
+const held = stepBrownout(reset, BOD_ASSERT_V - 0.001, 10);
+expect(held.assertReset && held.phase === "held", "2.674 V asserts");
+expect(
+  !stepBrownout(reset, BOD_ASSERT_V, 10).assertReset,
+  "2.675 V does not assert"
+);
+const waiting = stepBrownout(held, BOD_RELEASE_V, 11);
+expect(
+  waiting.phase === "held" && waiting.releaseAtMs === null,
+  "2.725 V stays held"
+);
+const released = stepBrownout(held, BOD_RELEASE_V + 0.001, 12);
+expect(
+  released.phase === "delay" && released.releaseAtMs === 12,
+  "2.726 V starts the delay"
+);
+const early = stepBrownout(released, 5, 12 + RESET_HOLD_MS - 1);
+expect(!early.reboot && early.phase === "delay", "65 ms is still in reset");
+const booted = stepBrownout(released, 5, 12 + RESET_HOLD_MS);
+expect(
+  booted.reboot && booted.phase === "run",
+  "66 ms is the first instruction"
+);
+const dipped = stepBrownout(released, BOD_ASSERT_V - 0.001, 20);
+expect(
+  dipped.phase === "held" && dipped.releaseAtMs === null && !dipped.assertReset,
+  "a dip during the delay restarts the hold"
+);
+console.log("brownout: assert 2.675 V, release 2.725 V, hold 66 ms");
 
 const brownoutV = chipModels.atmega328p.brownoutVoltage;
 const inBand = atmega328pSoaWarning(3.2, brownoutV);
@@ -418,40 +436,69 @@ const stallRows = await sample(
     );
   }
 );
-const stallAt = stallRows.find(
-  (row) => row.state.parts?.servo?.state === "stall"
-);
+const benchOf = (row: Row) => row.state.supplies?.bench;
 const sagAt = stallRows.find(
-  (row) => (row.state.supplies?.usb?.voltage ?? 5) < 2.7
+  (row) => (benchOf(row)?.voltage ?? 5) < BOD_ASSERT_V
 );
 const resetAt = stallRows.find(
   (row) => row.state.boards.uno?.brownout === true
+);
+const recoveryAt = stallRows.find(
+  (row) =>
+    row.state.boards.uno?.brownout === true &&
+    (row.state.boards.uno.resets ?? 0) === 0 &&
+    (benchOf(row)?.voltage ?? 0) > BOD_RELEASE_V
 );
 const rebootAt = stallRows.find(
   (row) => (row.state.boards.uno?.resets ?? 0) >= 1
 );
 const secondBoot = stallRows.find((row) => bootCount(row.serial.uno) >= 2);
-expect(stallAt, "no stall sample within 2 s");
+expect(sagAt, "rail never fell below 2.675 V");
+const startAngle = stallRows[0]?.state.joints.arm?.shoulder ?? 0;
+let benchMin = Infinity;
+let armPeak = 0;
+let armAt = 0;
+for (const row of stallRows) {
+  const voltage = benchOf(row)?.voltage ?? 5;
+  if (voltage < benchMin) benchMin = voltage;
+  const angle = row.state.joints.arm?.shoulder ?? startAngle;
+  const moved = Math.abs(((angle - startAngle) * 180) / Math.PI);
+  if (moved > armPeak) {
+    armPeak = moved;
+    armAt = row.state.simTime;
+  }
+}
+// Each assert step's torque leaves a velocity that coasts while the
+// winding is open, so the shoulder walks a few degrees. It does not
+// reach the stop. 4.1° at 2 s on this fit.
 expect(
-  stallAt?.state.parts?.servo?.current === currents.stall,
-  "stall current"
+  armPeak < 5,
+  `arm moved ${armPeak.toFixed(3)}° at ${armAt.toFixed(3)} s`
 );
-expect(sagAt, "rail never fell below 2.7 V");
 expect(
-  sagAt !== undefined &&
-    Math.abs((sagAt.state.supplies?.usb?.voltage ?? 0) - 2.5) < 1e-6,
-  `sag voltage ${sagAt?.state.supplies?.usb?.voltage}`
+  Math.abs(benchMin - 1.7) <= 0.02,
+  `bench rail minimum ${benchMin.toFixed(3)} V`
 );
-expect(resetAt, "board never entered brownout");
-expect(
-  resetAt?.state.boards.uno?.pins?.ddr === 0 &&
-    resetAt.state.boards.uno.pins.level === 0,
-  `pins while held ddr ${resetAt?.state.boards.uno?.pins?.ddr} level ${resetAt?.state.boards.uno?.pins?.level}`
+expect(resetAt && recoveryAt && rebootAt, "reset did not recover and reboot");
+if (!resetAt || !recoveryAt || !rebootAt) throw new Error("unreachable");
+const holdMs = Math.round(
+  (rebootAt.state.simTime - recoveryAt.state.simTime) * 1000
 );
-expect(rebootAt, "board never counted a reset");
+expect(Math.abs(holdMs - RESET_HOLD_MS) <= 1, `reset hold ${holdMs} ms`);
+for (const row of stallRows) {
+  if (row.state.simTime < resetAt.state.simTime) continue;
+  if (row.state.simTime >= rebootAt.state.simTime) break;
+  const pins = row.state.boards.uno?.pins;
+  expect(
+    row.state.boards.uno?.brownout === true &&
+      pins?.ddr === 0 &&
+      pins.level === 0,
+    `driven during reset at ${row.state.simTime}`
+  );
+}
 expect(
-  rebootAt?.serial.uno?.includes("— brownout reset —"),
-  `marker missing in ${JSON.stringify(rebootAt?.serial.uno)}`
+  rebootAt.serial.uno?.includes("— brownout reset —"),
+  `marker missing in ${JSON.stringify(rebootAt.serial.uno)}`
 );
 expect(secondBoot, "firmware did not print boot a second time");
 expect(
@@ -459,12 +506,61 @@ expect(
   `second boot at ${secondBoot?.state.simTime}`
 );
 console.log(
-  `demo 2: stall ${stallAt?.state.simTime.toFixed(3)} s, ` +
-    `sag ${sagAt?.state.simTime.toFixed(3)} s, ` +
-    `reset ${resetAt?.state.simTime.toFixed(3)} s, ` +
-    `reboot ${rebootAt?.state.simTime.toFixed(3)} s, ` +
-    `second boot ${secondBoot?.state.simTime.toFixed(3)} s`
+  `demo 2: min ${benchMin.toFixed(3)} V, ` +
+    `reset ${resetAt.state.simTime.toFixed(3)} s, ` +
+    `reboot ${holdMs} ms after ${recoveryAt.state.simTime.toFixed(3)} s, arm ${armPeak.toFixed(2)}°`
 );
+
+const usbRoot = mkdtempSync(join(tmpdir(), "sfab-power-usb-"));
+try {
+  cpSync(armDir, usbRoot, { recursive: true });
+  const usbWorld = loadWorld(usbRoot, "arm-stall.world.json");
+  usbWorld.supplies = [
+    {
+      id: "usb",
+      voltage: supplyPresets.usb.voltage,
+      currentLimit: supplyPresets.usb.currentLimit,
+      rSeries: supplyPresets.usb.rSeries,
+    },
+  ];
+  usbWorld.wires = usbWorld.wires.map((wire) => [
+    wire[0].replace(/^bench\./, "usb."),
+    wire[1].replace(/^bench\./, "usb."),
+  ]);
+  writeFileSync(
+    join(usbRoot, "usb-stall.world.json"),
+    JSON.stringify(usbWorld)
+  );
+  const usbRows = await sample(usbRoot, "usb-stall.world.json", 2000, 1, [
+    "uno",
+  ]);
+  let usbMin = Infinity;
+  for (const row of usbRows) {
+    const voltage = row.state.supplies?.usb?.voltage ?? Number.NaN;
+    if (voltage < usbMin) usbMin = voltage;
+    expect(
+      row.state.boards.uno?.brownout !== true,
+      "usb stall reset the board"
+    );
+    expect(
+      (row.state.boards.uno?.resets ?? 0) === 0,
+      "usb stall counted a reset"
+    );
+  }
+  expect(usbMin >= 4.6 && usbMin <= 4.7, `usb stall minimum ${usbMin} V`);
+  const blocked = usbRows.filter((row) => row.state.simTime >= 1.5);
+  expect(blocked.length > 100, "usb stall tail");
+  expect(
+    blocked.every((row) => row.state.parts?.servo?.state === "stall"),
+    `usb blocked joint shows ${blocked.at(-1)?.state.parts?.servo?.state}`
+  );
+  const usbCurrent = blocked.at(-1)?.state.supplies?.usb?.current ?? Number.NaN;
+  console.log(
+    `usb stall: minimum ${usbMin.toFixed(3)} V at ${usbCurrent.toFixed(3)} A, no reset in 2 s, stalled against the stop`
+  );
+} finally {
+  rmSync(usbRoot, { recursive: true, force: true });
+}
 
 function twoArm(root: string, sharedRail: boolean): string {
   const world = loadWorld(root, "arm.world.json");
@@ -512,12 +608,20 @@ function twoArm(root: string, sharedRail: boolean): string {
   ];
   const name = sharedRail ? "shared.world.json" : "split.world.json";
   if (sharedRail) {
-    world.supplies = [{ ...supply, id: "usb" }];
+    world.supplies = [
+      {
+        ...supply,
+        id: "bench",
+        voltage: 5,
+        currentLimit: 0.3,
+        rSeries: supplyPresets.bench.rSeries,
+      },
+    ];
     world.wires = [
-      ["usb.5V", "hold.5V"],
-      ["usb.GND", "hold.GND"],
-      ["usb.5V", "stall.5V"],
-      ["usb.GND", "stall.GND"],
+      ["bench.5V", "hold.5V"],
+      ["bench.GND", "hold.GND"],
+      ["bench.5V", "stall.5V"],
+      ["bench.GND", "stall.GND"],
       ["hold.D9", "hold-servo.signal"],
       ["hold.5V", "hold-servo.V+"],
       ["hold.GND", "hold-servo.GND"],
@@ -528,7 +632,13 @@ function twoArm(root: string, sharedRail: boolean): string {
   } else {
     world.supplies = [
       { ...supply, id: "usb-hold" },
-      { ...supply, id: "usb-stall" },
+      {
+        ...supply,
+        id: "bench-stall",
+        voltage: 5,
+        currentLimit: 0.3,
+        rSeries: supplyPresets.bench.rSeries,
+      },
     ];
     world.wires = [
       ["usb-hold.5V", "hold.5V"],
@@ -536,8 +646,8 @@ function twoArm(root: string, sharedRail: boolean): string {
       ["hold.D9", "hold-servo.signal"],
       ["hold.5V", "hold-servo.V+"],
       ["hold.GND", "hold-servo.GND"],
-      ["usb-stall.5V", "stall.5V"],
-      ["usb-stall.GND", "stall.GND"],
+      ["bench-stall.5V", "stall.5V"],
+      ["bench-stall.GND", "stall.GND"],
       ["stall.D9", "stall-servo.signal"],
       ["stall.5V", "stall-servo.V+"],
       ["stall.GND", "stall-servo.GND"],
@@ -559,14 +669,16 @@ try {
     const voltage = row.state.supplies?.["usb-hold"]?.voltage ?? Number.NaN;
     if (voltage < holdMin) holdMin = voltage;
     const board = row.state.boards.hold;
-    expect(voltage >= 4.999, `split hold rail ${voltage} V`);
     expect(board?.resets === 0 && board.brownout !== true, "split hold reset");
   }
+  // A step from rest is the ω = 0 stall point on 0.5 Ω, about 4.64 V.
+  // 4.9 is the cruise rail and does not cover that sample.
+  expect(holdMin >= 4.6, `split hold rail ${holdMin} V`);
   const stallSide = split.find(
     (row) => (row.state.boards.stall?.resets ?? 0) >= 1
   );
   const stallSag = split.find(
-    (row) => (row.state.supplies?.["usb-stall"]?.voltage ?? 5) < 2.7
+    (row) => (row.state.supplies?.["bench-stall"]?.voltage ?? 5) < BOD_ASSERT_V
   );
   expect(stallSag, "stall supply never sagged");
   expect(stallSide, "stall board never reset");
@@ -584,13 +696,11 @@ try {
     "hold",
     "stall",
   ]);
-  // Both boards and both servos sit on the one USB rail. The stall
-  // servo's 700 mA plus the two Uno currents is already over the 500 mA
-  // limit, so the rail falls below 2.7 V for every board on it. The hold
-  // board resets even though its own servo is not stalled, and that cuts
-  // the hold arm's signal.
+  // Both boards and both servos sit on one 5 V / 0.3 A bench rail.
+  // The stall servo's current pulls that rail through brownout, so the
+  // hold board resets even though its own servo is not stalled.
   const sharedSag = shared.find(
-    (row) => (row.state.supplies?.usb?.voltage ?? 5) < 2.7
+    (row) => (row.state.supplies?.bench?.voltage ?? 5) < BOD_ASSERT_V
   );
   const holdReset = shared.find(
     (row) => (row.state.boards.hold?.resets ?? 0) >= 1
@@ -627,53 +737,49 @@ try {
       }
       expect(browned, "never saw a brownout to reload during");
       if (!browned) throw new Error("unreachable");
-      const brownedRail = browned.supplies?.usb;
+      const brownedRail = browned.supplies?.bench;
       const brownedPart = browned.parts?.servo;
       expect(
         browned.boards.uno?.brownout === true &&
-          (brownedRail?.voltage ?? 5) < chipModels.atmega328p.brownoutVoltage &&
-          brownedPart?.state === "idle" &&
-          brownedPart.current === partModels.sg90.current?.idle,
+          (brownedRail?.voltage ?? 5) < BOD_ASSERT_V,
         `brownout sample ${browned.boards.uno?.brownout} ${brownedRail?.voltage} V ${brownedPart?.state} ${brownedPart?.current} A`
       );
       const hexPath = join(reloadRoot, "firmware/stall/stall.hex");
       const from = trace.events.length;
       writeFileSync(hexPath, readFileSync(hexPath));
       const published = await stateAfter(trace.events, from);
-      const rail = published.supplies?.usb;
+      const rail = published.supplies?.bench;
       const part = published.parts?.servo;
       const board = published.boards.uno;
-      const idle = partModels.sg90.current?.idle ?? 0;
-      const draw = boardModels.uno.current + idle;
+      const quiescent = partModels.sg90.motor?.quiescent ?? 0;
+      const draw = boardModels.uno.current + quiescent;
       expect(
         published.simTime.toFixed(3) === browned.simTime.toFixed(3),
         `reload moved sim to ${published.simTime}`
       );
       expect(rail, "reload dropped the supply");
       expect(
-        part?.state === "idle" && part.current === idle,
-        "servo stays idle"
+        part?.state === "idle" &&
+          Math.abs((part.current ?? -1) - quiescent) < 1e-9,
+        "servo stays at quiescent current"
       );
       if (!rail) throw new Error("unreachable");
-      const voltage = supplyVoltage(
-        supplyPresets.usb.voltage,
-        supplyPresets.usb.currentLimit,
-        supplyPresets.usb.rDroop,
-        rail.current
-      );
+      const solved = solveRail({
+        vNom: 5,
+        rSeries: supplyPresets.bench.rSeries,
+        iLimit: 0.3,
+        fixed: draw,
+        motors: [],
+      });
       expect(
         Math.abs(rail.current - draw) < 1e-9 &&
-          Math.abs(rail.voltage - voltage) < 1e-9,
-        `rail ${rail.voltage} V at ${rail.current} A, formula ${voltage} V from ${draw} A`
+          Math.abs(rail.voltage - solved.voltage) < 1e-6,
+        `rail ${rail.voltage} V at ${rail.current} A, formula ${solved.voltage} V from ${draw} A`
       );
-      const under = rail.voltage < chipModels.atmega328p.brownoutVoltage;
       expect(
-        under
-          ? board?.brownout === true && board.running === false
-          : board?.brownout === false && board.running === true,
+        board?.brownout === false && board.running === true,
         `running ${board?.running} brownout ${board?.brownout} at ${rail.voltage} V`
       );
-      expect(!under && rail.voltage === 5, `recovered rail ${rail.voltage} V`);
       console.log(
         `hex reload during brownout: ${rail.voltage.toFixed(2)} V, ${rail.current} A, running ${board?.running}, brownout ${board?.brownout}`
       );
@@ -701,7 +807,7 @@ try {
           size: [0.07, 0.05, 0.01],
         },
       ],
-      supplies: [{ id: "usb", voltage: 5, currentLimit: 0, rDroop: 36 }],
+      supplies: [{ id: "usb", voltage: 5, currentLimit: 1, rSeries: 36 }],
       parts: [],
       wires: [
         ["usb.5V", "uno.5V"],

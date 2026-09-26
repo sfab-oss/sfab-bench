@@ -92,7 +92,7 @@ export function arduinoPinMask(
   return (portD & 0xff) | ((portB & 0x3f) << 8) | ((portC & 0x3f) << 14);
 }
 
-/** Servo electrical state. Current follows this, not the supply voltage. */
+/** Servo display state. The motor current does not follow this. */
 export type WorldPartMotion = "idle" | "moving" | "stall";
 
 /**
@@ -108,15 +108,15 @@ export type WorldPartState = {
   commandDeg: number | null;
   /** Idle, moving, or stall. Absent on an older client. */
   state?: WorldPartMotion;
-  /** Amperes. Follows `state`. An unwired supply pin is 0. */
+  /** Amperes drawn from the supply. An unwired supply pin is 0. */
   current?: number;
 };
 
 /** One supply in the shared run. Optional on `WorldState` for older clients. */
 export type WorldSupplyState = {
-  /** Volts after droop, never negative. */
+  /** Volts on the rail this step, never negative. */
   voltage: number;
-  /** Amperes drawn from this supply, from the previous step's part states. */
+  /** Amperes drawn from this supply this step. */
   current: number;
 };
 
@@ -138,7 +138,7 @@ export type WorldBoardState = {
   pins?: WorldPinState;
   /** Brownout reboots since this world was loaded. Absent on older clients. */
   resets?: number;
-  /** True while the supply is under the chip's brownout voltage. */
+  /** True while the CPU is in reset, including the delay after the rail recovers. */
   brownout?: boolean;
   /**
    * Set while a running ATmega328P supply is above brownout and below
@@ -190,14 +190,14 @@ export function degreesPastLimit(
   return pastLimitAmount(qpos, lower, upper, "hinge");
 }
 
-/** Hinge and ball warn in degrees. A slide warns in metres. */
-export type JointLimitKind = "hinge" | "ball" | "slide";
+/** A hinge warns in degrees. A slide warns in metres. URDF has no ball joints. */
+export type JointLimitKind = "hinge" | "slide";
 
 /** A slide joint warns once it is past its limit by more than 1 mm. */
 export const SLIDE_LIMIT_WARN_M = 0.001;
 
 /**
- * Overshoot in the unit the warning uses. Hinge and ball are degrees.
+ * Overshoot in the unit the warning uses. A hinge is degrees.
  * A slide stays in metres: its coordinate is already a length.
  */
 export function pastLimitAmount(
@@ -212,8 +212,8 @@ export function pastLimitAmount(
 }
 
 /**
- * Null at 1° or under for a hinge or ball, and at 1 mm or under for a
- * slide. `past` is degrees or metres, matching `kind`.
+ * Null at 1° or under for a hinge, and at 1 mm or under for a slide.
+ * `past` is degrees or metres, matching `kind`.
  */
 export function jointLimitWarning(
   joint: string,
@@ -245,7 +245,7 @@ export type WorldState = {
   parts?: Record<string, WorldPartState>;
   /**
    * supply id → voltage and current. Optional so an older client ignores
-   * the power budget. Voltage is from the previous step's currents.
+   * the power budget. Voltage is solved from this step's loads.
    */
   supplies?: Record<string, WorldSupplyState>;
   /**
@@ -379,14 +379,16 @@ export type RecordingManifest = {
 
 export type RecordingPartCatalog = {
   torqueNm?: number;
-  speedDegPerSec?: number;
-  voltageScale?: "V/V_nom";
   supply?: { nominal: number; min: number; max: number };
-  current?: { idle: number; moving: number; stall: number };
-  stall?: {
-    minAngleErrorDeg: number;
-    maxVelocityDegPerSec: number;
-    holdMs: number;
+  motor?: {
+    k: number;
+    resistance: number;
+    efficiency: number;
+    eSat: number;
+    quiescent: number;
+    armature: number;
+    frictionloss: number;
+    damping: number;
   };
 };
 
@@ -426,8 +428,8 @@ export type RecordedFrame = {
   t: number;
   joints: Record<string, Record<string, number>>;
   /**
-   * Max overshoot in the window, in degrees for a hinge or ball and in
-   * metres for a slide. 0 when the joint stayed inside. Folded like
+   * Max overshoot in the window, in degrees for a hinge and in metres
+   * for a slide. 0 when the joint stayed inside. Folded like
    * `minVoltage`, so a 1 ms spike is kept.
    */
   limitDeg: Record<string, Record<string, number>>;

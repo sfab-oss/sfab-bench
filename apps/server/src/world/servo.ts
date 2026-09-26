@@ -17,8 +17,6 @@ const SERVO_DEG = 180;
 const SERVO_US_SPAN = SERVO_US_MAX - SERVO_US_MIN;
 
 export type ServoTrack = {
-  /** Slewing joint target, radians. Null until a signal has been seen. */
-  setpoint: number | null;
   pulseUs: number | null;
   commandDeg: number | null;
   /** Sim seconds of the last valid pulse. Null when there is no signal. */
@@ -26,7 +24,7 @@ export type ServoTrack = {
 };
 
 export function blankTrack(): ServoTrack {
-  return { setpoint: null, pulseUs: null, commandDeg: null, seen: null };
+  return { pulseUs: null, commandDeg: null, seen: null };
 }
 
 /** Degrees, or null when `us` is not a servo pulse. */
@@ -38,44 +36,33 @@ export function commandDegFromPulse(us: number): number | null {
   return raw;
 }
 
-function slew(from: number, to: number, maxStep: number): number {
-  const delta = to - from;
-  if (Math.abs(delta) <= maxStep) return to;
-  return from + Math.sign(delta) * maxStep;
-}
-
 /**
  * One millisecond of one servo. `pulsesUs` are the widths completed during
- * this step. No signal leaves the joint limp: `ctrl` is null and the
- * caller drops the actuator torque. The first signal slews from `qpos`.
+ * this step. No signal leaves the joint limp: the caller applies no motor
+ * voltage. The position loop itself is the motor law, not a slew.
  */
 export function trackServo(input: {
   track: ServoTrack;
   simTime: number;
   pulsesUs: readonly number[];
-  qpos: number;
-  speedRadPerSec: number;
-  dt?: number;
   /**
-   * False when the pin is not driving (brownout, or a board that is not
+   * False when the pin is not driving (reset, or a board that is not
    * running). The signal gap does not apply: the servo is limp this step.
    */
   driven?: boolean;
-}): { track: ServoTrack; ctrl: number | null; limp: boolean } {
+}): { track: ServoTrack; limp: boolean } {
   if (input.driven === false) {
-    return { track: blankTrack(), ctrl: null, limp: true };
+    return { track: blankTrack(), limp: true };
   }
   let pulseUs = input.track.pulseUs;
   let commandDeg = input.track.commandDeg;
   let seen = input.track.seen;
-  let setpoint = input.track.setpoint;
   for (const us of input.pulsesUs) {
     const command = commandDegFromPulse(us);
     if (command === null) {
       pulseUs = null;
       commandDeg = null;
       seen = null;
-      setpoint = null;
       continue;
     }
     pulseUs = us;
@@ -90,18 +77,9 @@ export function trackServo(input: {
     pulseUs = null;
     commandDeg = null;
     seen = null;
-    setpoint = null;
   }
   if (commandDeg === null || seen === null) {
-    return { track: blankTrack(), ctrl: null, limp: true };
+    return { track: blankTrack(), limp: true };
   }
-  const target = (commandDeg * Math.PI) / 180;
-  const from = setpoint ?? input.qpos;
-  const dt = input.dt ?? 0.001;
-  const next = slew(from, target, input.speedRadPerSec * dt);
-  return {
-    track: { setpoint: next, pulseUs, commandDeg, seen },
-    ctrl: next,
-    limp: false,
-  };
+  return { track: { pulseUs, commandDeg, seen }, limp: false };
 }

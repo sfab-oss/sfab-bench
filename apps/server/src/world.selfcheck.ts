@@ -47,7 +47,7 @@ type WorldFile = {
     id: string;
     voltage: number;
     currentLimit: number;
-    rDroop: number;
+    rSeries: number;
   }[];
   parts: {
     id: string;
@@ -150,6 +150,9 @@ expect(uno.operatingVoltage === 5, "uno voltage");
 expect(uno.supply.min === 5 && uno.supply.max === 5, "uno 5V range");
 expect(uno.current === 0.05, "uno 50 mA");
 expect(chip.brownoutVoltage === 2.7, "brownout");
+expect(chip.brownoutAssertVoltage === 2.675, "brownout assert");
+expect(chip.brownoutReleaseVoltage === 2.725, "brownout release");
+expect(chip.resetHoldMs === 66, "reset hold");
 expect(chip.extendedFuse === "0xFD", "extended fuse");
 expect(uno.pwmPins.join(",") === "D3,D5,D6,D9,D10,D11", "pwm pins");
 expect(uno.servoConflictPins.join(",") === "D9,D10", "timer1 pins");
@@ -165,22 +168,20 @@ expect(
 );
 expect(sg90.supply?.nominal === 5, "sg90 nominal");
 expect(sg90.supply?.min === 4.8 && sg90.supply?.max === 6, "sg90 range");
-expect(sg90.current?.idle === 0.01, "sg90 idle");
-expect(sg90.current?.moving === 0.25, "sg90 moving");
-expect(sg90.current?.stall === 0.7, "sg90 stall");
-expect(sg90.stall?.minAngleErrorDeg === 5, "stall angle");
-expect(sg90.stall?.maxVelocityDegPerSec === 5, "stall velocity");
-expect(sg90.stall?.holdMs === 50, "stall hold");
-expect(sg90.speedDegPerSec === 600, "sg90 speed");
+expect(sg90.motor?.k === 0.458, "sg90 K");
+expect(sg90.motor?.resistance === 7.1, "sg90 R");
+expect(sg90.motor?.efficiency === 0.57, "sg90 efficiency");
+expect(sg90.motor?.quiescent === 0.01, "sg90 quiescent");
 expect(sg90.torqueNm === 0.176, "sg90 torque");
-expect(sg90.voltageScale === "V/V_nom", "voltage scale");
 expect(partModels["led-pwm"].drive.kind === "analogWrite", "led-pwm drive");
 
 const usb = supplyPresets.usb;
 expect(
-  usb.voltage === 5 && usb.currentLimit === 0.5 && usb.rDroop === 10,
+  usb.voltage === 5 && usb.currentLimit === 0.9 && usb.rSeries === 0.5,
   "usb preset"
 );
+const bench = supplyPresets.bench;
+expect(bench.rSeries === 0.05, "bench series resistance");
 
 const notice = readFileSync(join(armDir, "NOTICE"), "utf8");
 expect(notice.includes("arduino-cli 1.5.1"), "notice cli");
@@ -216,14 +217,35 @@ expect(hold.parts[0]?.drives?.joint === "shoulder", "shoulder drive");
 expect(hold.supplies[0]?.voltage === usb.voltage, "fixture copies usb voltage");
 expect(
   hold.supplies[0]?.currentLimit === usb.currentLimit &&
-    hold.supplies[0]?.rDroop === usb.rDroop,
-  "fixture copies usb limit and droop"
+    hold.supplies[0]?.rSeries === usb.rSeries,
+  "fixture copies usb limit and series resistance"
+);
+expect(
+  stall.supplies[0]?.id === "bench" &&
+    stall.supplies[0]?.voltage === 5 &&
+    stall.supplies[0]?.currentLimit === 0.3 &&
+    stall.supplies[0]?.rSeries === bench.rSeries,
+  "stall fixture is a 5 V / 0.3 A bench supply"
 );
 expect(hold.wires.length === 5, "five wires");
 
 const holdCtx = ctxFor();
 assertOk(validateWorld(hold, holdCtx), "hold world");
 assertOk(validateWorld(stall, ctxFor()), "stall world");
+const droopDoc = clone(hold);
+const droopSupply = droopDoc.supplies[0] as {
+  rSeries?: number;
+  rDroop?: number;
+};
+delete droopSupply.rSeries;
+droopSupply.rDroop = 10;
+const droopResult = validateWorld(droopDoc, holdCtx);
+expect(
+  droopResult.errors.some((issue) =>
+    issue.message.includes("rDroop was removed")
+  ),
+  `rDroop error ${droopResult.errors.map((issue) => issue.message).join(" | ")}`
+);
 
 const holdAside = clone(hold);
 const stallAside = clone(stall);
@@ -231,9 +253,17 @@ holdAside.boards[0]!.firmware = "";
 holdAside.boards[0]!.source = "";
 stallAside.boards[0]!.firmware = "";
 stallAside.boards[0]!.source = "";
+holdAside.supplies = [];
+stallAside.supplies = [];
+holdAside.wires = holdAside.wires.filter(
+  (wire) => !wire[0].startsWith("usb.") && !wire[1].startsWith("usb.")
+);
+stallAside.wires = stallAside.wires.filter(
+  (wire) => !wire[0].startsWith("bench.") && !wire[1].startsWith("bench.")
+);
 expect(
   JSON.stringify(holdAside) === JSON.stringify(stallAside),
-  "stall world matches hold except firmware"
+  "stall world matches hold except firmware and supply"
 );
 expect(
   hold.boards[0]?.firmware === "firmware/hold/hold.hex" &&
@@ -303,8 +333,8 @@ const supplyOutputs = clone(hold);
 supplyOutputs.supplies.push({
   id: "aux",
   voltage: 5,
-  currentLimit: 0.5,
-  rDroop: 10,
+  currentLimit: 0.9,
+  rSeries: 0.5,
 });
 supplyOutputs.wires.push(["usb.5V", "aux.5V"], ["usb.GND", "aux.GND"]);
 assertIssues(validateWorld(supplyOutputs, holdCtx), "supply two-outputs", [
@@ -314,8 +344,8 @@ assertIssues(validateWorld(supplyOutputs, holdCtx), "supply two-outputs", [
 const auxSupply = {
   id: "aux",
   voltage: 5,
-  currentLimit: 0.5,
-  rDroop: 10,
+  currentLimit: 0.9,
+  rSeries: 0.5,
 };
 
 function worldWith(
@@ -435,7 +465,7 @@ assertIssues(validateWorld(toRegulator, holdCtx), "supply on 3V3", [
 
 function barrelOnVin(voltage: number): WorldFile {
   const doc = clone(hold);
-  doc.supplies = [{ id: "barrel", voltage, currentLimit: 1, rDroop: 1 }];
+  doc.supplies = [{ id: "barrel", voltage, currentLimit: 1, rSeries: 0.05 }];
   doc.wires = [
     ["barrel.5V", "uno.VIN"],
     ["barrel.GND", "uno.GND"],

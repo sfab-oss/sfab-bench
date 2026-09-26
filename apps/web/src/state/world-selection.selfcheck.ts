@@ -130,8 +130,8 @@ worldStore.getState().setOutline({
     {
       id: "usb",
       voltage: 5,
-      currentLimit: 0.5,
-      rDroop: 10,
+      currentLimit: 0.9,
+      rSeries: 0.5,
       boards: ["uno"],
       parts: ["servo"],
     },
@@ -192,8 +192,8 @@ worldStore.getState().setOutline({
     {
       id: "usb",
       voltage: 5,
-      currentLimit: 0.5,
-      rDroop: 10,
+      currentLimit: 0.9,
+      rSeries: 0.5,
       boards: [],
       parts: [],
     },

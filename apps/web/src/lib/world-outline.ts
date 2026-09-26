@@ -42,10 +42,10 @@ export type WorldOutlinePart = {
 
 export type WorldOutlineSupply = {
   id: string;
-  /** Nominal volts, before droop. */
+  /** Nominal volts, before series drop. */
   voltage: number;
   currentLimit: number;
-  rDroop: number;
+  rSeries: number;
   /** Boards whose power input this supply reaches. */
   boards: string[];
   /** Parts whose supply pin this supply reaches. */
@@ -79,7 +79,7 @@ export type WorldOutlineInput = {
     id: string;
     voltage: number;
     currentLimit: number;
-    rDroop: number;
+    rSeries: number;
   }[];
 };
 
@@ -156,7 +156,7 @@ function supplyFeeds(world: WorldOutlineInput): WorldOutlineSupply[] {
     id: supply.id,
     voltage: supply.voltage,
     currentLimit: supply.currentLimit,
-    rDroop: supply.rDroop,
+    rSeries: supply.rSeries,
     boards: world.boards
       .filter((board) => feeds.boards[board.id] === supply.id)
       .map((board) => board.id),

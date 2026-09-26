@@ -31,10 +31,10 @@
   ],
   "supplies": [
     {
-      "id": "usb",
+      "id": "bench",
       "voltage": 5,
-      "currentLimit": 0.5,
-      "rDroop": 10
+      "currentLimit": 0.3,
+      "rSeries": 0.05
     }
   ],
   "parts": [
@@ -48,8 +48,8 @@
     }
   ],
   "wires": [
-    ["usb.5V", "uno.5V"],
-    ["usb.GND", "uno.GND"],
+    ["bench.5V", "uno.5V"],
+    ["bench.GND", "uno.GND"],
     ["uno.D9", "servo.signal"],
     ["uno.5V", "servo.V+"],
     ["uno.GND", "servo.GND"]

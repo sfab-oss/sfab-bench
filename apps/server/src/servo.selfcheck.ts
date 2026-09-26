@@ -116,15 +116,10 @@ closeTo(commandDegFromPulse(PULSE_US_LO), 0, "400 µs clamps to 0");
 closeTo(commandDegFromPulse(PULSE_US_HI), 180, "2600 µs clamps to 180");
 closeTo(commandDegFromPulse(500), 0, "500 µs clamps to 0");
 
-const speed = partModels.sg90.speedDegPerSec ?? 0;
-expect(speed === 600, "part model speed");
-const radPerSec = (speed * Math.PI) / 180;
 let track = trackServo({
   track: blankTrack(),
   simTime: 0,
   pulsesUs: [100],
-  qpos: 0,
-  speedRadPerSec: radPerSec,
 });
 expect(
   track.limp && track.track.commandDeg === null,
@@ -134,29 +129,18 @@ track = trackServo({
   track: blankTrack(),
   simTime: 0,
   pulsesUs: [1472],
-  qpos: 0,
-  speedRadPerSec: radPerSec,
 });
 expect(!track.limp && track.track.commandDeg === 90, "1472 µs commands 90");
-const stepDeg = speed * 0.001;
-expect(
-  track.ctrl !== null && Math.abs(deg(track.ctrl) - stepDeg) < 1e-6,
-  `first slew step is ${stepDeg}°, got ${track.ctrl === null ? "limp" : deg(track.ctrl)}`
-);
 const held = trackServo({
   track: track.track,
   simTime: SIGNAL_GAP_MS / 1000,
   pulsesUs: [],
-  qpos: 0,
-  speedRadPerSec: radPerSec,
 });
 expect(!held.limp, "60 ms still counts as a signal");
 const dropped = trackServo({
   track: track.track,
   simTime: SIGNAL_GAP_MS / 1000 + 0.001,
   pulsesUs: [],
-  qpos: 0,
-  speedRadPerSec: radPerSec,
 });
 expect(dropped.limp, "61 ms with no pulse is limp");
 let summed = 0;
@@ -165,8 +149,6 @@ const summedHeld = trackServo({
   track: track.track,
   simTime: summed,
   pulsesUs: [],
-  qpos: 0,
-  speedRadPerSec: radPerSec,
 });
 expect(!summedHeld.limp, "60 summed 1 ms steps still count as a signal");
 console.log("pulse map: 544/1472/2400, out of range is no signal, clamp 0–180");
@@ -188,20 +170,28 @@ expect(
     Math.abs((range[1] ?? Number.NaN) - 0.176) < 1e-6,
   `torque clamp ${range[0]}, ${range[1]}`
 );
+const gear = compiled.model.actuator_gear as Float64Array;
 const gain = compiled.model.actuator_gainprm as Float64Array;
-const bias = compiled.model.actuator_biasprm as Float64Array;
-const biasType = compiled.model.actuator_biastype as Int32Array;
-const gainType = compiled.model.actuator_gaintype as Int32Array;
-const dynType = compiled.model.actuator_dyntype as Int32Array;
 expect(
-  (gain[0] ?? 0) > 0 &&
-    Math.abs((bias[1] ?? Number.NaN) + (gain[0] ?? 0)) < 1e-9 &&
-    (bias[2] ?? 0) < 0,
-  `gains kp ${gain[0]} bias ${bias[1]} ${bias[2]}`
+  Math.abs((gear[0] ?? 0) - 1) < 1e-12 && Math.abs((gain[0] ?? 0) - 1) < 1e-12,
+  `motor gear ${gear[0]} gain ${gain[0]}`
+);
+const shoulderArmature = (compiled.model.dof_armature as Float64Array)[0] ?? 0;
+const shoulderFriction =
+  (compiled.model.dof_frictionloss as Float64Array)[0] ?? 0;
+expect(
+  Math.abs(shoulderArmature - (partModels.sg90.motor?.armature ?? -1)) < 1e-12,
+  `armature ${shoulderArmature}`
 );
 expect(
-  biasType[0] === 1 && gainType[0] === 0 && dynType[0] === 0,
-  `actuator types bias ${biasType[0]} gain ${gainType[0]} dyn ${dynType[0]}`
+  Math.abs(shoulderFriction - (partModels.sg90.motor?.frictionloss ?? -1)) <
+    1e-12,
+  `frictionloss ${shoulderFriction}`
+);
+const shoulderDamping = (compiled.model.dof_damping as Float64Array)[0] ?? 0;
+expect(
+  Math.abs(shoulderDamping - (partModels.sg90.motor?.damping ?? -1)) < 1e-12,
+  `damping ${shoulderDamping}`
 );
 const jointRange = compiled.model.jnt_actfrcrange as Float64Array;
 expect(
@@ -536,25 +526,21 @@ if (!up || !from) throw new Error("80° move missing");
 const fromCommand = from.rows[0]?.command ?? Number.NaN;
 const toCommand = up.rows[0]?.command ?? Number.NaN;
 const delta = toCommand - fromCommand;
-expect(Math.abs(delta - 80) < 3, `slew span ${delta}°`);
-const slewEnd = up.start + Math.abs(delta) / speed;
+expect(Math.abs(delta - 80) < 3, `move span ${delta}°`);
 let overshoot = 0;
-let settleMs = 0;
+let withinMs = Number.POSITIVE_INFINITY;
 for (const row of up.rows) {
   const past = Math.sign(delta) * (row.angle - (row.command ?? toCommand));
   if (past > overshoot) overshoot = past;
-  if (
-    row.t >= slewEnd &&
-    Math.abs(row.angle - (row.command ?? toCommand)) > 1
-  ) {
-    settleMs = (row.t - slewEnd) * 1000;
+  if (Math.abs(row.angle - (row.command ?? toCommand)) <= 1) {
+    withinMs = Math.min(withinMs, (row.t - up.start) * 1000);
   }
 }
 expect(overshoot < 3, `overshoot ${overshoot.toFixed(3)}°`);
-expect(settleMs < 300, `settle ${settleMs.toFixed(1)} ms after the slew`);
+expect(withinMs < 300, `within 1° at ${withinMs.toFixed(1)} ms`);
 console.log(
-  `gains: kp 0.8 kv 0.03, 80° slew overshoot ${overshoot.toFixed(3)}°, ` +
-    `within 1° at ${settleMs.toFixed(1)} ms after the slew ended`
+  `motor: 80° move overshoot ${overshoot.toFixed(3)}°, ` +
+    `within 1° at ${withinMs.toFixed(1)} ms`
 );
 
 const pairRoot = mkdtempSync(join(tmpdir(), "sfab-servo-pair-"));

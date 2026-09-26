@@ -13,18 +13,6 @@ import {
 
 import type { WorldBytes } from "./files";
 
-/**
- * Position gains that track the slewed SG90 setpoint on the fixture arm.
- * Implicit integration, so this damping does not fight the 1 ms step.
- * No control filter: the part-model slew is already the rate limit.
- * Hold sketch, the 10° → 90° move: overshoot 0.054°, within 1° at
- * 101 ms after the slew ended. Torque starts at the part model's
- * 0.176 N·m, on both the actuator range and the joint actuator-force
- * range. Each step replaces both with V / V_nom.
- */
-const SERVO_KP = 0.8;
-const SERVO_KV = 0.03;
-
 const TIMESTEP_S = 0.001;
 
 /**
@@ -237,8 +225,42 @@ function readNum(value: Int32Array, index: number): number {
 /**
  * The catalog `torqueNm` is the joint's actuator-force clamp. MuJoCo
  * clips `qfrc_actuator` to `jnt_actfrcrange` after the actuator range,
- * and the URDF `effort` placeholder is what was binding (0.18 N·m on
- * the fixture arm, above the SG90's 0.176).
+ * and the URDF `effort` placeholder is wider than the SG90's clamp.
+ * Armature, frictionloss, and viscous damping come from the part
+ * catalog and replace the URDF values on the driven joint.
+ */
+function applyServoDynamics(
+  mj: MainModule,
+  model: MjModel,
+  doc: WorldDocument
+) {
+  const armature = model.dof_armature as Float64Array;
+  const friction = model.dof_frictionloss as Float64Array;
+  const damping = model.dof_damping as Float64Array;
+  const dofadr = model.jnt_dofadr as Int32Array;
+  const trnid = model.actuator_trnid as Int32Array;
+  const actuatorType = mj.mjtObj.mjOBJ_ACTUATOR.value;
+  for (const part of doc.parts) {
+    if (!part.drives) continue;
+    const spec = partModel(part.model);
+    const motor = spec?.drive.kind === "servo" ? spec.motor : undefined;
+    if (!motor) continue;
+    const actId = mj.mj_name2id(model, actuatorType, part.id);
+    if (actId < 0) continue;
+    const jointId = trnid[actId * 2] ?? -1;
+    if (jointId < 0) continue;
+    const dof = dofadr[jointId] ?? -1;
+    if (dof < 0) continue;
+    armature[dof] = motor.armature;
+    friction[dof] = motor.frictionloss;
+    damping[dof] = motor.damping;
+  }
+}
+
+/**
+ * The catalog `torqueNm` is the joint's actuator-force clamp. MuJoCo
+ * clips `qfrc_actuator` to `jnt_actfrcrange` after the actuator range,
+ * and the URDF `effort` placeholder is wider than the SG90's clamp.
  */
 function applyServoTorqueClamp(
   mj: MainModule,
@@ -382,7 +404,7 @@ function forceCompiler(spec: MjSpec) {
 /**
  * Validate `doc`, then compile one MuJoCo model: ground, primitives, and
  * each robot attached at its pose. A part that drives a joint gets a
- * position actuator named with the part id.
+ * motor actuator named with the part id. The step loop writes the torque.
  */
 export async function compileWorld(
   doc: unknown,
@@ -488,21 +510,11 @@ export async function compileWorld(
       actuator.trntype = mj.mjtTrn.mjTRN_JOINT
         .value as unknown as typeof actuator.trntype;
       actuator.target = `${part.drives.robot}/${part.drives.joint}`;
-      // Position servo, no filter, ctrl not clipped to the joint range
-      // (a 180° command pushes into the limit). The binding has no null
-      // pointer, so dampratio is passed as 0 and kv is written after:
-      // a zero dampratio would otherwise clear the damping term.
-      const setErr = mj.mjs_setToPosition(
-        actuator,
-        SERVO_KP,
-        new Float64Array([SERVO_KV]),
-        new Float64Array([0]),
-        new Float64Array([0]),
-        0
-      );
+      // Torque command. The motor law in the step loop is the controller.
+      // ctrl is not clipped to the joint range: a 180° command may push
+      // into the stop, and the catalog torque is the force clamp.
+      const setErr = mj.mjs_setToMotor(actuator);
       if (setErr) throw new Error(setErr);
-      const bias = actuator.biasprm as Float64Array;
-      bias[2] = -SERVO_KV;
       const torque = model.torqueNm;
       if (torque !== undefined && torque > 0) {
         actuator.forcelimited = mj.mjtLimited.mjLIMITED_TRUE
@@ -525,10 +537,11 @@ export async function compileWorld(
         errors: [schemaError(mj.mjs_getError(scene) || "mj_compile failed")],
       };
     }
-    // URDF `effort` becomes `jnt_actfrcrange` and that clamp binds above
-    // the actuator's own forcerange. A servo joint uses the catalog
-    // torque instead. The step loop then scales the same range by V/V_nom.
+    // URDF `effort` becomes `jnt_actfrcrange` and that clamp is wider than
+    // the catalog torque. A servo joint uses the catalog torque, armature,
+    // frictionloss, and damping instead.
     applyServoTorqueClamp(mj, model, worldDoc);
+    applyServoDynamics(mj, model, worldDoc);
     applyLimitSolref(mj, model, urdfLimitSolref(worldDoc, files));
 
     const bodyType = mj.mjtObj.mjOBJ_BODY.value;
