@@ -17,6 +17,9 @@ export const DISPLAY_STALL_DEG_PER_SEC = 5;
 /** Display: moving when a linear drive is off the target by more than this. */
 export const DISPLAY_MOVE_DEG = 0.5;
 
+/** Display: the stall condition must hold this long before the state is stall. */
+export const DISPLAY_STALL_HOLD_MS = 20;
+
 /**
  * ATmega328P BODLEVEL 2.7 V typical, with 50 mV hysteresis.
  * Reset asserts below `BOD_ASSERT_V` and the delay starts above
@@ -102,7 +105,7 @@ export type MotorLaw = {
   efficiency: number;
   /** Radians of error that saturates the drive. */
   eSat: number;
-  /** Amperes of electronics, added to `|I_motor|`. */
+  /** Amperes of electronics, added to the bridge draw. */
   quiescent: number;
 };
 
@@ -128,7 +131,10 @@ export function servoElectrical(input: {
   iMotor: number;
   torque: number;
   saturated: boolean;
-  /** Amperes from the supply: quiescent plus `|I_motor|`, or quiescent when limp. */
+  /**
+   * Amperes from the supply: quiescent plus `max(0, s·I_motor)`,
+   * `s = V_drive / V_rail`. Braking current does not come from the supply.
+   */
   supplyCurrent: number;
 } {
   const { law } = input;
@@ -157,7 +163,7 @@ export function servoElectrical(input: {
     iMotor,
     torque,
     saturated: Math.abs(fraction) >= 1 - 1e-12,
-    supplyCurrent: law.quiescent + Math.max(0, Math.abs(iMotor)),
+    supplyCurrent: law.quiescent + Math.max(0, fraction * iMotor),
   };
 }
 
@@ -183,21 +189,24 @@ export function stallTorque(
 
 /**
  * Idle, moving, or stall for the inspector. Not an electrical input.
- * Stall is a saturated drive slower than 5 °/s. Moving is at least
- * that fast, or a linear drive more than 0.5° off the command.
+ * Stall is a saturated drive slower than 5 °/s, held for
+ * `DISPLAY_STALL_HOLD_MS`. Until then that condition shows as moving.
  */
 export function displayMotion(input: {
   limp: boolean;
   saturated: boolean;
   errorRad: number;
   omega: number;
+  /** Milliseconds the stall condition has held, including this step. */
+  stallForMs: number;
 }): WorldPartMotion {
   if (input.limp) return "idle";
   const stallOmega = (DISPLAY_STALL_DEG_PER_SEC * Math.PI) / 180;
   const moveError = (DISPLAY_MOVE_DEG * Math.PI) / 180;
   const speed = Math.abs(input.omega);
-  if (input.saturated && speed < stallOmega) return "stall";
-  if (speed >= stallOmega || Math.abs(input.errorRad) > moveError) {
+  const stalled = input.saturated && speed < stallOmega;
+  if (stalled && input.stallForMs >= DISPLAY_STALL_HOLD_MS) return "stall";
+  if (stalled || speed >= stallOmega || Math.abs(input.errorRad) > moveError) {
     return "moving";
   }
   return "idle";
@@ -211,10 +220,11 @@ export type RailMotor = {
 };
 
 /**
- * `V = V_nom − R_s·I` while `I ≤ I_limit`. Above the limit, `V` is where
- * the draw equals `I_limit`. `fixed` is the board plus every servo's
- * quiescent. Each motor adds `|I_motor|` and does not regenerate.
- * Voltage is never negative.
+ * `V = V_nom − R_s·I` while `I ≤ I_limit`. Above the limit, `V` is the
+ * greatest voltage where the draw equals `I_limit`. `fixed` is the board
+ * plus every servo's quiescent. Each motor adds `max(0, s·I_motor)` with
+ * `s` the drive fraction, so braking current does not come from the
+ * supply. That term is affine in `V`. Voltage is never negative.
  */
 export function solveRail(input: {
   vNom: number;
@@ -223,19 +233,31 @@ export function solveRail(input: {
   fixed: number;
   motors: readonly RailMotor[];
 }): { voltage: number; current: number } {
-  const terms = input.motors.map((motor) => ({
-    a: motor.resistance > 0 ? motor.fraction / motor.resistance : 0,
-    b: motor.resistance > 0 ? -(motor.k * motor.omega) / motor.resistance : 0,
-  }));
+  const terms = input.motors.map((motor) => {
+    const r = motor.resistance;
+    const s = motor.fraction;
+    if (!(r > 0)) return { a: 0, b: 0 };
+    return { a: (s * s) / r, b: -(s * motor.k * motor.omega) / r };
+  });
+  const segmentAt = (voltage: number) => {
+    let slope = 0;
+    let intercept = input.fixed;
+    for (const term of terms) {
+      if (term.a * voltage + term.b > 0) {
+        slope += term.a;
+        intercept += term.b;
+      }
+    }
+    return { slope, intercept };
+  };
   const drawAt = (voltage: number) => {
-    let current = input.fixed;
-    for (const term of terms) current += Math.abs(term.a * voltage + term.b);
-    return current;
+    const { slope, intercept } = segmentAt(voltage);
+    return intercept + slope * voltage;
   };
   const cap = Math.max(input.vNom * 4, 1);
   const bounds = [0, cap];
   for (const term of terms) {
-    if (term.a === 0) continue;
+    if (!(term.a > 0)) continue;
     const zero = -term.b / term.a;
     if (zero > 0 && zero < cap) bounds.push(zero);
   }
@@ -250,14 +272,7 @@ export function solveRail(input: {
     const lo = points[i] ?? 0;
     const hi = points[i + 1] ?? lo;
     if (!(hi > lo)) continue;
-    const mid = (lo + hi) / 2;
-    let slope = 0;
-    let intercept = input.fixed;
-    for (const term of terms) {
-      const sign = term.a * mid + term.b < 0 ? -1 : 1;
-      slope += sign * term.a;
-      intercept += sign * term.b;
-    }
+    const { slope, intercept } = segmentAt((lo + hi) / 2);
     const denom = 1 + input.rSeries * slope;
     if (!(Math.abs(denom) > 1e-12)) continue;
     const voltage = (input.vNom - input.rSeries * intercept) / denom;
@@ -274,14 +289,7 @@ export function solveRail(input: {
     const lo = points[i] ?? 0;
     const hi = points[i + 1] ?? lo;
     if (!(hi > lo) || lo > cv + 1e-8) continue;
-    const mid = (lo + hi) / 2;
-    let slope = 0;
-    let intercept = input.fixed;
-    for (const term of terms) {
-      const sign = term.a * mid + term.b < 0 ? -1 : 1;
-      slope += sign * term.a;
-      intercept += sign * term.b;
-    }
+    const { slope, intercept } = segmentAt((lo + hi) / 2);
     if (!(Math.abs(slope) > 1e-15)) continue;
     const voltage = (input.iLimit - intercept) / slope;
     if (voltage < lo - 1e-8 || voltage > hi + 1e-8) continue;

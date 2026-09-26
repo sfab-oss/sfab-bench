@@ -217,12 +217,14 @@ export type ServoMotor = {
   efficiency: number;
   /** Radians of angle error that saturates the drive. */
   eSat: number;
-  /** Amperes drawn by the electronics, added to `|I_motor|`. */
+  /** Amperes drawn by the electronics, added to the bridge draw. */
   quiescent: number;
-  /** kg·m² added to the driven joint. */
+  /** kg·m² on the driven joint. Replaces the URDF armature. */
   armature: number;
-  /** N·m Coulomb friction on the driven joint. */
+  /** N·m Coulomb friction on the driven joint. Replaces the URDF friction. */
   frictionloss: number;
+  /** N·m·s/rad viscous damping on the driven joint. Replaces the URDF damping. */
+  damping: number;
 };
 
 export type PartModel = {
@@ -352,15 +354,22 @@ export const partModels: Record<PartModelId, PartModel> = {
     supply: { nominal: 5, min: 4.8, max: 6 },
     // 1.8 kgf·cm. The motor law is clamped to this.
     torqueNm: 0.176,
-    /** E_sat, frictionloss, and armature fitted on the fixture arm, 1 ms step. */
+    /**
+     * Fitted on the fixture arm, 1 ms step: E_sat 0.30 rad, frictionloss
+     * 0.002 N·m, damping 0.0025 N·m·s/rad, armature 5e-5 kg·m². Targets:
+     * no-load 500–600 °/s at 4.8 V, stall 0.70 A ±5% at 5 V and 0.177 N·m
+     * ±5% at 4.8 V, saturated-cruise supply 100–250 mA, 5° and 10° rise
+     * 40–75 ms, 90° to 90% in 130–200 ms, overshoot ≤ 1° on 5–45° steps.
+     */
     motor: {
       k: 0.458,
       resistance: 7.1,
       efficiency: 0.57,
-      eSat: 0.28,
+      eSat: 0.3,
       quiescent: 0.01,
       armature: 0.00005,
-      frictionloss: 0.004,
+      frictionloss: 0.002,
+      damping: 0.0025,
     },
   },
   /**

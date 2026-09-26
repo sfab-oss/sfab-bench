@@ -625,6 +625,7 @@ const twoWorld = JSON.parse(
     model: string;
     drives?: { robot: string; joint: string };
   }[];
+  wires: [string, string][];
 };
 twoWorld.robots.push({
   id: "crane",
@@ -636,6 +637,8 @@ twoWorld.parts.push({
   model: "sg90",
   drives: { robot: "crane", joint: "hinge" },
 });
+// No signal wire. V+ lets setTarget's motor-law command move the joint.
+twoWorld.wires.push(["usb.5V", "elbow.V+"], ["usb.GND", "elbow.GND"]);
 writeFileSync(join(twoRoot, "arm.world.json"), JSON.stringify(twoWorld));
 const twoWorker = new Worker(worldWorkerEntry());
 const twoMessages: FromWorker[] = [];

@@ -31,9 +31,11 @@ import {
 import {
   BOD_ASSERT_V,
   BOD_RELEASE_V,
+  displayMotion,
   noLoadSpeedRad,
   RESET_HOLD_MS,
   runningBrownout,
+  servoElectrical,
   solveRail,
   stallCurrent,
   stallTorque,
@@ -134,6 +136,58 @@ expect(
 console.log(
   `rail: usb stall ${usbRail.voltage.toFixed(3)} V at ${usbRail.current.toFixed(3)} A, ` +
     `bench 0.3 A stall ${benchRail.voltage.toFixed(3)} V`
+);
+
+const saturated = servoElectrical({
+  law,
+  vRail: 5,
+  errorRad: 1,
+  omega: 0,
+  limp: false,
+  torqueLimit: 1,
+});
+expect(
+  Math.abs(saturated.supplyCurrent - (law.quiescent + 5 / law.resistance)) <
+    1e-9,
+  `stall supply ${saturated.supplyCurrent}`
+);
+const braking = servoElectrical({
+  law,
+  vRail: 5,
+  errorRad: 1,
+  omega: 20,
+  limp: false,
+  torqueLimit: 1,
+});
+expect(braking.iMotor < 0, "back-EMF above the drive is braking");
+expect(
+  Math.abs(braking.supplyCurrent - law.quiescent) < 1e-9,
+  `braking still drew ${braking.supplyCurrent}`
+);
+const coast = solveRail({
+  vNom: 5,
+  rSeries: 0.5,
+  iLimit: 0.2,
+  fixed: 0.06,
+  motors: [{ fraction: 0, omega: 20, k: law.k, resistance: law.resistance }],
+});
+expect(
+  Math.abs(coast.current - 0.06) < 1e-9 && coast.voltage > 4.9,
+  `zero fraction rail ${coast.voltage} V ${coast.current} A`
+);
+const stallNow = {
+  limp: false,
+  saturated: true,
+  errorRad: 1,
+  omega: 0,
+};
+expect(
+  displayMotion({ ...stallNow, stallForMs: 19 }) === "moving",
+  "19 ms of stall still shows moving"
+);
+expect(
+  displayMotion({ ...stallNow, stallForMs: 20 }) === "stall",
+  "20 ms of stall shows stall"
 );
 
 const reset = runningBrownout();
@@ -383,9 +437,6 @@ const stallRows = await sample(
   }
 );
 const benchOf = (row: Row) => row.state.supplies?.bench;
-const stallAt = stallRows.find(
-  (row) => row.state.parts?.servo?.state === "stall"
-);
 const sagAt = stallRows.find(
   (row) => (benchOf(row)?.voltage ?? 5) < BOD_ASSERT_V
 );
@@ -402,12 +453,31 @@ const rebootAt = stallRows.find(
   (row) => (row.state.boards.uno?.resets ?? 0) >= 1
 );
 const secondBoot = stallRows.find((row) => bootCount(row.serial.uno) >= 2);
-expect(stallAt, "no stall sample within 2 s");
 expect(sagAt, "rail never fell below 2.675 V");
+const startAngle = stallRows[0]?.state.joints.arm?.shoulder ?? 0;
+let benchMin = Infinity;
+let armPeak = 0;
+let armAt = 0;
+for (const row of stallRows) {
+  const voltage = benchOf(row)?.voltage ?? 5;
+  if (voltage < benchMin) benchMin = voltage;
+  const angle = row.state.joints.arm?.shoulder ?? startAngle;
+  const moved = Math.abs(((angle - startAngle) * 180) / Math.PI);
+  if (moved > armPeak) {
+    armPeak = moved;
+    armAt = row.state.simTime;
+  }
+}
+// Each assert step's torque leaves a velocity that coasts while the
+// winding is open, so the shoulder walks a few degrees. It does not
+// reach the stop. 4.1° at 2 s on this fit.
 expect(
-  sagAt !== undefined &&
-    Math.abs((benchOf(sagAt)?.voltage ?? 0) - benchRail.voltage) < 0.15,
-  `sag voltage ${benchOf(sagAt)?.voltage}`
+  armPeak < 5,
+  `arm moved ${armPeak.toFixed(3)}° at ${armAt.toFixed(3)} s`
+);
+expect(
+  Math.abs(benchMin - 1.7) <= 0.02,
+  `bench rail minimum ${benchMin.toFixed(3)} V`
 );
 expect(resetAt && recoveryAt && rebootAt, "reset did not recover and reboot");
 if (!resetAt || !recoveryAt || !rebootAt) throw new Error("unreachable");
@@ -436,10 +506,9 @@ expect(
   `second boot at ${secondBoot?.state.simTime}`
 );
 console.log(
-  `demo 2: stall ${stallAt?.state.simTime.toFixed(3)} s, ` +
-    `sag ${benchOf(sagAt)?.voltage.toFixed(3)} V at ${sagAt?.state.simTime.toFixed(3)} s, ` +
+  `demo 2: min ${benchMin.toFixed(3)} V, ` +
     `reset ${resetAt.state.simTime.toFixed(3)} s, ` +
-    `reboot ${holdMs} ms after ${recoveryAt.state.simTime.toFixed(3)} s`
+    `reboot ${holdMs} ms after ${recoveryAt.state.simTime.toFixed(3)} s, arm ${armPeak.toFixed(2)}°`
 );
 
 const usbRoot = mkdtempSync(join(tmpdir(), "sfab-power-usb-"));
@@ -479,7 +548,16 @@ try {
     );
   }
   expect(usbMin >= 4.6 && usbMin <= 4.7, `usb stall minimum ${usbMin} V`);
-  console.log(`usb stall: minimum ${usbMin.toFixed(3)} V, no reset in 2 s`);
+  const blocked = usbRows.filter((row) => row.state.simTime >= 1.5);
+  expect(blocked.length > 100, "usb stall tail");
+  expect(
+    blocked.every((row) => row.state.parts?.servo?.state === "stall"),
+    `usb blocked joint shows ${blocked.at(-1)?.state.parts?.servo?.state}`
+  );
+  const usbCurrent = blocked.at(-1)?.state.supplies?.usb?.current ?? Number.NaN;
+  console.log(
+    `usb stall: minimum ${usbMin.toFixed(3)} V at ${usbCurrent.toFixed(3)} A, no reset in 2 s, stalled against the stop`
+  );
 } finally {
   rmSync(usbRoot, { recursive: true, force: true });
 }
@@ -591,9 +669,11 @@ try {
     const voltage = row.state.supplies?.["usb-hold"]?.voltage ?? Number.NaN;
     if (voltage < holdMin) holdMin = voltage;
     const board = row.state.boards.hold;
-    expect(voltage >= 4.5, `split hold rail ${voltage} V`);
     expect(board?.resets === 0 && board.brownout !== true, "split hold reset");
   }
+  // A step from rest is the ω = 0 stall point on 0.5 Ω, about 4.64 V.
+  // 4.9 is the cruise rail and does not cover that sample.
+  expect(holdMin >= 4.6, `split hold rail ${holdMin} V`);
   const stallSide = split.find(
     (row) => (row.state.boards.stall?.resets ?? 0) >= 1
   );

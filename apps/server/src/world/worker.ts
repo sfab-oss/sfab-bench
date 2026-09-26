@@ -41,6 +41,7 @@ import {
 } from "./model";
 import {
   type BrownoutState,
+  DISPLAY_STALL_DEG_PER_SEC,
   displayMotion,
   type MotorLaw,
   type RailMotor,
@@ -228,8 +229,11 @@ let specs: BoardSpec[] = [];
 let boards: AvrBoard[] = [];
 
 type ServoDrive = {
-  /** The live CPU. Replaced when that board's firmware reloads. */
-  board: AvrBoard;
+  /**
+   * The live CPU, or null when the servo has no signal wire.
+   * Replaced when that board's firmware reloads.
+   */
+  board: AvrBoard | null;
   pinBit: number;
   actuatorId: number;
   /** Joint whose `jnt_actfrcrange` is this servo's torque clamp. */
@@ -238,6 +242,11 @@ type ServoDrive = {
   torqueNm: number;
   law: MotorLaw;
   track: ServoTrack;
+  /**
+   * Degrees from `setTarget`. The command only when there is no signal
+   * wire. A pulse owns a wired servo.
+   */
+  manualDeg: number | null;
 };
 
 /** Electrical sample the rail and the display state share this step. */
@@ -259,6 +268,8 @@ type Load = {
   current: number;
   drive: ServoDrive | null;
   sample: ServoSample | null;
+  /** Consecutive milliseconds the stall condition has held. */
+  stallMs: number;
 };
 
 type BoardPower = {
@@ -311,11 +322,6 @@ let inputNets: ReturnType<typeof gpioInputNets> = [];
 let applyingInputs = false;
 const txSeen = new Map<string, number>();
 const pendingNotes: { kind: "reset" | "reboot"; board: string }[] = [];
-/**
- * Joint angle from `setTarget` for a servo no pulse owns. A motor's ctrl
- * is torque, so the angle is written to the joint and held there.
- */
-const heldRad = new Map<string, number>();
 
 type RecLayout = {
   joints: {
@@ -424,9 +430,9 @@ function sample(): WorldState | null {
   }
   const parts: Record<string, WorldPartState> = {};
   for (const load of loads) {
-    // Only a driven servo is on the wire. An unwired part still draws
-    // through `loads` when its V+ has a supply, and stays out of `parts`.
-    if (!load.drive) continue;
+    // Only a servo with a signal wire is on the wire. A setTarget
+    // command has no pulse. An unwired V+ still draws through `loads`.
+    if (!load.drive?.board) continue;
     parts[load.partId] = {
       pulseUs: load.drive?.track.pulseUs ?? null,
       commandDeg: load.drive?.track.commandDeg ?? null,
@@ -485,7 +491,9 @@ function fillRecorder(full: boolean) {
     for (let i = 0; i < lay.parts.length; i++) {
       const drive = lay.parts[i]?.drive;
       rec.pulse[i] = drive?.track.pulseUs ?? Number.NaN;
-      rec.command[i] = drive?.track.commandDeg ?? Number.NaN;
+      rec.command[i] =
+        (drive?.board ? drive.track.commandDeg : drive?.manualDeg) ??
+        Number.NaN;
     }
     for (let i = 0; i < lay.boards.length; i++) {
       const id = lay.boards[i];
@@ -812,24 +820,28 @@ function bindPower(doc: WorldDocument) {
     const supplyId = partFeeds[part.id] ?? null;
     const signal = drives.find((item) => item.partId === part.id);
     let drive: ServoDrive | null = null;
-    if (signal && part.drives && sim) {
-      const bit = arduinoPinBit(signal.pin);
+    if (part.drives && sim) {
       const actuatorId = sim.index.parts[part.id];
-      const board = boards.find((item) => item.id === signal.boardId);
       const trnid = sim.model.actuator_trnid as Int32Array;
       const jointId =
         actuatorId === undefined ? -1 : (trnid[actuatorId * 2] ?? -1);
-      if (board && bit !== undefined && actuatorId !== undefined) {
-        board.watchEdge(bit);
+      if (actuatorId !== undefined && jointId >= 0) {
+        const bit = signal ? arduinoPinBit(signal.pin) : undefined;
+        const board = signal
+          ? boards.find((item) => item.id === signal.boardId)
+          : undefined;
+        const wired = board !== undefined && bit !== undefined;
+        if (wired && board && bit !== undefined) board.watchEdge(bit);
         drive = {
-          board,
-          pinBit: bit,
+          board: wired && board ? board : null,
+          pinBit: wired && bit !== undefined ? bit : -1,
           actuatorId,
           jointId,
           jointName: `${part.drives.robot}/${part.drives.joint}`,
           torqueNm: model.torqueNm,
           law: model.motor,
           track: blankTrack(),
+          manualDeg: null,
         };
       }
     }
@@ -841,6 +853,7 @@ function bindPower(doc: WorldDocument) {
       current: 0,
       drive,
       sample: null,
+      stallMs: 0,
     };
     loads.push(load);
   }
@@ -850,12 +863,13 @@ function bindPower(doc: WorldDocument) {
 function rearmServos(boardId: string, board: AvrBoard) {
   for (const load of loads) {
     const drive = load.drive;
-    if (!drive || drive.board.id !== boardId) continue;
+    if (!drive?.board || drive.board.id !== boardId) continue;
     drive.board = board;
     board.watchEdge(drive.pinBit);
     drive.track = blankTrack();
     load.state = "idle";
     load.sample = null;
+    load.stallMs = 0;
   }
 }
 
@@ -874,7 +888,7 @@ function sampleLoad(load: Load) {
     return;
   }
   const { qpos, omega } = jointNow(drive);
-  const command = drive.track.commandDeg;
+  const command = drive.board ? drive.track.commandDeg : drive.manualDeg;
   const limp = command === null;
   const errorRad = limp ? 0 : (command * Math.PI) / 180 - qpos;
   const fraction =
@@ -892,7 +906,7 @@ function sampleLoad(load: Load) {
 /**
  * Rail for this step, from the latched command and the joint velocity.
  * A powered servo always contributes its quiescent current. A driven
- * one also contributes `|I_motor|`.
+ * one also contributes `max(0, s·I_motor)`.
  */
 function solveSupplies() {
   for (const load of loads) sampleLoad(load);
@@ -1049,7 +1063,7 @@ function latchServos() {
   }
   for (const load of loads) {
     const drive = load.drive;
-    if (!drive) continue;
+    if (!drive?.board) continue;
     const cpu = drive.board;
     const driven = Boolean(cpu.running && !cpu.brownout);
     const taken = driven ? stepPulses.get(cpu.id) : undefined;
@@ -1077,13 +1091,16 @@ function applyTorque() {
     if (!drive || !sample) continue;
     const cpu = drive.board;
     const powered = load.supplyId !== null;
-    const held = !cpu.running || cpu.brownout;
+    const held = cpu !== null && (!cpu.running || cpu.brownout);
+    // The sample is the current already charged to the rail, including
+    // the step that asserts reset. A board already in reset was latched
+    // limp, so its sample carries no torque.
     const electrical = servoElectrical({
       law: drive.law,
       vRail: powered ? supplyOf(load.supplyId) : 0,
       errorRad: sample.errorRad,
       omega: sample.omega,
-      limp: !powered || held || sample.limp,
+      limp: !powered || sample.limp,
       torqueLimit: drive.torqueNm,
     });
     sim.data.actuator(load.partId).ctrl = electrical.torque;
@@ -1099,14 +1116,20 @@ function classifyLoads() {
     const sample = load.sample;
     if (!drive || !sample) {
       load.state = "idle";
+      load.stallMs = 0;
       continue;
     }
     const omega = scalar(sim.data.jnt(drive.jointName).qvel as Float64Array);
+    const stallOmega = (DISPLAY_STALL_DEG_PER_SEC * Math.PI) / 180;
+    const stalling =
+      !sample.limp && sample.saturated && Math.abs(omega) < stallOmega;
+    load.stallMs = stalling ? load.stallMs + 1 : 0;
     load.state = displayMotion({
       limp: sample.limp,
       saturated: sample.saturated,
       errorRad: sample.errorRad,
       omega,
+      stallForMs: load.stallMs,
     });
   }
 }
@@ -1124,10 +1147,10 @@ function stepBoard(board: AvrBoard) {
 /**
  * One millisecond. Boards that are already running execute first, so this
  * step's pulses are the command. The rail is solved from that command and
- * the joint velocity. A rail below 2.675 V asserts reset before the
- * torque is applied, and the pins are Hi-Z for the recording of this
- * step. After the rail rises above 2.725 V the CPU stays in reset for
- * 66 ms, then the first instruction runs.
+ * the joint velocity. A rail below 2.675 V asserts reset on this step.
+ * The torque still matches the current charged for the step; the pins
+ * are Hi-Z for the recording. After the rail rises above 2.725 V the
+ * CPU stays in reset for 66 ms, then the first instruction runs.
  */
 function advanceOne() {
   if (!sim) return;
@@ -1190,7 +1213,6 @@ function advanceOne() {
   latchServos();
   applyTorque();
   sim.mj.mj_step(sim.model, sim.data);
-  holdManualJoints();
   classifyLoads();
   recordStep();
 }
@@ -1215,7 +1237,6 @@ function dispose() {
   files = null;
   faulted.clear();
   rxSent.clear();
-  heldRad.clear();
   if (timer) {
     clearTimeout(timer);
     timer = null;
@@ -1394,28 +1415,10 @@ function step(n: number, pauseBy?: WorldSender, request?: number) {
 }
 
 /**
- * Place a joint a pulse does not own. Wired servos ignore this: the
- * motor law writes their torque from the pulse each step.
+ * Command a servo that has no signal wire. The angle is the motor-law
+ * command, the same input a pulse would be. A signal wire owns the
+ * servo, so this leaves that joint alone.
  */
-function placeHeld(partId: string, radians: number) {
-  if (!sim) return;
-  const id = sim.index.parts[partId];
-  if (id === undefined) return;
-  const trnid = sim.model.actuator_trnid as Int32Array;
-  const jointId = trnid[id * 2] ?? -1;
-  if (jointId < 0) return;
-  const qposadr = (sim.model.jnt_qposadr as Int32Array)[jointId] ?? -1;
-  const dofadr = (sim.model.jnt_dofadr as Int32Array)[jointId] ?? -1;
-  if (qposadr < 0 || dofadr < 0) return;
-  (sim.data.qpos as Float64Array)[qposadr] = radians;
-  (sim.data.qvel as Float64Array)[dofadr] = 0;
-  sim.data.actuator(partId).ctrl = 0;
-}
-
-function holdManualJoints() {
-  for (const [partId, radians] of heldRad) placeHeld(partId, radians);
-}
-
 function setTarget(partId: string, radians: number) {
   if (!sim) return;
   if (!Number.isFinite(radians)) {
@@ -1427,12 +1430,9 @@ function setTarget(partId: string, radians: number) {
     fail([], `no actuator for part "${partId}".`);
     return;
   }
-  // A live pulse owns the actuator. ctrl is torque, so a radian here
-  // would drive the joint into the stop.
-  const load = loads.find((item) => item.partId === partId);
-  if (load?.drive) return;
-  heldRad.set(partId, radians);
-  placeHeld(partId, radians);
+  const drive = loads.find((item) => item.partId === partId)?.drive;
+  if (!drive || drive.board) return;
+  drive.manualDeg = (radians * 180) / Math.PI;
 }
 
 function answerRecord(message: Extract<ToWorker, { type: "record" }>) {

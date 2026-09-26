@@ -388,6 +388,7 @@ export type RecordingPartCatalog = {
     quiescent: number;
     armature: number;
     frictionloss: number;
+    damping: number;
   };
 };
 

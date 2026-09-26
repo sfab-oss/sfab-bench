@@ -226,7 +226,8 @@ function readNum(value: Int32Array, index: number): number {
  * The catalog `torqueNm` is the joint's actuator-force clamp. MuJoCo
  * clips `qfrc_actuator` to `jnt_actfrcrange` after the actuator range,
  * and the URDF `effort` placeholder is wider than the SG90's clamp.
- * Armature and frictionloss come from the part catalog, not the URDF.
+ * Armature, frictionloss, and viscous damping come from the part
+ * catalog and replace the URDF values on the driven joint.
  */
 function applyServoDynamics(
   mj: MainModule,
@@ -235,6 +236,7 @@ function applyServoDynamics(
 ) {
   const armature = model.dof_armature as Float64Array;
   const friction = model.dof_frictionloss as Float64Array;
+  const damping = model.dof_damping as Float64Array;
   const dofadr = model.jnt_dofadr as Int32Array;
   const trnid = model.actuator_trnid as Int32Array;
   const actuatorType = mj.mjtObj.mjOBJ_ACTUATOR.value;
@@ -251,6 +253,7 @@ function applyServoDynamics(
     if (dof < 0) continue;
     armature[dof] = motor.armature;
     friction[dof] = motor.frictionloss;
+    damping[dof] = motor.damping;
   }
 }
 
@@ -536,7 +539,7 @@ export async function compileWorld(
     }
     // URDF `effort` becomes `jnt_actfrcrange` and that clamp is wider than
     // the catalog torque. A servo joint uses the catalog torque, armature,
-    // and frictionloss instead.
+    // frictionloss, and damping instead.
     applyServoTorqueClamp(mj, model, worldDoc);
     applyServoDynamics(mj, model, worldDoc);
     applyLimitSolref(mj, model, urdfLimitSolref(worldDoc, files));

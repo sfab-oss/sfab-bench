@@ -188,6 +188,11 @@ expect(
     1e-12,
   `frictionloss ${shoulderFriction}`
 );
+const shoulderDamping = (compiled.model.dof_damping as Float64Array)[0] ?? 0;
+expect(
+  Math.abs(shoulderDamping - (partModels.sg90.motor?.damping ?? -1)) < 1e-12,
+  `damping ${shoulderDamping}`
+);
 const jointRange = compiled.model.jnt_actfrcrange as Float64Array;
 expect(
   Math.abs((jointRange[0] ?? Number.NaN) + 0.176) < 1e-6 &&

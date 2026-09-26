@@ -10,10 +10,9 @@ import { type MotorLaw, servoElectrical } from "./world/power";
 
 /**
  * SG90 fit on the fixture arm, 1 ms steps, stiff rail (the supply
- * resistance is not in this file). Moving current is |I_motor| as a
- * no-load 90° step passes 450 °/s: mid-speed between rest and the
- * ~550 °/s cruise, saturated, so it is the moving band rather than
- * stall or the friction-only cruise.
+ * resistance is not in this file). Moving current is the mean supply
+ * current over the saturated cruise of a 90° no-load step: |ω| within
+ * 5% of that move's peak, drive saturated.
  */
 
 const armDir = fileURLToPath(
@@ -65,6 +64,11 @@ expect(
   ) < 1e-12,
   "catalog frictionloss is on the shoulder"
 );
+expect(
+  Math.abs(((model.dof_damping as Float64Array)[0] ?? 0) - motor.damping) <
+    1e-12,
+  "catalog damping replaces the URDF damper"
+);
 
 function run(
   commandDeg: number,
@@ -77,16 +81,17 @@ function run(
   peak: number;
   iMotor: number;
   torque: number;
-  iAt450: number | null;
+  /** Mean supply current while saturated and within 5% of peak speed. */
+  cruise: number | null;
 } {
   mj.mj_resetData(model, data);
   qpos[0] = q0;
   qvel[0] = 0;
   const angles: number[] = [];
+  const samples: { w: number; saturated: boolean; supply: number }[] = [];
   let peak = 0;
   let iMotor = 0;
   let torque = 0;
-  let iAt450: number | null = null;
   const command = rad(commandDeg);
   for (let i = 0; i < n; i++) {
     const q = qpos[0] ?? 0;
@@ -99,8 +104,11 @@ function run(
       limp: false,
       torqueLimit,
     });
-    if (iAt450 === null && Math.abs(deg(w)) >= 450)
-      iAt450 = Math.abs(elec.iMotor);
+    samples.push({
+      w,
+      saturated: elec.saturated,
+      supply: elec.supplyCurrent,
+    });
     ctrl[0] = elec.torque;
     applied[0] = load;
     mj.mj_step(model, data);
@@ -110,7 +118,20 @@ function run(
     torque = qfrc[0] ?? 0;
   }
   applied[0] = 0;
-  return { angles, peak, iMotor, torque, iAt450 };
+  let sum = 0;
+  let count = 0;
+  for (const sample of samples) {
+    if (!sample.saturated || Math.abs(sample.w) < 0.95 * peak) continue;
+    sum += sample.supply;
+    count += 1;
+  }
+  return {
+    angles,
+    peak,
+    iMotor,
+    torque,
+    cruise: count > 0 ? sum / count : null,
+  };
 }
 
 function rise1090(
@@ -193,7 +214,7 @@ expect(
   `overshoot ${o5} ${o10} ${o20} ${o45}`
 );
 
-const iMove = step90.iAt450;
+const iMove = step90.cruise;
 expect(
   iMove !== null && iMove >= 0.1 && iMove <= 0.25,
   `moving current ${iMove} A`
@@ -210,13 +231,13 @@ const sag88 = deg(
 
 data.delete();
 console.log(
-  `fit: E_sat ${motor.eSat} rad, frictionloss ${motor.frictionloss} N·m, armature ${motor.armature} kg·m²`
+  `fit: E_sat ${motor.eSat} rad, frictionloss ${motor.frictionloss} N·m, damping ${motor.damping} N·m·s/rad, armature ${motor.armature} kg·m²`
 );
 console.log(
   `fit: no-load ${speed.toFixed(1)} °/s, stall ${iStall.toFixed(3)} A, torque ${tau.toFixed(4)} N·m, ` +
     `rise 5° ${r5} ms, 10° ${r10} ms, 90° ${t90} ms, ` +
     `overshoot ${o5.toFixed(2)}/${o10.toFixed(2)}/${o20.toFixed(2)}/${o45.toFixed(2)}°, ` +
-    `moving ${iMove?.toFixed(3)} A at 450 °/s`
+    `cruise supply ${iMove?.toFixed(3)} A`
 );
 console.log(
   `holding: sag ${sag44.toFixed(2)}° under 0.044 N·m, ${sag88.toFixed(2)}° under 0.088 N·m`
