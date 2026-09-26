@@ -1,0 +1,98 @@
+// Ported from layered-sim E3 src/pin.ts @ fc7e8d3. Rail voltage is the rail node.
+import type { Element } from "./element";
+import { Switch } from "./elements";
+import type { Waveform } from "./wave";
+
+/**
+ * ATmega328P pin, 25 °C, VCC = 5 V (DS40002061A).
+ * Source drops, Figure 35-24: 4.88 / 4.75 / 4.62 / 4.50 V at 5 / 10 / 15 / 20 mA.
+ * Sink drops, Figure 35-22: 0.12 / 0.23 / 0.35 / 0.47 V at the same currents.
+ */
+export const PIN_ROH = fitResistance([
+  [0.005, 5 - 4.88],
+  [0.01, 5 - 4.75],
+  [0.015, 5 - 4.62],
+  [0.02, 5 - 4.5],
+]);
+export const PIN_ROL = fitResistance([
+  [0.005, 0.12],
+  [0.01, 0.23],
+  [0.015, 0.35],
+  [0.02, 0.47],
+]);
+
+/** Datasheet RPU, VCC = 5 V. No typical; the default is the midpoint. */
+export const PIN_RPU_MIN = 20e3;
+export const PIN_RPU_MAX = 50e3;
+export const PIN_RPU = (PIN_RPU_MIN + PIN_RPU_MAX) / 2;
+
+/** Open high-Z. Not a datasheet leakage. */
+export const PIN_ROFF = 1e12;
+
+const OPEN: Waveform = { kind: "dc", value: 0 };
+
+export type PinMode = "high" | "low" | "input" | "pullup";
+
+/**
+ * A switch whose closed flag is set by the pin mode. The engine's structure
+ * key calls `closed`, so a mode change refactors on the next solve.
+ */
+class Gate extends Switch {
+  on = false;
+  constructor(id: string, a: string, b: string, ron: number) {
+    super(id, a, b, ron, PIN_ROFF, OPEN);
+  }
+  override closed(_t: number): boolean {
+    return this.on;
+  }
+}
+
+/**
+ * One GPIO pin as a Thevenin leg onto `railNode`.
+ * High: Roh from the rail to the pin. Low: Rol from the pin to ground.
+ * Pull-up: RPU from the rail to the pin. Input: all three open.
+ */
+export class Pin {
+  readonly form = "avr-pin@1";
+  readonly high: Gate;
+  readonly low: Gate;
+  readonly pullup: Gate;
+  mode: PinMode = "input";
+
+  constructor(
+    readonly id: string,
+    readonly pinNode: string,
+    readonly railNode: string,
+    readonly roh = PIN_ROH,
+    readonly rol = PIN_ROL,
+    readonly rpu = PIN_RPU
+  ) {
+    this.high = new Gate(`${id}.h`, railNode, pinNode, roh);
+    this.low = new Gate(`${id}.l`, pinNode, "0", rol);
+    this.pullup = new Gate(`${id}.pu`, railNode, pinNode, rpu);
+  }
+
+  setMode(mode: PinMode): void {
+    this.mode = mode;
+    this.high.on = mode === "high";
+    this.low.on = mode === "low";
+    this.pullup.on = mode === "pullup";
+  }
+
+  /** Stamps this pin contributes. The pin does not own a solver. */
+  elements(): Element[] {
+    return [this.high, this.low, this.pullup];
+  }
+}
+
+function fitResistance(
+  points: ReadonlyArray<readonly [number, number]>
+): number {
+  let num = 0;
+  let den = 0;
+  for (const [i, v] of points) {
+    num += i * v;
+    den += i * i;
+  }
+  return num / den;
+}
