@@ -1,5 +1,6 @@
 import {
   findPendingGetViewer,
+  getViewerFillReady,
   latestShownArtifact,
   shownFromPart,
   viewerIsReady,
@@ -70,6 +71,18 @@ const pending = findPendingGetViewer([
   },
 ]);
 expect(pending?.toolCallId === "gv-1", "finds pending get_viewer");
+expect(
+  getViewerFillReady({ pending: true, streaming: true }) === false,
+  "a get_viewer continuation waits until the stream releases the folder lock"
+);
+expect(
+  getViewerFillReady({ pending: true, streaming: false }) === true,
+  "the continuation may post once the turn is no longer streaming"
+);
+expect(
+  getViewerFillReady({ pending: false, streaming: false }) === false,
+  "nothing pending does not post a continuation"
+);
 
 expect(
   findPendingGetViewer([

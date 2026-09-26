@@ -102,6 +102,21 @@ expect(
 expect(formatShortcut("composer-mention", true) === "#", "mention chord");
 expect(formatShortcut("ask-user-choose", true) === "1–9", "ask-user chord");
 expect(formatShortcut("escape", true) === "Esc", "esc chord");
+expect(formatShortcut("timeline-live", true) === "End", "timeline live chord");
+expect(
+  matchesShortcut({ key: "End" }, "timeline-live", { mac: true }),
+  "End returns to live"
+);
+expect(
+  matchesShortcut(
+    { key: "End", target: { tagName: "INPUT" } },
+    "timeline-live",
+    {
+      mac: true,
+    }
+  ) === false,
+  "End stays in a field"
+);
 expect(
   formatShortcutChips(["Mod", "B"], true).join(" ") === "⌘ B",
   "mac files chips"

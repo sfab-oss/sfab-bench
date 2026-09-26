@@ -8,7 +8,11 @@ import {
 } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { fileLabel } from "@/cad/loadCadReview";
-import { fitDirectionFor, frameFitObject } from "@/cad/review";
+import {
+  fitDirectionFor,
+  frameFitObject,
+  homeFitDirection,
+} from "@/cad/review";
 import { LiveDot } from "@/components/brand/LiveDot";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CloseFolderDialog } from "@/components/CloseFolderDialog";
@@ -34,6 +38,9 @@ import {
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { ToastProvider, Toasts } from "@/components/ui/toast";
+import { WorldControls, WorldProblemCard } from "@/components/WorldChrome";
+import { WorldInspector } from "@/components/WorldInspector";
+import { WorldTimeline } from "@/components/WorldTimeline";
 import { useCanvasFit } from "@/hooks/useCanvasFit";
 import { type CatalogState, useCatalog } from "@/hooks/useCatalog";
 import { useMotionReady } from "@/hooks/useMotionReady";
@@ -41,6 +48,7 @@ import {
   ProjectSessionProvider,
   useProjectSession,
 } from "@/hooks/useProjectSession";
+import { useWorldRun } from "@/hooks/useWorldRun";
 import { useXrSession } from "@/hooks/useXrSession";
 import { useXrSupport } from "@/hooks/useXrSupport";
 import { fetchMe, jsonApi, type MePrincipal } from "@/lib/api";
@@ -63,7 +71,12 @@ import { folderName } from "@/lib/project";
 import { isMacPlatform } from "@/lib/shortcuts";
 import { documentTitle, emptySceneKind, PRODUCT_TITLE } from "@/lib/welcome";
 import { ViewerCanvas } from "@/scene/ViewerCanvas";
-import { useStore } from "@/state/store";
+import { worldFitTarget } from "@/scene/world-fit";
+import { usePrefs } from "@/state/prefs";
+import { useScene } from "@/state/scene";
+import { useViewer } from "@/state/viewer";
+import { useWorld } from "@/state/world";
+import { useXrUi } from "@/state/xr";
 import { enterAR, enterVR } from "@/xrStore";
 
 const BOOT_ME_TIMEOUT_MS = 4_000;
@@ -89,8 +102,8 @@ function ChatToggle({
   buttonRef: RefObject<HTMLButtonElement | null>;
   hidden?: boolean;
 }) {
-  const setChatOpen = useStore((s) => s.setChatOpen);
-  const setCompactChatOpen = useStore((s) => s.setCompactChatOpen);
+  const setChatOpen = usePrefs((s) => s.setChatOpen);
+  const setCompactChatOpen = usePrefs((s) => s.setCompactChatOpen);
   const { tabStreaming, stopTabTurn } = useViewerChat();
   const show = () => (compact ? setCompactChatOpen(true) : setChatOpen(true));
   if (tabStreaming) {
@@ -169,6 +182,7 @@ function EnterXr() {
 }
 
 function Overlay({
+  host,
   folder,
   catalog,
   canvasWidth,
@@ -176,6 +190,7 @@ function Overlay({
   compactChat,
   chatToggleRef,
 }: {
+  host: boolean;
   folder: ReturnType<typeof useOpenFolder>;
   catalog: CatalogState;
   canvasWidth: number;
@@ -183,45 +198,41 @@ function Overlay({
   compactChat: boolean;
   chatToggleRef: RefObject<HTMLButtonElement | null>;
 }) {
-  const {
-    review,
-    progress,
-    error,
-    selectedId,
-    fit,
-    url,
-    title,
-    loadModel,
-    sceneCrash,
-  } = useStore(
+  const { review, progress, error, selectedId, url, title, loadModel } =
+    useViewer(
+      useShallow((s) => ({
+        review: s.review,
+        progress: s.progress,
+        error: s.error,
+        selectedId: s.selectedId,
+        url: s.url,
+        title: s.title,
+        loadModel: s.loadModel,
+      }))
+    );
+  const { fit, sceneCrash } = useScene(
     useShallow((s) => ({
-      review: s.review,
-      progress: s.progress,
-      error: s.error,
-      selectedId: s.selectedId,
       fit: s.fit,
-      url: s.url,
-      title: s.title,
-      loadModel: s.loadModel,
       sceneCrash: s.sceneCrash,
     }))
   );
   const session = useXrSession();
   const { project } = useProjectSession();
+  const worldPath = useWorld((s) => s.path);
   const { files, ready: catalogReady, error: catalogError } = catalog;
-  const treeOpen = useStore((s) => s.treeOpen);
-  const chatOpen = useStore((s) => s.chatOpen);
-  const compactChatOpen = useStore((s) => s.compactChatOpen);
-  const partsOpen = useStore((s) => s.partsOpen);
-  const setPartsOpen = useStore((s) => s.setPartsOpen);
-  const tool = useStore((s) => s.tool);
-  const pickedRef = useStore((s) => s.pickedRef);
-  const switching = useStore((s) => s.switching);
+  const treeOpen = usePrefs((s) => s.treeOpen);
+  const chatOpen = usePrefs((s) => s.chatOpen);
+  const compactChatOpen = usePrefs((s) => s.compactChatOpen);
+  const partsOpen = usePrefs((s) => s.partsOpen);
+  const setPartsOpen = usePrefs((s) => s.setPartsOpen);
+  const tool = useViewer((s) => s.tool);
+  const pickedRef = useViewer((s) => s.pickedRef);
+  const switching = useXrUi((s) => s.switching);
   const folderGone = isUnavailableFolder(catalogError);
   const load =
     progress !== null ? loadCardCopy({ title, url, progress }) : null;
   const scene = emptySceneKind({
-    hasReview: Boolean(review),
+    hasReview: Boolean(review) || Boolean(worldPath),
     progress,
     loadError: Boolean(error),
     sceneCrash: Boolean(sceneCrash),
@@ -243,9 +254,11 @@ function Overlay({
     (!overlays.autoCollapseParts || partsForceExpand);
   const partsChip = Boolean(review) && !partsExpanded;
   const part = selectedId !== null ? review?.parts[selectedId] : undefined;
+  const worldOpen = Boolean(worldPath);
   const detailVisible =
-    Boolean(review) &&
-    (tool === "measure" || Boolean(part) || Boolean(pickedRef));
+    worldOpen ||
+    (Boolean(review) &&
+      (tool === "measure" || Boolean(part) || Boolean(pickedRef)));
   const detailWidth = detailVisible
     ? detailPanelWidth(canvasWidth, overlays.detailCompact, partsChip)
     : 0;
@@ -261,7 +274,7 @@ function Overlay({
     showChatToggle && tabStreaming
   );
   const toolbar = toolbarLayout({ canvasWidth, leftReserve, rightReserve });
-  const cameraMoved = useStore((s) => s.cameraMoved);
+  const cameraMoved = useViewer((s) => s.cameraMoved);
   const { setPartsCard, setDetailCard } = useCanvasFit({
     xrActive: Boolean(session),
     review,
@@ -314,7 +327,16 @@ function Overlay({
               ) : null}
             </div>
           ) : null}
-          {toolbarVisible ? (
+          {worldPath ? (
+            <WorldControls
+              left={toolbar.left}
+              top={toolbar.top}
+              onHome={() => {
+                const obj = worldFitTarget();
+                if (obj) fit?.(obj, homeFitDirection());
+              }}
+            />
+          ) : toolbarVisible ? (
             <Toolbar
               left={toolbar.left}
               top={toolbar.top}
@@ -341,12 +363,21 @@ function Overlay({
               setPartsForceExpand(true);
             }}
           />
-          <DetailPanel
-            canvasHeight={canvasHeight}
-            cardRef={setDetailCard}
-            compact={overlays.detailCompact}
-            width={detailWidth}
-          />
+          {worldOpen ? (
+            <WorldInspector
+              canvasHeight={canvasHeight}
+              cardRef={setDetailCard}
+              compact={overlays.detailCompact}
+              width={detailWidth}
+            />
+          ) : (
+            <DetailPanel
+              canvasHeight={canvasHeight}
+              cardRef={setDetailCard}
+              compact={overlays.detailCompact}
+              width={detailWidth}
+            />
+          )}
           <div className="pointer-events-none absolute top-4 right-3 z-10 flex items-start gap-2">
             <EnterXr />
             {project.path ? (
@@ -411,6 +442,8 @@ function Overlay({
           </div>
         </div>
       )}
+      {!session && host && worldPath ? <WorldTimeline /> : null}
+      {!session ? <WorldProblemCard /> : null}
       {sceneCrash ? (
         <div className="pointer-events-auto absolute inset-x-4 top-1/2 z-30 mx-auto flex max-w-80 justify-center">
           <CrashCard error={sceneCrash.error} onRetry={sceneCrash.reset} />
@@ -422,17 +455,19 @@ function Overlay({
 
 function ViewerShell({ host }: { host: boolean }) {
   const session = useXrSession();
-  const treeOpen = useStore((s) => s.treeOpen);
-  const setTreeOpen = useStore((s) => s.setTreeOpen);
-  const url = useStore((s) => s.url);
+  const treeOpen = usePrefs((s) => s.treeOpen);
+  const setTreeOpen = usePrefs((s) => s.setTreeOpen);
+  const url = useViewer((s) => s.url);
+  const worldPath = useWorld((s) => s.path);
   const folder = useOpenFolder(host);
   const projectPath = useProjectSession().project.path;
+  useWorldRun(projectPath, worldPath);
   const hasProject = Boolean(projectPath);
-  const chatWidth = useStore((s) => s.chatWidth);
-  const chatOpen = useStore((s) => s.chatOpen);
-  const setChatOpen = useStore((s) => s.setChatOpen);
-  const compactChatOpen = useStore((s) => s.compactChatOpen);
-  const setCompactChatOpen = useStore((s) => s.setCompactChatOpen);
+  const chatWidth = usePrefs((s) => s.chatWidth);
+  const chatOpen = usePrefs((s) => s.chatOpen);
+  const setChatOpen = usePrefs((s) => s.setChatOpen);
+  const compactChatOpen = usePrefs((s) => s.compactChatOpen);
+  const setCompactChatOpen = usePrefs((s) => s.setCompactChatOpen);
   const windowWidth = useWindowWidth();
   const compactChat = isCompactChat(windowWidth, treeOpen);
   const layoutWidth = chatLayoutWidth(chatWidth, windowWidth, treeOpen);
@@ -459,7 +494,8 @@ function ViewerShell({ host }: { host: boolean }) {
   }, []);
 
   useEffect(() => {
-    const file = url ? fileLabel(url) : "";
+    const shown = worldPath || url;
+    const file = shown ? fileLabel(shown) : "";
     document.title = documentTitle({
       folderName: projectPath ? folderName(projectPath) : null,
       fileName: file && file !== "No model" ? file : null,
@@ -467,7 +503,7 @@ function ViewerShell({ host }: { host: boolean }) {
     return () => {
       document.title = PRODUCT_TITLE;
     };
-  }, [projectPath, url]);
+  }, [projectPath, url, worldPath]);
   return (
     <SidebarProvider
       className="h-dvh min-h-0 overflow-hidden"
@@ -500,6 +536,7 @@ function ViewerShell({ host }: { host: boolean }) {
             chatToggleRef={chatToggleRef}
             compactChat={compactChat}
             folder={folder}
+            host={host}
           />
         </div>
       </SidebarInset>

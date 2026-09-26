@@ -13,8 +13,6 @@ import {
 import { harnessBridgeReady } from "./local-sandbox";
 import { listOpenCodeModels } from "./models";
 
-export type { HarnessStatus };
-
 export type HarnessModel = {
   id: string;
   name: string;
