@@ -32,6 +32,7 @@ import {
   resistor,
   type Sample,
   simulatePinPwm,
+  sw,
   TRACE_CASES,
   vSource,
 } from "./world/circuit";
@@ -477,6 +478,42 @@ for (const rail of POT_RAILS) {
   ).run(500, ["out"]);
   expect(canon(a) === canon(b), "two runs differ");
   console.log("circuit determinism: byte-identical");
+}
+
+{
+  // 33 switches: switch 0 opens and switch 32 closes on the same step. A
+  // 32-bit mask saw one key for both states and reused the old factor.
+  const t1 = 50e-6;
+  const els = [
+    vSource("vs", "in", "0", { kind: "dc", value: 1 }),
+    sw("s0", "in", "a", 1, 1e9, { kind: "step", t0: t1, v0: 1, v1: 0 }),
+    resistor("ra", "a", "0", 1e3),
+    sw("s32", "in", "b", 1, 1e9, { kind: "step", t0: t1, v0: 0, v1: 1 }),
+    resistor("rb", "b", "0", 1e3),
+  ];
+  for (let i = 1; i < 32; i++) {
+    els.splice(
+      i + 1,
+      0,
+      sw(`s${i}`, "in", `d${i}`, 1, 1e9, { kind: "dc", value: 0 })
+    );
+    els.push(resistor(`rd${i}`, `d${i}`, "0", 1e3));
+  }
+  const eng = new Engine(els, { method: "be", h: 1e-6 });
+  eng.advanceTo(100e-6);
+  const a = eng.voltage("a");
+  const b = eng.voltage("b");
+  expect(a < 1e-3 && b > 0.99, `33 switches: a ${a} V, b ${b} V`);
+  console.log("circuit 33 switches: refactors on a change past bit 31");
+}
+
+{
+  const eng = new Engine(ladder(50, false), { method: "be", h: 1e-6 });
+  eng.advanceTo(1e-3);
+  expect(eng.factorCount <= 2, `advanceTo factored ${eng.factorCount} times`);
+  console.log(
+    `circuit advanceTo reuses the factor: ${eng.factorCount} over 1000 steps`
+  );
 }
 
 {

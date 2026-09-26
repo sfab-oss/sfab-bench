@@ -64,7 +64,8 @@ export class Engine {
   private readonly perm: Int32Array;
   private readonly ctx: StampCtx;
   private haveLU = false;
-  private sigLU = 0;
+  /** Switch states the factorization was built with, one byte per switch. */
+  private sigLU: Uint8Array = new Uint8Array(0);
   private factoredH = 0;
   private factoredDc = false;
   private readonly switches: Switch[];
@@ -137,6 +138,7 @@ export class Engine {
       x: this.x,
     };
     this.switches = elements.filter((el): el is Switch => el instanceof Switch);
+    this.sigLU = new Uint8Array(this.switches.length);
     this.diodes = elements.filter((el): el is Diode => el instanceof Diode);
     this.nonlinear = elements.some((el) => el.nonlinear);
     this.xSave = new Float64Array(n);
@@ -161,11 +163,20 @@ export class Engine {
   /** Transient steps that rebuilt the factorization. */
   refactorSteps = 0;
 
-  private structureKey(t: number): number {
-    let key = 0;
+  /** True when every switch is in the state the factorization saw. */
+  private sameStructure(t: number): boolean {
     const sw = this.switches;
-    for (let i = 0; i < sw.length; i++) if (sw[i]!.closed(t)) key += 1 << i;
-    return key;
+    const sig = this.sigLU;
+    for (let i = 0; i < sw.length; i++) {
+      if ((sw[i]!.closed(t) ? 1 : 0) !== sig[i]) return false;
+    }
+    return true;
+  }
+
+  private recordStructure(t: number): void {
+    const sw = this.switches;
+    const sig = this.sigLU;
+    for (let i = 0; i < sw.length; i++) sig[i] = sw[i]!.closed(t) ? 1 : 0;
   }
 
   /**
@@ -177,7 +188,7 @@ export class Engine {
     if (!this.haveLU || this.factoredDc || this.factoredH !== this.ctx.h) {
       return false;
     }
-    if (this.structureKey(this.ctx.t) !== this.sigLU) return false;
+    if (!this.sameStructure(this.ctx.t)) return false;
     const diodes = this.diodes;
     for (let i = 0; i < diodes.length; i++) {
       if (!diodes[i]!.companionClose(this.ctx, this.bypassEps)) return false;
@@ -217,20 +228,19 @@ export class Engine {
     luFactor(this.A, this.n, this.perm);
     this.factorCount += 1;
     this.haveLU = true;
-    this.sigLU = this.structureKey(this.ctx.t);
+    this.recordStructure(this.ctx.t);
     this.factoredH = this.ctx.h;
     this.factoredDc = this.ctx.dc;
   }
 
   private solveLinear(): void {
-    const key = this.structureKey(this.ctx.t);
     const reuse =
       this.haveLU &&
       !this.nonlinear &&
       !this.ctx.dc &&
       !this.factoredDc &&
-      key === this.sigLU &&
-      this.factoredH === this.ctx.h;
+      this.factoredH === this.ctx.h &&
+      this.sameStructure(this.ctx.t);
     this.z.fill(0);
     if (reuse) {
       this.ctx.rhsOnly = true;
@@ -391,8 +401,11 @@ export class Engine {
    */
   stepTo(tAbs: number): void {
     if (!this.opDone) this.operatingPoint();
-    const dt = tAbs - this.t;
+    let dt = tAbs - this.t;
     if (dt <= 1e-15) return;
+    // A grid gap computed by subtraction is off by a few ulps; treat it as
+    // exactly `h` so the factor is reused.
+    if (Math.abs(dt - this.h) <= 1e-9 * this.h) dt = this.h;
     this.t = tAbs;
     this.ctx.dc = false;
     this.ctx.t = tAbs;
