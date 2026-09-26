@@ -84,17 +84,24 @@ limit. While the draw is at or under the limit,
 voltage-dependent loads draw exactly the limit. The Uno draws 50 mA,
 including in reset. An SG90 is a voltage-mode DC motor
 (`I = (V_drive − K·ω) / R`, `τ = η·K·I`); its supply current is 10 mA
-plus `|I_motor|`, with no regeneration. A rail that falls through the
-ATmega328P brown-out detector resets the board, and the recording shows
-that. Revised 2026-09-25 (fidelity): see D-017. The USB "500 mA" preset
-is 5 V, `R_s = 0.5 Ω`, `I_limit = 0.9 A`, and one stalled SG90 sits near
+plus `max(0, s·I_motor)`, where `s = V_drive / V_rail`. Braking current
+does not come from the supply. A rail that falls through the ATmega328P
+brown-out detector resets the board, and the recording shows that.
+Revised 2026-09-25 (fidelity): see D-017. The USB "500 mA" preset is
+5 V, `R_s = 0.5 Ω`, `I_limit = 0.9 A`, and one stalled SG90 sits near
 4.6 V without a reset. A bench preset is `R_s = 0.05 Ω` with the file's
-voltage and current limit; at 5 V / 0.3 A a stall pulls the rail to about
-1.8 V. Reset asserts below 2.675 V and releases above 2.725 V (extended
-fuse `0xFD`, BODLEVEL 2.7 V). The CPU then stays in reset for 66 ms
-before the first instruction. Pins are Hi-Z from the assert. There is
-no bootloader delay on brownout. The recording stamps `reset` when reset
-asserts and `reboot` at the first instruction.
+voltage and current limit. At 5 V / 0.3 A the starting current at rest
+pulls the rail to about 1.70 V (0.3 A − 50 mA board − 10 mA quiescent
+leaves 0.24 A through 7.1 Ω). The board resets on the first pulse, holds
+66 ms, reboots, and repeats. The torque of each assert step coasts while
+the winding is open, so the arm walks a few degrees and does not reach
+the stop. Reset asserts
+below 2.675 V and releases above 2.725 V (extended fuse `0xFD`, BODLEVEL
+2.7 V). The CPU then stays in reset for 66 ms before the first
+instruction. Pins are Hi-Z from the assert. The torque of the assert
+step matches the current charged on that step. There is no bootloader
+delay on brownout. The recording stamps `reset` when reset asserts and
+`reboot` at the first instruction.
 
 Wires, those checks, and the power budget are all milestone 1. Left out of
 the format until added later, without breaking it: SPICE and other analog
@@ -137,7 +144,7 @@ product rules.
 - **D-002.** workspace/process decision, not product.
 - **D-003.** A robot is a `.urdf` in the project, written with `$urdf` (link meshes from `$cad`, bought parts from `$step-parts`) or exported by any CAD tool. In milestone 1 the link meshes are already `.stl` or `.obj` at paths relative to the URDF (D-010); converting other meshes is later. Servos and sensors live in the wiring, not in the URDF. Later, and not blocking: cadgen sidecar mates show read-only pose sliders in the CAD lens.
 - **D-004.** A world is `<name>.world.json`, opened with `?world=`: robots (URDF path and pose), environment (ground, primitives, STEP props), boards (chip and firmware path), and wiring. The server builds the MuJoCo model from it, with a validator and a Bench skill. A lone STEP or URDF opens as a world with one static object or one posable robot, so there is one viewer. That opening is later.
-- **D-005.** `wires` are pin-to-pin pairs, including power and ground: no breadboard, no net names, no discrete resistors. `parts` name a part model and what it drives or reads in the physics. The validator and runtime check missing ground, a voltage mismatch, and two outputs driving each other. The PWM-capable-pin check applies to `analogWrite` parts, and a Servo may use any digital pin (D-018). The validator warns when an `analogWrite` part sits on D9 or D10 while any Servo is wired. A supply is a voltage plus a current limit. Part models draw current by state. Over the limit, voltage sags linearly. Servos lose speed and torque as voltage drops, and a board below brownout resets, which the recording shows. Wires, checks, and the power budget are milestone 1. Out: SPICE/analog, heat, wire resistance, a breadboard view, KiCad import. Each can be added later without breaking the format.
+- **D-005.** `wires` are pin-to-pin pairs, including power and ground: no breadboard, no net names, no discrete resistors. `parts` name a part model and what it drives or reads in the physics. The validator and runtime check missing ground, a voltage mismatch, and two outputs driving each other. The PWM-capable-pin check applies to `analogWrite` parts, and a Servo may use any digital pin (D-018). The validator warns when an `analogWrite` part sits on D9 or D10 while any Servo is wired. A supply is a nominal voltage, a series resistance, and a hard current limit: `V = V_nom − R_s·I` while the draw is at or under the limit, and above it the rail is the voltage where the draw equals the limit. Servo current follows the motor law in D-017. A board below brownout resets, which the recording shows. Wires, checks, and the power budget are milestone 1. Out: SPICE/analog, heat, wire resistance, a breadboard view, KiCad import. Each can be added later without breaking the format.
 - **D-006.** Bench never compiles. A board names its firmware artifact (`.hex` for AVR). The agent or the user builds it with their toolchain (the starter documents `arduino-cli`; that firmware section is a follow-up after milestone 1). Bench watches that artifact and restarts the board when it changes. Source is read-only. There is no in-app code editor.
 - **D-007.** `origin/mcu` stays at `49cda2e` and is never merged. The port starts from main and, onto avr8js, takes the one-machine-per-document host (`emu/host.ts`), `SerialConsole`, `SourceView`, the run/read/send serial tools, and the contract types renamed device → board. Not ported: the vendored esp-emu files, the ESP32 fixtures, `.esp32c3.bin` naming, `experience.ts` and the per-screen chat work from #54, and the DevKit board view. D-009 on that branch (the QEMU fork runner) is void. Deleting the nine merged `feat/mcu-*` remote branches needs its own approval.
 - **D-008.** In milestone 1, Quest opens a world, sees the same server run live and in sync with the Mac, and has one play/pause control in the existing XR chrome. Chat behaves as today. No timeline, board panel, console, or pin inspection in XR. Browser evidence uses IWER.
@@ -149,7 +156,7 @@ product rules.
 - **D-014.** Milestone 1 is judged on the pipe in D-001. The vision shows at demo 2, which is later: a sensor, ground contact, a wheeled robot.
 - **D-015.** For worlds only, the run (play state, sim time, poses, signals) is shared per document. Camera, selection, lens, and timeline scrub stay per client. Any client or the agent may play or pause. The last command wins. The event names who sent it, and every client shows it. This ADR records that. ADR 0008 is void.
 - **D-016.** workspace/process decision, not product.
-- **D-017.** Revised 2026-09-25 (fidelity). Refines D-005. The SG90 is a voltage-mode DC motor on the output side, gearbox included: `I_motor = (V_drive − K·ω) / R`, `τ = η·K·I_motor`, with `K = 0.458 V·s/rad`, `R = 7.1 Ω`, `η = 0.57`. `|V_drive| ≤ V_rail` and `V_drive = V_rail · clamp(error / E_sat, −1, 1)`. No pulse for 60 ms is no drive. `E_sat`, joint `frictionloss`, and `armature` are fitted catalog values. `torqueNm` stays the clamp. Idle, moving, and stall are display states only. A supply is `V = V_nom − R_s·I` while `I ≤ I_limit`; above the limit the rail is where the draw equals `I_limit`. USB ("500 mA" port) is 5 V, `R_s = 0.5 Ω`, `I_limit = 0.9 A`. A bench supply takes the user's voltage and current limit with `R_s = 0.05 Ω`. The Uno draws 50 mA, including in reset. Servo supply current is 10 mA plus `|I_motor|`, with no regeneration. The ATmega328P (extended fuse `0xFD`, BODLEVEL 2.7 V) resets below 2.675 V and releases above 2.725 V, then holds reset 66 ms before the first instruction. Pins are Hi-Z from the assert. No bootloader on brownout. The recording stamps `reset` at assert and `reboot` at the first instruction. A stall on a 5 V / 0.3 A bench supply pulls the rail to about 1.8 V and the board resets; the same stall on USB sits near 4.6 V and does not.
+- **D-017.** Revised 2026-09-25 (fidelity). Refines D-005. The SG90 is a voltage-mode DC motor on the output side, gearbox included: `I_motor = (V_drive − K·ω) / R`, `τ = η·K·I_motor`, with `K = 0.458 V·s/rad`, `R = 7.1 Ω`, `η = 0.57`. `|V_drive| ≤ V_rail` and `V_drive = V_rail · clamp(error / E_sat, −1, 1)`. No pulse for 60 ms is no drive. `E_sat`, joint `frictionloss`, viscous `damping`, and `armature` are fitted catalog values and replace the URDF damping, friction, and armature on the driven joint. `torqueNm` stays the clamp. Idle, moving, and stall are display states only; stall shows after the saturated slow condition has held for 20 ms. A supply is `V = V_nom − R_s·I` while `I ≤ I_limit`; above the limit the rail is where the draw equals `I_limit`. USB ("500 mA" port) is 5 V, `R_s = 0.5 Ω`, `I_limit = 0.9 A`. A bench supply takes the user's voltage and current limit with `R_s = 0.05 Ω`. The Uno draws 50 mA, including in reset. Servo supply current is 10 mA plus `max(0, s·I_motor)`, `s = V_drive / V_rail`; braking current does not come from the supply. The ATmega328P (extended fuse `0xFD`, BODLEVEL 2.7 V) resets below 2.675 V and releases above 2.725 V, then holds reset 66 ms before the first instruction. Pins are Hi-Z from the assert, and the torque of that step matches the current charged to the rail. No bootloader on brownout. The recording stamps `reset` at assert and `reboot` at the first instruction. On a 5 V / 0.3 A bench supply the starting current at rest pulls the rail to about 1.70 V and the board resets on the first pulse. The assert-step torque coasts while the winding is open, so the arm walks a few degrees and does not reach the stop. The same stall on USB sits near 4.6 V and does not reset.
 - **D-018.** Amends D-005: a Servo part may use any digital pin. The PWM-capable-pin check applies to parts driven by `analogWrite`. The validator warns when an `analogWrite` part sits on D9 or D10 while any Servo is wired.
 
 ## Contradictions resolved
@@ -200,9 +207,9 @@ is the board.
 - One file to open. The URDF is the robot, and the server builds one
   MuJoCo model from the world file.
 - Pin-to-pin wires catch a missing ground, a voltage clash, and two
-  outputs driving each other. The power budget reproduces a stalled servo
-  on a 0.3 A bench supply resetting the board, and a USB port that does
-  not, and the numbers are fixed so that check can fail a test.
+  outputs driving each other. The power budget reproduces the bench
+  5 V / 0.3 A starting current resetting the board, and a USB port that
+  does not, and the numbers are fixed so that check can fail a test.
 - CAD and firmware stay outside Bench. Bench still does not learn which
   tool wrote them.
 - The Mac, Quest, and the agent watch one run. Demo 1 is a visible pipe:
