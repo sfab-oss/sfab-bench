@@ -24,6 +24,7 @@ import {
   projectReal,
   resolveInside,
 } from "./files";
+import type { RailEngine } from "./rail-circuit";
 import { type SerialPage, SerialRing } from "./serial-ring";
 import type { FromWorker, RecordBody, RecordQuery, ToWorker } from "./worker";
 
@@ -40,6 +41,11 @@ const START_MS = 20_000;
 export type WorldSubscription = {
   sender: WorldSender;
   onEvent: (event: WorldServerMessage) => void;
+};
+
+/** Internal run options. `railEngine` is not stored in the world file. */
+export type AttachWorldOptions = {
+  railEngine?: RailEngine;
 };
 
 export type WorldHandle = {
@@ -74,6 +80,8 @@ type Doc = {
   key: string;
   project: string;
   world: string;
+  /** Closed form unless an attach asked for the circuit before the worker started. */
+  railEngine: RailEngine;
   subs: Set<Sub>;
   worker: Worker | null;
   generation: number;
@@ -505,6 +513,7 @@ async function spawn(doc: Doc): Promise<void> {
     project: doc.project,
     world: doc.world,
     generation,
+    ...(doc.railEngine === "circuit" ? { railEngine: doc.railEngine } : {}),
   } satisfies ToWorker);
   tie(doc);
   try {
@@ -657,6 +666,7 @@ function ensure(project: string, worldRel: string): Doc | { error: string } {
       key: named.key,
       project: named.project,
       world: named.world,
+      railEngine: "closed-form",
       subs: new Set(),
       worker: null,
       generation: 0,
@@ -695,11 +705,13 @@ function ensure(project: string, worldRel: string): Doc | { error: string } {
 export async function attachWorld(
   project: string,
   worldRel: string,
-  subscription: WorldSubscription
+  subscription: WorldSubscription,
+  options?: AttachWorldOptions
 ): Promise<WorldHandle | { error: string }> {
   const found = ensure(project, worldRel);
   if ("error" in found) return found;
   const doc = found;
+  if (options?.railEngine && !doc.worker) doc.railEngine = options.railEngine;
   const sub: Sub = { ...subscription, delivered: false, detached: false };
   doc.subs.add(sub);
   tie(doc);

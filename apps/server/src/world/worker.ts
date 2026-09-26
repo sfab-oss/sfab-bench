@@ -50,6 +50,11 @@ import {
   solveRail,
   stepBrownout,
 } from "./power";
+import {
+  createRailCircuit,
+  type RailCircuit,
+  type RailEngine,
+} from "./rail-circuit";
 import { motionRank, RunRecorder, timelineFromRead } from "./record";
 import { blankTrack, type ServoTrack, trackServo } from "./servo";
 import {
@@ -139,8 +144,17 @@ export type RecordBody =
   | { op: "ack" }
   | { op: "error"; message: string };
 
+export type { RailEngine };
+
 export type ToWorker =
-  | { type: "load"; project: string; world: string; generation: number }
+  | {
+      type: "load";
+      project: string;
+      world: string;
+      generation: number;
+      /** Absent is the closed form. Not a field of the world file. */
+      railEngine?: RailEngine;
+    }
   | { type: "reload"; generation: number }
   | { type: "play"; generation: number; by?: WorldSender }
   | { type: "pause"; generation: number; by?: WorldSender }
@@ -270,6 +284,13 @@ type Load = {
   sample: ServoSample | null;
   /** Consecutive milliseconds the stall condition has held. */
   stallMs: number;
+  /**
+   * Winding current from the circuit engine, amperes.
+   * The closed form does not read this.
+   */
+  winding: number;
+  /** Slot in the supply's rail circuit. −1 while the closed form is in use. */
+  railSlot: number;
 };
 
 type BoardPower = {
@@ -299,6 +320,10 @@ let partFeeds: PowerFeeds["parts"] = {};
  * previous step's part states before the CPUs and the joint move.
  */
 let supplyLive: Record<string, WorldSupplyState> = {};
+/** Closed form until a load message asks for the circuit. */
+let railEngine: RailEngine = "closed-form";
+type RailGroup = { circuit: RailCircuit; loads: Load[] };
+let rails = new Map<string, RailGroup>();
 /** Reused each step. Cleared at the start of the voltage and pulse passes. */
 const stepPulses = new Map<string, { bit: number; us: number }[]>();
 const faulted = new Set<string>();
@@ -854,10 +879,76 @@ function bindPower(doc: WorldDocument) {
       drive,
       sample: null,
       stallMs: 0,
+      winding: 0,
+      railSlot: -1,
     };
     loads.push(load);
   }
+  bindRails();
   solveSupplies();
+}
+
+/** One circuit per supply. Motor laws are fixed for the run; s and ω are not. */
+function bindRails() {
+  rails = new Map();
+  for (const load of loads) load.railSlot = -1;
+  if (railEngine !== "circuit") return;
+  const groups = new Map<string, Load[]>();
+  for (const load of loads) {
+    if (!load.drive || !load.supplyId) continue;
+    const list = groups.get(load.supplyId);
+    if (list) list.push(load);
+    else groups.set(load.supplyId, [load]);
+  }
+  for (const supply of supplySpecs) {
+    const members = groups.get(supply.id) ?? [];
+    const circuit = createRailCircuit({
+      vNom: supply.voltage,
+      rSeries: supply.rSeries,
+      iLimit: supply.currentLimit,
+      motors: members.map((load) => {
+        const drive = load.drive;
+        if (!drive) throw new Error("rail motor has no drive");
+        return {
+          resistance: drive.law.resistance,
+          k: drive.law.k,
+        };
+      }),
+    });
+    for (let i = 0; i < members.length; i++) {
+      const load = members[i];
+      if (load) load.railSlot = i;
+    }
+    rails.set(supply.id, { circuit, loads: members });
+  }
+}
+
+function solveOneRail(
+  supplyId: string,
+  fixed: number
+): { voltage: number; current: number } {
+  const group = rails.get(supplyId);
+  if (!group) return { voltage: 0, current: 0 };
+  const { circuit, loads: members } = group;
+  circuit.setFixed(fixed);
+  for (let i = 0; i < members.length; i++) {
+    const load = members[i];
+    const sample = load?.sample ?? null;
+    const on = sample !== null && !sample.limp;
+    circuit.setMotor(
+      i,
+      on && sample ? sample.fraction : 0,
+      on && sample ? sample.omega : 0,
+      on
+    );
+  }
+  circuit.solve();
+  const winding = circuit.winding;
+  for (let i = 0; i < members.length; i++) {
+    const load = members[i];
+    if (load) load.winding = winding[i] ?? 0;
+  }
+  return { voltage: circuit.voltage, current: circuit.current };
 }
 
 function rearmServos(boardId: string, board: AvrBoard) {
@@ -931,13 +1022,16 @@ function solveSupplies() {
         resistance: drive.law.resistance,
       });
     }
-    const solved = solveRail({
-      vNom: supply.voltage,
-      rSeries: supply.rSeries,
-      iLimit: supply.currentLimit,
-      fixed,
-      motors,
-    });
+    const solved =
+      railEngine === "circuit"
+        ? solveOneRail(supply.id, fixed)
+        : solveRail({
+            vNom: supply.voltage,
+            rSeries: supply.rSeries,
+            iLimit: supply.currentLimit,
+            fixed,
+            motors,
+          });
     next[supply.id] = solved;
   }
   for (const load of loads) {
@@ -945,6 +1039,15 @@ function solveSupplies() {
     const sample = load.sample;
     if (!load.supplyId || !drive || !sample) {
       load.current = 0;
+      continue;
+    }
+    if (railEngine === "circuit") {
+      if (sample.limp) {
+        load.current = load.quiescent;
+        continue;
+      }
+      load.current =
+        drive.law.quiescent + Math.max(0, sample.fraction * load.winding);
       continue;
     }
     const voltage = next[load.supplyId]?.voltage ?? 0;
@@ -1095,6 +1198,21 @@ function applyTorque() {
     // The sample is the current already charged to the rail, including
     // the step that asserts reset. A board already in reset was latched
     // limp, so its sample carries no torque.
+    if (railEngine === "circuit") {
+      const limp = !powered || sample.limp;
+      let torque = 0;
+      if (!limp) {
+        torque = drive.law.efficiency * drive.law.k * load.winding;
+        const limit = drive.torqueNm;
+        if (limit > 0) {
+          if (torque > limit) torque = limit;
+          else if (torque < -limit) torque = -limit;
+        }
+      }
+      sim.data.actuator(load.partId).ctrl = torque;
+      if (held) drive.track = blankTrack();
+      continue;
+    }
     const electrical = servoElectrical({
       law: drive.law,
       vRail: powered ? supplyOf(load.supplyId) : 0,
@@ -1232,6 +1350,7 @@ function dispose() {
   supplySpecs = [];
   partFeeds = {};
   supplyLive = {};
+  rails = new Map();
   stepPulses.clear();
   specs = [];
   files = null;
@@ -1520,6 +1639,7 @@ async function handle(message: ToWorker) {
     generation = message.generation;
     project = message.project;
     worldRel = message.world;
+    railEngine = message.railEngine === "circuit" ? "circuit" : "closed-form";
     await build();
     return;
   }
