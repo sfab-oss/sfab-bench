@@ -1,0 +1,83 @@
+{
+  "format": "sfab.part@1",
+  "id": "sfab/uno-r3@1.0.0",
+  "type": "arduino-uno-r3",
+  "foreign": false,
+  "sources": [
+    {
+      "title": "Bench catalog boardModels.uno and chipModels.atmega328p",
+      "ref": "packages/contract/src/world.ts @ b5ce591"
+    },
+    {
+      "title": "ATmega328P DC characteristics",
+      "ref": "DS40002061: VIL max 0.3*Vcc, VIH min 0.6*Vcc, VOL max 0.9 V at 0.020 A, VOH min 4.2 V at -0.020 A, Vcc abs-max 6.0 V"
+    }
+  ],
+  "axes": {
+    "behaviour": {
+      "0": {
+        "default": "pins",
+        "variants": {
+          "pins": {
+            "kind": "script",
+            "script": "pins-follow-level",
+            "omits": [
+              "instruction timing",
+              "peripherals",
+              "brownout",
+              "analog pin waveforms"
+            ]
+          }
+        }
+      },
+      "1": {
+        "default": "avr8js",
+        "variants": {
+          "avr8js": {
+            "kind": "firmware",
+            "chip": "atmega328p",
+            "imageParam": "firmware",
+            "params": {
+              "brownoutVoltage": 2.7,
+              "brownoutAssertVoltage": 2.675,
+              "brownoutReleaseVoltage": 2.725,
+              "resetHoldS": 0.066,
+              "quiescent": 0.05
+            },
+            "fuses": {
+              "extended": "0xFD"
+            },
+            "omits": [
+              "analog pin waveforms",
+              "temperature",
+              "I/O pin impedance"
+            ]
+          }
+        }
+      }
+    },
+    "body": {
+      "0": {
+        "default": "none",
+        "variants": {
+          "none": {
+            "kind": "none",
+            "omits": ["board mass is not in the catalog"]
+          }
+        }
+      }
+    },
+    "visual": {
+      "0": {
+        "default": "box",
+        "variants": {
+          "box": {
+            "kind": "box",
+            "size": [0.0686, 0.0534, 0.012],
+            "omits": ["headers", "silk", "USB connector shape"]
+          }
+        }
+      }
+    }
+  }
+}

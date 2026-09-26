@@ -147,6 +147,7 @@ type Netlist = {
 - `logic-in@1`
 - `table@1`
 - `transfer-fn@1`
+- `multibody@1` (a URDF/MJCF body run by MuJoCo; the arm's class-1 behaviour)
 - `mlp@1` (later)
 
 Each form declares its params with quantities, its ports, its engine contributions (D-014) and, where one exists, its energy function.
@@ -280,11 +281,11 @@ Each run's report contains:
 - the nets with their level and the reason;
 - the errors and warnings;
 - the quality of each snapshot used;
-- **not simulated**: the union of `omits` over the chosen levels;
+- **not simulated**: the `omits` of each chosen level, one row per instance per axis so each keeps its path;
 - the seed and the number of random draws;
 - the cost per engine.
 
-It is byte-identical across runs with the same inputs.
+Its `format` is `sfab.run-report@1`. It is byte-identical across runs with the same inputs.
 
 ## 9. Nearest standards (D-011)
 
